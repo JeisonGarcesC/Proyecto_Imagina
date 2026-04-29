@@ -26,10 +26,7 @@ import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
 
 import { resolveKoncisaDucto } from '../koncisaPlus/rules/koncisaDuctoRules';
 
-import {
-  createKoncisaPrivacyPanelProcedural,
-  panelHasCanto,
-} from '../koncisaPlus/parts/pantallas';
+import { createKoncisaPrivacyPanelProcedural, panelHasCanto } from '../koncisaPlus/parts/pantallas';
 
 const MM_TO_M = 1 / 1000;
 
@@ -1419,9 +1416,7 @@ export default function ThreeCanvas({
         detUSD;
 
       if (!det) {
-        console.warn(
-          `Ares: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
-        );
+        console.warn(`Ares: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`);
       }
 
       // 2) cargar GLB desde carpeta Ares
@@ -3371,12 +3366,15 @@ export default function ThreeCanvas({
         'PVC-2MM';
 
       const description =
-        item?.ui?.title ||
-        item?.ui?.subtitle ||
-        item?.raw?.descripcion ||
-        item?.raw?.description ||
+        item?.ui?.title || item?.ui?.subtitle || item?.raw?.descripcion || item?.raw?.description;
+      /*
+      const description =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
         code;
-
+*/
       const rawPrice =
         catalogItem?.prices?.[countryRef.current] ??
         catalogItem?.prices?.CO ??
