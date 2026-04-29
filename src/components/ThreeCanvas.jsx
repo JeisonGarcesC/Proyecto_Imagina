@@ -20,7 +20,7 @@ import { exportPlanToDXF } from '../utils/exportDXF';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
-import { getHaresDetail } from '../services/haresLoader';
+import { getAresDetail } from '../services/aresLoader';
 import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
 
@@ -29,7 +29,6 @@ import { resolveKoncisaDucto } from '../koncisaPlus/rules/koncisaDuctoRules';
 import {
   createKoncisaPrivacyPanelProcedural,
   panelHasCanto,
-  KONCISA_PRIVACY_PANEL,
 } from '../koncisaPlus/parts/pantallas';
 
 const MM_TO_M = 1 / 1000;
@@ -816,15 +815,15 @@ export default function ThreeCanvas({
           continue;
         }
 
-        if (obj.userData?.kind === 'HARES') {
+        if (obj.userData?.kind === 'ARES') {
           const parentCode = normalizeText(
             obj.userData?.codigoPT || obj.userData?.code || p.code || ''
           );
           const label =
-            obj.userData?.name || obj.userData?.haresMeta?.descripcion || `HARES ${parentCode}`;
+            obj.userData?.name || obj.userData?.aresMeta?.descripcion || `Ares ${parentCode}`;
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
 
-          const list = obj.userData?.haresParts || [];
+          const list = obj.userData?.aresParts || [];
 
           if (Array.isArray(list) && list.length) {
             for (const it of list) {
@@ -909,6 +908,7 @@ export default function ThreeCanvas({
     // Subir por padres hasta encontrar el objeto que tiene userData.code
     function getRootPartObject(intersectObj) {
       let cur = intersectObj;
+      let fallback = null;
 
       while (cur) {
         // 1. Prioridad máxima: raíz explícita
@@ -916,21 +916,29 @@ export default function ThreeCanvas({
           return cur;
         }
 
-        // 2. Tipos principales seleccionables
+        const kind = cur.userData?.kind;
+
+        // 2. Priorizar contenedores/raíces de ensamblaje
         if (
-          cur.userData?.kind === 'PART' ||
-          cur.userData?.kind === 'SURFACE' ||
-          cur.userData?.kind === 'TYPOLOGY' ||
-          cur.userData?.kind === 'PRIVACY_PANEL' ||
-          cur.userData?.kind === 'KONCISA_PLUS_ASSEMBLY'
+          kind === 'TYPOLOGY' ||
+          kind === 'CHAIR' ||
+          kind === 'ARES' ||
+          kind === 'PLANT' ||
+          kind === 'OFFICE_ACCESSORY' ||
+          kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
           return cur;
+        }
+
+        // 3. Fallback: piezas sueltas seleccionables
+        if (!fallback && (kind === 'PART' || kind === 'SURFACE' || kind === 'PRIVACY_PANEL')) {
+          fallback = cur;
         }
 
         cur = cur.parent;
       }
 
-      return null;
+      return fallback;
     }
 
     function updateMouseFromEvent(e) {
@@ -1060,6 +1068,7 @@ export default function ThreeCanvas({
     }
 
     async function addPartFromGlb(item) {
+      const parentGroup = item?.parentGroup || null;
       const codigoPT = item?.codigoPT;
       const src = item?.model?.src; // 👈 AQUÍ
 
@@ -1177,8 +1186,9 @@ export default function ThreeCanvas({
       return null;
     }
 
-    async function addTypology(codigoTipologia) {
+    async function addTypology(codigoTipologia, options = {}) {
       if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
       const codigo = String(codigoTipologia);
 
       function getChildUnitPrice(hijo) {
@@ -1261,6 +1271,7 @@ export default function ThreeCanvas({
       // 5) userData: OJO con el kind y el nombre de la lista
       obj.userData = {
         ...(obj.userData || {}),
+        isPartRoot: true,
         kind: 'TYPOLOGY', // ✅ ESTE ES EL QUE VA A LEER emitBOM
         codigoPT: codigo,
         code: codigo,
@@ -1297,8 +1308,9 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
-    async function addChair(codigoSilla) {
+    async function addChair(codigoSilla, options = {}) {
       if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
       const codigo = String(codigoSilla);
 
       // 1) trae detalle de la silla desde el XML (precio e información)
@@ -1387,15 +1399,16 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
-    async function addHares(codigoHares) {
+    async function addAres(codigoAres, options = {}) {
       if (readOnly) return;
-      const codigo = String(codigoHares);
+      const parentGroup = options?.parentGroup || null;
+      const codigo = String(codigoAres);
 
-      // 1) trae detalle del producto HARES desde el XML
+      // 1) trae detalle del producto Ares desde el XML
       const [detCO, detEUC, detUSD] = await Promise.all([
-        getHaresDetail(codigo, 'CO'),
-        getHaresDetail(codigo, 'EUC'),
-        getHaresDetail(codigo, 'USD'),
+        getAresDetail(codigo, 'CO'),
+        getAresDetail(codigo, 'EUC'),
+        getAresDetail(codigo, 'USD'),
       ]);
 
       const det =
@@ -1407,24 +1420,24 @@ export default function ThreeCanvas({
 
       if (!det) {
         console.warn(
-          `HARES: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
+          `Ares: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
         );
       }
 
-      // 2) cargar GLB desde carpeta HARES
-      const possibleSrcs = [`/assets/models/HARES/${codigo}.glb`, `/assets/models/${codigo}.glb`];
+      // 2) cargar GLB desde carpeta Ares
+      const possibleSrcs = [`/assets/models/Ares/${codigo}.glb`, `/assets/models/${codigo}.glb`];
 
       const gltf = await loadExistingGlb(possibleSrcs);
 
       if (!gltf) {
-        console.error(`No se encontró un GLB válido para HARES ${codigo}`);
+        console.error(`No se encontró un GLB válido para Ares ${codigo}`);
         return;
       }
 
       const obj = gltf.scene;
 
       // 3) userData
-      const haresParts = [
+      const aresParts = [
         {
           code: codigo,
           description: det?.descripcion || codigo,
@@ -1440,19 +1453,19 @@ export default function ThreeCanvas({
 
       obj.userData = {
         ...(obj.userData || {}),
-        kind: 'HARES',
+        kind: 'ARES',
         codigoPT: codigo,
         code: codigo,
         name: det?.descripcion || codigo,
-        haresParts,
-        haresMeta: {
+        aresParts,
+        aresMeta: {
           descripcion: det?.descripcion || codigo,
           precio: det?.precio || 0,
           udm: det?.udm || 'und',
         },
       };
 
-      obj.name = `HARES_${codigo}`;
+      obj.name = `ARES_${codigo}`;
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -1474,8 +1487,9 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
-    async function addPlant(plantName) {
+    async function addPlant(plantName, options = {}) {
       if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
       const name = String(plantName).trim();
 
       if (!name) {
@@ -1586,8 +1600,9 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
-    async function addOfficeAccessory(accessoryName) {
+    async function addOfficeAccessory(accessoryName, options = {}) {
       if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
       const name = String(accessoryName).trim();
 
       if (!name) {
@@ -1958,7 +1973,9 @@ export default function ThreeCanvas({
         } else {
           scene.remove(root);
         }
-      } catch {}
+      } catch (err) {
+        void err;
+      }
 
       // Quitar registros internos del objeto y de todos sus hijos registrados.
       removePartsRecordsUnder(root);
@@ -1972,7 +1989,9 @@ export default function ThreeCanvas({
         if (selectionHelper) {
           try {
             scene.remove(selectionHelper);
-          } catch {}
+          } catch (err) {
+            void err;
+          }
 
           selectionHelper = null;
         }
@@ -2253,12 +2272,7 @@ export default function ThreeCanvas({
       const spawnZ = 0.5; // fijo positivo (o 0.5 + (parts.length%3)*0.9)
       obj.position.set(spawnX, 0, spawnZ);
 
-      //scene.add(obj);
-      if (parentGroup) {
-        parentGroup.add(obj);
-      } else {
-        scene.add(obj);
-      }
+      scene.add(obj);
       parts.push({ code, obj });
 
       // MUY IMPORTANTE: para click/drag
@@ -2697,16 +2711,13 @@ export default function ThreeCanvas({
     onApiReady?.({
       addPart,
       addSurface,
-      // pantallas Koncisa Plus
       addKoncisaPrivacyPanel,
       updateActivePrivacyPanelFinish,
-      // ensamble Koncisa Plus
       createKoncisaPlusAssemblyGroup,
       getActivePart: () => activePart,
       selectObject: (obj) => {
         if (obj) setActivePart(obj);
       },
-
       addCatalogItem,
       addExternalGlbPart,
       addNativeBlockPart,
@@ -2721,7 +2732,7 @@ export default function ThreeCanvas({
       selectPartById,
       addTypology,
       addChair,
-      addHares,
+      addAres,
       addPlant,
       addOfficeAccessory,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
@@ -3001,8 +3012,11 @@ export default function ThreeCanvas({
         },
       });
 
+      const isAssemblyRoot =
+        root?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || root?.userData?.type === 'koncisa-plus';
+
       //if (moveAsGroup && root?.userData?.groupId) {
-      if (moveAsGroupRef.current && root?.userData?.groupId) {
+      if (moveAsGroupRef.current && root?.userData?.groupId && !isAssemblyRoot) {
         const grouped = getGroupedObjects(root);
         dragGroupStartRef.current = grouped.map((obj) => ({
           obj,
@@ -3796,14 +3810,14 @@ export default function ThreeCanvas({
           line: activePart.userData?.line || null,
 
           // NUEVO PARA PANTALLAS
-          type: obj.userData?.type || null,
-          subtype: obj.userData?.subtype || null,
-          material: obj.userData?.material || null,
-          finishCode: obj.userData?.finishCode || null,
-          finishLabel: obj.userData?.finishLabel || null,
-          hasCanto: obj.userData?.hasCanto || false,
-          hasBacker: obj.userData?.hasBacker || false,
-          privacyPanelFinishId: obj.userData?.privacyPanelFinishId || null,
+          type: activePart.userData?.type || null,
+          subtype: activePart.userData?.subtype || null,
+          material: activePart.userData?.material || null,
+          finishCode: activePart.userData?.finishCode || null,
+          finishLabel: activePart.userData?.finishLabel || null,
+          hasCanto: activePart.userData?.hasCanto || false,
+          hasBacker: activePart.userData?.hasBacker || false,
+          privacyPanelFinishId: activePart.userData?.privacyPanelFinishId || null,
 
           subKey,
           subName,
