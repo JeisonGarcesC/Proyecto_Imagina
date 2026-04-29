@@ -140,6 +140,7 @@ export function getSuperficiesConfig({
     z: 0,
     shape: 'RECT',
     perforada: false,
+    edgeFinish: 'PVC-2MM',
     canto: 'PVC-2MM',
   }));
 }

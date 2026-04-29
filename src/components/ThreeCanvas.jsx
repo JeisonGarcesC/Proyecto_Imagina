@@ -3149,6 +3149,168 @@ export default function ThreeCanvas({
     }
     animate();
 
+    function applySurfaceEdgeFinish(surfaceObj, materialCode, materialDef = null) {
+      const root = getRootPartObject(surfaceObj) || surfaceObj;
+
+      if (!root || root.userData?.type !== 'superficie') {
+        console.warn('El objeto activo no es una superficie.');
+        return false;
+      }
+
+      root.userData.edgeFinish = materialCode;
+      root.userData.canto = materialCode;
+
+      root.traverse((node) => {
+        if (!node?.isMesh) return;
+
+        const isSurfaceEdge =
+          node.userData?.edgeGroupKey === 'SURFACE_EDGE_ALL' ||
+          node.userData?.subKey === 'canto' ||
+          node.userData?.category === 'cantos' ||
+          String(node.name || '')
+            .toUpperCase()
+            .includes('CANTO');
+
+        if (!isSurfaceEdge) return;
+
+        node.userData.edgeFinish = materialCode;
+        node.userData.materialCode = materialCode;
+
+        if (materialDef?.rgbValue) {
+          const rgb = String(materialDef.rgbValue)
+            .replaceAll('_', ',')
+            .split(',')
+            .map((n) => Number(n.trim()));
+
+          if (rgb.length >= 3 && rgb.every((n) => Number.isFinite(n))) {
+            node.material = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(`rgb(${rgb[0]},${rgb[1]},${rgb[2]})`),
+              roughness: 0.65,
+              metalness: 0,
+            });
+          }
+        }
+
+        node.material.needsUpdate = true;
+      });
+
+      root.updateMatrixWorld(true);
+
+      if (selectionHelper) selectionHelper.update();
+
+      emitBOM();
+      return true;
+    }
+
+    function createSurfaceEdgeMesh({
+      name,
+      widthM,
+      heightM,
+      depthM,
+      position = [0, 0, 0],
+      color = 0x2f2f2f,
+      edgeFinish = 'PVC-2MM',
+    }) {
+      const geometry = new THREE.BoxGeometry(widthM, heightM, depthM);
+
+      const material = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.65,
+        metalness: 0,
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+
+      mesh.name = name;
+      mesh.position.set(position[0], position[1], position[2]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      mesh.userData = {
+        isSubPart: true,
+        parentType: 'superficie',
+        subKey: 'canto',
+        subName: 'Canto superficie',
+        category: 'cantos',
+
+        // ✅ Todos los cantos pertenecen al mismo acabado lógico
+        edgeGroupKey: 'SURFACE_EDGE_ALL',
+        materialScope: 'SURFACE_EDGE_ALL',
+
+        edgeFinish,
+        description: `Canto superficie ${edgeFinish}`,
+        excludeFromBOM: true,
+      };
+
+      return mesh;
+    }
+
+    function addSurfaceEdgesToGroup({
+      group,
+      widthM,
+      depthM,
+      thicknessM,
+      edgeThicknessM = 0.008,
+      edgeFinish = 'PVC-2MM',
+      edgeColor = 0x2f2f2f,
+    }) {
+      if (!group) return;
+
+      const edgeHeightM = thicknessM;
+
+      // Canto frontal
+      group.add(
+        createSurfaceEdgeMesh({
+          name: 'CANTO_FRONTAL',
+          widthM,
+          heightM: edgeHeightM,
+          depthM: edgeThicknessM,
+          position: [0, 0, -depthM / 2 - edgeThicknessM / 2],
+          color: edgeColor,
+          edgeFinish,
+        })
+      );
+
+      // Canto posterior
+      group.add(
+        createSurfaceEdgeMesh({
+          name: 'CANTO_POSTERIOR',
+          widthM,
+          heightM: edgeHeightM,
+          depthM: edgeThicknessM,
+          position: [0, 0, depthM / 2 + edgeThicknessM / 2],
+          color: edgeColor,
+          edgeFinish,
+        })
+      );
+
+      // Canto izquierdo
+      group.add(
+        createSurfaceEdgeMesh({
+          name: 'CANTO_IZQUIERDO',
+          widthM: edgeThicknessM,
+          heightM: edgeHeightM,
+          depthM,
+          position: [-widthM / 2 - edgeThicknessM / 2, 0, 0],
+          color: edgeColor,
+          edgeFinish,
+        })
+      );
+
+      // Canto derecho
+      group.add(
+        createSurfaceEdgeMesh({
+          name: 'CANTO_DERECHO',
+          widthM: edgeThicknessM,
+          heightM: edgeHeightM,
+          depthM,
+          position: [widthM / 2 + edgeThicknessM / 2, 0, 0],
+          color: edgeColor,
+          edgeFinish,
+        })
+      );
+    }
+
     function addSurface(
       {
         widthM,
@@ -3161,9 +3323,11 @@ export default function ThreeCanvas({
         groupId,
         groupName,
         logicalCode,
-
-        // ✅ NUEVO
         parentGroup = null,
+
+        // NUEVO
+        edgeFinish = null,
+        edgeColor = 0x2f2f2f,
       } = {},
       item
     ) {
@@ -3181,41 +3345,24 @@ export default function ThreeCanvas({
       const depthMm = dim?.depthMm ?? Math.round((depthM || 0) * 1000);
       const thickMm = dim?.thickMm ?? Math.round((thicknessM || 0) * 1000);
 
-      const mesh = createSurfaceMesh({ widthM, depthM, thicknessM });
-      const meta = createSurfaceMeta({ widthM, depthM, thicknessM });
-
       const code = String(codigoPT);
       const catalogItem = item || catalogByCodeRef.current?.get?.(code) || null;
-      /*
-      const description =
-        item?.ui?.title ||
-        item?.ui?.subtitle ||
-        item?.raw?.descripcion ||
-        item?.raw?.description ||
-        code;
-*/
-      const description =
-        catalogItem?.ui?.title ||
-        catalogItem?.ui?.subtitle ||
-        catalogItem?.raw?.descripcion ||
-        catalogItem?.raw?.description;
 
-      /*
+      const finalEdgeFinish =
+        edgeFinish ||
+        item?.canto ||
+        item?.meta?.canto ||
+        item?.raw?.canto ||
+        dim?.canto ||
+        'PVC-2MM';
+
       const description =
-        item?.description ||
-        item?.descripcion ||
-        item?.name ||
-        item?.raw?.descripcion ||
-        item?.raw?.description ||
         item?.ui?.title ||
         item?.ui?.subtitle ||
-        catalogItem?.ui?.title ||
-        catalogItem?.ui?.subtitle ||
-        catalogItem?.raw?.descripcion ||
-        catalogItem?.raw?.description ||
-        logicalCode ||
+        item?.raw?.descripcion ||
+        item?.raw?.description ||
         code;
-*/
+
       const rawPrice =
         catalogItem?.prices?.[countryRef.current] ??
         catalogItem?.prices?.CO ??
@@ -3227,19 +3374,34 @@ export default function ThreeCanvas({
 
       const unitPrice = Number(rawPrice || 0);
 
-      mesh.userData = {
+      const group = new THREE.Group();
+
+      group.name = code;
+
+      const instanceId = `${code}__${Date.now()}__${Math.random().toString(16).slice(2)}`;
+
+      group.userData = {
+        isPartRoot: true,
+
         codigoPT: code,
         code,
         kind: 'SURFACE',
+        type: 'superficie',
         line,
+
         dim: { widthMm, depthMm, thickMm },
-        meta,
+        dimMm: { widthMm, depthMm, thickMm },
+
         units: 'm',
-        instanceId: `${code}__${Date.now()}__${Math.random().toString(16).slice(2)}`,
+        instanceId,
 
         generico: item?.generico || item?.raw?.generico || null,
         materialBase: item?.materialBase || item?.raw?.material || 'LAMINA',
         materialCode: item?.materialCode || null,
+
+        // NUEVO
+        edgeFinish: finalEdgeFinish,
+        canto: finalEdgeFinish,
 
         description,
         unitPrice,
@@ -3249,35 +3411,69 @@ export default function ThreeCanvas({
         parentAssemblyId: parentGroup?.userData?.instanceId || parentGroup?.userData?.code || null,
 
         logicalCode: logicalCode || null,
+
+        meta: {
+          ...(createSurfaceMeta({ widthM, depthM, thicknessM }) || {}),
+          canto: finalEdgeFinish,
+          edgeFinish: finalEdgeFinish,
+        },
       };
 
-      mesh.name = code;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      const surfaceMesh = createSurfaceMesh({ widthM, depthM, thicknessM });
+
+      surfaceMesh.name = 'TABLERO_SUPERFICIE';
+      surfaceMesh.castShadow = true;
+      surfaceMesh.receiveShadow = true;
+
+      surfaceMesh.userData = {
+        isSubPart: true,
+        parentType: 'superficie',
+        subKey: 'tablero',
+        category: 'superficies',
+
+        code,
+        codigoPT: code,
+        materialCode: group.userData.materialCode,
+        description,
+      };
+
+      group.add(surfaceMesh);
+
+      addSurfaceEdgesToGroup({
+        group,
+        widthM,
+        depthM,
+        thicknessM,
+        edgeThicknessM: 0.008,
+        edgeFinish: finalEdgeFinish,
+        edgeColor,
+      });
 
       if (position) {
-        mesh.position.set(position.x || 0, position.y || 0, position.z || 0);
+        group.position.set(position.x || 0, position.y || 0, position.z || 0);
       } else {
-        mesh.position.set(parts.length * 0.9, 0, 0);
+        group.position.set(parts.length * 0.9, 0, 0);
       }
 
-      // ✅ CLAVE
       if (parentGroup) {
-        parentGroup.add(mesh);
+        parentGroup.add(group);
       } else {
-        scene.add(mesh);
+        scene.add(group);
       }
 
-      parts.push({ code, obj: mesh });
-      pickables.push(mesh);
+      parts.push({ code, obj: group });
+      pickables.push(group);
 
-      catalogCache.set(code, { base: mesh, meta });
+      catalogCache.set(code, {
+        base: group,
+        meta: group.userData.meta,
+      });
 
-      setActivePart(mesh);
+      setActivePart(group);
       emitBOM();
       refreshFloorAndGrid();
 
-      return mesh;
+      return group;
     }
 
     // VIGAS Bloque nativo
@@ -3513,6 +3709,56 @@ export default function ThreeCanvas({
 
       const wantAll = scope === 'ALL';
       const wantGroup = scope === 'GROUP';
+
+      // ===== CANTO DE SUPERFICIE =====
+      // Si se hizo clic en cualquier canto de una superficie,
+      // se aplica el material a TODOS los cantos de esa superficie.
+      const root = getRootPartObject(activePart) || activePart;
+
+      const clickedIsSurfaceEdge =
+        activeSubMesh?.userData?.edgeGroupKey === 'SURFACE_EDGE_ALL' ||
+        activeSubMesh?.userData?.materialScope === 'SURFACE_EDGE_ALL' ||
+        activeSubMesh?.userData?.subKey === 'canto' ||
+        activeSubMesh?.userData?.category === 'cantos' ||
+        String(activeSubMesh?.name || '')
+          .toUpperCase()
+          .includes('CANTO');
+
+      const rootIsSurface =
+        root?.userData?.type === 'superficie' || root?.userData?.kind === 'SURFACE';
+
+      if (!wantAll && !wantGroup && rootIsSurface && clickedIsSurfaceEdge) {
+        applySurfaceEdgeFinish(root, code, def);
+
+        const activeSubKey = root.userData?.activeSubKey || null;
+
+        onSelectionChange?.({
+          code: root.userData.codigoPT || root.userData.code,
+          dimMm: root.userData?.dim || null,
+          dimM: root.userData?.dimM || null,
+
+          materialCode: root.userData?.materialCode ?? null,
+          materialBase: root.userData?.materialBase ?? null,
+
+          edgeFinish: root.userData?.edgeFinish ?? null,
+          canto: root.userData?.canto ?? null,
+
+          line: root.userData?.line ?? null,
+
+          subKey: activeSubKey,
+          subName: root.userData?.activeSubName ?? 'Canto superficie',
+          subMaterialCode: code,
+
+          kind: root.userData?.kind || null,
+          meta: root.userData?.meta || null,
+          groupId: root.userData?.groupId || null,
+          groupName: root.userData?.groupName || null,
+          logicalCode: root.userData?.logicalCode || null,
+          instanceId: root.userData?.instanceId || null,
+        });
+
+        return;
+      }
 
       // ===== GROUP =====
       if (wantGroup) {

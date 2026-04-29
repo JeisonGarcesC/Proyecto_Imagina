@@ -32,27 +32,75 @@ export const KONCISA_PRIVACY_PANEL = {
  * - Vidrio: soporte específico para vidrio.
  */
 export const KONCISA_PRIVACY_PANEL_SUPPORTS = {
-  lateral: {
-    modelSrc: '/assets/models/2KAC272000-30x60.glb',
-    code: '2KAC272000',
-    name: 'Soporte pantalla lateral Koncisa Plus',
+  lateral60: {
+    modelSrc: '/assets/models/koncisaPlus/2KAC272000-30x60.glb',
+    code: '2KAC272000-30x60',
+    name: 'Soporte pantalla lateral Koncisa Plus 30x60',
+
+    qty: 1,
+
+    offsetXMm: 0,
+    offsetYMm: -20,
+    offsetZMm: 0,
+
+    rotation: [0, Math.PI / 2, 0],
+  },
+
+  lateral75: {
+    modelSrc: '/assets/models/koncisaPlus/2KAC272000-30x75.glb',
+    code: '2KAC272000-30x75',
+    name: 'Soporte pantalla lateral Koncisa Plus 30x75',
+
+    qty: 1,
+
+    offsetXMm: 0,
+    offsetYMm: -20,
+    offsetZMm: 0,
+
+    rotation: [0, Math.PI / 2, 0],
   },
 
   frontal: {
-    modelSrc: '/assets/models/soporte_pantalla_frontal.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KAC252000_SOPTPANTALLA.glb',
     code: 'SOPORTE-PANTALLA-FRONTAL',
     name: 'Soporte pantalla frontal Koncisa Plus',
+
+    // Dos soportes para pantalla frontal
+    qty: 2,
+
+    insetMm: 93.5,
+    offsetXMm: 0,
+    offsetYMm: -20,
+    offsetZMm: 0,
+
+    leftRotation: [0, 0, 0],
+    rightRotation: [0, Math.PI, 0],
   },
 
   vidrio: {
-    modelSrc: '/assets/models/soporte_pantalla_vidrio.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KAC252000_SOPTPANTALLA.glb',
     code: 'SOPORTE-PANTALLA-VIDRIO',
     name: 'Soporte pantalla vidrio Koncisa Plus',
+
+    qty: 2,
+
+    insetMm: 93.5,
+    offsetXMm: 0,
+    offsetYMm: -20,
+    offsetZMm: 0,
+
+    leftRotation: [0, 0, 0],
+    rightRotation: [0, Math.PI, 0],
   },
 };
 
-export function getPrivacyPanelSupportConfig({ tipo = 'lateral', material = 'formica' }) {
+export function getPrivacyPanelSupportConfig({
+  tipo = 'lateral',
+  material = 'formica',
+  lengthMm = 1200,
+}) {
   const mat = String(material || '').toLowerCase();
+  const normalizedLengthMm = normalizePanelLengthMm(lengthMm);
 
   if (mat === 'vidrio') {
     return KONCISA_PRIVACY_PANEL_SUPPORTS.vidrio;
@@ -62,10 +110,38 @@ export function getPrivacyPanelSupportConfig({ tipo = 'lateral', material = 'for
     return KONCISA_PRIVACY_PANEL_SUPPORTS.frontal;
   }
 
-  return KONCISA_PRIVACY_PANEL_SUPPORTS.lateral;
+  // Pantalla lateral: el soporte depende de la profundidad.
+  // 600 mm = soporte 30x60
+  // 750 mm = soporte 30x75
+  if (tipo === 'lateral') {
+    if (normalizedLengthMm >= 700) {
+      return KONCISA_PRIVACY_PANEL_SUPPORTS.lateral75;
+    }
+
+    return KONCISA_PRIVACY_PANEL_SUPPORTS.lateral60;
+  }
+
+  return KONCISA_PRIVACY_PANEL_SUPPORTS.lateral60;
 }
 
 export const KONCISA_PRIVACY_PANEL_SKUS = {
+  // =========================
+  // PANTALLA LATERAL - FORMICA
+  // 30 cm alto x 60/75 cm profundidad
+  // REVISAR: estos códigos salen del plano que compartiste.
+  // Si tu maestro de productos tiene otros códigos para Koncisa Plus, reemplázalos aquí.
+  // =========================
+  'lateral|formica|300|600|22008689': '22000125820',
+  'lateral|formica|300|750|22008689': '22000125822',
+
+  // =========================
+  // PANTALLA LATERAL - FORMICA
+  // 30 cm alto x 100/120/150 cm
+  // =========================
+  'lateral|formica|300|1000|22008689': '22000132934',
+  'lateral|formica|300|1200|22008689': '22000132935',
+  'lateral|formica|300|1500|22008689': '22000132936',
+
   // =========================
   // PANTALLA LATERAL - FORMICA
   // =========================
@@ -141,11 +217,15 @@ export const KONCISA_PRIVACY_PANEL_SKUS = {
 export function normalizePanelLengthMm(lengthMm) {
   const n = Number(lengthMm);
 
-  if (n <= 100) return 1000;
-  if (n <= 120) return 1200;
-  if (n <= 150) return 1500;
+  if (!Number.isFinite(n) || n <= 0) return 0;
 
-  return n;
+  // Si llega como 60, 75, 100, 120, 150, lo interpretamos como centímetros.
+  if (n < 300) {
+    return Math.round(n * 10);
+  }
+
+  // Si ya llega como 600, 750, 1000, 1200, 1500, lo dejamos en mm.
+  return Math.round(n);
 }
 
 export function resolveKoncisaPrivacyPanelCode({
@@ -282,6 +362,7 @@ export function createKoncisaPrivacyPanelProcedural({
   const supportConfig = getPrivacyPanelSupportConfig({
     tipo,
     material,
+    lengthMm: normalizedLengthMm,
   });
 
   const group = new THREE.Group();
@@ -447,17 +528,38 @@ export function createKoncisaPrivacyPanelProcedural({
     }
   }
 
+  const supportQty = supportConfig.qty ?? 2;
+
+  const lengthCm = Math.round(normalizedLengthMm / 10);
+  const heightCm = Math.round(heightMm / 10);
+
+  const materialLabelMap = {
+    formica: 'FORMICA',
+    melamina: 'MELAMINA',
+    tela: 'TELA',
+    'tela-backer': 'TELA BACKER',
+    vidrio: 'VIDRIO',
+  };
+
+  const materialLabel =
+    materialLabelMap[String(material || '').toLowerCase()] || String(material || '').toUpperCase();
+
+  const panelDescription =
+    tipo === 'lateral'
+      ? `PANTALLA LATERAL ${lengthCm}X${heightCm}CM ${materialLabel} KONCISA PLUS`
+      : `PANTALLA FRONTAL ${lengthCm}X${heightCm}CM ${materialLabel} KONCISA PLUS`;
+
   const typologyParts = [
     {
       code: resolvedCode,
-      description: `Pantalla ${tipo} ${material} ${normalizedLengthMm}x${heightMm}`,
+      description: panelDescription,
       qty: 1,
       unitPrice: 0,
     },
     {
       code: supportConfig.code,
       description: supportConfig.name,
-      qty: 2,
+      qty: supportQty,
       unitPrice: 0,
     },
   ];
@@ -485,7 +587,8 @@ export function createKoncisaPrivacyPanelProcedural({
     codigoPT: resolvedCode,
     code: resolvedCode,
 
-    name: `Pantalla ${tipo} ${material} ${normalizedLengthMm}x${heightMm}`,
+    name: panelDescription,
+    description: panelDescription,
 
     material,
     materialCode: finishCode || null,
@@ -516,6 +619,7 @@ export function createKoncisaPrivacyPanelProcedural({
 
     supportAnchors: getPrivacyPanelSupportAnchors({
       tipo,
+      material,
       lengthMm: normalizedLengthMm,
       heightMm,
     }),
@@ -534,38 +638,52 @@ export function createKoncisaPrivacyPanelProcedural({
 
 export function getPrivacyPanelSupportAnchors({
   tipo = 'lateral',
+  material = 'formica',
   lengthMm = 1200,
   heightMm = 300,
 }) {
   const normalizedLengthMm = normalizePanelLengthMm(lengthMm);
 
+  const supportConfig = getPrivacyPanelSupportConfig({
+    tipo,
+    material,
+    lengthMm: normalizedLengthMm,
+  });
+
   const lengthM = normalizedLengthMm * MM_TO_M;
-  const insetM = KONCISA_PRIVACY_PANEL.supportInsetMm * MM_TO_M;
-  const supportYOffsetM = KONCISA_PRIVACY_PANEL.supportYOffsetMm * MM_TO_M;
 
-  const bottomY = -(heightMm * MM_TO_M) / 2 + supportYOffsetM;
+  const insetM = (supportConfig.insetMm ?? 93.5) * MM_TO_M;
+  const offsetXM = (supportConfig.offsetXMm ?? 0) * MM_TO_M;
+  const offsetYM = (supportConfig.offsetYMm ?? -20) * MM_TO_M;
+  const offsetZM = (supportConfig.offsetZMm ?? 0) * MM_TO_M;
 
-  if (tipo === 'frontal') {
+  const bottomY = -(heightMm * MM_TO_M) / 2 + offsetYM;
+
+  // ✅ LATERAL: un solo soporte
+  if (tipo === 'lateral') {
     return [
       {
-        position: [-lengthM / 2 + insetM, bottomY, 0],
-        rotation: [0, 0, 0],
-      },
-      {
-        position: [lengthM / 2 - insetM, bottomY, 0],
-        rotation: [0, Math.PI, 0],
+        role: 'center',
+        supportCode: supportConfig.code,
+        position: [offsetXM, bottomY, offsetZM],
+        rotation: supportConfig.rotation || [0, Math.PI / 2, 0],
       },
     ];
   }
 
+  // ✅ FRONTAL / VIDRIO: dos soportes
   return [
     {
-      position: [0, bottomY, -lengthM / 2 + insetM],
-      rotation: [0, Math.PI / 2, 0],
+      role: 'left',
+      supportCode: supportConfig.code,
+      position: [-lengthM / 2 + insetM + offsetXM, bottomY, offsetZM],
+      rotation: supportConfig.leftRotation || [0, 0, 0],
     },
     {
-      position: [0, bottomY, lengthM / 2 - insetM],
-      rotation: [0, -Math.PI / 2, 0],
+      role: 'right',
+      supportCode: supportConfig.code,
+      position: [lengthM / 2 - insetM + offsetXM, bottomY, offsetZM],
+      rotation: supportConfig.rightRotation || [0, Math.PI, 0],
     },
   ];
 }

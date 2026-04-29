@@ -919,11 +919,11 @@ export default function LeftPanel({
                   },
                   groupId: surface.groupId || groupId,
                   groupName: surface.groupName || groupName,
-
-                  // ✅ CLAVE
                   parentGroup: puestoGroup,
-
                   logicalCode: surface.logicalCode,
+
+                  // NUEVO
+                  edgeFinish: surface.meta?.canto || surface.canto || 'PVC-2MM',
                 },
                 surface
               );
