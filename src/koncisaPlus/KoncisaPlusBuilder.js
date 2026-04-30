@@ -18,6 +18,8 @@ import { createDucto } from './parts/ductos';
 import { createPedestal } from './parts/pedestales';
 import { createPasacable } from './parts/pasacables';
 
+import { resolveKoncisaFloorDuct } from './rules/koncisaFloorDuctRules';
+
 export function buildKoncisaPlus(config = {}) {
   const groupId = `KONCISA_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
   const groupName = `Koncisa Plus`;
@@ -276,6 +278,86 @@ export function buildKoncisaPlus(config = {}) {
       })
     );
   });
+
+  // ========================
+  // DUCTO A PISO
+  // ========================
+
+  if (config.floorDuct?.enabled) {
+    const ductosNormales = parts.filter((p) => p.type === 'ducto');
+
+    // Prioridad:
+    // 1. Ducto terminal
+    // 2. Ducto individual
+    // 3. Ducto intermedio
+    // 4. Primer ducto disponible
+    const referenceDuct =
+      ductosNormales.find((p) => String(p.meta?.tipoModulo || '').toUpperCase() === 'TERMINAL') ||
+      ductosNormales.find((p) => String(p.meta?.tipoModulo || '').toUpperCase() === 'INDIVIDUAL') ||
+      ductosNormales.find((p) => String(p.meta?.tipoModulo || '').toUpperCase() === 'INTERMEDIO') ||
+      ductosNormales[0] ||
+      null;
+
+    const referenceDuctType = String(referenceDuct?.meta?.tipoModulo || 'TERMINAL').toUpperCase();
+
+    const floorDuct = resolveKoncisaFloorDuct({
+      tipoPuesto: config.tipoPuesto,
+      tipoPasoCable: config.tipoPasoCable,
+      referenceDuctType,
+    });
+
+    const basePosition = referenceDuct?.position || {
+      x: 0,
+      y: 0,
+      z: 0,
+    };
+
+    const baseRotation = referenceDuct?.rotation || {
+      x: 0,
+      y: 0,
+      z: 0,
+    };
+
+    const offset = floorDuct.offsetFromReferenceMm || {};
+
+    parts.push({
+      type: 'ductoPiso',
+      line: 'KONCISA.PLUS',
+      code: floorDuct.code,
+      logicalCode: floorDuct.logicalCode,
+      name: floorDuct.name,
+
+      groupId,
+      groupName,
+
+      position: {
+        x: (basePosition.x || 0) + (offset.x || 0),
+        y: (basePosition.y || 0) + (offset.y || 0),
+        z: (basePosition.z || 0) + (offset.z || 0),
+      },
+
+      rotation: {
+        x: baseRotation.x || 0,
+        y: (baseRotation.y || 0) + (offset.rotY || 0),
+        z: baseRotation.z || 0,
+      },
+
+      model: {
+        kind: 'glb',
+        src: floorDuct.modelSrc,
+      },
+
+      meta: {
+        category: 'ductos-a-piso',
+        tipoPuesto: config.tipoPuesto,
+        tipoPasoCable: config.tipoPasoCable,
+        tipoModuloReferencia: referenceDuctType,
+        referenceDuctCode: referenceDuct?.code || null,
+        modelCode: floorDuct.modelCode,
+        onePerIsland: true,
+      },
+    });
+  }
 
   return {
     groupId,

@@ -1040,8 +1040,33 @@ export default function LeftPanel({
             }
 
             // =========================
+            // DUCTO BAJANTE A PISO
+            // =========================
+            const ductosPiso = parts.filter((p) => p.type === 'ductoPiso');
+
+            for (const ductoPiso of ductosPiso) {
+              if (!ductoPiso.code) {
+                alert(`No tenemos disponible este ducto a piso: ${ductoPiso.logicalCode}`);
+                continue;
+              }
+
+              if (!ductoPiso?.model?.src) {
+                alert(`Este ducto a piso no tiene modelo 3D asociado: ${ductoPiso.logicalCode}`);
+                continue;
+              }
+
+              await api.addExternalGlbPart?.({
+                ...ductoPiso,
+                groupId: ductoPiso.groupId || groupId,
+                groupName: ductoPiso.groupName || groupName,
+                parentGroup: puestoGroup,
+              });
+            }
+
+            // =========================
             // PANTALLA KONCISA PLUS
             // =========================
+            /* //una sola pantalla
             if (config.privacyPanel?.enabled) {
               await api.addKoncisaPrivacyPanel?.({
                 tipo: config.privacyPanel.tipo,
@@ -1060,6 +1085,39 @@ export default function LeftPanel({
                 // ✅ CLAVE: queda pegada al puesto
                 parentGroup: puestoGroup,
               });
+            }
+*/
+            //varias pantallas
+
+            // =========================
+            // PANTALLAS KONCISA PLUS
+            // =========================
+            if (config.privacyPanel?.enabled) {
+              for (let i = 0; i < config.puestos; i++) {
+                // IMPORTANTE:
+                // addKoncisaPrivacyPanel trabaja en milímetros, no en metros.
+                // Crear superficie del puesto i
+                // Crear ducto del puesto i
+                // Crear costados/vigas del puesto i
+                const offsetXMm = i * config.largoCobroMm;
+
+                await api.addKoncisaPrivacyPanel?.({
+                  tipo: config.privacyPanel.tipo,
+                  material: config.privacyPanel.material,
+                  lengthMm: config.privacyPanel.lengthMm,
+                  heightMm: config.privacyPanel.heightMm,
+                  finishCode: config.privacyPanel.finishCode,
+                  finishLabel: config.privacyPanel.finishLabel,
+                  privacyPanelFinishId: config.privacyPanel.privacyPanelFinishId,
+
+                  // posición correspondiente al puesto i, en mm
+                  x: offsetXMm,
+                  y: 900,
+                  z: -config.anchoCobroMm / 2,
+
+                  parentGroup: puestoGroup,
+                });
+              }
             }
 
             // ✅ Dejar seleccionado el puesto completo al final

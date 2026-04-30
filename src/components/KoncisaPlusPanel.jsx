@@ -100,6 +100,8 @@ export default function KoncisaPlusPanel({ onCreate }) {
     setLargoRealMm(1200);
   };
 
+  const [includeFloorDuct, setIncludeFloorDuct] = useState(false);
+
   const handleCreate = () => {
     onCreate({
       puestos,
@@ -132,6 +134,9 @@ export default function KoncisaPlusPanel({ onCreate }) {
         // Para lateral normalmente debe tomar el fondo/ancho del puesto.
         // Si luego quieres que lateral use largo, se cambia aquí.
         lengthMm: selectedPrivacyPanelFinish.tipo === 'lateral' ? anchoCobroMm : largoCobroMm,
+      },
+      floorDuct: {
+        enabled: includeFloorDuct,
       },
     });
     // TEMPORAL: prueba de pantalla lateral visible
@@ -223,6 +228,10 @@ export default function KoncisaPlusPanel({ onCreate }) {
           <option value={6}>6 puestos</option>
           <option value={7}>7 puestos</option>
           <option value={8}>8 puestos</option>
+          <option value={9}>9 puestos</option>
+          <option value={10}>10 puestos</option>
+          <option value={11}>11 puestos</option>
+          <option value={12}>12 puestos</option>
         </select>
       </div>
       <div>
@@ -336,6 +345,17 @@ export default function KoncisaPlusPanel({ onCreate }) {
         ductModes={ductModes}
         setDuctModes={setDuctModes}
       />
+
+      <div>
+        <label>
+          <input
+            type="checkbox"
+            checked={includeFloorDuct}
+            onChange={(e) => setIncludeFloorDuct(e.target.checked)}
+          />{' '}
+          Incluir ducto bajante a piso
+        </label>
+      </div>
 
       <div>
         <label>Tipo de costado</label>

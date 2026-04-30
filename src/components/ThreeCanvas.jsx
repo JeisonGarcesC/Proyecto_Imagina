@@ -928,7 +928,24 @@ export default function ThreeCanvas({
         }
 
         // 3. Fallback: piezas sueltas seleccionables
-        if (!fallback && (kind === 'PART' || kind === 'SURFACE' || kind === 'PRIVACY_PANEL')) {
+        if (
+          !fallback &&
+          [
+            'PART',
+            'SURFACE',
+            'PRIVACY_PANEL',
+            'GLB_PART',
+            'BLOCK_PART',
+
+            // Koncisa Plus
+            'ducto',
+            'ductoPiso',
+            'costado',
+            'grommet',
+            'pasacable',
+            'viga',
+          ].includes(kind)
+        ) {
           fallback = cur;
         }
 
@@ -2868,6 +2885,9 @@ export default function ThreeCanvas({
       const groupId = oldObj.userData?.groupId || null;
       const groupName = oldObj.userData?.groupName || null;
 
+      const parentGroup =
+        oldObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? oldObj.parent : null;
+
       removePartObject(oldObj);
 
       await addExternalGlbPart({
@@ -2877,6 +2897,7 @@ export default function ThreeCanvas({
         code: resolved.codigoPT,
         logicalCode: resolved.logicalCode,
         groupId,
+        parentGroup,
         groupName,
         position: {
           x: pos.x * 1000,
@@ -3536,6 +3557,7 @@ export default function ThreeCanvas({
         ) || 0;
 
       mesh.userData = {
+        isPartRoot: true,
         code: code || null,
         codigoPT: code || null,
         kind: part.type || 'BLOCK_PART',
@@ -3622,6 +3644,7 @@ export default function ThreeCanvas({
           ) || 0;
 
         obj.userData = {
+          isPartRoot: true, //para usar las propiedades en los diferentes elementos
           code: code || null,
           codigoPT: code || null,
           kind: part.type || 'GLB_PART',
