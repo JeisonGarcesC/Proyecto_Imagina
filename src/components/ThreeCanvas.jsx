@@ -23,6 +23,7 @@ import { getChairDetail } from '../services/chairsLoader';
 import { getAresDetail } from '../services/aresLoader';
 import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
+import { getMepalSaludDetail } from '../services/mepalSaludLoader';
 
 import { resolveKoncisaDucto } from '../koncisaPlus/rules/koncisaDuctoRules';
 
@@ -881,6 +882,37 @@ export default function ThreeCanvas({
           continue;
         }
 
+        if (obj.userData?.kind === 'MEPAL_SALUD') {
+          const parentCode = normalizeText(
+            obj.userData?.codigoPT || obj.userData?.code || p.code || ''
+          );
+          const label =
+            obj.userData?.name || obj.userData?.mepalMeta?.descripcion || `MepalSalud ${parentCode}`;
+          const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+
+          const list = obj.userData?.mepalParts || [];
+
+          if (Array.isArray(list) && list.length) {
+            for (const it of list) {
+              addRow(
+                String(it.code),
+                Number(it.qty || 0),
+                it.description,
+                it.unitPrice,
+                parentCode,
+                label,
+                it.prices,
+                null,
+                groupInstanceId
+              );
+            }
+          } else {
+            if (parentCode)
+              addRow(parentCode, 1, label, 0, parentCode, label, undefined, null, groupInstanceId);
+          }
+          continue;
+        }
+
         const code = obj.userData?.codigoPT || obj.userData?.code || p.code;
 
         const groupId = obj.userData?.groupId || null;
@@ -930,6 +962,7 @@ export default function ThreeCanvas({
           kind === 'ARES' ||
           kind === 'PLANT' ||
           kind === 'OFFICE_ACCESSORY' ||
+          kind === 'MEPAL_SALUD' ||
           kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
           return cur;
@@ -1734,6 +1767,162 @@ export default function ThreeCanvas({
       emitBOM();
 
       if (parts.length === 1) frameObject(obj);
+      refreshFloorAndGrid();
+    }
+
+    async function addMepalSalud(codigoMepal, options = {}) {
+      if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
+      const codigo = String(codigoMepal);
+
+      // 1) trae detalle del producto MepalSalud desde el XML
+      const [detCO, detEUC, detUSD] = await Promise.all([
+        getMepalSaludDetail(codigo, 'CO'),
+        getMepalSaludDetail(codigo, 'EUC'),
+        getMepalSaludDetail(codigo, 'USD'),
+      ]);
+
+      const det =
+        (countryRef.current === 'EUC' && detEUC) ||
+        (countryRef.current === 'USD' && detUSD) ||
+        detCO ||
+        detEUC ||
+        detUSD;
+
+      if (!det) {
+        console.warn(`MepalSalud: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`);
+      }
+
+      // 2) cargar GLB desde carpeta MepalSalud
+      const possibleSrcs = [
+        `/assets/models/MepalSalud/${codigo}.glb`,
+        `/assets/models/${codigo}.glb`,
+      ];
+
+      const gltf = await loadExistingGlb(possibleSrcs);
+
+      if (!gltf) {
+        console.error(`No se encontró un GLB válido para MepalSalud ${codigo}`);
+        return;
+      }
+
+      const obj = gltf.scene;
+
+      // 3) userData
+      const mepalParts = [
+        {
+          code: codigo,
+          description: det?.descripcion || codigo,
+          qty: 1,
+          unitPrice: Number(det?.precio || 0),
+          prices: {
+            CO: detCO?.precio || 0,
+            EUC: detEUC?.precio || 0,
+            USD: detUSD?.precio || 0,
+          },
+        },
+      ];
+
+      obj.userData = {
+        ...(obj.userData || {}),
+        kind: 'MEPAL_SALUD',
+        codigoPT: codigo,
+        code: codigo,
+        name: det?.descripcion || codigo,
+        instanceId: obj.uuid,
+        mepalVariant: 'normal',
+        mepalParts,
+        mepalMeta: {
+          descripcion: det?.descripcion || codigo,
+          precio: det?.precio || 0,
+          udm: det?.udm || 'und',
+        },
+      };
+
+      obj.name = `MEPAL_SALUD_${codigo}`;
+
+      // 4) posición inicial
+      obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
+      obj.updateMatrixWorld(true);
+
+      if (parentGroup) {
+        parentGroup.add(obj);
+      } else {
+        scene.add(obj);
+      }
+      parts.push({ code: codigo, obj });
+      pickables.push(obj);
+
+      setActivePart(obj);
+      emitBOM();
+
+      if (parts.length === 1) frameObject(obj);
+      refreshFloorAndGrid();
+    }
+
+    async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
+      if (readOnly) return;
+
+      // 1) Encontrar el objeto por instanceId o uuid
+      const found = parts.find(({ obj }) => {
+        return (
+          obj?.userData?.instanceId === instanceId ||
+          obj?.uuid === instanceId
+        );
+      });
+
+      if (!found?.obj) {
+        console.warn('[swapMepalSaludVariant] No se encontró la pieza:', instanceId);
+        return;
+      }
+
+      const oldObj = found.obj;
+
+      // 2) Guardar posición y rotación
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+
+      // 3) Guardar userData relevante
+      const savedUserData = { ...oldObj.userData };
+
+      // 4) Eliminar objeto actual
+      removePartObject(oldObj);
+
+      // 5) Determinar qué GLB cargar según variante
+      const codigoBase = String(codigo).replace(/_2$/, '');
+      const glbSrc = targetVariant === 'normal'
+        ? `/assets/models/MepalSalud/${codigoBase}.glb`
+        : `/assets/models/MepalSalud/${codigoBase}_2.glb`;
+
+      const gltf = await loadExistingGlb([glbSrc]);
+
+      if (!gltf) {
+        console.error('[swapMepalSaludVariant] No se encontró el GLB:', glbSrc);
+        await addMepalSalud(codigoBase);
+        return;
+      }
+
+      const newObj = gltf.scene;
+
+      // 6) Restaurar userData y posición
+      newObj.userData = {
+        ...savedUserData,
+        instanceId: newObj.uuid,
+        mepalVariant: targetVariant,
+      };
+      newObj.name = targetVariant === 'normal'
+        ? `MEPAL_SALUD_${codigoBase}`
+        : `MEPAL_SALUD_${codigoBase}_2`;
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.updateMatrixWorld(true);
+
+      scene.add(newObj);
+      parts.push({ code: codigoBase, obj: newObj });
+      pickables.push(newObj);
+
+      setActivePart(newObj);
+      emitBOM();
       refreshFloorAndGrid();
     }
 
@@ -2759,6 +2948,8 @@ export default function ThreeCanvas({
       addAres,
       addPlant,
       addOfficeAccessory,
+      addMepalSalud,
+      swapMepalSaludVariant,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
       exportDXF: () => {
         const snap = getPartsSnapshot2D();
@@ -3740,6 +3931,7 @@ export default function ThreeCanvas({
           instanceId: root.userData?.instanceId || null,
           description: root.userData?.description || null,
           showGrid: root.userData?.showGrid !== false,
+          mepalVariant: root.userData?.mepalVariant || 'normal',
         },
       });
 
@@ -4426,8 +4618,6 @@ export default function ThreeCanvas({
       } finally {
         refreshFloorAndGrid();
       }
-
-      refreshFloorAndGrid();
     }
 
     function looksLikeGuid(s) {

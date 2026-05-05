@@ -542,10 +542,10 @@ export default function App() {
         }}
       >
         {/* LEFT (Rail + Panel estilo CET) */}
-        <div style={{ display: 'flex', minHeight: 0, borderRight: '1px solid #e5e5e5' }}>
+        <div style={{ display: 'flex', minHeight: 0, borderRight: '1px solid #e5e5e5', minWidth: 0, overflow: 'hidden' }}>
           <LeftRail active={leftSection} onChange={setLeftSection} />
           {/* CONTENEDOR VERTICAL */}
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
             {/* SELECT ARRIBA */}
             {leftSection === 'typologies' && (
               <div style={{ padding: 8, borderBottom: '1px solid #e5e5e5', background: '#fafafa' }}>
@@ -638,6 +638,9 @@ export default function App() {
               onAddPlant={(plantName) => !readOnly && threeApiRef.current?.addPlant?.(plantName)}
               onAddOfficeAccessory={(accessoryName) =>
                 !readOnly && threeApiRef.current?.addOfficeAccessory?.(accessoryName)
+              }
+              onAddMepalSalud={(codigo) =>
+                !readOnly && threeApiRef.current?.addMepalSalud?.(codigo)
               }
               onToggleSnap={() => !readOnly && threeApiRef.current?.toggleSnap?.()}
               onApplyGlobalMaterial={(code, scope = 'ALL') => {

@@ -8,6 +8,7 @@ import {
 import { loadAresItems } from '../services/aresLoader';
 import { loadPlantsItems } from '../services/plantsLoader';
 import { loadOfficeAccessoriesItems } from '../services/officeAccessoriesLoader';
+import { loadMepalSaludItems } from '../services/mepalSaludLoader';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { buildKoncisaPlus } from '../koncisaPlus/KoncisaPlusBuilder';
@@ -121,6 +122,19 @@ function OfficeAccessoryCardImage({ accessoryName, title }) {
   );
 }
 
+function MepalSaludCardImage({ codigo, title }) {
+  return (
+    <CardImage
+      assetName={codigo}
+      title={title}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
 export default function LeftPanel({
   section,
   threeApiRef,
@@ -144,6 +158,7 @@ export default function LeftPanel({
   onAddAres,
   onAddPlant,
   onAddOfficeAccessory,
+  onAddMepalSalud,
   onToggleSnap,
   // muros
   wallMode,
@@ -188,6 +203,11 @@ export default function LeftPanel({
   const [qOfficeAccesories, setQOfficeAccesories] = useState('');
   const [officeAccessoriesItems, setOfficeAccessoriesItems] = useState([]);
   const [officeAccessoriesReady, setOfficeAccessoriesReady] = useState(false);
+
+  // MEPAL SALUD states
+  const [qMepalSalud, setQMepalSalud] = useState('');
+  const [mepalSaludItems, setMepalSaludItems] = useState([]);
+  const [mepalSaludReady, setMepalSaludReady] = useState(false);
 
   //Materiales genericos
   const [qMaterials, setQMaterials] = useState('');
@@ -469,6 +489,41 @@ export default function LeftPanel({
   }, [country]);
 
   // ================================
+  // Cargar MEPAL SALUD
+  // ================================
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const items = await loadMepalSaludItems(country);
+        if (!alive) return;
+        const arr = items.map((c) => ({
+          codigoPT: String(c.codigo),
+          ui: {
+            title: c.descripcion || String(c.codigo),
+            subtitle: 'MEPAL SALUD',
+          },
+          prices: {
+            [country]: Number(c.precio || 0),
+            CO: Number(c.precio || 0),
+          },
+          model: { kind: 'MEPAL_SALUD' },
+          raw: c,
+        }));
+        setMepalSaludItems(arr);
+        setMepalSaludReady(true);
+      } catch (err) {
+        console.error('Error cargando MepalSalud:', err);
+        if (alive) setMepalSaludReady(true);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [country]);
+
+  // ================================
   // Filtrado de Tipologías
   // ================================
   const typologiesFiltered = useMemo(() => {
@@ -675,14 +730,31 @@ export default function LeftPanel({
     });
   }, [officeAccessoriesItems, qOfficeAccesories]);
 
+  // ================================
+  // Filtrado de MEPAL SALUD
+  // ================================
+  const mepalSaludFiltered = useMemo(() => {
+    const q = String(qMepalSalud || '')
+      .trim()
+      .toLowerCase();
+    if (!q) return mepalSaludItems || [];
+    return (mepalSaludItems || []).filter((it) => {
+      const code = String(it?.codigoPT ?? '').toLowerCase();
+      const title = String(it?.ui?.title ?? '').toLowerCase();
+      return code.includes(q) || title.includes(q);
+    });
+  }, [mepalSaludItems, qMepalSalud]);
+
   return (
     <div
       style={{
         flex: 1,
         padding: 12,
         overflow: 'auto',
+        overflowX: 'hidden',
         background: '#fff',
         minHeight: 0,
+        minWidth: 0,
       }}
     >
       {/* ======================= CATALOGO ======================= */}
@@ -1605,6 +1677,14 @@ export default function LeftPanel({
                 onClick={() => !readOnly && onAddAres(it.codigoPT)}
                 style={cardBtn(readOnly)}
               >
+                <CardImage
+                  assetName={it.codigoPT}
+                  title={it.ui?.title || it.codigoPT}
+                  imageFit="contain"
+                  imageHeight={110}
+                  imagePadding={6}
+                  imageBackground="#f9f9f9"
+                />
                 <div style={{ fontWeight: 900 }}>{it.codigoPT}</div>
                 <div style={{ fontSize: 12, opacity: 0.85 }}>{it.ui?.title}</div>
               </button>
@@ -1725,6 +1805,64 @@ export default function LeftPanel({
           )}
         </>
       )}
+
+      {/* ======================= MEPAL SALUD ======================= */}
+      {section === 'mepalSalud' && (
+        <>
+          <h1 style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+            <span style={{ display: 'block' }}>Salud</span>
+            <span style={{ display: 'block' }}>Mepal</span>
+          </h1>
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Selecciona un producto MepalSalud para agregarlo al proyecto.
+          </div>
+
+          <input
+            value={qMepalSalud}
+            onChange={(e) => setQMepalSalud(e.target.value)}
+            placeholder="Buscar por código o descripción..."
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 10,
+              outline: 'none',
+            }}
+          />
+
+          {!mepalSaludReady && (
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando MepalSalud...</div>
+          )}
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            {mepalSaludFiltered.map((it) => (
+              <button
+                key={String(it.codigoPT)}
+                disabled={readOnly}
+                onClick={() => !readOnly && onAddMepalSalud(it.codigoPT)}
+                style={cardBtn(readOnly)}
+              >
+                <MepalSaludCardImage codigo={it.codigoPT} title={it.ui?.title || it.codigoPT} />
+                <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                  {it.codigoPT}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.85,
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {it.ui?.title}
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1736,6 +1874,9 @@ function cardBtn(readOnly) {
     borderRadius: 10,
     border: '1px solid #e5e7eb',
     background: '#fff',
+    width: '100%',
+    minWidth: 0,
+    overflow: 'hidden',
     cursor: readOnly ? 'not-allowed' : 'pointer',
   };
 }
