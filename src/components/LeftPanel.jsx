@@ -1064,6 +1064,30 @@ export default function LeftPanel({
             }
 
             // =========================
+            // DUCTO BAJANTE A TECHO
+            // =========================
+            const ductosTecho = parts.filter((p) => p.type === 'ductoTecho');
+
+            for (const ductoTecho of ductosTecho) {
+              if (!ductoTecho.code) {
+                alert(`No tenemos disponible este ducto a techo: ${ductoTecho.logicalCode}`);
+                continue;
+              }
+
+              if (!ductoTecho?.model?.src) {
+                alert(`Este ducto a techo no tiene modelo 3D asociado: ${ductoTecho.logicalCode}`);
+                continue;
+              }
+
+              await api.addExternalGlbPart?.({
+                ...ductoTecho,
+                groupId: ductoTecho.groupId || groupId,
+                groupName: ductoTecho.groupName || groupName,
+                parentGroup: puestoGroup,
+              });
+            }
+
+            // =========================
             // PANTALLA KONCISA PLUS
             // =========================
             /* //una sola pantalla

@@ -19,6 +19,9 @@ export function getCostadosConfig({
   const offsetZDer = -300;
   const offsetZIntermedio = 0;
 
+  const makeReplaceKey = (moduleIndex, replaceZone) =>
+    `KONCISA_COSTADO_${Number(moduleIndex)}_${String(replaceZone).toUpperCase()}`;
+
   if (tipoPuesto === 'sencillo') {
     for (let i = 0; i < puestos; i++) {
       const baseX = i * largoRealMm;
@@ -33,6 +36,11 @@ export function getCostadosConfig({
           x: baseX - largoRealMm / 2 + offsetXIzq,
           y: 0,
           z: offsetZIzq - 5.5,
+
+          moduleIndex: 0,
+          replaceZone: 'LEFT',
+          replaceKey: makeReplaceKey(0, 'LEFT'),
+          pedestalTarget: true,
         });
       }
 
@@ -46,6 +54,11 @@ export function getCostadosConfig({
           x: baseX - largoRealMm / 2,
           y: 0,
           z: offsetZIntermedio,
+
+          moduleIndex: i,
+          replaceZone: 'INTERMEDIO',
+          replaceKey: makeReplaceKey(i, 'INTERMEDIO'),
+          pedestalTarget: true,
         });
       }
 
@@ -59,6 +72,11 @@ export function getCostadosConfig({
           x: baseX + largoRealMm / 2 + offsetXDer,
           y: 0,
           z: offsetZDer + 5.5,
+
+          moduleIndex: i,
+          replaceZone: 'RIGHT',
+          replaceKey: makeReplaceKey(i, 'RIGHT'),
+          pedestalTarget: true,
         });
       }
     }
@@ -78,6 +96,11 @@ export function getCostadosConfig({
           x: baseX - largoRealMm / 2 + offsetXIzq,
           y: 0,
           z: 600,
+
+          moduleIndex: 0,
+          replaceZone: 'LEFT',
+          replaceKey: makeReplaceKey(0, 'LEFT'),
+          pedestalTarget: true,
         });
       }
 
@@ -91,6 +114,11 @@ export function getCostadosConfig({
           x: baseX - largoRealMm / 2,
           y: 0,
           z: 0,
+
+          moduleIndex: i,
+          replaceZone: 'INTERMEDIO',
+          replaceKey: makeReplaceKey(i, 'INTERMEDIO'),
+          pedestalTarget: true,
         });
       }
 
@@ -104,6 +132,11 @@ export function getCostadosConfig({
           x: baseX + largoRealMm / 2 + offsetXDer,
           y: 0,
           z: 0,
+
+          moduleIndex: i,
+          replaceZone: 'RIGHT',
+          replaceKey: makeReplaceKey(i, 'RIGHT'),
+          pedestalTarget: true,
         });
       }
     }

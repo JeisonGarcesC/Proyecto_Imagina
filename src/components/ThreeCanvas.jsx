@@ -28,6 +28,14 @@ import { resolveKoncisaDucto } from '../koncisaPlus/rules/koncisaDuctoRules';
 
 import { createKoncisaPrivacyPanelProcedural, panelHasCanto } from '../koncisaPlus/parts/pantallas';
 
+import {
+  resolvePedestalFromCostado,
+  getPedestalSidesForCostado,
+} from '../koncisaPlus/rules/koncisaPedestalRules';
+
+import { resolveKoncisaPedestalReinforcement } from '../koncisaPlus/rules/koncisaPedestalReinforcementRules';
+import { resolveKoncisaDuctSupport } from '../koncisaPlus/rules/koncisaDuctSupportRules';
+
 const MM_TO_M = 1 / 1000;
 
 export default function ThreeCanvas({
@@ -940,6 +948,10 @@ export default function ThreeCanvas({
             // Koncisa Plus
             'ducto',
             'ductoPiso',
+            'ductoTecho',
+            'pedestal',
+            'refuerzoSuperficiePedestal',
+            'soporteDuctoPedestal',
             'costado',
             'grommet',
             'pasacable',
@@ -2781,9 +2793,13 @@ export default function ThreeCanvas({
       removeTargetOrGroup: (target) => removeTargetOrGroup(target),
       removeActiveOrGroup: () => removeTargetOrGroup(activePart),
       updateSelectedDuctType,
+      updateSelectedCeilingDuctSide,
+      updateSelectedPartTransformPatch,
       movePartToXZ: (id, x, z) => movePartToXZInternal(id, x, z),
       selectFloor,
       updateFloorVisualOptions,
+      replaceSelectedCostadoWithPedestal,
+      replaceSelectedPedestalWithCostado,
     });
 
     function getGroupedObjects(target) {
@@ -2860,6 +2876,545 @@ export default function ThreeCanvas({
       return removedAny;
     }
 
+    async function replaceSelectedCostadoWithPedestal({ placementSide = 'RIGHT' } = {}) {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const costadoObj = getRootPartObject(activePart) || activePart;
+
+      const isCostado =
+        costadoObj?.userData?.kind === 'costado' ||
+        costadoObj?.userData?.meta?.category === 'costados';
+
+      if (!isCostado) {
+        console.warn('La pieza activa no es un costado.');
+        return false;
+      }
+
+      const parentGroup =
+        costadoObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? costadoObj.parent : null;
+
+      const groupId =
+        costadoObj.userData?.groupId ||
+        parentGroup?.userData?.instanceId ||
+        parentGroup?.userData?.groupId ||
+        null;
+
+      const groupName =
+        costadoObj.userData?.groupName ||
+        parentGroup?.userData?.name ||
+        parentGroup?.userData?.groupName ||
+        null;
+
+      const basePos = costadoObj.position.clone();
+      const baseRot = costadoObj.rotation.clone();
+
+      const replaceKey =
+        costadoObj.userData?.meta?.replaceKey || costadoObj.userData?.replaceKey || null;
+
+      const moduleIndex =
+        costadoObj.userData?.meta?.moduleIndex ?? costadoObj.userData?.moduleIndex ?? null;
+
+      const replaceZone =
+        costadoObj.userData?.meta?.replaceZone || costadoObj.userData?.replaceZone || null;
+
+      const pedestalSetId = `PEDSET_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+
+      const originalVigaSnapshots = await replaceVigasWithPedestalReinforcement({
+        parentGroup,
+        moduleIndex,
+        pedestalSetId,
+      });
+
+      const originalCostadoSnapshot = {
+        type: 'costado',
+        line: costadoObj.userData?.line || 'KONCISA.PLUS',
+        code: costadoObj.userData?.code || costadoObj.userData?.codigoPT || null,
+        codigoPT: costadoObj.userData?.codigoPT || costadoObj.userData?.code || null,
+        logicalCode: costadoObj.userData?.logicalCode || null,
+        name: costadoObj.name || 'costado',
+        description: costadoObj.userData?.description || null,
+
+        groupId,
+        groupName,
+
+        position: {
+          x: basePos.x * 1000,
+          y: basePos.y * 1000,
+          z: basePos.z * 1000,
+        },
+
+        rotation: {
+          x: baseRot.x,
+          y: baseRot.y,
+          z: baseRot.z,
+        },
+
+        model: {
+          kind: 'glb',
+          src:
+            costadoObj.userData?.modelSrc ||
+            costadoObj.userData?.meta?.modelSrc ||
+            costadoObj.userData?.model?.src ||
+            null,
+        },
+
+        meta: {
+          ...(costadoObj.userData?.meta || {}),
+          category: 'costados',
+          moduleIndex,
+          replaceZone,
+          replaceKey,
+          restoredFromPedestal: true,
+        },
+      };
+
+      const sides = getPedestalSidesForCostado({
+        costado: costadoObj,
+        placementSide,
+      });
+
+      let firstPedestalObj = null;
+
+      for (const side of sides) {
+        const pedestal = resolvePedestalFromCostado({
+          costado: costadoObj,
+          placementSide: side,
+        });
+
+        const offset = pedestal.offsetMm || {};
+
+        const pedestalObj = await addExternalGlbPart({
+          type: 'pedestal',
+          line: 'KONCISA.PLUS',
+          code: pedestal.code,
+          logicalCode: pedestal.logicalCode,
+          name: pedestal.name,
+
+          groupId,
+          groupName,
+          parentGroup,
+
+          position: {
+            x: basePos.x * 1000 + Number(offset.x || 0),
+            y: basePos.y * 1000 + Number(offset.y || 0),
+            z: basePos.z * 1000 + Number(offset.z || 0),
+          },
+
+          rotation: {
+            x: baseRot.x,
+            y: baseRot.y + Number(offset.rotY || 0),
+            z: baseRot.z,
+          },
+
+          model: {
+            kind: 'glb',
+            src: pedestal.modelSrc,
+          },
+
+          meta: {
+            category: 'pedestales',
+            modelCode: pedestal.modelCode,
+            replaceCostado: true,
+            replaceKey,
+            replaceZone,
+            moduleIndex,
+            placementSide: pedestal.placementSide,
+
+            pedestalSetId,
+
+            originalCostadoSnapshot,
+            originalVigaSnapshots,
+
+            originalCostadoCode: costadoObj.userData?.code || null,
+            originalCostadoInstanceId: costadoObj.userData?.instanceId || null,
+            affectsViga: true,
+          },
+        });
+
+        if (!firstPedestalObj && pedestalObj) {
+          firstPedestalObj = pedestalObj;
+        }
+      }
+
+      console.log('PEDESTAL BASE PARA SOPORTE DUCTO:', firstPedestalObj);
+
+      if (firstPedestalObj) {
+        await addDuctSupportForPedestalSet({
+          parentGroup,
+          basePedestalObj: firstPedestalObj,
+          tipoPuesto:
+            costadoObj.userData?.meta?.tipoPuesto || costadoObj.userData?.tipoPuesto || 'sencillo',
+          replaceZone,
+          moduleIndex,
+          pedestalSetId,
+        });
+      } else {
+        console.warn('No se pudo crear soporte ducto: no se encontró pedestal base.');
+      }
+
+      removePartObject(costadoObj);
+
+      emitBOM();
+      refreshFloorAndGrid();
+
+      return true;
+    }
+
+    async function replaceSelectedPedestalWithCostado() {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const pedestalObj = getRootPartObject(activePart) || activePart;
+
+      const isPedestal =
+        pedestalObj?.userData?.kind === 'pedestal' ||
+        pedestalObj?.userData?.meta?.category === 'pedestales';
+
+      if (!isPedestal) {
+        console.warn('La pieza activa no es un pedestal.');
+        return false;
+      }
+
+      const meta = pedestalObj.userData?.meta || {};
+      const snapshot = meta.originalCostadoSnapshot || null;
+
+      if (!snapshot?.code || !snapshot?.model?.src) {
+        alert('No se puede restaurar el costado: falta información del costado original.');
+        return false;
+      }
+
+      const parentGroup =
+        pedestalObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? pedestalObj.parent : null;
+
+      const pedestalSetId = meta.pedestalSetId || null;
+      const originalVigaSnapshots = meta.originalVigaSnapshots || [];
+
+      const pedestalsToRemove = [];
+
+      if (parentGroup && pedestalSetId) {
+        parentGroup.traverse((node) => {
+          if (!node) return;
+
+          const isSamePedestal =
+            (node.userData?.kind === 'pedestal' ||
+              node.userData?.meta?.category === 'pedestales') &&
+            node.userData?.meta?.pedestalSetId === pedestalSetId;
+
+          if (isSamePedestal) {
+            pedestalsToRemove.push(node);
+          }
+        });
+      } else {
+        pedestalsToRemove.push(pedestalObj);
+      }
+
+      await addExternalGlbPart({
+        ...snapshot,
+        type: 'costado',
+        parentGroup,
+        groupId:
+          snapshot.groupId ||
+          pedestalObj.userData?.groupId ||
+          parentGroup?.userData?.instanceId ||
+          null,
+        groupName:
+          snapshot.groupName ||
+          pedestalObj.userData?.groupName ||
+          parentGroup?.userData?.name ||
+          null,
+      });
+
+      await restoreVigasFromPedestalReinforcement({
+        parentGroup,
+        pedestalSetId,
+        originalVigaSnapshots,
+      });
+
+      removeDuctSupportsByPedestalSet({
+        parentGroup,
+        pedestalSetId,
+      });
+
+      for (const obj of pedestalsToRemove) {
+        removePartObject(obj);
+      }
+
+      emitBOM();
+      refreshFloorAndGrid();
+
+      return true;
+    }
+
+    function snapshotNativeBlockPart(obj) {
+      if (!obj) return null;
+
+      return {
+        type: obj.userData?.kind || 'viga',
+        line: obj.userData?.line || 'KONCISA.PLUS',
+        code: obj.userData?.code || obj.userData?.codigoPT || null,
+        codigoPT: obj.userData?.codigoPT || obj.userData?.code || null,
+        logicalCode: obj.userData?.logicalCode || null,
+        name: obj.userData?.description || obj.name || 'Pieza nativa',
+
+        groupId: obj.userData?.groupId || null,
+        groupName: obj.userData?.groupName || null,
+
+        dimMm: obj.userData?.dim || obj.userData?.dimMm || null,
+
+        position: {
+          x: obj.position.x * 1000,
+          y: obj.position.y * 1000,
+          z: obj.position.z * 1000,
+        },
+
+        rotation: {
+          x: obj.rotation.x,
+          y: obj.rotation.y,
+          z: obj.rotation.z,
+        },
+
+        meta: {
+          ...(obj.userData?.meta || {}),
+        },
+      };
+    }
+
+    async function replaceVigasWithPedestalReinforcement({
+      parentGroup,
+      moduleIndex,
+      pedestalSetId,
+    } = {}) {
+      if (!parentGroup || !pedestalSetId) return [];
+
+      const vigasToReplace = [];
+
+      parentGroup.traverse((node) => {
+        if (!node) return;
+
+        const isViga = node.userData?.kind === 'viga' || node.userData?.meta?.category === 'vigas';
+
+        if (!isViga) return;
+
+        const nodeModuleIndex = Number(
+          node.userData?.meta?.moduleIndex ?? node.userData?.moduleIndex ?? 0
+        );
+
+        if (Number(moduleIndex || 0) !== nodeModuleIndex) return;
+
+        if (node.userData?.meta?.replacedByPedestalSetId) return;
+
+        vigasToReplace.push(node);
+      });
+
+      const originalVigaSnapshots = [];
+
+      for (const vigaObj of vigasToReplace) {
+        const snapshot = snapshotNativeBlockPart(vigaObj);
+
+        if (snapshot) {
+          originalVigaSnapshots.push(snapshot);
+        }
+
+        const nominalWidthMm =
+          vigaObj.userData?.meta?.nominalWidthMm ||
+          vigaObj.userData?.nominalWidthMm ||
+          vigaObj.userData?.dim?.widthMm ||
+          vigaObj.userData?.dimMm?.widthMm ||
+          snapshot?.dimMm?.widthMm ||
+          1200;
+
+        const refuerzo = resolveKoncisaPedestalReinforcement({
+          nominalWidthMm,
+        });
+
+        await addNativeBlockPart({
+          type: 'refuerzoSuperficiePedestal',
+          line: 'KONCISA.PLUS',
+          code: refuerzo.code,
+          logicalCode: refuerzo.logicalCode,
+          name: refuerzo.name,
+
+          groupId: vigaObj.userData?.groupId || parentGroup.userData?.groupId || null,
+          groupName: vigaObj.userData?.groupName || parentGroup.userData?.groupName || null,
+          parentGroup,
+
+          dimMm: {
+            widthMm: refuerzo.dimMm.widthMm,
+            heightMm: refuerzo.dimMm.heightMm,
+            depthMm: refuerzo.dimMm.depthMm,
+          },
+
+          position: {
+            x: vigaObj.position.x * 1000,
+            y: vigaObj.position.y * 1000,
+            z: vigaObj.position.z * 1000,
+          },
+
+          rotation: {
+            x: vigaObj.rotation.x,
+            y: vigaObj.rotation.y,
+            z: vigaObj.rotation.z,
+          },
+
+          meta: {
+            category: 'refuerzos-superficie-pedestal',
+            modelCode: refuerzo.modelCode,
+            nominalWidthMm: refuerzo.nominalWidthMm,
+            moduleIndex: Number(moduleIndex || 0),
+            pedestalSetId,
+            replacesViga: true,
+            originalVigaCode: vigaObj.userData?.code || null,
+          },
+        });
+
+        removePartObject(vigaObj);
+      }
+
+      return originalVigaSnapshots;
+    }
+
+    async function restoreVigasFromPedestalReinforcement({
+      parentGroup,
+      pedestalSetId,
+      originalVigaSnapshots = [],
+    } = {}) {
+      if (!parentGroup || !pedestalSetId) return false;
+
+      const refuerzosToRemove = [];
+
+      parentGroup.traverse((node) => {
+        if (!node) return;
+
+        const isRefuerzo =
+          node.userData?.kind === 'refuerzoSuperficiePedestal' ||
+          node.userData?.meta?.category === 'refuerzos-superficie-pedestal';
+
+        if (!isRefuerzo) return;
+
+        if (node.userData?.meta?.pedestalSetId === pedestalSetId) {
+          refuerzosToRemove.push(node);
+        }
+      });
+
+      for (const snapshot of originalVigaSnapshots || []) {
+        if (!snapshot?.code || !snapshot?.dimMm) continue;
+
+        await addNativeBlockPart({
+          ...snapshot,
+          type: 'viga',
+          parentGroup,
+          groupId: snapshot.groupId || parentGroup.userData?.groupId || null,
+          groupName: snapshot.groupName || parentGroup.userData?.groupName || null,
+        });
+      }
+
+      for (const refuerzoObj of refuerzosToRemove) {
+        removePartObject(refuerzoObj);
+      }
+
+      return true;
+    }
+
+    async function addDuctSupportForPedestalSet({
+      parentGroup,
+      basePedestalObj,
+      tipoPuesto = 'sencillo',
+      replaceZone = 'RIGHT',
+      moduleIndex = 0,
+      pedestalSetId,
+    } = {}) {
+      if (!parentGroup || !basePedestalObj || !pedestalSetId) return null;
+
+      const support = resolveKoncisaDuctSupport({
+        tipoPuesto,
+        replaceZone,
+      });
+
+      const offset = support.offsetMm || {};
+
+      const basePos = basePedestalObj.position.clone();
+      const baseRot = basePedestalObj.rotation.clone();
+
+      await addExternalGlbPart({
+        type: 'soporteDuctoPedestal',
+        line: 'KONCISA.PLUS',
+        code: support.code,
+        logicalCode: support.logicalCode,
+        name: support.name,
+
+        groupId:
+          basePedestalObj.userData?.groupId ||
+          parentGroup.userData?.groupId ||
+          parentGroup.userData?.instanceId ||
+          null,
+
+        groupName:
+          basePedestalObj.userData?.groupName ||
+          parentGroup.userData?.groupName ||
+          parentGroup.userData?.name ||
+          null,
+
+        parentGroup,
+
+        position: {
+          x: basePos.x * 1000 + Number(offset.x || 0),
+          y: basePos.y * 1000 + Number(offset.y || 0),
+          z: basePos.z * 1000 + Number(offset.z || 0),
+        },
+
+        rotation: {
+          x: baseRot.x,
+          y: baseRot.y + Number(offset.rotY || 0),
+          z: baseRot.z,
+        },
+
+        model: {
+          kind: 'glb',
+          src: support.modelSrc,
+        },
+
+        meta: {
+          category: 'soportes-ducto-pedestal',
+          modelCode: support.modelCode,
+          tipoPuesto,
+          replaceZone,
+          moduleIndex,
+          pedestalSetId,
+          onePerPedestalSet: tipoPuesto === 'doble',
+          supportForPedestal: true,
+        },
+      });
+
+      return true;
+    }
+
+    function removeDuctSupportsByPedestalSet({ parentGroup, pedestalSetId } = {}) {
+      if (!parentGroup || !pedestalSetId) return false;
+
+      const supportsToRemove = [];
+
+      parentGroup.traverse((node) => {
+        if (!node) return;
+
+        const isSupport =
+          node.userData?.kind === 'soporteDuctoPedestal' ||
+          node.userData?.meta?.category === 'soportes-ducto-pedestal';
+
+        if (!isSupport) return;
+
+        if (node.userData?.meta?.pedestalSetId === pedestalSetId) {
+          supportsToRemove.push(node);
+        }
+      });
+
+      for (const supportObj of supportsToRemove) {
+        removePartObject(supportObj);
+      }
+
+      return true;
+    }
+
     async function updateSelectedDuctType(newType) {
       if (readOnly) return;
       if (!activePart) return;
@@ -2920,6 +3475,166 @@ export default function ThreeCanvas({
           nominalWidthMm,
         },
       });
+    }
+
+    function updateSelectedCeilingDuctSide(newSide) {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const root = getRootPartObject(activePart) || activePart;
+
+      if (root.userData?.kind !== 'ductoTecho') {
+        console.warn('La pieza activa no es un ducto bajante a techo.');
+        return false;
+      }
+
+      const side = String(newSide || 'LEFT').toUpperCase() === 'RIGHT' ? 'RIGHT' : 'LEFT';
+
+      root.userData.meta = {
+        ...(root.userData.meta || {}),
+        side,
+      };
+
+      /**
+       * Caso recomendado:
+       * Si desde buildKoncisaPlus guardas las posiciones ya calculadas para LEFT/RIGHT,
+       * se usan aquí directamente.
+       */
+      const sideTransforms = root.userData?.meta?.sideTransformsMm || null;
+      const nextTransform = sideTransforms?.[side] || null;
+
+      if (nextTransform?.position) {
+        root.position.set(
+          Number(nextTransform.position.x || 0) / 1000,
+          Number(nextTransform.position.y || 0) / 1000,
+          Number(nextTransform.position.z || 0) / 1000
+        );
+      }
+
+      if (nextTransform?.rotation) {
+        root.rotation.set(
+          Number(nextTransform.rotation.x || 0),
+          Number(nextTransform.rotation.y || 0),
+          Number(nextTransform.rotation.z || 0)
+        );
+      } else {
+        // Fallback temporal si aún no tienes sideTransformsMm
+        root.rotation.y = side === 'RIGHT' ? Math.PI : 0;
+      }
+
+      root.updateMatrixWorld(true);
+
+      if (selectionHelper) selectionHelper.update();
+
+      onSelectionChange?.({
+        code: root.userData.codigoPT || root.userData.code,
+        dimMm: root.userData?.dim || null,
+        dimM: root.userData?.dimM || null,
+
+        materialCode: root.userData?.materialCode ?? null,
+        materialBase: root.userData?.materialBase ?? null,
+
+        line: root.userData?.line ?? null,
+        kind: root.userData?.kind || null,
+        meta: root.userData?.meta || null,
+        groupId: root.userData?.groupId || null,
+        groupName: root.userData?.groupName || null,
+        logicalCode: root.userData?.logicalCode || null,
+        instanceId: root.userData?.instanceId || null,
+      });
+
+      refreshFloorAndGrid();
+      emitBOM();
+
+      return true;
+    }
+
+    function updateSelectedPartTransformPatch(patch = {}) {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const root = getRootPartObject(activePart) || activePart;
+
+      if (!root) return false;
+
+      const allowedKinds = ['ductoPiso', 'ductoTecho', 'ducto'];
+
+      if (!allowedKinds.includes(root.userData?.kind)) {
+        console.warn(
+          'La pieza activa no permite ajuste desde PropertiesPopup:',
+          root.userData?.kind
+        );
+        return false;
+      }
+
+      const positionMm = patch.positionMm || {};
+      const rotationDeg = patch.rotationDeg || {};
+
+      if (Number.isFinite(Number(positionMm.x))) {
+        root.position.x = Number(positionMm.x) / 1000;
+      }
+
+      if (Number.isFinite(Number(positionMm.y))) {
+        root.position.y = Number(positionMm.y) / 1000;
+      }
+
+      if (Number.isFinite(Number(positionMm.z))) {
+        root.position.z = Number(positionMm.z) / 1000;
+      }
+
+      if (Number.isFinite(Number(rotationDeg.x))) {
+        root.rotation.x = THREE.MathUtils.degToRad(Number(rotationDeg.x));
+      }
+
+      if (Number.isFinite(Number(rotationDeg.y))) {
+        root.rotation.y = THREE.MathUtils.degToRad(Number(rotationDeg.y));
+      }
+
+      if (Number.isFinite(Number(rotationDeg.z))) {
+        root.rotation.z = THREE.MathUtils.degToRad(Number(rotationDeg.z));
+      }
+
+      if (patch.side) {
+        root.userData.meta = {
+          ...(root.userData.meta || {}),
+          side: patch.side,
+        };
+      }
+
+      root.updateMatrixWorld(true);
+
+      if (selectionHelper) selectionHelper.update();
+
+      onSelectionChange?.({
+        code: root.userData.codigoPT || root.userData.code,
+        dimMm: root.userData?.dim || null,
+        dimM: root.userData?.dimM || null,
+
+        materialCode: root.userData?.materialCode ?? null,
+        materialBase: root.userData?.materialBase ?? null,
+
+        line: root.userData?.line ?? null,
+        kind: root.userData?.kind || null,
+        meta: root.userData?.meta || null,
+        groupId: root.userData?.groupId || null,
+        groupName: root.userData?.groupName || null,
+        logicalCode: root.userData?.logicalCode || null,
+        instanceId: root.userData?.instanceId || null,
+
+        transformMm: {
+          x: Math.round(root.position.x * 1000),
+          y: Math.round(root.position.y * 1000),
+          z: Math.round(root.position.z * 1000),
+          rotX: Math.round(THREE.MathUtils.radToDeg(root.rotation.x) * 100) / 100,
+          rotY: Math.round(THREE.MathUtils.radToDeg(root.rotation.y) * 100) / 100,
+          rotZ: Math.round(THREE.MathUtils.radToDeg(root.rotation.z) * 100) / 100,
+        },
+      });
+
+      refreshFloorAndGrid();
+      emitBOM();
+
+      return true;
     }
 
     // ====== Keyboard ======
@@ -3662,6 +4377,9 @@ export default function ThreeCanvas({
 
           logicalCode: part?.logicalCode || null,
 
+          modelSrc: part?.model?.src || null,
+          model: part?.model || null,
+
           // NUEVO: contexto de acabados
           generico: catalogItem?.generico || catalogItem?.raw?.generico || null,
           genericos: catalogItem?.raw?.genericos || catalogItem?.genericos || [],
@@ -3699,9 +4417,14 @@ export default function ThreeCanvas({
 
         setActivePart(obj);
         emitBOM();
+
+        return obj;
       } catch (error) {
         console.error('Error cargando GLB externo:', part.model.src, error);
         alert(`No se pudo cargar el modelo 3D: ${part.model.src}`);
+        return null;
+      } finally {
+        refreshFloorAndGrid();
       }
 
       refreshFloorAndGrid();
