@@ -38,7 +38,8 @@ import LeftPanel from './components/LeftPanel';
 
 import { loadCategoriasIntranet } from './services/categoriasIntranet.js';
 
-import PropertiesPopup from './components/PropertiesPopup';
+//import PropertiesPopup from './components/PropertiesPopup';// Antes
+import PropertiesPopup from './components/properties/PropertiesPopup';
 
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -633,9 +634,7 @@ export default function App() {
               onAddChair={(codigoSilla) =>
                 !readOnly && threeApiRef.current?.addChair?.(codigoSilla)
               }
-              onAddAres={(codigoAres) =>
-                !readOnly && threeApiRef.current?.addAres?.(codigoAres)
-              }
+              onAddAres={(codigoAres) => !readOnly && threeApiRef.current?.addAres?.(codigoAres)}
               onAddPlant={(plantName) => !readOnly && threeApiRef.current?.addPlant?.(plantName)}
               onAddOfficeAccessory={(accessoryName) =>
                 !readOnly && threeApiRef.current?.addOfficeAccessory?.(accessoryName)
