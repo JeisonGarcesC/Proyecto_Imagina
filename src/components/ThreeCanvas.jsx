@@ -1863,6 +1863,13 @@ export default function ThreeCanvas({
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
       if (readOnly) return;
 
+      const codigoBase = String(codigo).replace(/_2$/, '');
+      const canUseDesplegado = codigoBase === '22000129652' || codigoBase === '22000127958';
+      if (targetVariant === 'desplegado' && !canUseDesplegado) {
+        console.warn('[swapMepalSaludVariant] Variante desplegado no permitida para:', codigoBase);
+        return;
+      }
+
       // 1) Encontrar el objeto por instanceId o uuid
       const found = parts.find(({ obj }) => {
         return (
@@ -1889,7 +1896,6 @@ export default function ThreeCanvas({
       removePartObject(oldObj);
 
       // 5) Determinar qué GLB cargar según variante
-      const codigoBase = String(codigo).replace(/_2$/, '');
       const glbSrc = targetVariant === 'normal'
         ? `/assets/models/MepalSalud/${codigoBase}.glb`
         : `/assets/models/MepalSalud/${codigoBase}_2.glb`;
