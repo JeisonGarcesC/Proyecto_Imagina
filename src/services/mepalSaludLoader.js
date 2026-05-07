@@ -1,12 +1,18 @@
 // src/services/mepalSaludLoader.js
-// Lista de códigos MepalSalud disponibles (los que tienen GLB en /assets/models/MepalSalud/)
-// Agregar aquí cada nuevo código cuando se añada el GLB correspondiente.
-const MEPAL_SALUD_CODES = [
+// Lee productos MepalSalud desde /assets/models/MepalSalud/mepalSalud.json
+// y cruza precios desde las listas XML.
+
+const MEPAL_SALUD_CODES_FALLBACK = [
+  '22000113680',
   '22000127958',
+  '22000127984',
+  '22000127989',
+  '22000129632',
 ];
 
 const cacheByList = new Map();
-let cacheMepalSaludItems = null;
+const mepalSaludItemsByList = new Map();
+let cacheMepalSaludCodes = null;
 
 function normalizeList(list) {
   return String(list || 'CO')
@@ -37,6 +43,44 @@ function resolvePriceListFile(list) {
 function parsePrice(raw) {
   const cleaned = (raw || '').replace(/[^\d]/g, '');
   return cleaned ? Number(cleaned) : 0;
+}
+
+function normalizeMepalItemCode(item) {
+  if (typeof item === 'string' || typeof item === 'number') {
+    return String(item).trim();
+  }
+
+  const code = item?.codigo ?? item?.code ?? item?.name;
+  return String(code || '').trim();
+}
+
+async function loadMepalSaludCodes() {
+  if (cacheMepalSaludCodes) return cacheMepalSaludCodes;
+
+  try {
+    const res = await fetch('/assets/models/MepalSalud/mepalSalud.json');
+    if (!res.ok) throw new Error('No se pudo cargar mepalSalud.json');
+
+    const raw = await res.json();
+    const arr = Array.isArray(raw) ? raw : [];
+
+    const uniqueCodes = [];
+    const seen = new Set();
+
+    for (const item of arr) {
+      const code = normalizeMepalItemCode(item);
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      uniqueCodes.push(code);
+    }
+
+    cacheMepalSaludCodes = uniqueCodes;
+    return uniqueCodes;
+  } catch (err) {
+    console.error('[loadMepalSaludCodes] Error:', err);
+    cacheMepalSaludCodes = [...MEPAL_SALUD_CODES_FALLBACK];
+    return cacheMepalSaludCodes;
+  }
 }
 
 async function loadPriceListMap(list = 'CO') {
@@ -75,12 +119,16 @@ async function loadPriceListMap(list = 'CO') {
 
 // Devuelve la lista de items MepalSalud disponibles con precios del XML para el país dado
 export async function loadMepalSaludItems(list = 'CO') {
-  if (cacheMepalSaludItems) return cacheMepalSaludItems;
+  const key = normalizeList(list);
+  if (mepalSaludItemsByList.has(key)) return mepalSaludItemsByList.get(key);
 
   try {
-    const priceMap = await loadPriceListMap(list);
+    const [priceMap, codes] = await Promise.all([
+      loadPriceListMap(list),
+      loadMepalSaludCodes(),
+    ]);
 
-    const items = MEPAL_SALUD_CODES.map((code) => {
+    const items = codes.map((code) => {
       const det = priceMap.get(code);
       return {
         codigo: code,
@@ -91,11 +139,11 @@ export async function loadMepalSaludItems(list = 'CO') {
       };
     });
 
-    cacheMepalSaludItems = items;
+    mepalSaludItemsByList.set(key, items);
     return items;
   } catch (err) {
     console.error('[loadMepalSaludItems] Error:', err);
-    return MEPAL_SALUD_CODES.map((code) => ({
+    return MEPAL_SALUD_CODES_FALLBACK.map((code) => ({
       codigo: code,
       descripcion: code,
       precio: 0,

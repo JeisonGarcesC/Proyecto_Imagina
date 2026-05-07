@@ -1809,17 +1809,18 @@ export default function ThreeCanvas({
       const obj = gltf.scene;
 
       // 3) userData
+      const mepalPartPrices = {
+        CO: Number(detCO?.precio || 0),
+        EUC: Number(detEUC?.precio || 0),
+        USD: Number(detUSD?.precio || 0),
+      };
       const mepalParts = [
         {
           code: codigo,
           description: det?.descripcion || codigo,
           qty: 1,
-          unitPrice: Number(det?.precio || 0),
-          prices: {
-            CO: detCO?.precio || 0,
-            EUC: detEUC?.precio || 0,
-            USD: detUSD?.precio || 0,
-          },
+          unitPrice: Number(mepalPartPrices[countryRef.current] || 0),
+          prices: mepalPartPrices,
         },
       ];
 
@@ -1863,6 +1864,13 @@ export default function ThreeCanvas({
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
       if (readOnly) return;
 
+      const codigoBase = String(codigo).replace(/_2$/, '');
+      const canUseDesplegado = codigoBase === '22000129632' || codigoBase === '22000127958';
+      if (targetVariant === 'desplegado' && !canUseDesplegado) {
+        console.warn('[swapMepalSaludVariant] Variante desplegado no permitida para:', codigoBase);
+        return;
+      }
+
       // 1) Encontrar el objeto por instanceId o uuid
       const found = parts.find(({ obj }) => {
         return (
@@ -1889,7 +1897,6 @@ export default function ThreeCanvas({
       removePartObject(oldObj);
 
       // 5) Determinar qué GLB cargar según variante
-      const codigoBase = String(codigo).replace(/_2$/, '');
       const glbSrc = targetVariant === 'normal'
         ? `/assets/models/MepalSalud/${codigoBase}.glb`
         : `/assets/models/MepalSalud/${codigoBase}_2.glb`;
