@@ -7,7 +7,7 @@ const MEPAL_SALUD_CODES_FALLBACK = [
   '22000127958',
   '22000127984',
   '22000127989',
-  '22000129652',
+  '22000129632',
 ];
 
 const cacheByList = new Map();

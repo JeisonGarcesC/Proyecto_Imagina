@@ -16,27 +16,11 @@ function groupItems(items = []) {
   }));
 }
 
-// ✅ agrupador específico para tipologías (por categoría_costos o un fallback)
-function groupTipologias(items = []) {
-  const groups = new Map();
-  for (const it of items) {
-    const key =
-      it?.raw?.categoria_costos || it?.raw?.categoria_costos?.toString?.() || 'TIPOLOGÍAS';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(it);
-  }
-  return Array.from(groups.entries()).map(([group, groupItems]) => ({
-    group,
-    items: groupItems,
-  }));
-}
-
 export default function CatalogPanel({
   items = [],
   country = 'CO',
   disabled = false,
   onAddCatalogItem,
-  onToggleSnap,
   onAddSurface, // ✅ YA EXISTE
   onAddTypology, // ✅ NUEVO: agrega tipología como "prototipo"
 }) {
@@ -74,16 +58,12 @@ export default function CatalogPanel({
   // 2) TIPOLOGÍAS (SEPARADO)
   // =======================
   const [tipologias, setTipologias] = useState([]);
-  const [tipologiasQuery, setTipologiasQuery] = useState('');
-  const [tipologiasReady, setTipologiasReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
 
-    setTipologiasReady(false);
-    setTipologias([]);
-
     (async () => {
+      setTipologias([]);
       try {
         console.log('[CatalogPanel] country recibido:', country);
 
@@ -117,11 +97,9 @@ export default function CatalogPanel({
 
         if (alive) {
           setTipologias(arr);
-          setTipologiasReady(true);
         }
       } catch (err) {
         console.error('Error cargando tipologias-detalle:', err);
-        if (alive) setTipologiasReady(true);
       }
     })();
 
@@ -129,20 +107,6 @@ export default function CatalogPanel({
       alive = false;
     };
   }, [country]);
-
-  const tipologiasFiltered = useMemo(() => {
-    const q = tipologiasQuery.trim().toLowerCase();
-    if (!q) return tipologias;
-
-    return tipologias.filter((it) => {
-      const t = (it?.ui?.title || '').toLowerCase();
-      const c = (it?.codigoPT || '').toLowerCase();
-      const cat = (it?.raw?.categoria_costos || '').toLowerCase();
-      return t.includes(q) || c.includes(q) || cat.includes(q);
-    });
-  }, [tipologias, tipologiasQuery]);
-
-  const tipologiasGroups = useMemo(() => groupTipologias(tipologiasFiltered), [tipologiasFiltered]);
 
   //para regular la cantidad de resultado
   const MAX_TIPOLOGIAS_IDLE = 2; // cuando NO hay búsqueda

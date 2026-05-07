@@ -1,7 +1,7 @@
 // src/components/properties/MepalSaludProperties.jsx
 import { sectionStyle } from './shared/PropertyStyles';
 
-const MEPAL_SALUD_DEPLOYABLE_CODES = new Set(['22000129652', '22000127958']);
+const MEPAL_SALUD_DEPLOYABLE_CODES = new Set(['22000129632', '22000127958']);
 
 export default function MepalSaludProperties({ part, api, onClose }) {
   if (part?.kind !== 'MEPAL_SALUD') return null;
