@@ -4182,18 +4182,33 @@ export default function ThreeCanvas({
       return mesh;
     }
 
+    function getEdgeThicknessM(edgeFinish) {
+      const value = String(edgeFinish || '').toUpperCase();
+
+      if (value.includes('1MM')) return 0.001;
+      if (value.includes('2MM')) return 0.002;
+      if (value.includes('3MM')) return 0.003;
+
+      return 0.002;
+    }
+
     function addSurfaceEdgesToGroup({
       group,
       widthM,
       depthM,
       thicknessM,
-      edgeThicknessM = 0.008,
+      edgeThicknessM = getEdgeThicknessM(finalEdgeFinish), // 0.002, //espesor del canto
       edgeFinish = 'PVC-2MM',
       edgeColor = 0x2f2f2f,
     }) {
       if (!group) return;
 
+      // El canto debe tener exactamente el mismo alto que el espesor de la superficie
       const edgeHeightM = thicknessM;
+
+      // Como la superficie está centrada en Y dentro del grupo,
+      // el canto también debe ir centrado en Y.
+      const edgeY = 0.015; //(710 - edgeThicknessM / 2) / 1000; //
 
       // Canto frontal
       group.add(
@@ -4202,7 +4217,7 @@ export default function ThreeCanvas({
           widthM,
           heightM: edgeHeightM,
           depthM: edgeThicknessM,
-          position: [0, 0, -depthM / 2 - edgeThicknessM / 2],
+          position: [0, edgeY, -depthM / 2 - edgeThicknessM / 2],
           color: edgeColor,
           edgeFinish,
         })
@@ -4215,7 +4230,7 @@ export default function ThreeCanvas({
           widthM,
           heightM: edgeHeightM,
           depthM: edgeThicknessM,
-          position: [0, 0, depthM / 2 + edgeThicknessM / 2],
+          position: [0, edgeY, depthM / 2 + edgeThicknessM / 2],
           color: edgeColor,
           edgeFinish,
         })
@@ -4228,7 +4243,7 @@ export default function ThreeCanvas({
           widthM: edgeThicknessM,
           heightM: edgeHeightM,
           depthM,
-          position: [-widthM / 2 - edgeThicknessM / 2, 0, 0],
+          position: [-widthM / 2 - edgeThicknessM / 2, edgeY, 0],
           color: edgeColor,
           edgeFinish,
         })
@@ -4241,7 +4256,7 @@ export default function ThreeCanvas({
           widthM: edgeThicknessM,
           heightM: edgeHeightM,
           depthM,
-          position: [widthM / 2 + edgeThicknessM / 2, 0, 0],
+          position: [widthM / 2 + edgeThicknessM / 2, edgeY, 0],
           color: edgeColor,
           edgeFinish,
         })
@@ -4384,7 +4399,7 @@ export default function ThreeCanvas({
         widthM,
         depthM,
         thicknessM,
-        edgeThicknessM: 0.008,
+        edgeThicknessM: 0.002,
         edgeFinish: finalEdgeFinish,
         edgeColor,
       });

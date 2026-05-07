@@ -169,7 +169,7 @@ export function getSuperficiesConfig({
     finishCode,
     variant,
     x: i * largoRealMm,
-    y: 720,
+    y: 710,
     z: 0,
     shape: 'RECT',
     perforada: false,
@@ -203,7 +203,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         index: i,
         diameterMm: 80,
         x: baseX,
-        y: 735,
+        y: 740, //altura grommet
         z: 0,
         rotY: 0,
       });
@@ -214,7 +214,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         index: `${i}_front`,
         diameterMm: 80,
         x: baseX,
-        y: 735,
+        y: 740, //altura grommet
         z: -300,
         rotY: 0,
       });
@@ -223,7 +223,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         index: `${i}_back`,
         diameterMm: 80,
         x: baseX,
-        y: 735,
+        y: 740, //altura grommet
         z: 300,
         rotY: Math.PI,
       });
@@ -256,7 +256,7 @@ export function getPasacablesConfig({
       out.push({
         index: i,
         x: baseX,
-        y: 735,
+        y: 740, //altura Pasacable
         z,
         rotY: 0,
       });
@@ -265,28 +265,28 @@ export function getPasacablesConfig({
     if (tipoPuesto === 'doble') {
       switch (position) {
         case 'CENTER':
-          out.push({ index: `${i}_f`, x: baseX, y: 735, z: -300, rotY: 0 });
-          out.push({ index: `${i}_b`, x: baseX, y: 735, z: 300, rotY: Math.PI });
+          out.push({ index: `${i}_f`, x: baseX, y: 740, z: -300, rotY: 0 });
+          out.push({ index: `${i}_b`, x: baseX, y: 740, z: 300, rotY: Math.PI });
           break;
 
         case 'LEFT_RIGHT':
-          out.push({ index: `${i}_l`, x: baseX, y: 735, z: -300, rotY: 0 });
-          out.push({ index: `${i}_r`, x: baseX, y: 735, z: 300, rotY: Math.PI });
+          out.push({ index: `${i}_l`, x: baseX, y: 740, z: -300, rotY: 0 });
+          out.push({ index: `${i}_r`, x: baseX, y: 740, z: 300, rotY: Math.PI });
           break;
 
         case 'LEFT_LEFT':
-          out.push({ index: `${i}_l1`, x: baseX, y: 735, z: -300, rotY: 0 });
-          out.push({ index: `${i}_l2`, x: baseX, y: 735, z: -300, rotY: Math.PI });
+          out.push({ index: `${i}_l1`, x: baseX, y: 740, z: -300, rotY: 0 });
+          out.push({ index: `${i}_l2`, x: baseX, y: 740, z: -300, rotY: Math.PI });
           break;
 
         case 'RIGHT_RIGHT':
-          out.push({ index: `${i}_r1`, x: baseX, y: 735, z: 300, rotY: 0 });
-          out.push({ index: `${i}_r2`, x: baseX, y: 735, z: 300, rotY: Math.PI });
+          out.push({ index: `${i}_r1`, x: baseX, y: 740, z: 300, rotY: 0 });
+          out.push({ index: `${i}_r2`, x: baseX, y: 740, z: 300, rotY: Math.PI });
           break;
 
         default:
-          out.push({ index: `${i}_f`, x: baseX, y: 735, z: -300, rotY: 0 });
-          out.push({ index: `${i}_b`, x: baseX, y: 735, z: 300, rotY: Math.PI });
+          out.push({ index: `${i}_f`, x: baseX, y: 740, z: -300, rotY: 0 });
+          out.push({ index: `${i}_b`, x: baseX, y: 740, z: 300, rotY: Math.PI });
           break;
       }
     }

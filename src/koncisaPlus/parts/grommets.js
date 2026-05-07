@@ -7,7 +7,7 @@ export function createGrommet({
   finish = 'ALUMINIUM',
   diameterMm = 80,
   x = 0,
-  y = 735,
+  y = 760,
   z = 0,
   rotY = 0,
 }) {
