@@ -125,7 +125,6 @@ export default function App() {
 
   const [isReady, setIsReady] = useState(false);
   const [selectedPart, setSelectedPart] = useState(null);
-  const [selectedPartAcabado, _setSelectedPartAcabado] = useState(null);
 
   // Muros
   const [wallMode, setWallMode] = useState('NONE');
@@ -188,13 +187,6 @@ export default function App() {
     }
   }, [selectedPart]);
 
-  useEffect(() => {
-    if (!selectedPartAcabado) {
-      const timer = setTimeout(() => setSelectedIds([]), 0);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedPartAcabado]);
-
   const [country, setCountry] = useState('CO');
   const [catalogItems, setCatalogItems] = useState([]);
   const [byCode, setByCode] = useState(new Map());
@@ -254,8 +246,8 @@ export default function App() {
 
   const [plan2DVisible, setPlan2DVisible] = useState(true);
   const [plan2DSrc, setPlan2DSrc] = useState(null);
-  const [plan2DKind, setPlan2DKind] = useState(null);
-  const [plan2DName, setPlan2DName] = useState('');
+  const [, setPlan2DKind] = useState(null);
+  const [, setPlan2DName] = useState('');
   const [plan2DTransform, setPlan2DTransform] = useState({
     metersPerPixel: 0.01, // temporal, luego se calibra
     offsetX: 0,
@@ -323,22 +315,6 @@ export default function App() {
   /* =====================================================
      FILTRO DE MATERIALES POR CÓDIGO GENÉRICO (✔ correcto)
      ===================================================== */
-  const filteredMaterials = useMemo(() => {
-    const gen = String(selectedPart?.generico || '').trim();
-
-    if (!gen) return materials;
-
-    return materials.filter((m) => String(m.groupCode || '').trim() === gen);
-  }, [materials, selectedPart?.generico]);
-
-  const filteredMaterialsAcabado = useMemo(() => {
-    const gen = String(selectedPartAcabado?.generico || '').trim();
-
-    if (!gen) return materialsAcabado;
-
-    return materialsAcabado.filter((m) => String(m.groupCode || '').trim() === gen);
-  }, [materialsAcabado, selectedPartAcabado?.generico]);
-
   const allowedFinishCodes = useMemo(() => {
     const pt = String(selectedPart?.code ?? '').trim();
     if (!pt) return null;
@@ -386,13 +362,7 @@ export default function App() {
     });
 */
     return Array.from(allowed);
-  }, [
-    selectedPart?.code,
-    selectedPart?.generico,
-    selectedPart?.genericos,
-    byCode,
-    materialsAcabado,
-  ]);
+  }, [selectedPart, byCode, materialsAcabado]);
 
   /* ==========================
      Cargar materiales (gen-esp)
@@ -412,27 +382,6 @@ export default function App() {
       }
     })();
   }, []);
-
-  useEffect(() => {
-    if (!selectedPart?.code) {
-      _setSelectedPartAcabado(null);
-      return;
-    }
-
-    const pt = String(selectedPart.code).trim();
-    const item = byCode?.get?.(pt) || null;
-
-    const genericosRaw = item?.raw?.genericos || item?.genericos || [];
-    const genericos = (Array.isArray(genericosRaw) ? genericosRaw : [])
-      .map((g) => String(g).trim())
-      .filter(Boolean);
-
-    _setSelectedPartAcabado({
-      ...selectedPart,
-      generico: genericos[0] || null,
-      genericos,
-    });
-  }, [selectedPart, byCode]);
 
   /* ==========================
      Cargar Tipologias por categorias (categorias_intranet)
@@ -714,7 +663,7 @@ export default function App() {
             x={floatingEditor.x}
             y={floatingEditor.y}
             part={floatingEditor.part}
-            api={threeApiRef.current}
+            api={threeApi}
             onClose={() =>
               setFloatingEditor((prev) => ({
                 ...prev,
@@ -822,7 +771,7 @@ export default function App() {
         </div>
 
         {/* RIGHT */}
-        <div style={{}}>
+        <div style={{ minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
           {/*
           <PropertiesPanel
             part={selectedPart}
@@ -866,7 +815,6 @@ export default function App() {
               depthM: depthMm / 1000,
               thicknessM: thickMm / 1000,
               dim: { widthMm, depthMm, thickMm },
-              groupName: surface.groupName || groupName,
             });
           }}
         />

@@ -1,5 +1,6 @@
 // src/components/PropertiesPanel.jsx
 import { useEffect, useMemo, useState } from 'react';
+import './PropertiesPanel.css';
 
 import {
   KONCISA_PRIVACY_PANEL_FINISH_OPTIONS,
@@ -94,222 +95,111 @@ export default function PropertiesPanel({
   const canApplyGroup = !!part?.groupId;
 
   return (
-    <div
-      style={{
-        borderLeft: '1px solid #e5e5e5',
-        padding: 12,
-        background: '#fff',
-        height: '100%',
-        overflow: 'auto',
-      }}
-    >
-      <h3 style={{ marginTop: 0 }}>Propiedades</h3>
+    <div className="pp-shell">
+
+      <div className="pp-header">
+        <p className="pp-title">Propiedades</p>
+      </div>
 
       {readOnly && (
-        <div
-          style={{
-            margin: '8px 0 12px',
-            padding: '10px 12px',
-            borderRadius: 12,
-            border: '1px solid #e5e7eb',
-            background: '#fafafa',
-            fontSize: 12,
-            fontWeight: 700,
-            opacity: 0.9,
-          }}
-        >
+        <div className="pp-readonly-banner">
           Modo solo lectura (Comercial): puedes revisar propiedades y BOM, pero no editar acabados.
         </div>
       )}
 
       {!part && (
-        <div style={{ opacity: 0.7 }}>Selecciona una pieza para ver y editar sus propiedades.</div>
+        <div className="pp-empty">Selecciona una pieza para ver y editar sus propiedades.</div>
       )}
 
       {part && (
-        <>
+        <div className="pp-section">
           {/* Código */}
-          <div style={{ marginBottom: 10 }}>
-            <b>Código:</b> {part.code || '—'}
+          <div className="pp-field">
+            <span className="pp-field-label">Código:</span> {part.code || '—'}
           </div>
 
           {/* Genérico */}
-          <div style={{ marginBottom: 10 }}>
-            <b>Genérico:</b>{' '}
-            <span style={{ opacity: partGenericos.length ? 1 : 0.7 }}>{partGenericoText}</span>
-            <div style={{ marginTop: 4 }}>
-              <b>Genérico (Acabado):</b>{' '}
-              <span style={{ opacity: partAcabadoGenericos.length ? 1 : 0.7 }}>
-                {partAcabadoGenericoText}
-              </span>
-            </div>
+          <div className="pp-field">
+            <span className="pp-field-label">Genérico:</span>{' '}
+            <span style={{ opacity: partGenericos.length ? 1 : 0.5 }}>{partGenericoText}</span>
+          </div>
+          <div className="pp-field">
+            <span className="pp-field-label">Genérico (Acabado):</span>{' '}
+            <span style={{ opacity: partAcabadoGenericos.length ? 1 : 0.5 }}>{partAcabadoGenericoText}</span>
           </div>
 
           {/* Dimensiones */}
           {(part.dimMm || part.dimM) && (
-            <div style={{ marginBottom: 10, lineHeight: 1.6 }}>
-              <b>Dimensiones</b>
-              {part.dimMm ? (
-                <>
-                  <div>Ancho: {part.dimMm.widthMm} mm</div>
-                  <div>Fondo: {part.dimMm.depthMm} mm</div>
-                  <div>Espesor: {part.dimMm.thickMm} mm</div>
-                </>
-              ) : (
-                <>
-                  <div>Ancho: {Math.round((part.dimM?.widthM || 0) * 1000)} mm</div>
-                  <div>Fondo: {Math.round((part.dimM?.depthM || 0) * 1000)} mm</div>
-                  <div>Espesor: {Math.round((part.dimM?.thicknessM || 0) * 1000)} mm</div>
-                </>
-              )}
+            <div className="pp-field" style={{ marginTop: 8, lineHeight: 1.7 }}>
+              <span className="pp-field-label">Dimensiones</span>
+              <div>Ancho: {part.dimMm ? part.dimMm.widthMm : Math.round((part.dimM?.widthM || 0) * 1000)} mm</div>
+              <div>Fondo: {part.dimMm ? part.dimMm.depthMm : Math.round((part.dimM?.depthM || 0) * 1000)} mm</div>
+              <div>Espesor: {part.dimMm ? part.dimMm.thickMm : Math.round((part.dimM?.thicknessM || 0) * 1000)} mm</div>
             </div>
           )}
 
-          {/* Acabado / Material */}
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Acabado</div>
+          <div className="pp-divider" />
 
-            {/* Scope */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr 1fr',
-                gap: 8,
-                marginBottom: 8,
-              }}
-            >
-              <button
-                type="button"
-                title="Aplicar a la parte seleccionada"
-                onClick={() => setApplyScope('PART')}
-                disabled={readOnly}
-                style={{
-                  padding: '6px 8px',
-                  borderRadius: 8,
-                  border: '1px solid #ddd',
-                  background: applyScope === 'PART' ? '#111827' : '#fff',
-                  color: applyScope === 'PART' ? '#fff' : '#111827',
-                  cursor: readOnly ? 'not-allowed' : 'pointer',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                ◧ Parte
-              </button>
+          {/* Acabado */}
+          <div className="pp-field-label" style={{ marginBottom: 6 }}>Acabado</div>
 
-              <button
-                type="button"
-                title="Aplicar a piezas similares del mismo conjunto"
-                onClick={() => setApplyScope('GROUP')}
-                disabled={readOnly || !canApplyGroup}
-                style={{
-                  padding: '6px 8px',
-                  borderRadius: 8,
-                  border: '1px solid #ddd',
-                  background: applyScope === 'GROUP' ? '#111827' : '#fff',
-                  color: applyScope === 'GROUP' ? '#fff' : '#111827',
-                  cursor: readOnly || !canApplyGroup ? 'not-allowed' : 'pointer',
-                  opacity: !canApplyGroup ? 0.6 : 1,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                ◫ Grupo
-              </button>
-
-              <button
-                type="button"
-                title="Aplicar al objeto completo"
-                onClick={() => setApplyScope('ALL')}
-                disabled={readOnly}
-                style={{
-                  padding: '6px 8px',
-                  borderRadius: 8,
-                  border: '1px solid #ddd',
-                  background: applyScope === 'ALL' ? '#111827' : '#fff',
-                  color: applyScope === 'ALL' ? '#fff' : '#111827',
-                  cursor: readOnly ? 'not-allowed' : 'pointer',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                ⬚ Todo
-              </button>
-            </div>
-
-            {applyScope === 'GROUP' && (
-              <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 8, lineHeight: 1.3 }}>
-                Mismo grupo y misma familia.
-              </div>
-            )}
-
-            {part.subName && (
-              <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>
-                Editando parte: <b>{part.subName}</b>
-              </div>
-            )}
-
-            {/* 🔎 Buscador por código o nombre */}
-            <input
-              value={finishQuery}
-              onChange={(e) => setFinishQuery(e.target.value)}
-              placeholder="Buscar por código o nombre (ej: 22002383)"
-              disabled={readOnly}
-              style={{
-                width: '100%',
-                padding: 8,
-                borderRadius: 8,
-                border: '1px solid #ddd',
-                marginBottom: 8,
-              }}
-            />
-
-            <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
-              Acabados permitidos: <b>{filteredMaterialsAcabado.length}</b>
-            </div>
-
-            <select
-              value={part.subMaterialCode ?? part.materialCode ?? ''}
-              onChange={(e) => {
-                const code = e.target.value || null;
-                const def = code ? (materialsByCode?.get?.(code) ?? null) : null;
-
-                api?.applyFinishToActivePart?.(code, def, applyScope ?? 'PART');
-              }}
-              disabled={readOnly || !api?.applyFinishToActivePart}
-              style={{
-                width: '100%',
-                padding: 8,
-                borderRadius: 8,
-                border: '1px solid #ddd',
-              }}
-            >
-              <option value="">Sin acabado</option>
-
-              {filteredMaterialsAcabado.map((m) => (
-                <option key={m.code} value={m.code}>
-                  {m.code} — {m.name}
-                </option>
-              ))}
-            </select>
-
-            {part.materialBase && (
-              <div style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>
-                Material base: {part.materialBase}
-              </div>
-            )}
+          <div className="pp-scope-group">
+            <button type="button" title="Aplicar a la parte seleccionada"
+              onClick={() => setApplyScope('PART')} disabled={readOnly}
+              className={`pp-scope-btn${applyScope === 'PART' ? ' is-active' : ''}`}
+            >◧ Parte</button>
+            <button type="button" title="Aplicar a piezas similares del mismo conjunto"
+              onClick={() => setApplyScope('GROUP')} disabled={readOnly || !canApplyGroup}
+              className={`pp-scope-btn${applyScope === 'GROUP' ? ' is-active' : ''}`}
+              style={{ opacity: !canApplyGroup ? 0.4 : 1 }}
+            >◫ Grupo</button>
+            <button type="button" title="Aplicar al objeto completo"
+              onClick={() => setApplyScope('ALL')} disabled={readOnly}
+              className={`pp-scope-btn${applyScope === 'ALL' ? ' is-active' : ''}`}
+            >⬚ Todo</button>
           </div>
-        </>
+
+          {applyScope === 'GROUP' && (
+            <div className="pp-hint">Mismo grupo y misma familia.</div>
+          )}
+
+          {part.subName && (
+            <div className="pp-hint">Editando parte: <strong>{part.subName}</strong></div>
+          )}
+
+          <input className="pp-search" value={finishQuery}
+            onChange={(e) => setFinishQuery(e.target.value)}
+            placeholder="Buscar por código o nombre (ej: 22002383)"
+            disabled={readOnly}
+          />
+
+          <div className="pp-count">Acabados permitidos: <strong>{filteredMaterialsAcabado.length}</strong></div>
+
+          <select className="pp-select"
+            value={part.subMaterialCode ?? part.materialCode ?? ''}
+            onChange={(e) => {
+              const code = e.target.value || null;
+              const def = code ? (materialsByCode?.get?.(code) ?? null) : null;
+              api?.applyFinishToActivePart?.(code, def, applyScope ?? 'PART');
+            }}
+            disabled={readOnly || !api?.applyFinishToActivePart}
+          >
+            <option value="">Sin acabado</option>
+            {filteredMaterialsAcabado.map((m) => (
+              <option key={m.code} value={m.code}>{m.code} — {m.name}</option>
+            ))}
+          </select>
+
+          {part.materialBase && (
+            <div className="pp-hint" style={{ marginTop: 6 }}>Material base: {part.materialBase}</div>
+          )}
+        </div>
       )}
 
       {part?.type === 'pantalla' && (
-        <div style={{ marginTop: 12 }}>
-          <label>Acabado de pantalla</label>
-
-          <select
+        <div className="pp-section">
+          <div className="pp-field-label" style={{ marginBottom: 6 }}>Acabado de pantalla</div>
+          <select className="pp-select"
             value={part?.privacyPanelFinishId || ''}
             onChange={(e) => {
               const selected = getKoncisaPrivacyPanelFinishById(e.target.value);
@@ -318,21 +208,15 @@ export default function PropertiesPanel({
                 privacyPanelFinishId: selected.id,
               });
             }}
-            style={{ width: '100%' }}
             disabled={readOnly}
           >
             <option value="">Seleccionar acabado de pantalla</option>
-
             {KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
+              <option key={option.id} value={option.id}>{option.label}</option>
             ))}
           </select>
         </div>
       )}
-
-      <hr style={{ margin: '14px 0' }} />
     </div>
   );
 }

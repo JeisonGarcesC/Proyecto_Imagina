@@ -1,5 +1,6 @@
 // src/components/TopMenuBar.jsx
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import './TopMenuBar.css';
 
 function moneyCOP(v) {
   const n = Number(v || 0);
@@ -33,7 +34,10 @@ export default function TopMenuBar({
 }) {
   const [open, setOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [moveMode, setMoveMode] = useState('single');
+  const [deleteMode, setDeleteMode] = useState('single');
   const fileRef = useRef(null);
+  const barRef = useRef(null);
 
   const canLoadSave = !!perms?.canLoadSave;
 
@@ -56,6 +60,36 @@ export default function TopMenuBar({
     const u = user?.username || '';
     return u ? `${ses} · ${u}` : ses;
   }, [user]);
+
+  useEffect(() => {
+    const moveAsGroup = threeApiRef.current?.getMoveAsGroup?.();
+    if (typeof moveAsGroup === 'boolean') {
+      setMoveMode(moveAsGroup ? 'group' : 'single');
+    }
+  }, [threeApiRef]);
+
+  useEffect(() => {
+    const onMouseDown = (e) => {
+      if (!barRef.current?.contains(e.target)) {
+        setOpen(false);
+        setExportOpen(false);
+      }
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setExportOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
 
   const doSave = () => {
     const data = threeApiRef.current?.exportProject?.();
@@ -148,113 +182,69 @@ export default function TopMenuBar({
     setExportOpen(false);
   };
 
+  const handleMoveMode = (mode) => {
+    const asGroup = mode === 'group';
+    threeApiRef.current?.setMoveAsGroup?.(asGroup);
+    setMoveMode(mode);
+  };
+
+  const handleDeleteMode = (mode) => {
+    const asGroup = mode === 'group';
+    threeApiRef.current?.setDeleteAsGroup?.(asGroup);
+    setDeleteMode(mode);
+  };
+
   return (
-    <div
-      style={{
-        height: 42,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 10px',
-        borderBottom: '1px solid #e5e5e5',
-        background: '#fff',
-        userSelect: 'none',
-      }}
-    >
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10 }}>
+    <header ref={barRef} className="topbar-shell">
+      <div className="topbar-left">
+        <div className="topbar-menu-wrap">
         <button
           type="button"
           onClick={() => {
             setOpen((v) => !v);
             setExportOpen(false);
           }}
-          style={{
-            border: '1px solid #111',
-            background: open ? '#f3f4f6' : '#fff',
-            padding: '6px 12px',
-            borderRadius: 10,
-            cursor: 'pointer',
-            fontWeight: 800,
-          }}
+            className={`topbar-file-btn ${open ? 'is-open' : ''}`}
         >
           Archivo
         </button>
 
         {open && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 40,
-              left: 0,
-              width: 220,
-              background: '#fff',
-              border: '1px solid #d1d5db',
-              borderRadius: 12,
-              boxShadow: '0 12px 24px rgba(0,0,0,0.08)',
-              overflow: 'visible',
-              zIndex: 9999,
-            }}
-          >
+          <div className="topbar-menu-panel">
             <MenuItem label="Nuevo" disabled={!canLoadSave} onClick={doNew} />
             <MenuItem label="Abrir..." disabled={!canLoadSave} onClick={doOpen} />
             <MenuItem label="Guardar" disabled={!canLoadSave} onClick={doSave} />
 
-            <div style={{ position: 'relative' }}>
+            <div className="topbar-submenu-wrap">
               <button
                 type="button"
                 onClick={() => setExportOpen((v) => !v)}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '10px 12px',
-                  border: 'none',
-                  background: exportOpen ? '#f3f4f6' : 'transparent',
-                  cursor: 'pointer',
-                  fontWeight: 800,
-                }}
+                className={`topbar-menu-item ${exportOpen ? 'is-open' : ''}`}
                 onMouseDown={(e) => e.preventDefault()}
               >
                 Exportar
+                <span className="topbar-submenu-caret">›</span>
               </button>
 
               {exportOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: '100%',
-                    width: 220,
-                    background: '#fff',
-                    border: '1px solid #111',
-                    boxShadow: '0 12px 24px rgba(0,0,0,0.08)',
-                    zIndex: 10000,
-                  }}
-                >
+                <div className="topbar-submenu-panel">
                   <MenuItem label="Exportar GLB" onClick={doExportGlb} />
                   <MenuItem label="Exportar DXF" onClick={doExportDxf} />
 
-                  <div style={{ height: 1, background: '#e5e7eb', margin: '6px 0' }} />
+                  <div className="topbar-divider" />
 
                   <MenuItem label="Exportar SVG" onClick={doExportSvg} />
                   <MenuItem label="Exportar PNG" onClick={doExportPng} />
                   <MenuItem label="Exportar PDF" onClick={doExportPdf} />
 
-                  <div
-                    style={{
-                      marginTop: 8,
-                      fontSize: 11,
-                      color: '#777',
-                      lineHeight: 1.35,
-                      padding: '0 12px 10px',
-                    }}
-                  >
+                  <div className="topbar-menu-help">
                     PDF abre la ventana de impresión. GLB exporta el modelo 3D limpio del proyecto.
                   </div>
                 </div>
               )}
             </div>
 
-            <div style={{ height: 1, background: '#e5e7eb', margin: '6px 0' }} />
+            <div className="topbar-divider" />
             <MenuItem label="Salir" onClick={doExit} />
           </div>
         )}
@@ -267,16 +257,12 @@ export default function TopMenuBar({
           onChange={onPickFile}
           disabled={!canLoadSave}
         />
+        </div>
 
         <select
           value={country}
           onChange={(e) => setCountry(e.target.value)}
-          style={{
-            height: 34,
-            borderRadius: 8,
-            border: '1px solid #ddd',
-            padding: '0 8px',
-          }}
+            className="topbar-country"
         >
           {catalogCountries.map((c) => (
             <option key={c} value={c}>
@@ -286,117 +272,61 @@ export default function TopMenuBar({
         </select>
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => {
-            threeApiRef.current?.setMoveAsGroup?.(true);
-            console.log('modo actual', threeApiRef.current?.getMoveAsGroup?.());
-          }}
-          style={{
-            border: '1px solid #ddd',
-            background: '#fff',
-            padding: '6px 10px',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontWeight: 700,
-          }}
-        >
-          Mover puesto completo
-        </button>
+      <div className="topbar-center">
+        <div className="topbar-control-group">
+          <span className="topbar-group-title">Mover</span>
+          <div className="topbar-segmented">
+            <button
+              type="button"
+              className={`topbar-segment ${moveMode === 'group' ? 'is-active' : ''}`}
+              onClick={() => handleMoveMode('group')}
+            >
+              Puesto completo
+            </button>
+            <button
+              type="button"
+              className={`topbar-segment ${moveMode === 'single' ? 'is-active' : ''}`}
+              onClick={() => handleMoveMode('single')}
+            >
+              Pieza individual
+            </button>
+          </div>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            threeApiRef.current?.setMoveAsGroup?.(false);
-            console.log('modo actual', threeApiRef.current?.getMoveAsGroup?.());
-          }}
-          style={{
-            border: '1px solid #ddd',
-            background: '#fff',
-            padding: '6px 10px',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontWeight: 700,
-          }}
-        >
-          Mover pieza individual
-        </button>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => threeApiRef.current?.setDeleteAsGroup?.(true)}
-          style={{
-            border: '1px solid #ddd',
-            background: '#fff',
-            padding: '6px 10px',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontWeight: 700,
-          }}
-        >
-          Eliminar puesto completo
-        </button>
-
-        <button
-          type="button"
-          onClick={() => threeApiRef.current?.setDeleteAsGroup?.(false)}
-          style={{
-            border: '1px solid #ddd',
-            background: '#fff',
-            padding: '6px 10px',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontWeight: 700,
-          }}
-        >
-          Eliminar pieza individual
-        </button>
-      </div>
-
-      <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 800 }}>
-        {labelUser}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={bomOpen ? onCloseBom : onOpenBom}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 12px',
-              border: '1px solid rgba(15,23,42,0.20)',
-              borderRadius: 8,
-              background: '#fff',
-              cursor: 'pointer',
-              fontWeight: 700,
-              fontSize: 12,
-              color: 'rgba(15,23,42,0.86)',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = '#f8fafc';
-              e.target.style.borderColor = 'rgba(15,23,42,0.30)';
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = '#fff';
-              e.target.style.borderColor = 'rgba(15,23,42,0.20)';
-            }}
-          >
-            <span>{bomShowText}</span>
-            <div
-              style={{
-                width: '1px',
-                height: '16px',
-                background: 'rgba(15,23,42,0.15)',
-              }}
-            />
-            <span>{moneyCOP(bomTotal)}</span>
-          </button>
+        <div className="topbar-control-group">
+          <span className="topbar-group-title">Eliminar</span>
+          <div className="topbar-segmented">
+            <button
+              type="button"
+              className={`topbar-segment ${deleteMode === 'group' ? 'is-active' : ''}`}
+              onClick={() => handleDeleteMode('group')}
+            >
+              Puesto completo
+            </button>
+            <button
+              type="button"
+              className={`topbar-segment ${deleteMode === 'single' ? 'is-active' : ''}`}
+              onClick={() => handleDeleteMode('single')}
+            >
+              Pieza individual
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      <div className="topbar-right">
+        <span className="topbar-user">{labelUser}</span>
+        <button
+          type="button"
+          onClick={bomOpen ? onCloseBom : onOpenBom}
+          className="topbar-bom-btn"
+        >
+          <span>{bomShowText}</span>
+          <span className="topbar-bom-sep" />
+          <strong>{moneyCOP(bomTotal)}</strong>
+        </button>
+      </div>
+    </header>
   );
 }
 
@@ -406,16 +336,8 @@ function MenuItem({ label, onClick, disabled }) {
       type="button"
       disabled={disabled}
       onClick={onClick}
-      style={{
-        width: '100%',
-        textAlign: 'left',
-        padding: '10px 12px',
-        border: 'none',
-        background: 'transparent',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        fontWeight: 800,
-        opacity: disabled ? 0.45 : 1,
-      }}
+      className="topbar-menu-item"
+      style={{ opacity: disabled ? 0.45 : 1 }}
       onMouseDown={(e) => e.preventDefault()}
     >
       {label}

@@ -1,0 +1,238 @@
+/* PropertiesPanel.css — misma paleta que TopMenuBar */
+
+.pp-shell {
+  border-left: 1px solid #e5e5e5;
+  background: #fafafa;
+  height: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: auto;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Header ──────────────────────────── */
+.pp-header {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid #e8e8e8;
+  background: #f4f4f4;
+}
+
+.pp-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #222;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* ── Readonly banner ─────────────────── */
+.pp-readonly-banner {
+  margin: 8px 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+
+/* ── Empty state ─────────────────────── */
+.pp-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: #999;
+}
+
+/* ── Section ─────────────────────────── */
+.pp-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid #ebebeb;
+}
+
+.pp-section:last-child {
+  border-bottom: none;
+}
+
+.pp-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+/* ── Info rows ───────────────────────── */
+.pp-field {
+  margin-bottom: 7px;
+  font-size: 12px;
+  color: #333;
+}
+
+.pp-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+}
+
+.pp-divider {
+  height: 1px;
+  background: #ebebeb;
+  margin: 10px 0;
+}
+
+.pp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.pp-row-label {
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pp-row-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #222;
+  text-align: right;
+  word-break: break-all;
+}
+
+.pp-row-value.muted {
+  font-weight: 400;
+  color: #aaa;
+}
+
+/* ── Dimensiones ─────────────────────── */
+.pp-dims {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.pp-dim-chip {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 5px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.pp-dim-chip-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: #999;
+  letter-spacing: 0.04em;
+}
+
+.pp-dim-chip-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+}
+
+/* ── Scope buttons ───────────────────── */
+.pp-scope-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.pp-scope-btn {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #444;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.pp-scope-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #bbb;
+}
+
+.pp-scope-btn.is-active {
+  background: #2d2d2d;
+  border-color: #2d2d2d;
+  color: #fff;
+}
+
+.pp-scope-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Editing part label ──────────────── */
+.pp-editing-label {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+/* ── Search input ────────────────────── */
+.pp-search {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  font-size: 12px;
+  background: #fff;
+  color: #333;
+  margin-bottom: 6px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.pp-search:focus {
+  border-color: #aaa;
+}
+
+/* ── Count label ─────────────────────── */
+.pp-count {
+  font-size: 11px;
+  color: #999;
+  margin-bottom: 6px;
+}
+
+/* ── Select ──────────────────────────── */
+.pp-select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  font-size: 12px;
+  background: #fff;
+  color: #333;
+  outline: none;
+}
+
+/* ── Sub hint ────────────────────────── */
+.pp-hint {
+  font-size: 10px;
+  color: #aaa;
+  margin-top: 6px;
+  line-height: 1.3;
+}

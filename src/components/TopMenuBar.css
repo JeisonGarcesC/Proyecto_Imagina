@@ -1,0 +1,251 @@
+.topbar-shell {
+  height: 44px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fafafa;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 30;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar-menu-wrap {
+  position: relative;
+}
+
+.topbar-file-btn,
+.topbar-country,
+.topbar-bom-btn,
+.topbar-segment,
+.topbar-menu-item {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.topbar-file-btn {
+  padding: 6px 10px;
+  cursor: pointer;
+  background: #e8e8e8;
+  border-color: #999;
+}
+
+.topbar-file-btn:hover,
+.topbar-file-btn.is-open {
+  background: #ddd;
+  border-color: #777;
+}
+
+.topbar-country {
+  height: 28px;
+  min-width: 74px;
+  padding: 0 8px;
+  cursor: pointer;
+  outline: none;
+}
+
+.topbar-menu-panel,
+.topbar-submenu-panel {
+  width: 228px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  overflow: visible;
+}
+
+.topbar-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 1000;
+  padding: 6px;
+}
+
+.topbar-submenu-wrap {
+  position: relative;
+}
+
+.topbar-submenu-panel {
+  position: absolute;
+  top: -6px;
+  left: calc(100% + 6px);
+  z-index: 1001;
+  padding: 6px;
+}
+
+.topbar-menu-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.topbar-menu-item:hover,
+.topbar-menu-item.is-open {
+  background: #f8f8f8;
+}
+
+.topbar-menu-item:disabled {
+  cursor: not-allowed;
+}
+
+.topbar-submenu-caret {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+}
+
+.topbar-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 6px 2px;
+}
+
+.topbar-menu-help {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #777;
+  line-height: 1.35;
+  padding: 0 10px 6px;
+}
+
+.topbar-control-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 4px 6px;
+}
+
+.topbar-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-left: 2px;
+}
+
+.topbar-segmented {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbar-segment {
+  border-color: #ddd;
+  padding: 5px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.topbar-segment:hover {
+  background: #f8f8f8;
+  border-color: #bbb;
+}
+
+.topbar-segment.is-active {
+  background: #d0d0d0;
+  border-color: #666;
+  color: #000;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.topbar-right {
+  justify-self: end;
+}
+
+.topbar-user {
+  font-size: 12px;
+  color: #555;
+  font-weight: 500;
+  opacity: 0.9;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-bom-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border-color: #bbb;
+  background: #fff;
+  color: #222;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.topbar-bom-btn:hover {
+  background: #f8f8f8;
+  border-color: #999;
+}
+
+.topbar-bom-sep {
+  width: 1px;
+  height: 15px;
+  background: #ddd;
+}
+
+@media (max-width: 1500px) {
+  .topbar-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .topbar-left,
+  .topbar-center,
+  .topbar-right {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .topbar-right {
+    justify-self: start;
+  }
+}
