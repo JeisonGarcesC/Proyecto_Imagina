@@ -6,7 +6,7 @@ export function createPasacable({
   groupName = null,
   diameterMm = 50,
   x = 0,
-  y = 735,
+  y = 740, //altura Pasacable
   z = 0,
   rotY = 0,
 }) {
