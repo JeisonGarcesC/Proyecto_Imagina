@@ -230,7 +230,7 @@
   background: #ddd;
 }
 
-@media (max-width: 1500px) {
+@media (max-width: 1080px) {
   .topbar-shell {
     grid-template-columns: 1fr;
     height: auto;
