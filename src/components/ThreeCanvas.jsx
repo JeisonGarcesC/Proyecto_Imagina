@@ -37,6 +37,15 @@ import {
 import { resolveKoncisaPedestalReinforcement } from '../koncisaPlus/rules/koncisaPedestalReinforcementRules';
 import { resolveKoncisaDuctSupport } from '../koncisaPlus/rules/koncisaDuctSupportRules';
 
+import {
+  resolveDuctCoverAsset,
+  defaultDuctCoverState,
+  normalizeDuctCoverState,
+  getDuctCoverSides,
+  normalizeDuctModuleType,
+  inferDuctChannelType,
+} from '../koncisaPlus/rules/koncisaDuctCoverRules';
+
 const MM_TO_M = 1 / 1000;
 
 export default function ThreeCanvas({
@@ -524,6 +533,7 @@ export default function ThreeCanvas({
         groupName: obj.userData?.groupName || null,
         logicalCode: obj.userData?.logicalCode || null,
         instanceId: obj.userData?.instanceId || null,
+        ductCovers: obj.userData?.ductCovers || null,
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
       });
@@ -562,7 +572,7 @@ export default function ThreeCanvas({
 
           obj.updateMatrixWorld(true);
 
-          // ✅ Preferir bounds2d robustos (si los calculas al cargar GLB / crear procedural)
+          // Preferir bounds2d robustos (si los calculas al cargar GLB / crear procedural)
           const b = obj.userData?.bounds2d;
 
           if (b?.localCenter && b?.sizeLocal) {
@@ -591,7 +601,7 @@ export default function ThreeCanvas({
             };
           }
 
-          // 🔁 Fallback: Box3 world (menos estable si el GLB tiene pivote raro)
+          //  Fallback: Box3 world (menos estable si el GLB tiene pivote raro)
           const box = new THREE.Box3().setFromObject(obj);
           const size = new THREE.Vector3();
           const center = new THREE.Vector3();
@@ -887,7 +897,9 @@ export default function ThreeCanvas({
             obj.userData?.codigoPT || obj.userData?.code || p.code || ''
           );
           const label =
-            obj.userData?.name || obj.userData?.mepalMeta?.descripcion || `MepalSalud ${parentCode}`;
+            obj.userData?.name ||
+            obj.userData?.mepalMeta?.descripcion ||
+            `MepalSalud ${parentCode}`;
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
 
           const list = obj.userData?.mepalParts || [];
@@ -930,6 +942,40 @@ export default function ThreeCanvas({
           null,
           groupInstanceId
         );
+
+        // =====================================================
+        //  2. AGREGAR TAPAS
+        // =====================================================
+        if (obj.userData?.kind === 'ducto') {
+          const state = obj.userData?.ductCovers || obj.userData?.meta?.ductCovers;
+
+          if (state) {
+            const tipoModulo = obj.userData?.meta?.tipoModulo;
+
+            const sides = getDuctCoverSides(tipoModulo, state);
+
+            const asset = resolveDuctCoverAsset({
+              tipoPuesto: obj.userData?.meta?.tipoPuesto,
+              tipoCanal: obj.userData?.meta?.tipoCanal,
+            });
+
+            if (asset && sides.length) {
+              sides.forEach(() => {
+                addRow(
+                  asset.code,
+                  1,
+                  null,
+                  null,
+                  groupId,
+                  groupName,
+                  undefined,
+                  null,
+                  groupInstanceId
+                );
+              });
+            }
+          }
+        }
       }
 
       const bomRows = Array.from(rows.values()).map(({ _groupInstanceIds, ...row }) => ({
@@ -1081,7 +1127,7 @@ export default function ThreeCanvas({
           for (const ct of targetConnectors) {
             if (!ct?.line?.from || !ct?.line?.to) continue;
 
-            // ✅ Compatibilidad por JSON
+            // Compatibilidad por JSON
             if (!isCompatible(cm, ct)) continue;
 
             const cMove = getLineCenterWorld(activePart, cm.line.from, cm.line.to);
@@ -1096,7 +1142,7 @@ export default function ThreeCanvas({
         }
       }
 
-      // Aplica el mejor snap si está dentro del umbral
+      // Aplica el mejor snap si esta dentro del umbral
       if (best.delta && best.dist <= SNAP_THRESHOLD) {
         activePart.position.add(best.delta);
         activePart.updateMatrixWorld(true);
@@ -1129,7 +1175,7 @@ export default function ThreeCanvas({
     async function addPartFromGlb(item) {
       const parentGroup = item?.parentGroup || null;
       const codigoPT = item?.codigoPT;
-      const src = item?.model?.src; // 👈 AQUÍ
+      const src = item?.model?.src;
 
       if (!codigoPT) {
         console.error('addPartFromGlb: item sin codigoPT', item);
@@ -1167,7 +1213,7 @@ export default function ThreeCanvas({
       const { base } = catalogCache.get(codigoPT);
       const obj = base.clone(true);
 
-      // ✅ bounds 2D robustos (local center + size)
+      // bounds 2D robustos (local center + size)
       const b2d = computeBounds2D(obj);
       if (b2d) {
         obj.userData.bounds2d = {
@@ -1331,12 +1377,12 @@ export default function ThreeCanvas({
       obj.userData = {
         ...(obj.userData || {}),
         isPartRoot: true,
-        kind: 'TYPOLOGY', // ✅ ESTE ES EL QUE VA A LEER emitBOM
+        kind: 'TYPOLOGY', // ESTE ES EL QUE VA A LEER emitBOM
         codigoPT: codigo,
         code: codigo,
         name: det.descripcion || codigo,
 
-        // ✅ ESTA ES LA LISTA QUE VA A EXPANDIR EL BOM
+        // ESTA ES LA LISTA QUE VA A EXPANDIR EL BOM
         typologyParts,
 
         tipologiaMeta: {
@@ -1421,12 +1467,12 @@ export default function ThreeCanvas({
 
       obj.userData = {
         ...(obj.userData || {}),
-        kind: 'CHAIR', // ✅ Tipo CHAIR para que el BOM lo reconozca
+        kind: 'CHAIR', //  Tipo CHAIR para que el BOM lo reconozca
         codigoPT: codigo,
         code: codigo,
         name: det.descripcion || codigo,
 
-        // ✅ Array de partes (solo la silla en este caso)
+        // Array de partes (solo la silla en este caso)
         chairParts,
 
         chairMeta: {
@@ -1750,7 +1796,7 @@ export default function ThreeCanvas({
 
       obj.name = `OFFICE_ACCESSORY_${name}`;
 
-      // 4) Posición y agregar a escena
+      // 4) Posicion y agregar a escena
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
       obj.updateMatrixWorld(true);
 
@@ -1790,7 +1836,9 @@ export default function ThreeCanvas({
         detUSD;
 
       if (!det) {
-        console.warn(`MepalSalud: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`);
+        console.warn(
+          `MepalSalud: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
+        );
       }
 
       // 2) cargar GLB desde carpeta MepalSalud
@@ -1873,10 +1921,7 @@ export default function ThreeCanvas({
 
       // 1) Encontrar el objeto por instanceId o uuid
       const found = parts.find(({ obj }) => {
-        return (
-          obj?.userData?.instanceId === instanceId ||
-          obj?.uuid === instanceId
-        );
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
       });
 
       if (!found?.obj) {
@@ -1897,9 +1942,10 @@ export default function ThreeCanvas({
       removePartObject(oldObj);
 
       // 5) Determinar qué GLB cargar según variante
-      const glbSrc = targetVariant === 'normal'
-        ? `/assets/models/MepalSalud/${codigoBase}.glb`
-        : `/assets/models/MepalSalud/${codigoBase}_2.glb`;
+      const glbSrc =
+        targetVariant === 'normal'
+          ? `/assets/models/MepalSalud/${codigoBase}.glb`
+          : `/assets/models/MepalSalud/${codigoBase}_2.glb`;
 
       const gltf = await loadExistingGlb([glbSrc]);
 
@@ -1917,9 +1963,8 @@ export default function ThreeCanvas({
         instanceId: newObj.uuid,
         mepalVariant: targetVariant,
       };
-      newObj.name = targetVariant === 'normal'
-        ? `MEPAL_SALUD_${codigoBase}`
-        : `MEPAL_SALUD_${codigoBase}_2`;
+      newObj.name =
+        targetVariant === 'normal' ? `MEPAL_SALUD_${codigoBase}` : `MEPAL_SALUD_${codigoBase}_2`;
       newObj.position.copy(savedPos);
       newObj.rotation.copy(savedRot);
       newObj.updateMatrixWorld(true);
@@ -1937,7 +1982,7 @@ export default function ThreeCanvas({
       if (readOnly) return;
       const codigo = String(codigoPT);
 
-      // ✅ 0) si el código es una tipología (existe en tipologias-detalle.json), úsala como tipología
+      //  0) si el codigo es una tipología (existe en tipologias-detalle.json), úsala como tipología
       // (esto evita mezclarla con catalogData normal)
       try {
         const det = await getTipologiaDetalle(codigo, countryRef.current);
@@ -1950,7 +1995,7 @@ export default function ThreeCanvas({
         console.warn('addCatalogItem: no se pudo consultar tipologías:', e);
       }
 
-      // ✅ 1) flujo normal de catálogo
+      //  1) flujo normal de catálogo
       const item = catalogByCodeRef.current?.get?.(codigo);
 
       if (!item) {
@@ -1959,13 +2004,13 @@ export default function ThreeCanvas({
       }
 
       if (item.model?.kind === MODEL_TYPES.GLB) {
-        await addPartFromGlb(item); // 👈 le pasas el ITEM, no el codigo
+        await addPartFromGlb(item); // le pasas el ITEM, no el codigo
         return;
       }
 
       if (item.model?.kind === MODEL_TYPES.PROCEDURAL) {
         const d = item.model.defaults || { widthM: 1.2, depthM: 0.6, thicknessM: 0.025 };
-        addSurface(d, item); // 👈 le pasas item para guardar codigoPT en userData
+        addSurface(d, item); //  le pasas item para guardar codigoPT en userData
         return;
       }
 
@@ -2268,7 +2313,7 @@ export default function ThreeCanvas({
       if (project.camera?.target) controls.target.fromArray(project.camera.target);
       controls.update();
 
-      // ✅ Reaplica acabados por sub-mesh (solo para GLB/tipologías)
+      //  Reaplica acabados por sub-mesh (solo para GLB/tipologías)
       function reapplyFinishesToRoot(root, finishesMap) {
         if (!root || !finishesMap || typeof finishesMap !== 'object') return;
 
@@ -2294,7 +2339,7 @@ export default function ThreeCanvas({
             return;
           }
 
-          // ✅ aplicar SOLO al mesh
+          //  aplicar SOLO al mesh
           applyMaterialToMesh(n, codeStr, def);
           applied++;
 
@@ -2314,7 +2359,7 @@ export default function ThreeCanvas({
 
       // reconstruir piezas
       for (const part of project.parts) {
-        // ✅ try/catch por pieza: si una falla, no tumba el resto
+        //  try/catch por pieza: si una falla, no tumba el resto
         try {
           const codigoPT = part.codigoPT;
 
@@ -2350,7 +2395,7 @@ export default function ThreeCanvas({
                 part.materialBase || item?.materialBase || item?.raw?.material || 'LAMINA',
               materialCode: part.materialCode || null,
 
-              // ✅ IMPORTANTÍSIMO: surfaces no tienen finishes
+              //  IMPORTANTÍSIMO: surfaces no tienen finishes
               finishes: null,
               activeSubKey: null,
               activeSubName: null,
@@ -2359,7 +2404,7 @@ export default function ThreeCanvas({
             mesh.name = `SURFACE_${codigoPT}`;
             applyTransform(mesh, part.transform);
 
-            // ✅ aplicar material global (surface)
+            //  aplicar material global (surface)
             if (mesh.userData.materialCode) {
               const codeStr = String(mesh.userData.materialCode);
               const def = materialsByCodeRef.current?.get?.(codeStr) || null;
@@ -2391,7 +2436,7 @@ export default function ThreeCanvas({
             mesh.userData.materialBase = part.materialBase ?? mesh.userData.materialBase ?? null;
             mesh.userData.materialCode = part.materialCode ?? mesh.userData.materialCode ?? null;
 
-            // ✅ evitar finishes acá también
+            //  evitar finishes aca también
             mesh.userData.finishes = null;
             mesh.userData.activeSubKey = null;
             mesh.userData.activeSubName = null;
@@ -2423,7 +2468,7 @@ export default function ThreeCanvas({
 
           applyTransform(last, part.transform);
 
-          // ✅ material global
+          //  material global
           last.userData.materialBase = part.materialBase || last.userData.materialBase || null;
           last.userData.materialCode = part.materialCode || last.userData.materialCode || null;
 
@@ -2436,7 +2481,7 @@ export default function ThreeCanvas({
             applyMaterialToObject3D(last, codeStr, def);
           }
 
-          // ✅ finishes por sub-parte (solo GLB)
+          //  finishes por sub-parte (solo GLB)
           if (part.finishes && typeof part.finishes === 'object') {
             last.userData.activeSubKey = part.activeSubKey || null;
             last.userData.activeSubName = part.activeSubName || null;
@@ -2634,7 +2679,7 @@ export default function ThreeCanvas({
       group.userData.kind = 'PRIVACY_PANEL';
       group.userData.type = 'pantalla';
 
-      // ✅ CLAVE PARA BOM AGRUPADO
+      //  CLAVE PARA BOM AGRUPADO
       group.userData.groupId = parentGroupId;
       group.userData.groupName = parentGroupName;
       group.userData.parentAssemblyId = parentGroupId;
@@ -2918,7 +2963,7 @@ export default function ThreeCanvas({
 
       // OJO:
       // No agregar a parts porque si no aparece en el BOM como producto $0.
-      // parts.push({ code: groupId, obj: group }); ❌
+      // parts.push({ code: groupId, obj: group });
 
       pickables.push(group);
 
@@ -2991,6 +3036,7 @@ export default function ThreeCanvas({
       removeTargetOrGroup: (target) => removeTargetOrGroup(target),
       removeActiveOrGroup: () => removeTargetOrGroup(activePart),
       updateSelectedDuctType,
+      updateSelectedDuctCovers,
       updateSelectedCeilingDuctSide,
       updateSelectedPartTransformPatch,
       movePartToXZ: (id, x, z) => movePartToXZInternal(id, x, z),
@@ -3613,66 +3659,348 @@ export default function ThreeCanvas({
       return true;
     }
 
+    // DUCT COVERS
+    const ductCoverCache = new Map();
+
+    async function loadDuctCoverModel(src) {
+      if (ductCoverCache.has(src)) return ductCoverCache.get(src);
+
+      //  Verificar que el archivo existe y es un GLB antes de pasarlo al loader
+      const res = await fetch(src);
+      if (!res.ok) {
+        throw new Error(`Tapa ducto no encontrada (${res.status}): ${src}`);
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        throw new Error(`La ruta devolvió HTML en vez de GLB: ${src}`);
+      }
+
+      const arrayBuffer = await res.arrayBuffer();
+      const gltf = await new Promise((resolve, reject) => {
+        const tempLoader = new GLTFLoader();
+        tempLoader.parse(arrayBuffer, '', resolve, reject);
+      });
+
+      ductCoverCache.set(src, gltf.scene);
+      return gltf.scene;
+    }
+
+    function disposeNodeDeep(root) {
+      if (!root) return;
+      root.traverse((n) => {
+        n.geometry?.dispose?.();
+        if (Array.isArray(n.material)) n.material.forEach((m) => m?.dispose?.());
+        else n.material?.dispose?.();
+      });
+    }
+
+    function removeDuctCoverChildren(root) {
+      if (!root) return;
+
+      const toRemove = root.children.filter((ch) => ch?.userData?.isDuctCover);
+
+      toRemove.forEach((ch) => {
+        root.remove(ch);
+        disposeNodeDeep(ch);
+      });
+    }
+
+    function getDuctCoverLocalTransform(root, side) {
+      const b2d = computeBounds2D(root);
+      const sizeLocal = b2d?.sizeLocal || new THREE.Vector3(0.6, 0.1, 0.2);
+
+      const halfX = sizeLocal.x / 2;
+
+      // Ajuste base inicial.
+      // Luego, si quieres, calibramos fino X/Y/Z según cómo venga el GLB.
+      if (side === 'left') {
+        return {
+          position: new THREE.Vector3(-halfX, 0, 0),
+          rotationY: Math.PI,
+        };
+      }
+
+      if (side === 'right') {
+        return {
+          position: new THREE.Vector3(halfX, 0, 0),
+          rotationY: 0,
+        };
+      }
+
+      // terminal / individual
+      return {
+        position: new THREE.Vector3(halfX, 0, 0),
+        rotationY: 0,
+      };
+    }
+
+    async function addDuctCoverChild(root, side, coverAsset) {
+      const base = await loadDuctCoverModel(coverAsset.modelSrc);
+      const cover = base.clone(true);
+
+      const t = getDuctCoverLocalTransform(root, side);
+
+      cover.position.copy(t.position);
+      cover.rotation.set(0, t.rotationY, 0);
+
+      cover.userData = {
+        isDuctCover: true,
+        coverCode: coverAsset.code,
+        side,
+        excludeFromBOM: true,
+        meta: {
+          category: 'duct_cover',
+        },
+      };
+
+      cover.name = `DUCT_COVER_${side.toUpperCase()}`;
+
+      root.add(cover);
+
+      // Si el ducto ya tenía material, la tapa hereda el mismo
+      const matCode = root.userData?.materialCode || null;
+      if (matCode) {
+        const def = materialsByCodeRef.current?.get?.(String(matCode)) || null;
+        applyMaterialToObject3D(cover, matCode, def);
+      }
+    }
+
+    function buildDuctPopupPart(root) {
+      return {
+        code: root.userData?.codigoPT || root.userData?.code || null,
+        kind: root.userData?.kind || null,
+        meta: root.userData?.meta || null,
+        groupId: root.userData?.groupId || null,
+        groupName: root.userData?.groupName || null,
+        logicalCode: root.userData?.logicalCode || null,
+        instanceId: root.userData?.instanceId || null,
+        description: root.userData?.description || null,
+        ductCovers: root.userData?.ductCovers || null,
+      };
+    }
+
+    async function syncDuctCovers(root, requestedState) {
+      if (!root) return false;
+      if (root.userData?.kind !== 'ducto') return false;
+
+      const tipoModulo = normalizeDuctModuleType(root.userData?.meta?.tipoModulo);
+
+      const tipoPuesto = root.userData?.meta?.tipoPuesto || 'sencillo';
+
+      const tipoCanal =
+        root.userData?.meta?.tipoCanal ||
+        inferDuctChannelType({
+          logicalCode: root.userData?.logicalCode,
+          description: root.userData?.description,
+          codigoPT: root.userData?.codigoPT,
+          code: root.userData?.code,
+        });
+
+      const coverAsset = resolveDuctCoverAsset({
+        tipoPuesto,
+        tipoCanal,
+      });
+
+      if (!coverAsset) {
+        console.warn('No se encontró tapa ducto para:', {
+          tipoModulo,
+          tipoPuesto,
+          tipoCanal,
+        });
+        return false;
+      }
+
+      // 1. NORMALIZAR ESTADO (ANTES de usarlo)
+      const nextState = normalizeDuctCoverState(tipoModulo, requestedState);
+
+      // 2. GUARDAR ESTADO
+      root.userData.ductCovers = nextState;
+      root.userData.meta = {
+        ...(root.userData.meta || {}),
+        tipoCanal,
+        ductCovers: nextState,
+      };
+
+      // 3. LIMPIAR MODELOS 3D (esto ya lo tienes bien)
+      removeDuctCoverChildren(root);
+
+      // 4. AGREGAR MODELOS 3D
+      const sides = getDuctCoverSides(tipoModulo, nextState);
+
+      for (const side of sides) {
+        await addDuctCoverChild(root, side, coverAsset);
+      }
+
+      // =====================================================
+      // 5. BOM → NO lo manipules manualmente aqui
+      // =====================================================
+      // Tú ya usas emitBOM()
+      // Entonces el BOM se recalcula SOLO
+      // NO necesitas addBomItem ni removeBomItemsByCode aqui
+
+      root.updateMatrixWorld(true);
+      if (selectionHelper) selectionHelper.update();
+
+      onSelectionChange?.({
+        code: root.userData.codigoPT || root.userData.code,
+        dimMm: root.userData?.dim || null,
+        dimM: root.userData?.dimM || root.userData?.procedural || root.userData?.dimMeters || null,
+        materialCode: root.userData?.materialCode || null,
+        materialBase: root.userData?.materialBase || null,
+        generico: root.userData?.generico || null,
+        genericos: root.userData?.genericos || null,
+        line: root.userData?.line || null,
+        kind: root.userData?.kind || null,
+        meta: root.userData?.meta || null,
+        groupId: root.userData?.groupId || null,
+        groupName: root.userData?.groupName || null,
+        logicalCode: root.userData?.logicalCode || null,
+        instanceId: root.userData?.instanceId || null,
+        ductCovers: root.userData?.ductCovers || null,
+      });
+
+      onFloatingEditorRequest?.({
+        open: true,
+        x: 120,
+        y: 120,
+        part: buildDuctPopupPart(root),
+        ductCovers: root.userData?.ductCovers || null,
+      });
+
+      refreshFloorAndGrid();
+
+      // ESTE ES EL QUE MANDA TODO AL BOM
+      emitBOM?.();
+
+      return true;
+    }
+
+    async function updateSelectedDuctCovers(patch = {}) {
+      if (readOnly) return false;
+      if (!activePart) return false;
+      if (activePart.userData?.kind !== 'ducto') return false;
+
+      const tipoModulo = normalizeDuctModuleType(activePart.userData?.meta?.tipoModulo);
+      const currentState = activePart.userData?.ductCovers || defaultDuctCoverState(tipoModulo);
+
+      const nextState = normalizeDuctCoverState(tipoModulo, {
+        ...currentState,
+        ...patch,
+      });
+
+      return await syncDuctCovers(activePart, nextState);
+    }
+
+    //////////////
     async function updateSelectedDuctType(newType) {
       if (readOnly) return;
       if (!activePart) return;
       if (activePart.userData?.kind !== 'ducto') return;
 
-      const tipoPuesto = activePart.userData?.meta?.tipoPuesto || 'sencillo';
-      const nominalWidthMm = activePart.userData?.meta?.nominalWidthMm || 1200;
+      // Normalizar el tipo de módulo
+      const normalizedType = String(newType || '')
+        .trim()
+        .toLowerCase();
 
+      const oldObj = activePart;
+
+      // Información actual del ducto
+      const tipoPuesto = oldObj.userData?.meta?.tipoPuesto || 'sencillo';
+      const nominalWidthMm = oldObj.userData?.meta?.nominalWidthMm || 1200;
+      const oldCovers = oldObj.userData?.ductCovers || defaultDuctCoverState(normalizedType);
+
+      // Resolver el ducto según tipo y ancho
       const resolved = resolveKoncisaDucto({
         tipoPuesto,
-        tipoModulo: newType,
+        tipoModulo: normalizedType,
         nominalWidthMm,
       });
 
+      console.log('[updateSelectedDuctType]', { newType, normalizedType, resolved });
+
       if (!resolved?.codigoPT || !resolved?.modelSrc) {
+        console.warn('[updateSelectedDuctType] Sin modelo para:', resolved?.logicalCode);
         alert(`No tenemos disponible ese ducto: ${resolved?.logicalCode || newType}`);
         return;
       }
 
-      const oldObj = activePart;
+      // Guardar posición, rotación y grupo
       const pos = oldObj.position.clone();
       const rot = oldObj.rotation.clone();
       const groupId = oldObj.userData?.groupId || null;
       const groupName = oldObj.userData?.groupName || null;
-
       const parentGroup =
         oldObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? oldObj.parent : null;
 
+      // Remover el ducto antiguo de la escena
       removePartObject(oldObj);
 
-      await addExternalGlbPart({
+      // Crear nuevo ducto
+      const newDuctObj = await addExternalGlbPart({
         type: 'ducto',
-        subtype: newType,
+        subtype: normalizedType,
         line: 'KONCISA.PLUS',
         code: resolved.codigoPT,
         logicalCode: resolved.logicalCode,
         groupId,
         parentGroup,
         groupName,
-        position: {
-          x: pos.x * 1000,
-          y: pos.y * 1000,
-          z: pos.z * 1000,
-        },
-        rotation: {
-          x: rot.x,
-          y: rot.y,
-          z: rot.z,
-        },
-        model: {
-          kind: 'glb',
-          src: resolved.modelSrc,
-        },
+        position: { x: pos.x * 1000, y: pos.y * 1000, z: pos.z * 1000 },
+        rotation: { x: rot.x, y: rot.y, z: rot.z },
+        model: { kind: 'glb', src: resolved.modelSrc },
         meta: {
           category: 'ductos',
           tipoPuesto,
-          tipoModulo: newType,
+          tipoModulo: normalizedType,
           nominalWidthMm,
+          ductCovers: oldCovers,
         },
       });
+
+      if (!newDuctObj) return;
+
+      // Actualizar popup flotante
+      onFloatingEditorRequest?.({
+        open: true,
+        x: 120,
+        y: 120,
+        part: {
+          code: newDuctObj.userData?.codigoPT || newDuctObj.userData?.code,
+          kind: newDuctObj.userData?.kind,
+          meta: newDuctObj.userData?.meta,
+          groupId: newDuctObj.userData?.groupId,
+          groupName: newDuctObj.userData?.groupName,
+          logicalCode: newDuctObj.userData?.logicalCode,
+          instanceId: newDuctObj.userData?.instanceId,
+          description: newDuctObj.userData?.description,
+          ductCovers: newDuctObj.userData?.ductCovers,
+        },
+      });
+
+      // Sincronizar tapas en la escena 3D
+      await syncDuctCovers(newDuctObj, oldCovers);
+
+      // =========================
+      // AGREGAR TAPAS AL BOM
+      // =========================
+      const ductCoversNormalized = normalizeDuctCoverState(normalizedType, oldCovers);
+      const coverAsset = resolveDuctCoverAsset({
+        tipoPuesto,
+        tipoCanal: normalizedType, // si tu inferDuctChannelType lo requiere, puedes adaptarlo
+      });
+
+      if (coverAsset) {
+        if (ductCoversNormalized.left) {
+          addBomItem(newDuctObj, coverAsset.code);
+        }
+        if (ductCoversNormalized.right) {
+          addBomItem(newDuctObj, coverAsset.code);
+        }
+        if (ductCoversNormalized.single) {
+          addBomItem(newDuctObj, coverAsset.code);
+        }
+      }
     }
 
     function updateSelectedCeilingDuctSide(newSide) {
@@ -3843,7 +4171,7 @@ export default function ThreeCanvas({
       const tag = (e.target?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
 
-      // ✅ Supr / Backspace para eliminar pieza seleccionada
+      //  Supr / Backspace para eliminar pieza seleccionada
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (activePart) {
           e.preventDefault();
@@ -3958,10 +4286,10 @@ export default function ThreeCanvas({
 
       dragRootStartRef.current = root.position.clone();
 
-      // ✅ Guardar submesh clickeado
+      //  Guardar submesh clickeado
       activeSubMesh = hitObj?.isMesh ? hitObj : null;
 
-      // ✅ Guardar key estable en el root (para persistencia y UI)
+      //  Guardar key estable en el root (para persistencia y UI)
       if (activeSubMesh) {
         const subKey = getMeshPathKey(root, activeSubMesh);
 
@@ -4177,7 +4505,7 @@ export default function ThreeCanvas({
         subName: 'Canto superficie',
         category: 'cantos',
 
-        // ✅ Todos los cantos pertenecen al mismo acabado lógico
+        //  Todos los cantos pertenecen al mismo acabado lógico
         edgeGroupKey: 'SURFACE_EDGE_ALL',
         materialScope: 'SURFACE_EDGE_ALL',
 
@@ -4443,7 +4771,7 @@ export default function ThreeCanvas({
       if (readOnly) return;
       if (!part?.dimMm) return;
 
-      // ✅ CLAVE
+      //  CLAVE
       const parentGroup = part?.parentGroup || null;
 
       const widthM = (part.dimMm.widthMm || 0) / 1000;
@@ -4532,7 +4860,7 @@ export default function ThreeCanvas({
         return;
       }
 
-      // ✅ CLAVE: tomar parentGroup desde el objeto part
+      //  CLAVE: tomar parentGroup desde el objeto part
       const parentGroup = part?.parentGroup || null;
 
       try {
@@ -4572,6 +4900,12 @@ export default function ThreeCanvas({
               0
           ) || 0;
 
+        const ductModuleType = part?.meta?.tipoModulo || 'terminal';
+        const initialDuctCovers = normalizeDuctCoverState(
+          ductModuleType,
+          part?.meta?.ductCovers || defaultDuctCoverState(ductModuleType)
+        );
+
         obj.userData = {
           isPartRoot: true, //para usar las propiedades en los diferentes elementos
           code: code || null,
@@ -4599,6 +4933,8 @@ export default function ThreeCanvas({
           genericos: catalogItem?.raw?.genericos || catalogItem?.genericos || [],
           materialBase: catalogItem?.materialBase || catalogItem?.raw?.material || null,
           materialCode: null,
+
+          ductCovers: part.type === 'ducto' ? initialDuctCovers : null,
         };
 
         obj.name = code || part.name || 'GLB_PART';
@@ -4917,7 +5253,7 @@ export default function ThreeCanvas({
             },
           };
 
-          // ✅ Superficie paramétrica
+          // Superficie paramétrica
           if (obj.userData?.kind === 'SURFACE' && obj.userData?.dim) {
             entry.kind = 'SURFACE';
             entry.surface = {
@@ -4926,12 +5262,12 @@ export default function ThreeCanvas({
             };
           }
 
-          // ✅ Compat: procedural viejo
+          // Compat: procedural viejo
           if (obj.userData?.procedural) {
             entry.procedural = obj.userData.procedural;
           }
 
-          // ✅ Material global (si se aplicó al objeto completo)
+          // Material global (si se aplicó al objeto completo)
           entry.materialBase = obj.userData?.materialBase ?? null;
           entry.materialCode = obj.userData?.materialCode ?? null;
 
@@ -4993,7 +5329,7 @@ export default function ThreeCanvas({
   }, []);
 
   //use effect 8
-  // ✅ AQUi está la mezcla correcta:
+  //  AQUi esta la mezcla correcta:
   // - NO toca OrbitControls/zoom/2D snapshot
   // - Solo reconstruye el group de muros cuando cambie `walls`
   useEffect(() => {
