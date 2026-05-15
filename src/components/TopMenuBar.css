@@ -1,13 +1,13 @@
 .topbar-shell {
-  height: 44px;
+  min-height: 58px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 0 10px;
-  border-bottom: 1px solid #e5e5e5;
-  background: #fafafa;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  gap: 16px;
+  padding: 0px 10px;
+  border-bottom: 1px solid #dddddd;
+  background: linear-gradient(180deg, #fbfbfb 0%, #f1f1f1 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 4px rgba(15, 23, 42, 0.06);
   position: relative;
   z-index: 30;
   flex-shrink: 0;
@@ -44,33 +44,37 @@
 .topbar-bom-btn,
 .topbar-segment,
 .topbar-menu-item {
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: #fff;
-  color: #333;
-  font-weight: 500;
-  font-size: 12px;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
+  color: #303030;
+  font-weight: 600;
+  font-size: 13px;
   line-height: 1;
-  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .topbar-file-btn {
-  padding: 6px 10px;
+  padding: 8px 13px;
   cursor: pointer;
-  background: #e8e8e8;
-  border-color: #999;
+  background: linear-gradient(180deg, #464646 0%, #2f2f2f 100%);
+  border-color: #2b2b2b;
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .topbar-file-btn:hover,
 .topbar-file-btn.is-open {
-  background: #ddd;
-  border-color: #777;
+  background: linear-gradient(180deg, #505050 0%, #383838 100%);
+  border-color: #262626;
 }
 
 .topbar-country {
-  height: 28px;
-  min-width: 74px;
-  padding: 0 8px;
+  height: 36px;
+  min-width: 82px;
+  padding: 0 12px;
   cursor: pointer;
   outline: none;
 }
@@ -78,11 +82,12 @@
 .topbar-menu-panel,
 .topbar-submenu-panel {
   width: 228px;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #dddddd;
+  border-radius: 12px;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.12);
   overflow: visible;
+  backdrop-filter: blur(12px);
 }
 
 .topbar-menu-panel {
@@ -90,7 +95,7 @@
   top: calc(100% + 8px);
   left: 0;
   z-index: 1000;
-  padding: 6px;
+  padding: 8px;
 }
 
 .topbar-submenu-wrap {
@@ -102,7 +107,7 @@
   top: -6px;
   left: calc(100% + 6px);
   z-index: 1001;
-  padding: 6px;
+  padding: 8px;
 }
 
 .topbar-menu-item {
@@ -111,16 +116,17 @@
   justify-content: space-between;
   align-items: center;
   border: none;
-  border-radius: 7px;
+  border-radius: 9px;
   background: transparent;
   text-align: left;
-  padding: 6px 8px;
+  padding: 8px 10px;
   cursor: pointer;
+  box-shadow: none;
 }
 
 .topbar-menu-item:hover,
 .topbar-menu-item.is-open {
-  background: #f8f8f8;
+  background: #f4f4f4;
 }
 
 .topbar-menu-item:disabled {
@@ -135,8 +141,8 @@
 
 .topbar-divider {
   height: 1px;
-  background: #f0f0f0;
-  margin: 6px 2px;
+  background: #ededed;
+  margin: 8px 2px;
 }
 
 .topbar-menu-help {
@@ -150,20 +156,21 @@
 .topbar-control-group {
   display: flex;
   align-items: center;
-  gap: 7px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.5);
-  padding: 4px 6px;
+  gap: 10px;
+  border: 1px solid #dfdfdf;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.76);
+  padding: 6px 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .topbar-group-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: #666;
-  letter-spacing: 0.02em;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6a6a6a;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-left: 2px;
+  margin-left: 4px;
 }
 
 .topbar-segmented {
@@ -173,24 +180,24 @@
 }
 
 .topbar-segment {
-  border-color: #ddd;
-  padding: 5px 8px;
+  border-color: #d8d8d8;
+  padding: 7px 12px;
   cursor: pointer;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .topbar-segment:hover {
-  background: #f8f8f8;
-  border-color: #bbb;
+  background: #f3f3f3;
+  border-color: #bcbcbc;
 }
 
 .topbar-segment.is-active {
-  background: #d0d0d0;
-  border-color: #666;
-  color: #000;
+  background: linear-gradient(180deg, #404040 0%, #2f2f2f 100%);
+  border-color: #2d2d2d;
+  color: #fff;
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .topbar-right {
@@ -198,9 +205,9 @@
 }
 
 .topbar-user {
-  font-size: 12px;
-  color: #555;
-  font-weight: 500;
+  font-size: 13px;
+  color: #5b5b5b;
+  font-weight: 600;
   opacity: 0.9;
   max-width: 260px;
   overflow: hidden;
@@ -212,16 +219,16 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  border-color: #bbb;
-  background: #fff;
+  border-color: #d5d5d5;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f6f6 100%);
   color: #222;
-  padding: 6px 10px;
+  padding: 8px 13px;
   cursor: pointer;
 }
 
 .topbar-bom-btn:hover {
-  background: #f8f8f8;
-  border-color: #999;
+  background: #f4f4f4;
+  border-color: #b9b9b9;
 }
 
 .topbar-bom-sep {
@@ -234,7 +241,7 @@
   .topbar-shell {
     grid-template-columns: 1fr;
     height: auto;
-    padding: 10px 12px;
+    padding: 8px 11px;
     gap: 8px;
   }
 

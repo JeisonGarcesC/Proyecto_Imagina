@@ -24,6 +24,7 @@ import { getAresDetail } from '../services/aresLoader';
 import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
 import { getMepalSaludDetail } from '../services/mepalSaludLoader';
+import { getMepalTekSocialDetail } from '../services/mepalTekSocialLoader';
 
 import { resolveKoncisaDucto } from '../koncisaPlus/rules/koncisaDuctoRules';
 
@@ -913,6 +914,39 @@ export default function ThreeCanvas({
           continue;
         }
 
+        if (obj.userData?.kind === 'MEPAL_TEK_SOCIAL') {
+          const parentCode = normalizeText(
+            obj.userData?.codigoPT || obj.userData?.code || p.code || ''
+          );
+          const label =
+            obj.userData?.name ||
+            obj.userData?.mepalTekSocialMeta?.descripcion ||
+            `Mepal TekSocial ${parentCode}`;
+          const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+
+          const list = obj.userData?.mepalTekSocialParts || [];
+
+          if (Array.isArray(list) && list.length) {
+            for (const it of list) {
+              addRow(
+                String(it.code),
+                Number(it.qty || 0),
+                it.description,
+                it.unitPrice,
+                parentCode,
+                label,
+                it.prices,
+                null,
+                groupInstanceId
+              );
+            }
+          } else {
+            if (parentCode)
+              addRow(parentCode, 1, label, 0, parentCode, label, undefined, null, groupInstanceId);
+          }
+          continue;
+        }
+
         const code = obj.userData?.codigoPT || obj.userData?.code || p.code;
 
         const groupId = obj.userData?.groupId || null;
@@ -963,6 +997,7 @@ export default function ThreeCanvas({
           kind === 'PLANT' ||
           kind === 'OFFICE_ACCESSORY' ||
           kind === 'MEPAL_SALUD' ||
+          kind === 'MEPAL_TEK_SOCIAL' ||
           kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
           return cur;
@@ -1841,6 +1876,98 @@ export default function ThreeCanvas({
       };
 
       obj.name = `MEPAL_SALUD_${codigo}`;
+
+      // 4) posición inicial
+      obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
+      obj.updateMatrixWorld(true);
+
+      if (parentGroup) {
+        parentGroup.add(obj);
+      } else {
+        scene.add(obj);
+      }
+      parts.push({ code: codigo, obj });
+      pickables.push(obj);
+
+      setActivePart(obj);
+      emitBOM();
+
+      if (parts.length === 1) frameObject(obj);
+      refreshFloorAndGrid();
+    }
+
+    async function addMepalTekSocial(codigoMepalTekSocial, options = {}) {
+      if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
+      const codigo = String(codigoMepalTekSocial);
+
+      // 1) trae detalle del producto Mepal TekSocial desde el XML
+      const [detCO, detEUC, detUSD] = await Promise.all([
+        getMepalTekSocialDetail(codigo, 'CO'),
+        getMepalTekSocialDetail(codigo, 'EUC'),
+        getMepalTekSocialDetail(codigo, 'USD'),
+      ]);
+
+      const det =
+        (countryRef.current === 'EUC' && detEUC) ||
+        (countryRef.current === 'USD' && detUSD) ||
+        detCO ||
+        detEUC ||
+        detUSD;
+
+      if (!det) {
+        console.warn(
+          `Mepal TekSocial: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
+        );
+      }
+
+      // 2) cargar GLB desde carpeta Mepal TekSocial
+      const possibleSrcs = [
+        `/assets/models/Mepal TekSocial/${codigo}.glb`,
+        `/assets/models/${codigo}.glb`,
+      ];
+
+      const gltf = await loadExistingGlb(possibleSrcs);
+
+      if (!gltf) {
+        console.error(`No se encontró un GLB válido para Mepal TekSocial ${codigo}`);
+        return;
+      }
+
+      const obj = gltf.scene;
+
+      // 3) userData
+      const mepalTekSocialPartPrices = {
+        CO: Number(detCO?.precio || 0),
+        EUC: Number(detEUC?.precio || 0),
+        USD: Number(detUSD?.precio || 0),
+      };
+      const mepalTekSocialParts = [
+        {
+          code: codigo,
+          description: det?.descripcion || codigo,
+          qty: 1,
+          unitPrice: Number(mepalTekSocialPartPrices[countryRef.current] || 0),
+          prices: mepalTekSocialPartPrices,
+        },
+      ];
+
+      obj.userData = {
+        ...(obj.userData || {}),
+        kind: 'MEPAL_TEK_SOCIAL',
+        codigoPT: codigo,
+        code: codigo,
+        name: det?.descripcion || codigo,
+        instanceId: obj.uuid,
+        mepalTekSocialParts,
+        mepalTekSocialMeta: {
+          descripcion: det?.descripcion || codigo,
+          precio: det?.precio || 0,
+          udm: det?.udm || 'und',
+        },
+      };
+
+      obj.name = `MEPAL_TEK_SOCIAL_${codigo}`;
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -2956,6 +3083,7 @@ export default function ThreeCanvas({
       addPlant,
       addOfficeAccessory,
       addMepalSalud,
+      addMepalTekSocial,
       swapMepalSaludVariant,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
       exportDXF: () => {
@@ -4204,11 +4332,16 @@ export default function ThreeCanvas({
       widthM,
       depthM,
       thicknessM,
-      edgeThicknessM = getEdgeThicknessM(finalEdgeFinish), // 0.002, //espesor del canto
       edgeFinish = 'PVC-2MM',
+      edgeThicknessM = null,
       edgeColor = 0x2f2f2f,
     }) {
       if (!group) return;
+
+      edgeThicknessM =
+        Number.isFinite(edgeThicknessM) && edgeThicknessM > 0
+          ? edgeThicknessM
+          : getEdgeThicknessM(edgeFinish);
 
       // El canto debe tener exactamente el mismo alto que el espesor de la superficie
       const edgeHeightM = thicknessM;

@@ -9,6 +9,8 @@ import { loadAresItems } from '../services/aresLoader';
 import { loadPlantsItems } from '../services/plantsLoader';
 import { loadOfficeAccessoriesItems } from '../services/officeAccessoriesLoader';
 import { loadMepalSaludItems } from '../services/mepalSaludLoader';
+import { loadMepalTekSocialItems } from '../services/mepalTekSocialLoader';
+import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { buildKoncisaPlus } from '../koncisaPlus/KoncisaPlusBuilder';
@@ -135,6 +137,19 @@ function MepalSaludCardImage({ codigo, title }) {
   );
 }
 
+function MepalTekSocialCardImage({ codigo, title }) {
+  return (
+    <CardImage
+      assetName={codigo}
+      title={title}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
 export default function LeftPanel({
   section,
   threeApiRef,
@@ -159,6 +174,7 @@ export default function LeftPanel({
   onAddPlant,
   onAddOfficeAccessory,
   onAddMepalSalud,
+  onAddMepalTekSocial,
   onToggleSnap,
   // muros
   wallMode,
@@ -208,6 +224,11 @@ export default function LeftPanel({
   const [qMepalSalud, setQMepalSalud] = useState('');
   const [mepalSaludItems, setMepalSaludItems] = useState([]);
   const [mepalSaludReady, setMepalSaludReady] = useState(false);
+
+  // MEPAL TEK SOCIAL states
+  const [qMepalTekSocial, setQMepalTekSocial] = useState('');
+  const [mepalTekSocialItems, setMepalTekSocialItems] = useState([]);
+  const [mepalTekSocialReady, setMepalTekSocialReady] = useState(false);
 
   //Materiales genericos
   const [qMaterials, setQMaterials] = useState('');
@@ -299,6 +320,41 @@ export default function LeftPanel({
         }
       } catch (err) {
         console.error('Error cargando tipologias-detalle:', err);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [country]);
+
+  // ================================
+  // Cargar MEPAL TEK SOCIAL
+  // ================================
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const items = await loadMepalTekSocialItems(country);
+        if (!alive) return;
+        const arr = items.map((c) => ({
+          codigoPT: String(c.codigo),
+          ui: {
+            title: c.descripcion || String(c.codigo),
+            subtitle: 'MEPAL TEK SOCIAL',
+          },
+          prices: {
+            [country]: Number(c.precio || 0),
+            CO: Number(c.precio || 0),
+          },
+          model: { kind: 'MEPAL_TEK_SOCIAL' },
+          raw: c,
+        }));
+        setMepalTekSocialItems(arr);
+        setMepalTekSocialReady(true);
+      } catch (err) {
+        console.error('Error cargando Mepal TekSocial:', err);
+        if (alive) setMepalTekSocialReady(true);
       }
     })();
 
@@ -745,14 +801,29 @@ export default function LeftPanel({
     });
   }, [mepalSaludItems, qMepalSalud]);
 
+  // ================================
+  // Filtrado de MEPAL TEK SOCIAL
+  // ================================
+  const mepalTekSocialFiltered = useMemo(() => {
+    const q = String(qMepalTekSocial || '')
+      .trim()
+      .toLowerCase();
+    if (!q) return mepalTekSocialItems || [];
+    return (mepalTekSocialItems || []).filter((it) => {
+      const code = String(it?.codigoPT ?? '').toLowerCase();
+      const title = String(it?.ui?.title ?? '').toLowerCase();
+      return code.includes(q) || title.includes(q);
+    });
+  }, [mepalTekSocialItems, qMepalTekSocial]);
+
   return (
     <div
+      className="left-panel-shell"
       style={{
         flex: 1,
         padding: 12,
         overflow: 'auto',
         overflowX: 'hidden',
-        background: '#fff',
         minHeight: 0,
         minWidth: 0,
       }}
@@ -760,7 +831,9 @@ export default function LeftPanel({
       {/* ======================= CATALOGO ======================= */}
       {section === 'catalog' && (
         <>
-          <h3 style={{ margin: '0 0 12px 0' }}>Catálogo</h3>
+          <h3 className="lp-wrap" style={{ margin: '0 0 12px 0' }}>
+            Catálogo
+          </h3>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             <button disabled={readOnly} onClick={() => !readOnly && setSurfaceOpen(true)}>
@@ -1329,17 +1402,19 @@ export default function LeftPanel({
       {/* ======================= MATERIALES (placeholder) ======================= */}
       {section === 'materials' && (
         <>
-          <h3 style={{ margin: '0 0 12px 0' }}>Materiales</h3>
+          <h3 className="lp-wrap" style={{ margin: '0 0 12px 0' }}>
+            Materiales
+          </h3>
 
           {/* Texto indicando qué parte estamos editando */}
           {selectedPart?.subName && (
-            <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>
+            <div className="lp-wrap" style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>
               Editando parte: <b>{selectedPart.subName}</b>
             </div>
           )}
 
           {!selectedPart?.subName && selectedPart?.code && (
-            <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>
+            <div className="lp-wrap" style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>
               Editando objeto: <b>{selectedPart.code}</b>
             </div>
           )}
@@ -1382,8 +1457,8 @@ export default function LeftPanel({
                   padding: '6px 6px',
                   borderRadius: 6,
                   border: '1px solid #ddd',
-                  background: applyScope === 'PART' ? '#111827' : '#fff',
-                  color: applyScope === 'PART' ? '#fff' : '#111827',
+                  background: applyScope === 'PART' ? '#2d2d2d' : '#fff',
+                  color: applyScope === 'PART' ? '#fff' : '#444',
                   cursor: readOnly ? 'not-allowed' : 'pointer',
                   fontSize: 12,
                   fontWeight: 600,
@@ -1401,8 +1476,8 @@ export default function LeftPanel({
                   padding: '6px 6px',
                   borderRadius: 6,
                   border: '1px solid #ddd',
-                  background: applyScope === 'ALL' ? '#111827' : '#fff',
-                  color: applyScope === 'ALL' ? '#fff' : '#111827',
+                  background: applyScope === 'ALL' ? '#2d2d2d' : '#fff',
+                  color: applyScope === 'ALL' ? '#fff' : '#444',
                   cursor: readOnly ? 'not-allowed' : 'pointer',
                   fontSize: 12,
                   fontWeight: 600,
@@ -1446,13 +1521,11 @@ export default function LeftPanel({
                 {/* Contenido */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
+                    className="lp-wrap"
                     style={{
                       fontWeight: 700,
                       fontSize: 14,
                       lineHeight: 1.2,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
                     }}
                     title={m.shortName || m.name}
                   >
@@ -1463,13 +1536,11 @@ export default function LeftPanel({
 
                   {(m.groupCode || m.groupName) && (
                     <div
+                      className="lp-wrap"
                       style={{
                         fontSize: 12,
                         opacity: 0.6,
                         marginTop: 2,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
                       }}
                       title={`${m.groupCode || ''}${m.groupCode && m.groupName ? ' — ' : ''}${m.groupName || ''}`}
                     >
@@ -1497,7 +1568,7 @@ export default function LeftPanel({
                     padding: '6px 12px',
                     borderRadius: 6,
                     border: '1px solid #ddd',
-                    background: '#111827',
+                    background: '#2d2d2d',
                     color: '#fff',
                     cursor: readOnly || !selectedPart ? 'not-allowed' : 'pointer',
                     fontSize: 13,
@@ -1545,9 +1616,13 @@ export default function LeftPanel({
       {/* ======================= SILLAS ======================= */}
       {section === 'sillas' && (
         <>
-          <h1 style={{ margin: '0 0 12px 0' }}>Sillas</h1>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0' }}>
+            Sillas
+          </h1>
 
-          <h3 style={{ margin: '0 0 12px 0' }}>Bases y Mesas</h3>
+          <h3 className="lp-wrap" style={{ margin: '0 0 12px 0' }}>
+            Bases y Mesas
+          </h3>
 
           <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
             <select
@@ -1593,7 +1668,7 @@ export default function LeftPanel({
             </select>
           </div>
 
-          <div style={{ fontSize: 11, opacity: 0.65, marginTop: -4, marginBottom: 10 }}>
+          <div className="lp-wrap" style={{ fontSize: 11, opacity: 0.65, marginBottom: 10 }}>
             Subcategoría: <b>actual/global</b> (códigos en la lista del país / códigos únicos en
             JSON).
           </div>
@@ -1647,7 +1722,9 @@ export default function LeftPanel({
       {/* ======================= ARES ======================= */}
       {section === 'ares' && (
         <>
-          <h1 style={{ margin: '0 0 12px 0' }}>Ares</h1>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0' }}>
+            Ares
+          </h1>
 
           <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
             Selecciona un producto Ares para agregarlo al proyecto.
@@ -1696,7 +1773,9 @@ export default function LeftPanel({
       {/* ======================= PLANTS AND FLOWERS ======================= */}
       {section === 'plants' && (
         <>
-          <h1 style={{ margin: '0 0 12px 0' }}>Plants and Flowers</h1>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0' }}>
+            Plants and Flowers
+          </h1>
 
           <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
             Selecciona una planta para agregarla al proyecto.
@@ -1751,7 +1830,9 @@ export default function LeftPanel({
       {/* ======================= OFFICE ACCESORIES ======================= */}
       {section === 'officeAccesories' && (
         <>
-          <h1 style={{ margin: '0 0 12px 0' }}>Office Accesories</h1>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0' }}>
+            Office Accesories
+          </h1>
 
           <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
             Selecciona un accesorio de oficina para agregarlo al proyecto.
@@ -1809,7 +1890,7 @@ export default function LeftPanel({
       {/* ======================= MEPAL SALUD ======================= */}
       {section === 'mepalSalud' && (
         <>
-          <h1 style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
             <span style={{ display: 'block' }}>Salud</span>
             <span style={{ display: 'block' }}>Mepal</span>
           </h1>
@@ -1863,6 +1944,67 @@ export default function LeftPanel({
           </div>
         </>
       )}
+
+      {/* ======================= MEPAL TEK SOCIAL ======================= */}
+      {section === 'mepalTekSocial' && (
+        <>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+            <span style={{ display: 'block' }}>Mepal</span>
+            <span style={{ display: 'block' }}>TekSocial</span>
+          </h1>
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Selecciona un producto Mepal TekSocial para agregarlo al proyecto.
+          </div>
+
+          <input
+            value={qMepalTekSocial}
+            onChange={(e) => setQMepalTekSocial(e.target.value)}
+            placeholder="Buscar por código o descripción..."
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 10,
+              outline: 'none',
+            }}
+          />
+
+          {!mepalTekSocialReady && (
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Mepal TekSocial...</div>
+          )}
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            {mepalTekSocialFiltered.map((it) => (
+              <button
+                key={String(it.codigoPT)}
+                disabled={readOnly}
+                onClick={() => !readOnly && onAddMepalTekSocial(it.codigoPT)}
+                style={cardBtn(readOnly)}
+              >
+                <MepalTekSocialCardImage
+                  codigo={it.codigoPT}
+                  title={it.ui?.title || it.codigoPT}
+                />
+                <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                  {it.codigoPT}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.85,
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {it.ui?.title}
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1870,38 +2012,51 @@ export default function LeftPanel({
 function cardBtn(readOnly) {
   return {
     textAlign: 'left',
-    padding: '8px',
-    borderRadius: 10,
-    border: '1px solid #e5e7eb',
-    background: '#fff',
+    padding: '12px',
+    borderRadius: 12,
+    border: '1px solid #dfdfdf',
+    background: 'linear-gradient(180deg, #ffffff 0%, #f8f8f8 100%)',
     width: '100%',
     minWidth: 0,
     overflow: 'hidden',
     cursor: readOnly ? 'not-allowed' : 'pointer',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.85), 0 4px 12px rgba(15, 23, 42, 0.05)',
   };
 }
 
 function btnMini(active) {
   return {
     flex: 1,
-    padding: '8px 10px',
+    padding: '10px 12px',
     borderRadius: 10,
-    border: '1px solid #ddd',
-    background: active ? '#111827' : '#fff',
-    color: active ? '#fff' : '#111827',
+    border: '1px solid #d8d8d8',
+    background: active
+      ? 'linear-gradient(180deg, #464646 0%, #2e2e2e 100%)'
+      : 'linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%)',
+    color: active ? '#fff' : '#444',
     cursor: 'pointer',
-    fontWeight: 900,
+    fontWeight: 700,
+    boxShadow: active
+      ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 6px rgba(0,0,0,0.08)'
+      : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 1px 2px rgba(15, 23, 42, 0.04)',
   };
 }
 
-const lab = { display: 'grid', gap: 6, fontSize: 12, fontWeight: 800 };
-const inp = { padding: 8, borderRadius: 10, border: '1px solid #ddd' };
+const lab = { display: 'grid', gap: 6, fontSize: 12, fontWeight: 700, color: '#555' };
+const inp = {
+  padding: '9px 11px',
+  borderRadius: 10,
+  border: '1px solid #d8d8d8',
+  background: 'linear-gradient(180deg, #ffffff 0%, #f8f8f8 100%)',
+  color: '#333',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8), 0 1px 2px rgba(15, 23, 42, 0.04)',
+};
 const disabledCard = {
   textAlign: 'left',
-  padding: '8px',
-  borderRadius: 10,
-  border: '1px solid #e5e7eb',
-  background: '#fafafa',
+  padding: '12px',
+  borderRadius: 12,
+  border: '1px solid #e0e0e0',
+  background: 'linear-gradient(180deg, #fafafa 0%, #f1f1f1 100%)',
   cursor: 'not-allowed',
   opacity: 0.7,
 };

@@ -491,13 +491,30 @@ export default function App() {
         }}
       >
         {/* LEFT (Rail + Panel estilo CET) */}
-        <div style={{ display: 'flex', minHeight: 0, borderRight: '1px solid #e5e5e5', minWidth: 0, overflow: 'hidden' }}>
+        <div
+          style={{
+            display: 'flex',
+            minHeight: 0,
+            borderRight: '1px solid #e5e5e5',
+            minWidth: 0,
+            overflow: 'hidden',
+            background: '#fafafa',
+            position: 'relative',
+            zIndex: 2,
+          }}
+        >
           <LeftRail active={leftSection} onChange={setLeftSection} />
           {/* CONTENEDOR VERTICAL */}
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
             {/* SELECT ARRIBA */}
             {leftSection === 'typologies' && (
-              <div style={{ padding: 8, borderBottom: '1px solid #e5e5e5', background: '#fafafa' }}>
+              <div
+                style={{
+                  padding: 12,
+                  borderBottom: '1px solid #e8e8e8',
+                  background: '#f4f4f4',
+                }}
+              >
                 {/* Select 1: Nombre */}
                 <select
                   value={selectedNombreCategoria}
@@ -511,10 +528,13 @@ export default function App() {
                   }}
                   style={{
                     width: '100%',
-                    padding: 8,
-                    borderRadius: 8,
+                    padding: '9px 10px',
+                    borderRadius: 6,
                     border: '1px solid #ddd',
                     marginBottom: 8,
+                    background: '#fff',
+                    color: '#333',
+                    fontSize: 13,
                   }}
                 >
                   <option value="">Todas las líneas</option>
@@ -538,9 +558,12 @@ export default function App() {
                   }}
                   style={{
                     width: '100%',
-                    padding: 8,
-                    borderRadius: 8,
+                    padding: '9px 10px',
+                    borderRadius: 6,
                     border: '1px solid #ddd',
+                    background: '#fff',
+                    color: '#333',
+                    fontSize: 13,
                   }}
                   disabled={!selectedNombreCategoria}
                 >
@@ -591,6 +614,9 @@ export default function App() {
               onAddMepalSalud={(codigo) =>
                 !readOnly && threeApiRef.current?.addMepalSalud?.(codigo)
               }
+              onAddMepalTekSocial={(codigo) =>
+                !readOnly && threeApiRef.current?.addMepalTekSocial?.(codigo)
+              }
               onToggleSnap={() => !readOnly && threeApiRef.current?.toggleSnap?.()}
               onApplyGlobalMaterial={(code, scope = 'ALL') => {
                 if (readOnly) return;
@@ -621,7 +647,7 @@ export default function App() {
         </div>
 
         {/* CENTER */}
-        <div style={{ minHeight: 0, position: 'relative' }}>
+        <div style={{ minHeight: 0, position: 'relative', zIndex: 1, minWidth: 0, overflow: 'hidden' }}>
           {/* Export buttons */}
           <div
             style={{
@@ -771,7 +797,7 @@ export default function App() {
         </div>
 
         {/* RIGHT */}
-        <div style={{ minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ minWidth: 0, minHeight: 0, overflow: 'hidden', position: 'relative', zIndex: 2 }}>
           {/*
           <PropertiesPanel
             part={selectedPart}

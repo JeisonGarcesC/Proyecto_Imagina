@@ -29,6 +29,11 @@ export default function LeftRail({ active, onChange }) {
       image: '/assets/iconos_imagen/Salud.png',
     },
     {
+      id: 'mepalTekSocial',
+      label: 'Mepal TekSocial',
+      image: '/assets/iconos_imagen/MepalTekSocial.png',
+    },
+    {
       id: 'koncisaPlus',
       label: 'Koncisa Plus',
       image: '/assets/iconos_imagen/koncisa2PlussLibrary.png',
@@ -40,11 +45,12 @@ export default function LeftRail({ active, onChange }) {
       style={{
         width: 56,
         borderRight: '1px solid #e5e5e5',
-        background: '#fff',
+        background: 'linear-gradient(180deg, #f8f8f8 0%, #efefef 100%)',
         display: 'flex',
         flexDirection: 'column',
-        padding: 6,
-        gap: 6,
+        padding: 8,
+        gap: 8,
+        boxShadow: 'inset -1px 0 0 rgba(255, 255, 255, 0.65)',
       }}
     >
       {items.map((it) => {
@@ -57,16 +63,22 @@ export default function LeftRail({ active, onChange }) {
             title={it.label}
             onClick={() => onChange(it.id)}
             style={{
-              height: 44,
-              borderRadius: 12,
-              border: '1px solid #e5e7eb',
-              background: isActive ? '#111827' : '#fff',
-              color: isActive ? '#fff' : '#111827',
+              height: 42,
+              borderRadius: 10,
+              border: isActive ? '1px solid #2d2d2d' : '1px solid #d8d8d8',
+              background: isActive
+                ? 'linear-gradient(180deg, #454545 0%, #2e2e2e 100%)'
+                : 'linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%)',
+              color: isActive ? '#fff' : '#444',
               cursor: 'pointer',
-              fontSize: 18,
+              fontSize: 16,
+              boxShadow: isActive
+                ? 'inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.12)'
+                : 'inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 1px 2px rgba(15, 23, 42, 0.04)',
               display: 'grid',
               placeItems: 'center',
               overflow: 'hidden',
+              transition: 'background-color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease',
             }}
           >
             {it.image ? (
@@ -77,6 +89,7 @@ export default function LeftRail({ active, onChange }) {
                   width: 24,
                   height: 24,
                   objectFit: 'contain',
+                  filter: isActive ? 'none' : 'grayscale(12%)',
                 }}
               />
             ) : (

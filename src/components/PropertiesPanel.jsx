@@ -169,7 +169,7 @@ export default function PropertiesPanel({
 
           <input className="pp-search" value={finishQuery}
             onChange={(e) => setFinishQuery(e.target.value)}
-            placeholder="Buscar por código o nombre (ej: 22002383)"
+            placeholder="código o nombre"
             disabled={readOnly}
           />
 
