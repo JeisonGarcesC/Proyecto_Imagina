@@ -9,6 +9,7 @@ export const KONCISA_CABLE_ACCESS_RULES = {
 
   // Pasacable
   MPLCUTOUTNOPAL: '22000635',
+  MPLCUTOUTGRIS: '22000648',
 };
 
 export function buildKoncisaCableAccessLogicalCode({

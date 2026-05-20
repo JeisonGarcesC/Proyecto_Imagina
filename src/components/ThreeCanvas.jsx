@@ -38,6 +38,16 @@ import {
 import { resolveKoncisaPedestalReinforcement } from '../koncisaPlus/rules/koncisaPedestalReinforcementRules';
 import { resolveKoncisaDuctSupport } from '../koncisaPlus/rules/koncisaDuctSupportRules';
 
+import { resolveKoncisaSurfaceCodigoPT } from '../koncisaPlus/rules/koncisaSurfaceRules';
+
+import {
+  canAttachKoncisaIntegrationToPart,
+  normalizeIntegrationDepthMm,
+  normalizeIntegrationSide,
+  normalizeIntegrationWidthMm,
+  resolveKoncisaIntegrationPackage,
+} from '../koncisaPlus/rules/koncisaIntegrationRules';
+
 import {
   resolveDuctCoverAsset,
   defaultDuctCoverState,
@@ -1065,8 +1075,11 @@ export default function ThreeCanvas({
             'ductoTecho',
             'pedestal',
             'refuerzoSuperficiePedestal',
+            'refuerzoSuperficieIntegracion',
             'soporteDuctoPedestal',
             'costado',
+            'costadoIntegracionUnitario',
+            'acopleDucto',
             'grommet',
             'pasacable',
             'viga',
@@ -3172,6 +3185,8 @@ export default function ThreeCanvas({
       updateFloorVisualOptions,
       replaceSelectedCostadoWithPedestal,
       replaceSelectedPedestalWithCostado,
+      replaceSelectedCostadoWithIntegration,
+      removeSelectedIntegrationAndRestoreCostado,
     });
 
     function getGroupedObjects(target) {
@@ -3510,6 +3525,708 @@ export default function ThreeCanvas({
 
       for (const obj of pedestalsToRemove) {
         removePartObject(obj);
+      }
+
+      emitBOM();
+      refreshFloorAndGrid();
+
+      return true;
+    }
+
+    async function replaceSelectedCostadoWithIntegration({
+      side = null,
+      widthMm = null,
+      depthMm = null,
+      cableAccessType = 'grommet',
+      finishCode = null,
+      thickMm = null,
+      variant = '',
+    } = {}) {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const costadoObj = getRootPartObject(activePart) || activePart;
+
+      const isCostado =
+        costadoObj?.userData?.kind === 'costado' ||
+        costadoObj?.userData?.meta?.category === 'costados';
+
+      if (!isCostado) {
+        alert('Selecciona un costado terminal de un puesto doble.');
+        return false;
+      }
+
+      const meta = costadoObj.userData?.meta || {};
+
+      const tipoPuesto = String(meta.tipoPuesto || costadoObj.userData?.tipoPuesto || '')
+        .trim()
+        .toLowerCase();
+
+      const replaceZone = String(
+        meta.replaceZone || costadoObj.userData?.replaceZone || side || 'RIGHT'
+      )
+        .trim()
+        .toUpperCase();
+
+      const isTerminal =
+        String(meta.tipo || costadoObj.userData?.tipo || '').toLowerCase() === 'terminal' ||
+        replaceZone === 'LEFT' ||
+        replaceZone === 'RIGHT' ||
+        meta.isTerminal === true ||
+        costadoObj.userData?.isTerminal === true;
+
+      if (tipoPuesto !== 'doble' || !isTerminal) {
+        alert(
+          'El puesto de integración solo se puede agregar sobre costados terminales de un puesto doble.'
+        );
+        return false;
+      }
+
+      if (!canAttachKoncisaIntegrationToPart(costadoObj)) {
+        console.warn('[Integración] Validación flexible falló, se continúa por validación local.', {
+          tipoPuesto,
+          replaceZone,
+          meta,
+        });
+      }
+
+      const parentGroup =
+        costadoObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? costadoObj.parent : null;
+
+      const groupId =
+        costadoObj.userData?.groupId ||
+        parentGroup?.userData?.instanceId ||
+        parentGroup?.userData?.groupId ||
+        null;
+
+      const groupName =
+        costadoObj.userData?.groupName ||
+        parentGroup?.userData?.name ||
+        parentGroup?.userData?.groupName ||
+        null;
+
+      const basePos = costadoObj.position.clone();
+      const baseRot = costadoObj.rotation.clone();
+
+      const moduleIndex = meta.moduleIndex ?? costadoObj.userData?.moduleIndex ?? 0;
+
+      const integrationSide = normalizeIntegrationSide(side || replaceZone);
+
+      const originalWidthMm =
+        widthMm ||
+        meta.nominalWidthMm ||
+        meta.largoRealMm ||
+        costadoObj.userData?.dim?.widthMm ||
+        costadoObj.userData?.dimMm?.widthMm ||
+        1200;
+
+      const originalDepthMm =
+        depthMm ||
+        meta.depthMm ||
+        meta.anchoRealMm ||
+        costadoObj.userData?.dim?.depthMm ||
+        costadoObj.userData?.dimMm?.depthMm ||
+        600;
+
+      const normalizedWidthMm = normalizeIntegrationWidthMm(originalWidthMm);
+      const normalizedDepthMm = normalizeIntegrationDepthMm(originalDepthMm);
+
+      const finalFinishCode =
+        finishCode || meta.finishCode || costadoObj.userData?.finishCode || '22008689';
+
+      const finalThickMm =
+        thickMm ||
+        meta.thickMm ||
+        costadoObj.userData?.dim?.thickMm ||
+        costadoObj.userData?.dimMm?.thickMm ||
+        30;
+
+      const integrationSetId = `INTSET_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+
+      const pkg = resolveKoncisaIntegrationPackage({
+        widthMm: normalizedWidthMm,
+        depthMm: normalizedDepthMm,
+        side: integrationSide,
+        cableAccessType,
+        coupleType: 'duct',
+      });
+
+      const originalCostadoSnapshot = {
+        type: 'costado',
+        line: costadoObj.userData?.line || 'KONCISA.PLUS',
+        code: costadoObj.userData?.code || costadoObj.userData?.codigoPT || null,
+        codigoPT: costadoObj.userData?.codigoPT || costadoObj.userData?.code || null,
+        logicalCode: costadoObj.userData?.logicalCode || null,
+        name: costadoObj.name || 'costado',
+        description: costadoObj.userData?.description || null,
+
+        groupId,
+        groupName,
+
+        position: {
+          x: basePos.x * 1000,
+          y: basePos.y * 1000,
+          z: basePos.z * 1000,
+        },
+
+        rotation: {
+          x: baseRot.x,
+          y: baseRot.y,
+          z: baseRot.z,
+        },
+
+        model: {
+          kind: 'glb',
+          src:
+            costadoObj.userData?.modelSrc ||
+            costadoObj.userData?.meta?.modelSrc ||
+            costadoObj.userData?.model?.src ||
+            null,
+        },
+
+        meta: {
+          ...(costadoObj.userData?.meta || {}),
+          category: 'costados',
+          moduleIndex,
+          replaceZone,
+          restoredFromIntegration: true,
+        },
+      };
+
+      // Dirección hacia afuera del puesto doble.
+      // LEFT sale hacia Z positivo; RIGHT sale hacia Z negativo.
+      const outwardSign = integrationSide === 'left' ? 1 : -1;
+
+      const mmToWorldX = (mm) => basePos.x * 1000 + Number(mm || 0);
+      const mmToWorldY = (mm) => basePos.y * 1000 + Number(mm || 0);
+      const mmToWorldZ = (mm) => basePos.z * 1000 + Number(mm || 0) * outwardSign;
+
+      // =====================================================
+      // 1. Costado doble integración: reemplaza costado terminal
+      // =====================================================
+      const integrationLeg = pkg.doubleIntegrationLeg;
+
+      let newIntegrationLegObj = null;
+
+      if (integrationLeg?.modelSrc) {
+        newIntegrationLegObj = await addExternalGlbPart({
+          type: 'costado',
+          line: 'KONCISA.PLUS',
+          code: integrationLeg.codigoPT,
+          logicalCode: integrationLeg.logicalCode,
+          name: integrationLeg.name,
+
+          groupId,
+          groupName,
+          parentGroup,
+
+          position: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
+
+          rotation: {
+            x: baseRot.x,
+            y: baseRot.y,
+            z: baseRot.z,
+          },
+
+          model: {
+            kind: 'glb',
+            src: integrationLeg.modelSrc,
+          },
+
+          meta: {
+            category: 'costados',
+            tipoPuesto: 'doble',
+            tipoModulo: 'terminal',
+            moduleIndex,
+            replaceZone,
+            integrationSetId,
+            isIntegrationLeg: true,
+            replacesCostado: true,
+            originalCostadoSnapshot,
+            originalCostadoCode: costadoObj.userData?.code || null,
+          },
+        });
+      } else {
+        newIntegrationLegObj = addNativeBlockPart({
+          type: 'costado',
+          line: 'KONCISA.PLUS',
+          code: integrationLeg.codigoPT,
+          logicalCode: integrationLeg.logicalCode,
+          name: integrationLeg.name,
+
+          groupId,
+          groupName,
+          parentGroup,
+
+          dimMm: {
+            widthMm: 35,
+            heightMm: 710,
+            depthMm: normalizedWidthMm,
+          },
+
+          position: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
+
+          rotation: {
+            x: baseRot.x,
+            y: baseRot.y,
+            z: baseRot.z,
+          },
+
+          meta: {
+            category: 'costados',
+            tipoPuesto: 'doble',
+            tipoModulo: 'terminal',
+            moduleIndex,
+            replaceZone,
+            integrationSetId,
+            isIntegrationLeg: true,
+            replacesCostado: true,
+            originalCostadoSnapshot,
+            originalCostadoCode: costadoObj.userData?.code || null,
+          },
+        });
+      }
+
+      // =====================================================
+      // 2. Superficie sencilla de integración
+      // Reutiliza reglas normales de superficie sencilla.
+      // =====================================================
+      const resolvedSurface = resolveKoncisaSurfaceCodigoPT({
+        billingWidthMm: normalizedWidthMm,
+        billingDepthMm: normalizedDepthMm,
+        shape: 'RECT',
+        thicknessMm: finalThickMm,
+        finishCode: finalFinishCode,
+        variant,
+      });
+
+      const surfaceCenterOffsetZ = normalizedDepthMm / 2 + 8;
+
+      const surfaceCatalogItem =
+        catalogByCodeRef.current?.get?.(String(resolvedSurface.codigoPT)) || null;
+
+      const surfaceDescription =
+        surfaceCatalogItem?.ui?.title ||
+        surfaceCatalogItem?.ui?.subtitle ||
+        surfaceCatalogItem?.raw?.descripcion ||
+        surfaceCatalogItem?.raw?.description ||
+        surfaceCatalogItem?.raw?.Descripcion ||
+        surfaceCatalogItem?.raw?.nombre ||
+        null;
+
+      const integrationSurfaceObj = addSurface(
+        {
+          widthM: normalizedWidthMm / 1000,
+          depthM: normalizedDepthMm / 1000,
+          thicknessM: finalThickMm / 1000,
+          line: 'KONCISA.PLUS',
+          codigoPT: resolvedSurface.codigoPT,
+          code: resolvedSurface.codigoPT,
+          logicalCode: resolvedSurface.logicalCode,
+
+          name: surfaceDescription,
+          description: surfaceDescription,
+
+          dim: {
+            widthMm: normalizedWidthMm,
+            depthMm: normalizedDepthMm,
+            thickMm: finalThickMm,
+            canto: meta.canto || 'PVC-2MM',
+          },
+
+          position: {
+            x: basePos.x,
+            y: 0.71,
+            z: (basePos.z * 1000 + surfaceCenterOffsetZ * outwardSign) / 1000,
+          },
+
+          groupId,
+          groupName,
+          parentGroup,
+          edgeFinish: meta.canto || 'PVC-2MM',
+        },
+        {
+          ...(surfaceCatalogItem || {}),
+          materialBase: surfaceCatalogItem?.materialBase || 'LAMINA',
+          materialCode: finalFinishCode,
+          meta: {
+            ...(surfaceCatalogItem?.meta || {}),
+            canto: meta.canto || 'PVC-2MM',
+          },
+        }
+      );
+
+      if (integrationSurfaceObj) {
+        integrationSurfaceObj.rotation.y = Math.PI / 2;
+        integrationSurfaceObj.userData.meta = {
+          ...(integrationSurfaceObj.userData.meta || {}),
+          category: 'superficies',
+          isIntegrationSurface: true,
+          integrationSetId,
+          moduleIndex,
+          replaceZone,
+          tipoPuesto: 'integracion',
+          widthMm: normalizedWidthMm,
+          depthMm: normalizedDepthMm,
+          finishCode: finalFinishCode,
+          thickMm: finalThickMm,
+          variant,
+          description: surfaceDescription,
+          descripcion: surfaceDescription,
+        };
+
+        if (surfaceDescription) {
+          integrationSurfaceObj.userData.name = surfaceDescription;
+          integrationSurfaceObj.userData.description = surfaceDescription;
+        }
+      }
+
+      // =====================================================
+      // 3. Costados unitarios cuadrados de integración
+      // Cantidad: 2
+      // Se ubican en las esquinas exteriores de la superficie de integración.
+      // =====================================================
+      const unitLeg = pkg.unitLeg;
+
+      const unitLegPositions = [
+        {
+          x: 0 - normalizedWidthMm / 2 + 35,
+          z: normalizedDepthMm + 8,
+        },
+        {
+          x: 0 + normalizedWidthMm / 2 - 35,
+          z: normalizedDepthMm + 8,
+        },
+      ];
+
+      for (const [index, pos] of unitLegPositions.entries()) {
+        await addExternalGlbPart({
+          type: 'costadoIntegracionUnitario',
+          line: 'KONCISA.PLUS',
+          code: unitLeg.codigoPT,
+          logicalCode: unitLeg.logicalCode,
+          name: unitLeg.name,
+
+          groupId,
+          groupName,
+          parentGroup,
+
+          position: {
+            x: mmToWorldX(pos.x),
+            y: basePos.y * 1000,
+            z: mmToWorldZ(pos.z),
+          },
+
+          rotation: {
+            x: baseRot.x,
+            y: baseRot.y,
+            z: baseRot.z,
+          },
+
+          model: {
+            kind: 'glb',
+            src: unitLeg.modelSrc,
+          },
+
+          meta: {
+            category: 'costados-integracion-unitarios',
+            integrationSetId,
+            moduleIndex,
+            replaceZone,
+            index,
+            tipoPuesto: 'integracion',
+          },
+        });
+      }
+
+      // =====================================================
+      // 4. Ducto individual de integración
+      // =====================================================
+      const individualDuct = pkg.individualDuct;
+
+      await addExternalGlbPart({
+        type: 'ducto',
+        line: 'KONCISA.PLUS',
+        code: individualDuct.codigoPT,
+        logicalCode: individualDuct.logicalCode,
+        name: individualDuct.name,
+
+        groupId,
+        groupName,
+        parentGroup,
+
+        position: {
+          x: basePos.x * 1000,
+          y: basePos.y * 1000,
+          z: mmToWorldZ(130),
+        },
+
+        rotation: {
+          x: baseRot.x,
+          y: baseRot.y + Math.PI / 2,
+          z: baseRot.z,
+        },
+
+        model: {
+          kind: 'glb',
+          src: individualDuct.modelSrc,
+        },
+
+        meta: {
+          category: 'ductos',
+          integrationSetId,
+          moduleIndex,
+          replaceZone,
+          tipoPuesto: 'integracion',
+          tipoModulo: 'individual',
+          tipoCanal: 'cableado',
+          nominalWidthMm: normalizedWidthMm,
+          ductCovers: {},
+        },
+      });
+
+      // =====================================================
+      // 5. Acople ducto a ducto
+      // =====================================================
+      const couple = pkg.couple;
+
+      await addExternalGlbPart({
+        type: 'acopleDucto',
+        line: 'KONCISA.PLUS',
+        code: couple.codigoPT,
+        logicalCode: couple.logicalCode,
+        name: couple.name,
+
+        groupId,
+        groupName,
+        parentGroup,
+
+        position: {
+          x: basePos.x * 1000,
+          y: basePos.y * 1000,
+          z: mmToWorldZ(35),
+        },
+
+        rotation: {
+          x: baseRot.x,
+          y: baseRot.y + Math.PI / 2,
+          z: baseRot.z,
+        },
+
+        model: {
+          kind: 'glb',
+          src: couple.modelSrc,
+        },
+
+        meta: {
+          category: 'acoples-ducto',
+          integrationSetId,
+          moduleIndex,
+          replaceZone,
+          tipoPuesto: 'integracion',
+          coupleType: 'duct',
+        },
+      });
+
+      // =====================================================
+      // 6. Grommet o pasacable
+      // Por ahora se agrega al BOM como pieza nativa mínima.
+      // Después podemos cambiarlo por geometría/modelo visual si quieres.
+      // =====================================================
+      const cableAccess = pkg.cableAccess;
+
+      addNativeBlockPart({
+        type: cableAccess.type === 'pasacable' ? 'pasacable' : 'grommet',
+        line: 'KONCISA.PLUS',
+        code: cableAccess.codigoPT,
+        logicalCode: cableAccess.logicalCode,
+        name: cableAccess.name,
+
+        groupId,
+        groupName,
+        parentGroup,
+
+        dimMm: {
+          widthMm: 120,
+          heightMm: 8,
+          depthMm: 60,
+        },
+
+        position: {
+          x: basePos.x * 1000,
+          y: 740,
+          z: mmToWorldZ(normalizedDepthMm / 2),
+        },
+
+        rotation: {
+          x: 0,
+          y: baseRot.y + Math.PI / 2,
+          z: 0,
+        },
+
+        meta: {
+          category: cableAccess.type === 'pasacable' ? 'pasacables' : 'grommets',
+          integrationSetId,
+          moduleIndex,
+          replaceZone,
+          tipoPuesto: 'integracion',
+          cableAccessType: cableAccess.type,
+        },
+      });
+
+      // =====================================================
+      // 7. Refuerzo superficie a pedestal o integración
+      // =====================================================
+      const reinforcement = pkg.reinforcement;
+
+      addNativeBlockPart({
+        type: 'refuerzoSuperficieIntegracion',
+        line: 'KONCISA.PLUS',
+        code: reinforcement.codigoPT,
+        logicalCode: reinforcement.logicalCode,
+        name: reinforcement.name,
+
+        groupId,
+        groupName,
+        parentGroup,
+
+        dimMm: {
+          widthMm: normalizedWidthMm === 1200 ? 640 : 940,
+          heightMm: 35,
+          depthMm: 155,
+        },
+
+        position: {
+          x: basePos.x * 1000,
+          y: 690,
+          z: mmToWorldZ(normalizedDepthMm / 2),
+        },
+
+        rotation: {
+          x: 0,
+          y: baseRot.y + Math.PI / 2,
+          z: 0,
+        },
+
+        meta: {
+          category: 'refuerzos-superficie-integracion',
+          integrationSetId,
+          moduleIndex,
+          replaceZone,
+          tipoPuesto: 'integracion',
+          nominalWidthMm: normalizedWidthMm,
+        },
+      });
+
+      // Finalmente eliminamos el costado terminal original.
+      removePartObject(costadoObj);
+
+      if (newIntegrationLegObj) {
+        setActivePart(newIntegrationLegObj);
+      }
+
+      emitBOM();
+      refreshFloorAndGrid();
+
+      return true;
+    }
+
+    async function removeSelectedIntegrationAndRestoreCostado() {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const selectedObj = getRootPartObject(activePart) || activePart;
+      const selectedMeta = selectedObj?.userData?.meta || {};
+
+      const integrationSetId =
+        selectedMeta.integrationSetId || selectedObj?.userData?.integrationSetId || null;
+
+      if (!integrationSetId) {
+        alert('Selecciona una pieza que pertenezca a un puesto de integración.');
+        return false;
+      }
+
+      const parentGroup =
+        selectedObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? selectedObj.parent : null;
+
+      let integrationLegObj = null;
+      let originalCostadoSnapshot = null;
+
+      const objectsToRemove = [];
+
+      const scanRoot = parentGroup || scene;
+
+      scanRoot.traverse((node) => {
+        if (!node) return;
+
+        const meta = node.userData?.meta || {};
+
+        if (meta.integrationSetId !== integrationSetId) return;
+
+        const isRootPart = node.userData?.isPartRoot === true;
+
+        if (!isRootPart) return;
+
+        objectsToRemove.push(node);
+
+        if (meta.isIntegrationLeg === true || meta.replacesCostado === true) {
+          integrationLegObj = node;
+          originalCostadoSnapshot = meta.originalCostadoSnapshot || null;
+        }
+      });
+
+      if (!objectsToRemove.length) {
+        alert('No se encontraron piezas asociadas a esta integración.');
+        return false;
+      }
+
+      if (!originalCostadoSnapshot) {
+        const fromSelected = selectedMeta.originalCostadoSnapshot || null;
+
+        if (fromSelected) {
+          originalCostadoSnapshot = fromSelected;
+        }
+      }
+
+      if (!originalCostadoSnapshot?.code || !originalCostadoSnapshot?.model?.src) {
+        alert('No se puede restaurar el costado original porque falta el snapshot del costado.');
+        return false;
+      }
+
+      // Restaurar costado terminal original
+      const restoredObj = await addExternalGlbPart({
+        ...originalCostadoSnapshot,
+        type: 'costado',
+        parentGroup,
+
+        groupId:
+          originalCostadoSnapshot.groupId ||
+          integrationLegObj?.userData?.groupId ||
+          parentGroup?.userData?.instanceId ||
+          null,
+
+        groupName:
+          originalCostadoSnapshot.groupName ||
+          integrationLegObj?.userData?.groupName ||
+          parentGroup?.userData?.name ||
+          null,
+      });
+
+      // Quitar todas las piezas de esta integración
+      for (const obj of objectsToRemove) {
+        removePartObject(obj);
+      }
+
+      if (restoredObj) {
+        setActivePart(restoredObj);
       }
 
       emitBOM();
@@ -4118,6 +4835,7 @@ export default function ThreeCanvas({
         tipoCanal: normalizedType, // si tu inferDuctChannelType lo requiere, puedes adaptarlo
       });
 
+      /*
       if (coverAsset) {
         if (ductCoversNormalized.left) {
           addBomItem(newDuctObj, coverAsset.code);
@@ -4128,7 +4846,7 @@ export default function ThreeCanvas({
         if (ductCoversNormalized.single) {
           addBomItem(newDuctObj, coverAsset.code);
         }
-      }
+      }*/
     }
 
     function updateSelectedCeilingDuctSide(newSide) {
@@ -4765,6 +5483,7 @@ export default function ThreeCanvas({
       const depthMm = dim?.depthMm ?? Math.round((depthM || 0) * 1000);
       const thickMm = dim?.thickMm ?? Math.round((thicknessM || 0) * 1000);
 
+      /*
       const code = String(codigoPT);
       const catalogItem = item || catalogByCodeRef.current?.get?.(code) || null;
 
@@ -4778,6 +5497,7 @@ export default function ThreeCanvas({
 
       const description =
         item?.ui?.title || item?.ui?.subtitle || item?.raw?.descripcion || item?.raw?.description;
+        */
       /*
       const description =
         catalogItem?.ui?.title ||
@@ -4786,6 +5506,45 @@ export default function ThreeCanvas({
         catalogItem?.raw?.description ||
         code;
 */
+
+      const code = String(codigoPT);
+
+      // Catálogo real por código PT
+      const catalogItem = catalogByCodeRef.current?.get?.(code) || null;
+
+      // Datos adicionales que puedan venir desde la función que crea la superficie
+      const incomingItem = item || {};
+
+      const finalEdgeFinish =
+        edgeFinish ||
+        incomingItem?.canto ||
+        incomingItem?.meta?.canto ||
+        incomingItem?.raw?.canto ||
+        catalogItem?.canto ||
+        catalogItem?.meta?.canto ||
+        catalogItem?.raw?.canto ||
+        dim?.canto ||
+        'PVC-2MM';
+
+      // La descripción SIEMPRE debe salir primero del catálogo real.
+      // Solo si no existe en catálogo, usamos lo que venga manual.
+      const description =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
+        catalogItem?.raw?.Descripcion ||
+        catalogItem?.raw?.nombre ||
+        incomingItem?.ui?.title ||
+        incomingItem?.ui?.subtitle ||
+        incomingItem?.raw?.descripcion ||
+        incomingItem?.raw?.description ||
+        incomingItem?.raw?.Descripcion ||
+        incomingItem?.raw?.nombre ||
+        incomingItem?.description ||
+        incomingItem?.name ||
+        code;
+
       const rawPrice =
         catalogItem?.prices?.[countryRef.current] ??
         catalogItem?.prices?.CO ??
