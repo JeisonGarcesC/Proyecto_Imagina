@@ -25,6 +25,8 @@ import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
 import { getMepalSaludDetail } from '../services/mepalSaludLoader';
 import { getMepalTekSocialDetail } from '../services/mepalTekSocialLoader';
+import { getClakDetail } from '../services/clakLoader';
+import { getEdukDetail } from '../services/edukLoader';
 
 import { resolveKoncisaDucto } from '../koncisaPlus/rules/koncisaDuctoRules';
 
@@ -56,6 +58,10 @@ import {
   normalizeDuctModuleType,
   inferDuctChannelType,
 } from '../koncisaPlus/rules/koncisaDuctCoverRules';
+import {
+  CLAK_SWAP_ALLOWED_CODES,
+  getClakVariantOptionsByCode,
+} from './properties/clakPuffVariants';
 
 const MM_TO_M = 1 / 1000;
 
@@ -969,6 +975,72 @@ export default function ThreeCanvas({
           continue;
         }
 
+        if (obj.userData?.kind === 'CLAK') {
+          const parentCode = normalizeText(
+            obj.userData?.codigoPT || obj.userData?.code || p.code || ''
+          );
+          const label =
+            obj.userData?.name ||
+            obj.userData?.clakMeta?.descripcion ||
+            `Clak ${parentCode}`;
+          const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+
+          const list = obj.userData?.clakParts || [];
+
+          if (Array.isArray(list) && list.length) {
+            for (const it of list) {
+              addRow(
+                String(it.code),
+                Number(it.qty || 0),
+                it.description,
+                it.unitPrice,
+                parentCode,
+                label,
+                it.prices,
+                null,
+                groupInstanceId
+              );
+            }
+          } else {
+            if (parentCode)
+              addRow(parentCode, 1, label, 0, parentCode, label, undefined, null, groupInstanceId);
+          }
+          continue;
+        }
+
+        if (obj.userData?.kind === 'EDUK') {
+          const parentCode = normalizeText(
+            obj.userData?.codigoPT || obj.userData?.code || p.code || ''
+          );
+          const label =
+            obj.userData?.name ||
+            obj.userData?.edukMeta?.descripcion ||
+            `Eduk ${parentCode}`;
+          const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+
+          const list = obj.userData?.edukParts || [];
+
+          if (Array.isArray(list) && list.length) {
+            for (const it of list) {
+              addRow(
+                String(it.code),
+                Number(it.qty || 0),
+                it.description,
+                it.unitPrice,
+                parentCode,
+                label,
+                it.prices,
+                null,
+                groupInstanceId
+              );
+            }
+          } else {
+            if (parentCode)
+              addRow(parentCode, 1, label, 0, parentCode, label, undefined, null, groupInstanceId);
+          }
+          continue;
+        }
+
         const code = obj.userData?.codigoPT || obj.userData?.code || p.code;
 
         const groupId = obj.userData?.groupId || null;
@@ -1054,6 +1126,8 @@ export default function ThreeCanvas({
           kind === 'OFFICE_ACCESSORY' ||
           kind === 'MEPAL_SALUD' ||
           kind === 'MEPAL_TEK_SOCIAL' ||
+          kind === 'CLAK' ||
+          kind === 'EDUK' ||
           kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
           return cur;
@@ -2049,6 +2123,190 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function addClak(codigoClak, options = {}) {
+      if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
+      const codigo = String(codigoClak);
+
+      // 1) trae detalle del producto Clak desde el XML
+      const [detCO, detEUC, detUSD] = await Promise.all([
+        getClakDetail(codigo, 'CO'),
+        getClakDetail(codigo, 'EUC'),
+        getClakDetail(codigo, 'USD'),
+      ]);
+
+      const det =
+        (countryRef.current === 'EUC' && detEUC) ||
+        (countryRef.current === 'USD' && detUSD) ||
+        detCO ||
+        detEUC ||
+        detUSD;
+
+      if (!det) {
+        console.warn(
+          `Clak: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
+        );
+      }
+
+      // 2) cargar GLB desde carpeta Clak
+      const possibleSrcs = [
+        `/assets/models/Clak/${codigo}.glb`,
+        `/assets/models/${codigo}.glb`,
+      ];
+
+      const gltf = await loadExistingGlb(possibleSrcs);
+
+      if (!gltf) {
+        console.error(`No se encontró un GLB válido para Clak ${codigo}`);
+        return;
+      }
+
+      const obj = gltf.scene;
+
+      // 3) userData
+      const clakPartPrices = {
+        CO: Number(detCO?.precio || 0),
+        EUC: Number(detEUC?.precio || 0),
+        USD: Number(detUSD?.precio || 0),
+      };
+      const clakParts = [
+        {
+          code: codigo,
+          description: det?.descripcion || codigo,
+          qty: 1,
+          unitPrice: Number(clakPartPrices[countryRef.current] || 0),
+          prices: clakPartPrices,
+        },
+      ];
+
+      obj.userData = {
+        ...(obj.userData || {}),
+        kind: 'CLAK',
+        codigoPT: codigo,
+        code: codigo,
+        name: det?.descripcion || codigo,
+        instanceId: obj.uuid,
+        clakParts,
+        clakMeta: {
+          descripcion: det?.descripcion || codigo,
+          precio: det?.precio || 0,
+          udm: det?.udm || 'und',
+        },
+      };
+
+      obj.name = `CLAK_${codigo}`;
+
+      // 4) posición inicial
+      obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
+      obj.updateMatrixWorld(true);
+
+      if (parentGroup) {
+        parentGroup.add(obj);
+      } else {
+        scene.add(obj);
+      }
+      parts.push({ code: codigo, obj });
+      pickables.push(obj);
+
+      setActivePart(obj);
+      emitBOM();
+
+      if (parts.length === 1) frameObject(obj);
+      refreshFloorAndGrid();
+    }
+
+    async function addEduk(codigoEduk, options = {}) {
+      if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
+      const codigo = String(codigoEduk);
+
+      // 1) trae detalle del producto Eduk desde el XML
+      const [detCO, detEUC, detUSD] = await Promise.all([
+        getEdukDetail(codigo, 'CO'),
+        getEdukDetail(codigo, 'EUC'),
+        getEdukDetail(codigo, 'USD'),
+      ]);
+
+      const det =
+        (countryRef.current === 'EUC' && detEUC) ||
+        (countryRef.current === 'USD' && detUSD) ||
+        detCO ||
+        detEUC ||
+        detUSD;
+
+      if (!det) {
+        console.warn(
+          `Eduk: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
+        );
+      }
+
+      // 2) cargar GLB desde carpeta Eduk
+      const possibleSrcs = [
+        `/assets/models/Eduk/${codigo}.glb`,
+        `/assets/models/${codigo}.glb`,
+      ];
+
+      const gltf = await loadExistingGlb(possibleSrcs);
+
+      if (!gltf) {
+        console.error(`No se encontró un GLB válido para Eduk ${codigo}`);
+        return;
+      }
+
+      const obj = gltf.scene;
+
+      // 3) userData
+      const edukPartPrices = {
+        CO: Number(detCO?.precio || 0),
+        EUC: Number(detEUC?.precio || 0),
+        USD: Number(detUSD?.precio || 0),
+      };
+      const edukParts = [
+        {
+          code: codigo,
+          description: det?.descripcion || codigo,
+          qty: 1,
+          unitPrice: Number(edukPartPrices[countryRef.current] || 0),
+          prices: edukPartPrices,
+        },
+      ];
+
+      obj.userData = {
+        ...(obj.userData || {}),
+        kind: 'EDUK',
+        codigoPT: codigo,
+        code: codigo,
+        name: det?.descripcion || codigo,
+        instanceId: obj.uuid,
+        edukParts,
+        edukMeta: {
+          descripcion: det?.descripcion || codigo,
+          precio: det?.precio || 0,
+          udm: det?.udm || 'und',
+        },
+      };
+
+      obj.name = `EDUK_${codigo}`;
+
+      // 4) posición inicial
+      obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
+      obj.updateMatrixWorld(true);
+
+      if (parentGroup) {
+        parentGroup.add(obj);
+      } else {
+        scene.add(obj);
+      }
+      parts.push({ code: codigo, obj });
+      pickables.push(obj);
+
+      setActivePart(obj);
+      emitBOM();
+
+      if (parts.length === 1) frameObject(obj);
+      refreshFloorAndGrid();
+    }
+
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
       if (readOnly) return;
 
@@ -2111,6 +2369,127 @@ export default function ThreeCanvas({
 
       scene.add(newObj);
       parts.push({ code: codigoBase, obj: newObj });
+      pickables.push(newObj);
+
+      setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
+    async function swapClakVariant(instanceId, codigo, targetCode) {
+      if (readOnly) return;
+
+      const currentCode = String(codigo || '')
+        .trim()
+        .replace(/_2$/, '');
+      const nextCode = String(targetCode || '')
+        .trim()
+        .replace(/_2$/, '');
+
+      if (!CLAK_SWAP_ALLOWED_CODES.has(currentCode)) {
+        console.warn('[swapClakVariant] Código actual no permitido:', currentCode);
+        return;
+      }
+      if (!CLAK_SWAP_ALLOWED_CODES.has(nextCode)) {
+        console.warn('[swapClakVariant] Código destino no permitido:', nextCode);
+        return;
+      }
+
+      const currentOptions = getClakVariantOptionsByCode(currentCode) || [];
+      const sameFamily = currentOptions.some((it) => it.code === nextCode);
+      if (!sameFamily) {
+        console.warn('[swapClakVariant] Cambio entre familias no permitido:', currentCode, nextCode);
+        return;
+      }
+
+      if (currentCode === nextCode) return;
+
+      const found = parts.find(({ obj }) => {
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      });
+
+      if (!found?.obj) {
+        console.warn('[swapClakVariant] No se encontró la pieza:', instanceId);
+        return;
+      }
+
+      const oldObj = found.obj;
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+      const savedUserData = { ...oldObj.userData };
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      const [detCO, detEUC, detUSD] = await Promise.all([
+        getClakDetail(nextCode, 'CO'),
+        getClakDetail(nextCode, 'EUC'),
+        getClakDetail(nextCode, 'USD'),
+      ]);
+
+      const det =
+        (countryRef.current === 'EUC' && detEUC) ||
+        (countryRef.current === 'USD' && detUSD) ||
+        detCO ||
+        detEUC ||
+        detUSD;
+
+      if (!det) {
+        console.warn(
+          `[swapClakVariant] Producto ${nextCode} no encontrado en PriceList, se cargará sin precio.`
+        );
+      }
+
+      const glbSrc = `/assets/models/Clak/${nextCode}.glb`;
+      const gltf = await loadExistingGlb([glbSrc, `/assets/models/${nextCode}.glb`]);
+
+      if (!gltf) {
+        console.error('[swapClakVariant] No se encontró el GLB:', glbSrc);
+        return;
+      }
+
+      removePartObject(oldObj);
+
+      const clakPartPrices = {
+        CO: Number(detCO?.precio || 0),
+        EUC: Number(detEUC?.precio || 0),
+        USD: Number(detUSD?.precio || 0),
+      };
+
+      const newObj = gltf.scene;
+      newObj.userData = {
+        ...savedUserData,
+        kind: 'CLAK',
+        codigoPT: nextCode,
+        code: nextCode,
+        name: det?.descripcion || nextCode,
+        instanceId: newObj.uuid,
+        clakParts: [
+          {
+            code: nextCode,
+            description: det?.descripcion || nextCode,
+            qty: 1,
+            unitPrice: Number(clakPartPrices[countryRef.current] || 0),
+            prices: clakPartPrices,
+          },
+        ],
+        clakMeta: {
+          descripcion: det?.descripcion || nextCode,
+          precio: det?.precio || 0,
+          udm: det?.udm || 'und',
+        },
+      };
+
+      newObj.name = `CLAK_${nextCode}`;
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.updateMatrixWorld(true);
+
+      if (parentGroup) {
+        parentGroup.add(newObj);
+      } else {
+        scene.add(newObj);
+      }
+
+      parts.push({ code: nextCode, obj: newObj });
       pickables.push(newObj);
 
       setActivePart(newObj);
@@ -3142,7 +3521,10 @@ export default function ThreeCanvas({
       addOfficeAccessory,
       addMepalSalud,
       addMepalTekSocial,
+      addClak,
+      addEduk,
       swapMepalSaludVariant,
+      swapClakVariant,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
       exportDXF: () => {
         const snap = getPartsSnapshot2D();
@@ -3698,7 +4080,7 @@ export default function ThreeCanvas({
       const outwardSign = integrationSide === 'left' ? 1 : -1;
 
       const mmToWorldX = (mm) => basePos.x * 1000 + Number(mm || 0);
-      const mmToWorldY = (mm) => basePos.y * 1000 + Number(mm || 0);
+      const _mmToWorldY = (mm) => basePos.y * 1000 + Number(mm || 0);
       const mmToWorldZ = (mm) => basePos.z * 1000 + Number(mm || 0) * outwardSign;
 
       // =====================================================
@@ -4829,8 +5211,8 @@ export default function ThreeCanvas({
       // =========================
       // AGREGAR TAPAS AL BOM
       // =========================
-      const ductCoversNormalized = normalizeDuctCoverState(normalizedType, oldCovers);
-      const coverAsset = resolveDuctCoverAsset({
+      const _ductCoversNormalized = normalizeDuctCoverState(normalizedType, oldCovers);
+      const _coverAsset = resolveDuctCoverAsset({
         tipoPuesto,
         tipoCanal: normalizedType, // si tu inferDuctChannelType lo requiere, puedes adaptarlo
       });

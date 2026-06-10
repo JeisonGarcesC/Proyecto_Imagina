@@ -617,6 +617,12 @@ export default function App() {
               onAddMepalTekSocial={(codigo) =>
                 !readOnly && threeApiRef.current?.addMepalTekSocial?.(codigo)
               }
+              onAddClak={(codigo) =>
+                !readOnly && threeApiRef.current?.addClak?.(codigo)
+              }
+              onAddEduk={(codigo) =>
+                !readOnly && threeApiRef.current?.addEduk?.(codigo)
+              }
               onToggleSnap={() => !readOnly && threeApiRef.current?.toggleSnap?.()}
               onApplyGlobalMaterial={(code, scope = 'ALL') => {
                 if (readOnly) return;

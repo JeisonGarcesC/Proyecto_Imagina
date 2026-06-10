@@ -10,6 +10,8 @@ import { loadPlantsItems } from '../services/plantsLoader';
 import { loadOfficeAccessoriesItems } from '../services/officeAccessoriesLoader';
 import { loadMepalSaludItems } from '../services/mepalSaludLoader';
 import { loadMepalTekSocialItems } from '../services/mepalTekSocialLoader';
+import { loadClakItems } from '../services/clakLoader';
+import { loadEdukItems } from '../services/edukLoader';
 import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
@@ -150,6 +152,32 @@ function MepalTekSocialCardImage({ codigo, title }) {
   );
 }
 
+function ClakCardImage({ codigo, title }) {
+  return (
+    <CardImage
+      assetName={codigo}
+      title={title}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
+function EdukCardImage({ codigo, title }) {
+  return (
+    <CardImage
+      assetName={codigo}
+      title={title}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
 export default function LeftPanel({
   section,
   threeApiRef,
@@ -175,6 +203,8 @@ export default function LeftPanel({
   onAddOfficeAccessory,
   onAddMepalSalud,
   onAddMepalTekSocial,
+  onAddClak,
+  onAddEduk,
   onToggleSnap,
   // muros
   wallMode,
@@ -229,6 +259,16 @@ export default function LeftPanel({
   const [qMepalTekSocial, setQMepalTekSocial] = useState('');
   const [mepalTekSocialItems, setMepalTekSocialItems] = useState([]);
   const [mepalTekSocialReady, setMepalTekSocialReady] = useState(false);
+
+  // CLAK states
+  const [qClak, setQClak] = useState('');
+  const [clakItems, setClakItems] = useState([]);
+  const [clakReady, setClakReady] = useState(false);
+
+  // EDUK states
+  const [qEduk, setQEduk] = useState('');
+  const [edukItems, setEdukItems] = useState([]);
+  const [edukReady, setEdukReady] = useState(false);
 
   //Materiales genericos
   const [qMaterials, setQMaterials] = useState('');
@@ -355,6 +395,76 @@ export default function LeftPanel({
       } catch (err) {
         console.error('Error cargando Mepal TekSocial:', err);
         if (alive) setMepalTekSocialReady(true);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [country]);
+
+  // ================================
+  // Cargar CLAK
+  // ================================
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const items = await loadClakItems(country);
+        if (!alive) return;
+        const arr = items.map((c) => ({
+          codigoPT: String(c.codigo),
+          ui: {
+            title: c.descripcion || String(c.codigo),
+            subtitle: 'CLAK',
+          },
+          prices: {
+            [country]: Number(c.precio || 0),
+            CO: Number(c.precio || 0),
+          },
+          model: { kind: 'CLAK' },
+          raw: c,
+        }));
+        setClakItems(arr);
+        setClakReady(true);
+      } catch (err) {
+        console.error('Error cargando Clak:', err);
+        if (alive) setClakReady(true);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [country]);
+
+  // ================================
+  // Cargar EDUK
+  // ================================
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const items = await loadEdukItems(country);
+        if (!alive) return;
+        const arr = items.map((c) => ({
+          codigoPT: String(c.codigo),
+          ui: {
+            title: c.descripcion || String(c.codigo),
+            subtitle: 'EDUK',
+          },
+          prices: {
+            [country]: Number(c.precio || 0),
+            CO: Number(c.precio || 0),
+          },
+          model: { kind: 'EDUK' },
+          raw: c,
+        }));
+        setEdukItems(arr);
+        setEdukReady(true);
+      } catch (err) {
+        console.error('Error cargando Eduk:', err);
+        if (alive) setEdukReady(true);
       }
     })();
 
@@ -815,6 +925,36 @@ export default function LeftPanel({
       return code.includes(q) || title.includes(q);
     });
   }, [mepalTekSocialItems, qMepalTekSocial]);
+
+  // ================================
+  // Filtrado de CLAK
+  // ================================
+  const clakFiltered = useMemo(() => {
+    const q = String(qClak || '')
+      .trim()
+      .toLowerCase();
+    if (!q) return clakItems || [];
+    return (clakItems || []).filter((it) => {
+      const code = String(it?.codigoPT ?? '').toLowerCase();
+      const title = String(it?.ui?.title ?? '').toLowerCase();
+      return code.includes(q) || title.includes(q);
+    });
+  }, [clakItems, qClak]);
+
+  // ================================
+  // Filtrado de EDUK
+  // ================================
+  const edukFiltered = useMemo(() => {
+    const q = String(qEduk || '')
+      .trim()
+      .toLowerCase();
+    if (!q) return edukItems || [];
+    return (edukItems || []).filter((it) => {
+      const code = String(it?.codigoPT ?? '').toLowerCase();
+      const title = String(it?.ui?.title ?? '').toLowerCase();
+      return code.includes(q) || title.includes(q);
+    });
+  }, [edukItems, qEduk]);
 
   return (
     <div
@@ -2003,6 +2143,132 @@ export default function LeftPanel({
               </button>
             ))}
           </div>
+        </>
+      )}
+
+      {/* ======================= CLAK ======================= */}
+      {section === 'clak' && (
+        <>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+            Clak
+          </h1>
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Selecciona un producto Clak para agregarlo al proyecto.
+          </div>
+
+          <input
+            value={qClak}
+            onChange={(e) => setQClak(e.target.value)}
+            placeholder="Buscar por código o descripción..."
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 10,
+              outline: 'none',
+            }}
+          />
+
+          {!clakReady && (
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Clak...</div>
+          )}
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            {clakFiltered.map((it) => (
+              <button
+                key={String(it.codigoPT)}
+                disabled={readOnly}
+                onClick={() => !readOnly && onAddClak(it.codigoPT)}
+                style={cardBtn(readOnly)}
+              >
+                <ClakCardImage codigo={it.codigoPT} title={it.ui?.title || it.codigoPT} />
+                <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                  {it.codigoPT}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.85,
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {it.ui?.title}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {clakReady && clakFiltered.length === 0 && (
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
+              No hay productos disponibles. Agrega entradas a clak.json
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ======================= EDUK ======================= */}
+      {section === 'eduk' && (
+        <>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+            Eduk
+          </h1>
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Selecciona un producto Eduk para agregarlo al proyecto.
+          </div>
+
+          <input
+            value={qEduk}
+            onChange={(e) => setQEduk(e.target.value)}
+            placeholder="Buscar por código o descripción..."
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 10,
+              outline: 'none',
+            }}
+          />
+
+          {!edukReady && (
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Eduk...</div>
+          )}
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            {edukFiltered.map((it) => (
+              <button
+                key={String(it.codigoPT)}
+                disabled={readOnly}
+                onClick={() => !readOnly && onAddEduk(it.codigoPT)}
+                style={cardBtn(readOnly)}
+              >
+                <EdukCardImage codigo={it.codigoPT} title={it.ui?.title || it.codigoPT} />
+                <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                  {it.codigoPT}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.85,
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {it.ui?.title}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {edukReady && edukFiltered.length === 0 && (
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
+              No hay productos disponibles. Agrega entradas a eduk.json
+            </div>
+          )}
         </>
       )}
     </div>

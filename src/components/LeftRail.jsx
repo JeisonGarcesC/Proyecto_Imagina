@@ -34,6 +34,16 @@ export default function LeftRail({ active, onChange }) {
       image: '/assets/iconos_imagen/MepalTekSocial.png',
     },
     {
+      id: 'clak',
+      label: 'Clak',
+      image: '/assets/iconos_imagen/Clak.png',
+    },
+    {
+      id: 'eduk',
+      label: 'Eduk',
+      image: '/assets/iconos_imagen/Eduk.png',
+    },
+    {
       id: 'koncisaPlus',
       label: 'Koncisa Plus',
       image: '/assets/iconos_imagen/koncisa2PlussLibrary.png',
@@ -63,7 +73,9 @@ export default function LeftRail({ active, onChange }) {
             title={it.label}
             onClick={() => onChange(it.id)}
             style={{
+              width: '100%',
               height: 42,
+              padding: 0,
               borderRadius: 10,
               border: isActive ? '1px solid #2d2d2d' : '1px solid #d8d8d8',
               background: isActive
@@ -86,8 +98,8 @@ export default function LeftRail({ active, onChange }) {
                 src={it.image}
                 alt={it.label}
                 style={{
-                  width: 24,
-                  height: 24,
+                  width: 34,
+                  height: 34,
                   objectFit: 'contain',
                   filter: isActive ? 'none' : 'grayscale(12%)',
                 }}
