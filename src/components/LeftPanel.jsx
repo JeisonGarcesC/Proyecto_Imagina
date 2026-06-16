@@ -513,9 +513,80 @@ export default function LeftPanel({
           })
           // Solo mostramos las que tienen categoría bajo "SILLAS Y MESAS"
           .filter((c) => c.categoriaSlug.startsWith('SILLAS Y MESAS'));
+        // Detectar sillas que provienen de la carpeta sillas_ecuador
+        const ECUADOR_NAME = 'ECUADOR';
+        const ECUADOR_SLUG = 'SILLAS Y MESAS.ECUADOR';
 
+        // Añadir la categoría ECUADOR al listado si no existe
+        const hasEcuadorCat = (categoriasArr || []).some(
+          (c) => String(c.nombre || '').trim().toUpperCase() === ECUADOR_NAME
+        );
+        if (!hasEcuadorCat) {
+          (categoriasArr || []).push({
+            id: 999999,
+            nombre: ECUADOR_NAME,
+            slug: ECUADOR_SLUG,
+            imagen_id: null,
+            imagen: null,
+            padre_id: 11910,
+          });
+        }
+
+        // Cargar índice estático de archivos presentes en sillas_ecuador
+        let ecuadorSet = new Set();
+        try {
+          const resIdx = await fetch('/assets/models/Sillas/sillas_ecuador_index.json');
+          if (resIdx && resIdx.ok) {
+            const arrIdx = await resIdx.json();
+            ecuadorSet = new Set((arrIdx || []).map((v) => String(v).trim()));
+          }
+        } catch {
+          // si falla, dejamos el set vacío
+        }
+
+        const arrWithEcuador = arr.map((it) => {
+          try {
+            const code = String(it.codigoPT || '').trim();
+            if (code && ecuadorSet.has(code)) {
+              return {
+                ...it,
+                categoriaNivel2: ECUADOR_NAME,
+                categoriaNivel3: '',
+                categoriaSlug: ECUADOR_SLUG,
+                ui: { ...(it.ui || {}), subtitle: ECUADOR_NAME },
+              };
+            }
+          } catch {
+            // ignore
+          }
+          return it;
+        });
+
+        // Añadir códigos que están en el índice de sillas_ecuador pero no vienen en el PriceList
+        try {
+          const existingCodes = new Set((arrWithEcuador || []).map((i) => String(i.codigoPT).trim()));
+          const missing = Array.from(ecuadorSet).filter((c) => !existingCodes.has(String(c).trim()));
+          if (missing.length) {
+            const extras = missing.map((code) => ({
+              codigoPT: String(code),
+              ui: { title: String(code), subtitle: ECUADOR_NAME },
+              prices: { [country]: 0, CO: 0 },
+              model: { kind: 'CHAIR' },
+              raw: {},
+              categoriaNivel2: ECUADOR_NAME,
+              categoriaNivel3: '',
+              categoriaSlug: ECUADOR_SLUG,
+            }));
+            arrWithEcuador.push(...extras);
+          }
+        } catch {
+          // ignore
+        }
+
+        // Construir estructuras de subcategorías y conteos, incorporando ECUADOR
         const byCategoria = {};
         const byCategoriaCounts = {};
+
         for (const cat of categoryMap.values()) {
           const nivel2 = String(cat?.nivel2 || '').trim();
           const nivel3 = String(cat?.nivel3 || '').trim();
@@ -528,6 +599,20 @@ export default function LeftPanel({
           byCategoriaCounts[nivel2][nivel3] = (byCategoriaCounts[nivel2][nivel3] || 0) + 1;
         }
 
+        // Añadir bucket ECUADOR si corresponde
+        const ecuadorItems = arrWithEcuador.filter((i) => i.categoriaNivel2 === ECUADOR_NAME);
+        if (ecuadorItems.length) {
+          if (!byCategoria[ECUADOR_NAME]) byCategoria[ECUADOR_NAME] = new Set();
+          if (!byCategoriaCounts[ECUADOR_NAME]) byCategoriaCounts[ECUADOR_NAME] = {};
+          for (const it of ecuadorItems) {
+            const sub = String(it.categoriaNivel3 || '').trim();
+            if (sub) {
+              byCategoria[ECUADOR_NAME].add(sub);
+              byCategoriaCounts[ECUADOR_NAME][sub] = (byCategoriaCounts[ECUADOR_NAME][sub] || 0) + 1;
+            }
+          }
+        }
+
         const byCategoriaNormalized = Object.fromEntries(
           Object.entries(byCategoria).map(([key, set]) => [
             key,
@@ -535,10 +620,23 @@ export default function LeftPanel({
           ])
         );
 
+        // Debug logs: listar códigos cargados y el índice de sillas_ecuador
+        try {
+          console.log('[LeftPanel] sillas_ecuador_index:', Array.from(ecuadorSet).sort());
+          console.log(
+            '[LeftPanel] chairs (count):',
+            arrWithEcuador.length,
+            Array.from(arrWithEcuador || []).map((c) => String(c.codigoPT))
+          );
+          console.log('[LeftPanel] categoriasSillas (count):', (categoriasArr || []).length);
+        } catch {
+          // ignore
+        }
+
         setCategoriasSillas(categoriasArr);
         setSubcategoriasSillasByCategoria(byCategoriaNormalized);
         setSubcategoriasSillasGlobalCountByCategoria(byCategoriaCounts);
-        setChairs(arr);
+        setChairs(arrWithEcuador);
       } catch (err) {
         console.error('Error cargando sillas:', err);
       }

@@ -62,6 +62,7 @@ import {
   CLAK_SWAP_ALLOWED_CODES,
   getClakVariantOptionsByCode,
 } from './properties/clakPuffVariants';
+import { isSeatCode as isClakSeatCode, isModuleCode as isClakModuleCode } from './properties/clakPuffVariants';
 
 const MM_TO_M = 1 / 1000;
 
@@ -1431,7 +1432,7 @@ export default function ThreeCanvas({
         getTipologiaDetalle(codigo, 'USD'),
       ]);
 
-      const det =
+      let det =
         (countryRef.current === 'EUC' && detEUC) ||
         (countryRef.current === 'USD' && detUSD) ||
         detCO ||
@@ -1547,7 +1548,7 @@ export default function ThreeCanvas({
         getChairDetail(codigo, 'USD'),
       ]);
 
-      const det =
+      let det =
         (countryRef.current === 'EUC' && detEUC) ||
         (countryRef.current === 'USD' && detUSD) ||
         detCO ||
@@ -1555,12 +1556,17 @@ export default function ThreeCanvas({
         detUSD;
 
       if (!det) {
-        console.error('Silla no encontrada en PriceList:', codigo);
-        return;
+        console.warn('Silla no encontrada en PriceList:', codigo, '- se cargará sin precio.');
+        // fallback mínimo para permitir carga del GLB
+        det = { descripcion: codigo, precio: 0, udm: 'und' };
       }
 
       // 2) cargar GLB de silla desde carpeta Sillas
-      const possibleSrcs = [`/assets/models/Sillas/${codigo}.glb`, `/assets/models/${codigo}.glb`];
+      const possibleSrcs = [
+        `/assets/models/Sillas/sillas_ecuador/${codigo}.glb`,
+        `/assets/models/Sillas/${codigo}.glb`,
+        `/assets/models/${codigo}.glb`,
+      ];
 
       const gltf = await loadExistingGlb(possibleSrcs);
 
@@ -2386,20 +2392,37 @@ export default function ThreeCanvas({
         .trim()
         .replace(/_2$/, '');
 
-      if (!CLAK_SWAP_ALLOWED_CODES.has(currentCode)) {
-        console.warn('[swapClakVariant] Código actual no permitido:', currentCode);
-        return;
-      }
-      if (!CLAK_SWAP_ALLOWED_CODES.has(nextCode)) {
-        console.warn('[swapClakVariant] Código destino no permitido:', nextCode);
-        return;
-      }
+      // allow swaps for regular puff variant groups, or for seat/module combos
+      const currentIsSeat = isClakSeatCode(currentCode);
+      const nextIsSeat = isClakSeatCode(nextCode);
+      const currentIsModule = isClakModuleCode(currentCode);
+      const nextIsModule = isClakModuleCode(nextCode);
 
-      const currentOptions = getClakVariantOptionsByCode(currentCode) || [];
-      const sameFamily = currentOptions.some((it) => it.code === nextCode);
-      if (!sameFamily) {
-        console.warn('[swapClakVariant] Cambio entre familias no permitido:', currentCode, nextCode);
-        return;
+      // If either code is a seat or module, require both to be the same category
+      if (currentIsSeat || nextIsSeat || currentIsModule || nextIsModule) {
+        const currentCategory = currentIsSeat ? 'seat' : currentIsModule ? 'module' : null;
+        const nextCategory = nextIsSeat ? 'seat' : nextIsModule ? 'module' : null;
+        if (currentCategory !== nextCategory) {
+          console.warn('[swapClakVariant] Cambio entre familias no permitido:', currentCode, nextCode);
+          return;
+        }
+        // both are seat codes OR both are module codes -> allow
+      } else {
+        if (!CLAK_SWAP_ALLOWED_CODES.has(currentCode)) {
+          console.warn('[swapClakVariant] Código actual no permitido:', currentCode);
+          return;
+        }
+        if (!CLAK_SWAP_ALLOWED_CODES.has(nextCode)) {
+          console.warn('[swapClakVariant] Código destino no permitido:', nextCode);
+          return;
+        }
+
+        const currentOptions = getClakVariantOptionsByCode(currentCode) || [];
+        const sameFamily = currentOptions.some((it) => it.code === nextCode);
+        if (!sameFamily) {
+          console.warn('[swapClakVariant] Cambio entre familias no permitido:', currentCode, nextCode);
+          return;
+        }
       }
 
       if (currentCode === nextCode) return;
@@ -2443,6 +2466,10 @@ export default function ThreeCanvas({
 
       if (!gltf) {
         console.error('[swapClakVariant] No se encontró el GLB:', glbSrc);
+        // fallback: intentar crear el Clak con el addClak normal
+        // restaurar posición/rotación en la creación no es trivial aquí,
+        // pero al menos añadimos el modelo para que el usuario lo vea.
+        await addClak(nextCode, { parentGroup });
         return;
       }
 

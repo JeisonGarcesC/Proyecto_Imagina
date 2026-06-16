@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
@@ -30,8 +30,6 @@ function drawDimText(ctx, x1, y1, x2, y2, label, opts = {}) {
   ctx.fillStyle = bg;
   ctx.fillRect(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2);
 
-  ctx.fillStyle = fg;
-  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, 0, 0);
 
@@ -56,7 +54,6 @@ function drawMeasureLine(ctx, x1, y1, x2, y2, label, opts = {}) {
   } = opts;
 
   const ang = Math.atan2(y2 - y1, x2 - x1);
-  const nx = -Math.sin(ang);
   const ny = Math.cos(ang);
   const tick = 8;
 
@@ -132,7 +129,6 @@ export default function Plan2DOverlay({
 
   const [scaleMode, setScaleMode] = useState(false);
   const [scaleStartPx, setScaleStartPx] = useState(null);
-  const [scaleEndPx, setScaleEndPx] = useState(null);
   const [scaleHoverPx, setScaleHoverPx] = useState(null);
 
   const [dragPieceId, setDragPieceId] = useState(null);
@@ -648,7 +644,7 @@ export default function Plan2DOverlay({
         }
 
         const end = p;
-        setScaleEndPx(end);
+        
 
         const pixelDistance = Math.hypot(end.x - scaleStartPx.x, end.y - scaleStartPx.y);
 
@@ -667,7 +663,7 @@ export default function Plan2DOverlay({
         }
 
         setScaleStartPx(null);
-        setScaleEndPx(null);
+        
         setScaleHoverPx(null);
         setScaleMode(false);
         return;
@@ -1225,7 +1221,7 @@ export default function Plan2DOverlay({
             const next = !scaleMode;
             setScaleMode(next);
             setScaleStartPx(null);
-            setScaleEndPx(null);
+            
             setScaleHoverPx(null);
             if (next) {
               setMeasureMode(false);
