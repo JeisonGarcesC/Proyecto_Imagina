@@ -12,8 +12,11 @@ export function createDucto({
   tipoModulo = 'terminal',
   nominalWidthMm = 1200,
   x = 0,
-  y = 620,
+  y = 0,
   z = 0,
+  rotX = 0,
+  rotY = 0,
+  rotZ = 0,
 }) {
   const resolved = resolveKoncisaDucto({
     tipoPuesto,
@@ -37,7 +40,7 @@ export function createDucto({
     name: `Ducto ${tipoPuesto} ${tipoModulo} ${nominalWidthMm}`,
 
     position: { x, y, z },
-    rotation: { x: 0, y: 0, z: 0 },
+    rotation: { x: rotX, y: rotY, z: rotZ },
 
     model: {
       kind: 'glb',

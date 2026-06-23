@@ -14,6 +14,10 @@ export default function KoncisaDuctProperties({ part, api }) {
     part?.meta?.ductCovers ||
     (tipoModulo === 'INTERMEDIO' ? { left: false, right: false } : { single: false });
 
+  //const tipoModulo = String(part?.meta?.tipoModulo || '').toUpperCase();
+  const isTerminal = tipoModulo === 'TERMINAL';
+  const currentRotY = Number(part?.transformMm?.rotY || 0);
+
   return (
     <div style={sectionStyle}>
       <label style={labelStyle}>Tipo de ducto</label>
@@ -27,6 +31,27 @@ export default function KoncisaDuctProperties({ part, api }) {
         <option value="INTERMEDIO">Intermedio</option>
         <option value="INDIVIDUAL">Individual</option>
       </select>
+
+      {tipoModulo === 'TERMINAL' && (
+        <button
+          type="button"
+          onClick={() => {
+            api?.rotateSelectedDuct180?.();
+          }}
+          style={{
+            width: '100%',
+            marginTop: 14,
+            padding: '8px 10px',
+            borderRadius: 8,
+            border: '1px solid #ccc',
+            background: '#f5f5f5',
+            cursor: 'pointer',
+            fontWeight: 600,
+          }}
+        >
+          Rotar ducto 180°
+        </button>
+      )}
 
       <div style={{ marginTop: 14 }}>
         <label style={labelStyle}>Tapas ducto</label>

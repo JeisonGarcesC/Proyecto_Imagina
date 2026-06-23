@@ -369,13 +369,18 @@ export function getDuctosConfig({
     // Centro del ducto, arrancando desde el inicio
     const ductCenterX = moduleStartX + ductLengthMm / 2;
 
+    //posicion de los ductos inicialmente
     out.push({
       tipoPuesto,
       tipoModulo: ductMode.toLowerCase(), // terminal | intermedio | individual
       nominalWidthMm: largoRealMm,
-      x: ductCenterX, //baseX,
+      x: 0, // ductCenterX, //baseX,
       y: 0, //530,
-      z: 102,
+      z: 0,
+
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
     });
   }
   //console.log('DUCTOS CONFIG', out);

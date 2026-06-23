@@ -241,7 +241,7 @@ export function buildKoncisaPlus(config = {}) {
       canto: s.canto || 'PVC-2MM',
 
       x: s.x,
-      y: s.y ?? 720,
+      y: s.y ?? 710,
       z: s.z ?? 0,
       index: s.index ?? index,
     });
@@ -297,7 +297,7 @@ export function buildKoncisaPlus(config = {}) {
           finish: grommetFinish,
           diameterMm: g.diameterMm || 80,
           x: g.x,
-          y: g.y ?? 735,
+          y: g.y ?? 740, //altura grommet
           z: g.z ?? 0,
           rotY: g.rotY ?? 0,
         })
@@ -370,9 +370,12 @@ export function buildKoncisaPlus(config = {}) {
         tipoPuesto: d.tipoPuesto,
         tipoModulo: d.tipoModulo,
         nominalWidthMm: d.nominalWidthMm,
-        x: d.x,
-        y: d.y ?? 620,
+        x: d.x ?? 0,
+        y: d.y ?? 0,
         z: d.z ?? 0,
+        rotX: d.rotX ?? 0,
+        rotY: d.rotY ?? 0,
+        rotZ: d.rotZ ?? 0,
       })
     );
   });

@@ -15,7 +15,7 @@ export function createSuperficie({
   perforada = false,
   canto = 'PVC-2MM',
   x = 0,
-  y = 720,
+  y = 710,
   z = 0,
   index = 0,
 }) {

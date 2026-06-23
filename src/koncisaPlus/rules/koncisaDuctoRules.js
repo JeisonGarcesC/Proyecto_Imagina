@@ -30,15 +30,15 @@ export const KONCISA_DUCTO_RULES = {
   // =========================
   KONPLUSSCABLEDUCTTER100: {
     codigoPT: '22000132400',
-    modelSrc: '/assets/models/koncisaPlus/2KSO349000_120_IZQ.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KSO348000_100.glb',
   },
   KONPLUSSCABLEDUCTTER120: {
     codigoPT: '22000132401',
-    modelSrc: '/assets/models/koncisaPlus/2KSO349000_120_IZQ.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KSO348000_120.glb',
   },
   KONPLUSSCABLEDUCTTER150: {
     codigoPT: '22000132402',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO348000_150.glb',
   },
 
   // =========================
