@@ -5009,11 +5009,25 @@ export default function ThreeCanvas({
         return false;
       }
 
+      const isCurrentlyRotated = !!root.userData?.ductRotated180;
+
       // Rotación relativa: toma la rotación real actual y suma 180°
       root.rotation.y += Math.PI;
 
       // Normalizar para evitar valores infinitos: 0, PI, 2PI, 3PI...
       root.rotation.y = THREE.MathUtils.euclideanModulo(root.rotation.y, Math.PI * 2);
+
+      if (!isCurrentlyRotated) {
+        console.log('Rotando ducto 180.');
+        root.position.x = 0.34; // ajustar posición cuando está rotado
+        root.position.z = -0.24; // ajustar posición cuando está rotado
+        root.userData.ductRotated180 = true;
+      } else {
+        console.log('no 180 grados');
+        root.position.x = 0;
+        root.position.z = 0;
+        root.userData.ductRotated180 = false;
+      }
 
       root.updateMatrixWorld(true);
 
