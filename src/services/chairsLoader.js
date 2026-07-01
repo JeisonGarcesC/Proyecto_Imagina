@@ -44,11 +44,11 @@ export async function loadCategoriasSillas() {
     if (!res.ok) throw new Error('No se pudo cargar categorias_sillas.json');
     const raw = await res.json();
     // El JSON puede ser { value: [...], Count: N } o un array directo
-    const arr = Array.isArray(raw) ? raw : (Array.isArray(raw?.value) ? raw.value : []);
+    const arr = Array.isArray(raw) ? raw : Array.isArray(raw?.value) ? raw.value : [];
     cacheCategoriasSillas = arr;
     return cacheCategoriasSillas;
   } catch (err) {
-    console.error('[loadCategoriasSillas] Error:', err);
+    //console.error('[loadCategoriasSillas] Error:', err);
     cacheCategoriasSillas = [];
     return [];
   }
@@ -81,8 +81,8 @@ export async function loadChairsCategoryMap() {
 
       map.set(codigo, {
         slug,
-        nivel2,      // nombre de la categoría principal (para filtro)
-        nivel3,      // sub-categoría (ej: OFIPARTES)
+        nivel2, // nombre de la categoría principal (para filtro)
+        nivel3, // sub-categoría (ej: OFIPARTES)
         categoriaId,
       });
     }

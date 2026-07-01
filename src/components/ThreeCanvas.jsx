@@ -3594,6 +3594,7 @@ export default function ThreeCanvas({
       replaceSelectedCostadoWithIntegration,
       removeSelectedIntegrationAndRestoreCostado,
       rotateSelectedDuct180,
+      toggleSelectedDuctSide,
     });
 
     function getGroupedObjects(target) {
@@ -5019,8 +5020,8 @@ export default function ThreeCanvas({
 
       if (!isCurrentlyRotated) {
         console.log('Rotando ducto 180.');
-        root.position.x = 0.34; // ajustar posición cuando está rotado
-        root.position.z = -0.24; // ajustar posición cuando está rotado
+        root.position.x = 0.34; // ajustar posición cuando está rotado en x esta en metros
+        root.position.z = -0.258; // ajustar posición cuando está rotado en y esta en metros
         root.userData.ductRotated180 = true;
       } else {
         console.log('no 180 grados');
@@ -5061,12 +5062,170 @@ export default function ThreeCanvas({
         transformMm,
       });
 
+      //aqui se hace el movimiento de la rotacion
       onFloatingEditorRequest?.({
         open: true,
         x: window.innerWidth - 600,
         y: 220,
         part: buildDuctPopupPart(root),
         ductCovers: root.userData?.ductCovers || null,
+      });
+
+      refreshFloorAndGrid();
+      emitBOM?.();
+
+      return true;
+    }
+
+    async function toggleSelectedDuctSide() {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const root = getRootPartObject(activePart) || activePart;
+      if (!root) return false;
+
+      if (root.userData?.kind !== 'ducto') {
+        console.warn('La pieza activa no es un ducto:', root.userData?.kind);
+        return false;
+      }
+
+      const oldMeta = root.userData?.meta || {};
+
+      const tipoModulo = String(oldMeta?.tipoModulo || '')
+        .trim()
+        .toUpperCase();
+
+      if (tipoModulo !== 'TERMINAL') {
+        console.warn('Solo se puede girar/cambiar lado en ductos terminales.');
+        return false;
+      }
+
+      const currentSide = String(oldMeta?.side || 'RIGHT').toUpperCase();
+      const nextSide = currentSide === 'RIGHT' ? 'LEFT' : 'RIGHT';
+
+      const nextModelSrc = nextSide === 'LEFT' ? oldMeta?.modelSrcLeft : oldMeta?.modelSrcRight;
+
+      if (!nextModelSrc) {
+        console.warn('No hay GLB configurado para el lado:', nextSide, oldMeta);
+        return false;
+      }
+
+      // Ajustes de posición por medida y lado.
+      // Estos valores están en milímetros.
+      const DUCT_SIDE_OFFSETS_MM = {
+        1000: {
+          RIGHT: { x: 0, y: 0, z: 0 },
+          LEFT: { x: -260, y: 0, z: 0 },
+        },
+        1200: {
+          RIGHT: { x: -260, y: 0, z: 0 },
+          LEFT: { x: 0, y: 0, z: 0 },
+        },
+        1500: {
+          RIGHT: { x: 0, y: 0, z: 0 },
+          LEFT: { x: -260, y: 0, z: 0 },
+        },
+      };
+
+      const nominalWidthMm = Number(oldMeta?.nominalWidthMm || 1200);
+
+      const currentOffset = DUCT_SIDE_OFFSETS_MM[nominalWidthMm]?.[currentSide] || {
+        x: 0,
+        y: 0,
+        z: 0,
+      };
+
+      const nextOffset = DUCT_SIDE_OFFSETS_MM[nominalWidthMm]?.[nextSide] || { x: 0, y: 0, z: 0 };
+
+      const deltaOffset = {
+        x: nextOffset.x - currentOffset.x,
+        y: nextOffset.y - currentOffset.y,
+        z: nextOffset.z - currentOffset.z,
+      };
+
+      // Guardar datos actuales antes de eliminar el ducto
+      const savedPos = root.position.clone();
+      const savedRot = root.rotation.clone();
+
+      const groupId = root.userData?.groupId || null;
+      const groupName = root.userData?.groupName || null;
+      const line = root.userData?.line || 'KONCISA.PLUS';
+
+      const parentGroup =
+        root.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? root.parent : null;
+
+      const oldCovers =
+        root.userData?.ductCovers ||
+        oldMeta?.ductCovers ||
+        defaultDuctCoverState(oldMeta?.tipoModulo || 'terminal');
+
+      const code = root.userData?.codigoPT || root.userData?.code;
+      const logicalCode = root.userData?.logicalCode || oldMeta?.logicalCode || null;
+      const description = root.userData?.description || root.name || 'Ducto';
+
+      // Eliminar el GLB actual
+      removePartObject(root);
+
+      // Crear el nuevo ducto con el GLB del otro lado
+      const newDuctObj = await addExternalGlbPart({
+        type: 'ducto',
+        subtype: oldMeta?.tipoModulo || 'terminal',
+        line,
+
+        code,
+        logicalCode,
+        name: description,
+
+        groupId,
+        groupName,
+        parentGroup,
+
+        position: {
+          x: savedPos.x * 1000 + deltaOffset.x,
+          y: savedPos.y * 1000 + deltaOffset.y,
+          z: savedPos.z * 1000 + deltaOffset.z,
+        },
+
+        rotation: {
+          x: savedRot.x,
+          y: savedRot.y,
+          z: savedRot.z,
+        },
+
+        model: {
+          kind: 'glb',
+          src: nextModelSrc,
+        },
+
+        meta: {
+          ...oldMeta,
+
+          category: 'ductos',
+          tipoModulo: oldMeta?.tipoModulo || 'terminal',
+          tipoPuesto: oldMeta?.tipoPuesto || 'sencillo',
+          nominalWidthMm,
+
+          side: nextSide,
+          modelSrcLeft: oldMeta?.modelSrcLeft || null,
+          modelSrcRight: oldMeta?.modelSrcRight || null,
+
+          ductCovers: oldCovers,
+        },
+      });
+
+      if (!newDuctObj) return false;
+
+      // Mantener tapas si tenía
+      await syncDuctCovers(newDuctObj, oldCovers);
+
+      setActivePart(newDuctObj);
+
+      onFloatingEditorRequest?.({
+        open: true,
+        x: window.innerWidth - 600,
+        y: 220,
+        part: buildDuctPopupPart(newDuctObj),
+        ductCovers: newDuctObj.userData?.ductCovers || null,
       });
 
       refreshFloorAndGrid();

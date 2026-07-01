@@ -31,14 +31,20 @@ export const KONCISA_DUCTO_RULES = {
   KONPLUSSCABLEDUCTTER100: {
     codigoPT: '22000132400',
     modelSrc: '/assets/models/koncisaPlus/2KSO348000_100.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO348000_100_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO348000_100_DER.glb',
   },
   KONPLUSSCABLEDUCTTER120: {
     codigoPT: '22000132401',
     modelSrc: '/assets/models/koncisaPlus/2KSO348000_120.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO348000_120_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO348000_120_DER.glb',
   },
   KONPLUSSCABLEDUCTTER150: {
     codigoPT: '22000132402',
     modelSrc: '/assets/models/koncisaPlus/2KSO348000_150.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO348000_150_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO348000_150_DER.glb',
   },
 
   // =========================
@@ -75,6 +81,8 @@ export const KONCISA_DUCTO_RULES = {
   KONPLUSSCABLEDUCTDOUBLETER120: {
     codigoPT: '22000132831',
     modelSrc: '/assets/models/koncisaPlus/2KSO349000_120_IZQ.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO349000_120_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO349000_120_DER.glb',
   },
   KONPLUSSCABLEDUCTDOUBLETER150: {
     codigoPT: '22000132832',
@@ -140,6 +148,8 @@ export function resolveKoncisaDucto({
     logicalCode,
     codigoPT: found?.codigoPT || null,
     modelSrc: found?.modelSrc || null,
+    modelSrcLeft: found?.modelSrcLeft || null,
+    modelSrcRight: found?.modelSrcRight || null,
     exists: !!found,
   };
 }

@@ -376,6 +376,7 @@ export function buildKoncisaPlus(config = {}) {
         rotX: d.rotX ?? 0,
         rotY: d.rotY ?? 0,
         rotZ: d.rotZ ?? 0,
+        side: d.side ?? 'LEFT',
       })
     );
   });

@@ -17,12 +17,20 @@ export function createDucto({
   rotX = 0,
   rotY = 0,
   rotZ = 0,
+  side = 'RIGHT',
 }) {
   const resolved = resolveKoncisaDucto({
     tipoPuesto,
     tipoModulo,
     nominalWidthMm,
   });
+
+  const sideKey = String(side || 'RIGHT').toUpperCase();
+
+  const modelSrc =
+    sideKey === 'LEFT'
+      ? resolved?.modelSrcLeft || resolved?.modelSrc
+      : resolved?.modelSrcRight || resolved?.modelSrc;
 
   return {
     type: 'ducto',
@@ -44,7 +52,8 @@ export function createDucto({
 
     model: {
       kind: 'glb',
-      src: resolved?.modelSrc || null,
+      //src: resolved?.modelSrc || null,
+      src: modelSrc || null,
     },
 
     meta: {
@@ -52,6 +61,9 @@ export function createDucto({
       tipoPuesto,
       tipoModulo,
       nominalWidthMm,
+      side: sideKey,
+      modelSrcLeft: resolved?.modelSrcLeft || null,
+      modelSrcRight: resolved?.modelSrcRight || null,
     },
   };
 }

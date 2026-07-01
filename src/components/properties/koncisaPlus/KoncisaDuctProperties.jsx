@@ -36,7 +36,7 @@ export default function KoncisaDuctProperties({ part, api }) {
         <button
           type="button"
           onClick={() => {
-            api?.rotateSelectedDuct180?.();
+            api?.toggleSelectedDuctSide?.();
           }}
           style={{
             width: '100%',

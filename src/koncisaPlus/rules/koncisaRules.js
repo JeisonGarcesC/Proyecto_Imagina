@@ -53,7 +53,7 @@ export function getCostadosConfig({
           depthMm: anchoRealMm,
           x: baseX - largoRealMm / 2,
           y: 0,
-          z: offsetZIntermedio,
+          z: offsetZIntermedio - 90,
 
           moduleIndex: i,
           replaceZone: 'INTERMEDIO',
@@ -348,13 +348,15 @@ export function getDuctosConfig({
   if (!hasDuct) return out;
 
   for (let i = 0; i < puestos; i++) {
-    const baseX = i * largoRealMm;
+    //console.log('largo', largoRealMm);
+    let baseX = i * largoRealMm;
     const ductMode = ductModes[i] || 'TERMINAL';
 
     const tipoModulo = (ductModes[i] || 'TERMINAL').toLowerCase();
 
     let ductLengthMm = largoRealMm;
 
+    /*
     if (tipoModulo === 'terminal') {
       ductLengthMm = largoRealMm - 339 * 2;
     } else if (tipoModulo === 'intermedio') {
@@ -362,6 +364,7 @@ export function getDuctosConfig({
     } else if (tipoModulo === 'individual') {
       ductLengthMm = largoRealMm - 313.5; // 👈 o el valor que aplique
     }
+    */
 
     // Inicio del módulo
     const moduleStartX = baseX - largoRealMm / 2;
@@ -369,13 +372,13 @@ export function getDuctosConfig({
     // Centro del ducto, arrancando desde el inicio
     const ductCenterX = moduleStartX + ductLengthMm / 2;
 
-    let ductX = -335;
+    let ductX = baseX;
     let ductY = 510;
     let ductZ = -116;
     let ductRotY = 0;
 
     if (tipoModulo === 'terminal') {
-      ductX = -335;
+      ductX = baseX - 335; //-335
       ductY = 510;
       ductZ = -116;
       ductRotY = 0;
@@ -395,6 +398,8 @@ export function getDuctosConfig({
       ductRotY = 0;
     }
 
+    console.log('ductX', ductX);
+
     //posicion de los ductos inicialmente
     out.push({
       tipoPuesto,
@@ -407,6 +412,7 @@ export function getDuctosConfig({
       rotX: 0,
       rotY: 0,
       rotZ: 0,
+      side: 'LEFT',
     });
   }
   //console.log('DUCTOS CONFIG', out);
