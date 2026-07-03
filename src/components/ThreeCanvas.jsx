@@ -62,7 +62,10 @@ import {
   CLAK_SWAP_ALLOWED_CODES,
   getClakVariantOptionsByCode,
 } from './properties/clakPuffVariants';
-import { isSeatCode as isClakSeatCode, isModuleCode as isClakModuleCode } from './properties/clakPuffVariants';
+import {
+  isSeatCode as isClakSeatCode,
+  isModuleCode as isClakModuleCode,
+} from './properties/clakPuffVariants';
 
 const MM_TO_M = 1 / 1000;
 const ALMACENAMIENTO_CUSHION_CODE = '22000008239';
@@ -1003,9 +1006,7 @@ export default function ThreeCanvas({
             obj.userData?.codigoPT || obj.userData?.code || p.code || ''
           );
           const label =
-            obj.userData?.name ||
-            obj.userData?.clakMeta?.descripcion ||
-            `Clak ${parentCode}`;
+            obj.userData?.name || obj.userData?.clakMeta?.descripcion || `Clak ${parentCode}`;
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
 
           const list = obj.userData?.clakParts || [];
@@ -1036,9 +1037,7 @@ export default function ThreeCanvas({
             obj.userData?.codigoPT || obj.userData?.code || p.code || ''
           );
           const label =
-            obj.userData?.name ||
-            obj.userData?.edukMeta?.descripcion ||
-            `Eduk ${parentCode}`;
+            obj.userData?.name || obj.userData?.edukMeta?.descripcion || `Eduk ${parentCode}`;
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
 
           const list = obj.userData?.edukParts || [];
@@ -2271,16 +2270,11 @@ export default function ThreeCanvas({
         detUSD;
 
       if (!det) {
-        console.warn(
-          `Clak: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
-        );
+        console.warn(`Clak: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`);
       }
 
       // 2) cargar GLB desde carpeta Clak
-      const possibleSrcs = [
-        `/assets/models/Clak/${codigo}.glb`,
-        `/assets/models/${codigo}.glb`,
-      ];
+      const possibleSrcs = [`/assets/models/Clak/${codigo}.glb`, `/assets/models/${codigo}.glb`];
 
       const gltf = await loadExistingGlb(possibleSrcs);
 
@@ -2363,16 +2357,11 @@ export default function ThreeCanvas({
         detUSD;
 
       if (!det) {
-        console.warn(
-          `Eduk: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
-        );
+        console.warn(`Eduk: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`);
       }
 
       // 2) cargar GLB desde carpeta Eduk
-      const possibleSrcs = [
-        `/assets/models/Eduk/${codigo}.glb`,
-        `/assets/models/${codigo}.glb`,
-      ];
+      const possibleSrcs = [`/assets/models/Eduk/${codigo}.glb`, `/assets/models/${codigo}.glb`];
 
       const gltf = await loadExistingGlb(possibleSrcs);
 
@@ -2525,7 +2514,11 @@ export default function ThreeCanvas({
         const currentCategory = currentIsSeat ? 'seat' : currentIsModule ? 'module' : null;
         const nextCategory = nextIsSeat ? 'seat' : nextIsModule ? 'module' : null;
         if (currentCategory !== nextCategory) {
-          console.warn('[swapClakVariant] Cambio entre familias no permitido:', currentCode, nextCode);
+          console.warn(
+            '[swapClakVariant] Cambio entre familias no permitido:',
+            currentCode,
+            nextCode
+          );
           return;
         }
         // both are seat codes OR both are module codes -> allow
@@ -2542,7 +2535,11 @@ export default function ThreeCanvas({
         const currentOptions = getClakVariantOptionsByCode(currentCode) || [];
         const sameFamily = currentOptions.some((it) => it.code === nextCode);
         if (!sameFamily) {
-          console.warn('[swapClakVariant] Cambio entre familias no permitido:', currentCode, nextCode);
+          console.warn(
+            '[swapClakVariant] Cambio entre familias no permitido:',
+            currentCode,
+            nextCode
+          );
           return;
         }
       }
@@ -3810,6 +3807,8 @@ export default function ThreeCanvas({
       replaceSelectedPedestalWithCostado,
       replaceSelectedCostadoWithIntegration,
       removeSelectedIntegrationAndRestoreCostado,
+      rotateSelectedDuct180,
+      toggleSelectedDuctSide,
     });
 
     function getGroupedObjects(target) {
@@ -5203,6 +5202,252 @@ export default function ThreeCanvas({
       };
     }
 
+    function rotateSelectedDuct180() {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const root = getRootPartObject(activePart) || activePart;
+
+      if (!root) return false;
+
+      if (root.userData?.kind !== 'ducto') {
+        console.warn('La pieza activa no es un ducto normal:', root.userData?.kind);
+        return false;
+      }
+
+      const tipoModulo = String(root.userData?.meta?.tipoModulo || '')
+        .trim()
+        .toUpperCase();
+
+      if (tipoModulo !== 'TERMINAL') {
+        console.warn('Solo se permite rotar ductos terminales.');
+        return false;
+      }
+
+      const isCurrentlyRotated = !!root.userData?.ductRotated180;
+
+      // Rotación relativa: toma la rotación real actual y suma 180°
+      root.rotation.y += Math.PI;
+
+      // Normalizar para evitar valores infinitos: 0, PI, 2PI, 3PI...
+      root.rotation.y = THREE.MathUtils.euclideanModulo(root.rotation.y, Math.PI * 2);
+
+      if (!isCurrentlyRotated) {
+        console.log('Rotando ducto 180.');
+        root.position.x = 0.34; // ajustar posición cuando está rotado en x esta en metros
+        root.position.z = -0.258; // ajustar posición cuando está rotado en y esta en metros
+        root.userData.ductRotated180 = true;
+      } else {
+        console.log('no 180 grados');
+        root.position.x = 0;
+        root.position.z = 0;
+        root.userData.ductRotated180 = false;
+      }
+
+      root.updateMatrixWorld(true);
+
+      if (selectionHelper) selectionHelper.update();
+
+      const transformMm = {
+        x: Math.round(root.position.x * 1000),
+        y: Math.round(root.position.y * 1000),
+        z: Math.round(root.position.z * 1000),
+        rotX: Math.round(THREE.MathUtils.radToDeg(root.rotation.x) * 100) / 100,
+        rotY: Math.round(THREE.MathUtils.radToDeg(root.rotation.y) * 100) / 100,
+        rotZ: Math.round(THREE.MathUtils.radToDeg(root.rotation.z) * 100) / 100,
+      };
+
+      onSelectionChange?.({
+        code: root.userData.codigoPT || root.userData.code,
+        dimMm: root.userData?.dim || null,
+        dimM: root.userData?.dimM || null,
+
+        materialCode: root.userData?.materialCode ?? null,
+        materialBase: root.userData?.materialBase ?? null,
+
+        line: root.userData?.line ?? null,
+        kind: root.userData?.kind || null,
+        meta: root.userData?.meta || null,
+        groupId: root.userData?.groupId || null,
+        groupName: root.userData?.groupName || null,
+        logicalCode: root.userData?.logicalCode || null,
+        instanceId: root.userData?.instanceId || null,
+        ductCovers: root.userData?.ductCovers || null,
+        transformMm,
+      });
+
+      //aqui se hace el movimiento de la rotacion
+      onFloatingEditorRequest?.({
+        open: true,
+        x: window.innerWidth - 600,
+        y: 220,
+        part: buildDuctPopupPart(root),
+        ductCovers: root.userData?.ductCovers || null,
+      });
+
+      refreshFloorAndGrid();
+      emitBOM?.();
+
+      return true;
+    }
+
+    async function toggleSelectedDuctSide() {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const root = getRootPartObject(activePart) || activePart;
+      if (!root) return false;
+
+      if (root.userData?.kind !== 'ducto') {
+        console.warn('La pieza activa no es un ducto:', root.userData?.kind);
+        return false;
+      }
+
+      const oldMeta = root.userData?.meta || {};
+
+      const tipoModulo = String(oldMeta?.tipoModulo || '')
+        .trim()
+        .toUpperCase();
+
+      if (tipoModulo !== 'TERMINAL') {
+        console.warn('Solo se puede girar/cambiar lado en ductos terminales.');
+        return false;
+      }
+
+      const currentSide = String(oldMeta?.side || 'RIGHT').toUpperCase();
+      const nextSide = currentSide === 'RIGHT' ? 'LEFT' : 'RIGHT';
+
+      const nextModelSrc = nextSide === 'LEFT' ? oldMeta?.modelSrcLeft : oldMeta?.modelSrcRight;
+
+      if (!nextModelSrc) {
+        console.warn('No hay GLB configurado para el lado:', nextSide, oldMeta);
+        return false;
+      }
+
+      // Ajustes de posición por medida y lado.
+      // Estos valores están en milímetros.
+      const DUCT_SIDE_OFFSETS_MM = {
+        1000: {
+          RIGHT: { x: 0, y: 0, z: 0 },
+          LEFT: { x: -260, y: 0, z: 0 },
+        },
+        1200: {
+          RIGHT: { x: -260, y: 0, z: 0 },
+          LEFT: { x: 0, y: 0, z: 0 },
+        },
+        1500: {
+          RIGHT: { x: 0, y: 0, z: 0 },
+          LEFT: { x: -260, y: 0, z: 0 },
+        },
+      };
+
+      const nominalWidthMm = Number(oldMeta?.nominalWidthMm || 1200);
+
+      const currentOffset = DUCT_SIDE_OFFSETS_MM[nominalWidthMm]?.[currentSide] || {
+        x: 0,
+        y: 0,
+        z: 0,
+      };
+
+      const nextOffset = DUCT_SIDE_OFFSETS_MM[nominalWidthMm]?.[nextSide] || { x: 0, y: 0, z: 0 };
+
+      const deltaOffset = {
+        x: nextOffset.x - currentOffset.x,
+        y: nextOffset.y - currentOffset.y,
+        z: nextOffset.z - currentOffset.z,
+      };
+
+      // Guardar datos actuales antes de eliminar el ducto
+      const savedPos = root.position.clone();
+      const savedRot = root.rotation.clone();
+
+      const groupId = root.userData?.groupId || null;
+      const groupName = root.userData?.groupName || null;
+      const line = root.userData?.line || 'KONCISA.PLUS';
+
+      const parentGroup =
+        root.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? root.parent : null;
+
+      const oldCovers =
+        root.userData?.ductCovers ||
+        oldMeta?.ductCovers ||
+        defaultDuctCoverState(oldMeta?.tipoModulo || 'terminal');
+
+      const code = root.userData?.codigoPT || root.userData?.code;
+      const logicalCode = root.userData?.logicalCode || oldMeta?.logicalCode || null;
+      const description = root.userData?.description || root.name || 'Ducto';
+
+      // Eliminar el GLB actual
+      removePartObject(root);
+
+      // Crear el nuevo ducto con el GLB del otro lado
+      const newDuctObj = await addExternalGlbPart({
+        type: 'ducto',
+        subtype: oldMeta?.tipoModulo || 'terminal',
+        line,
+
+        code,
+        logicalCode,
+        name: description,
+
+        groupId,
+        groupName,
+        parentGroup,
+
+        position: {
+          x: savedPos.x * 1000 + deltaOffset.x,
+          y: savedPos.y * 1000 + deltaOffset.y,
+          z: savedPos.z * 1000 + deltaOffset.z,
+        },
+
+        rotation: {
+          x: savedRot.x,
+          y: savedRot.y,
+          z: savedRot.z,
+        },
+
+        model: {
+          kind: 'glb',
+          src: nextModelSrc,
+        },
+
+        meta: {
+          ...oldMeta,
+
+          category: 'ductos',
+          tipoModulo: oldMeta?.tipoModulo || 'terminal',
+          tipoPuesto: oldMeta?.tipoPuesto || 'sencillo',
+          nominalWidthMm,
+
+          side: nextSide,
+          modelSrcLeft: oldMeta?.modelSrcLeft || null,
+          modelSrcRight: oldMeta?.modelSrcRight || null,
+
+          ductCovers: oldCovers,
+        },
+      });
+
+      if (!newDuctObj) return false;
+
+      // Mantener tapas si tenía
+      await syncDuctCovers(newDuctObj, oldCovers);
+
+      setActivePart(newDuctObj);
+
+      onFloatingEditorRequest?.({
+        open: true,
+        x: window.innerWidth - 600,
+        y: 220,
+        part: buildDuctPopupPart(newDuctObj),
+        ductCovers: newDuctObj.userData?.ductCovers || null,
+      });
+
+      refreshFloorAndGrid();
+      emitBOM?.();
+
+      return true;
+    }
+
     async function addDuctCoverChild(root, side, coverAsset) {
       const base = await loadDuctCoverModel(coverAsset.modelSrc);
       const cover = base.clone(true);
@@ -5245,6 +5490,14 @@ export default function ThreeCanvas({
         instanceId: root.userData?.instanceId || null,
         description: root.userData?.description || null,
         ductCovers: root.userData?.ductCovers || null,
+        transformMm: {
+          x: Math.round(root.position.x * 1000),
+          y: Math.round(root.position.y * 1000),
+          z: Math.round(root.position.z * 1000),
+          rotX: Math.round(THREE.MathUtils.radToDeg(root.rotation.x) * 100) / 100,
+          rotY: Math.round(THREE.MathUtils.radToDeg(root.rotation.y) * 100) / 100,
+          rotZ: Math.round(THREE.MathUtils.radToDeg(root.rotation.z) * 100) / 100,
+        },
       };
     }
 

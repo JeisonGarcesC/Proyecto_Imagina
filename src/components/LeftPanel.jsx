@@ -546,7 +546,10 @@ export default function LeftPanel({
 
         // Añadir la categoría ECUADOR al listado si no existe
         const hasEcuadorCat = (categoriasArr || []).some(
-          (c) => String(c.nombre || '').trim().toUpperCase() === ECUADOR_NAME
+          (c) =>
+            String(c.nombre || '')
+              .trim()
+              .toUpperCase() === ECUADOR_NAME
         );
         if (!hasEcuadorCat) {
           (categoriasArr || []).push({
@@ -591,8 +594,12 @@ export default function LeftPanel({
 
         // Añadir códigos que están en el índice de sillas_ecuador pero no vienen en el PriceList
         try {
-          const existingCodes = new Set((arrWithEcuador || []).map((i) => String(i.codigoPT).trim()));
-          const missing = Array.from(ecuadorSet).filter((c) => !existingCodes.has(String(c).trim()));
+          const existingCodes = new Set(
+            (arrWithEcuador || []).map((i) => String(i.codigoPT).trim())
+          );
+          const missing = Array.from(ecuadorSet).filter(
+            (c) => !existingCodes.has(String(c).trim())
+          );
           if (missing.length) {
             const extras = missing.map((code) => ({
               codigoPT: String(code),
@@ -635,7 +642,8 @@ export default function LeftPanel({
             const sub = String(it.categoriaNivel3 || '').trim();
             if (sub) {
               byCategoria[ECUADOR_NAME].add(sub);
-              byCategoriaCounts[ECUADOR_NAME][sub] = (byCategoriaCounts[ECUADOR_NAME][sub] || 0) + 1;
+              byCategoriaCounts[ECUADOR_NAME][sub] =
+                (byCategoriaCounts[ECUADOR_NAME][sub] || 0) + 1;
             }
           }
         }
@@ -649,12 +657,8 @@ export default function LeftPanel({
 
         // Debug logs: listar códigos cargados y el índice de sillas_ecuador
         try {
-          console.log('[LeftPanel] sillas_ecuador_index:', Array.from(ecuadorSet).sort());
-          console.log(
-            '[LeftPanel] chairs (count):',
-            arrWithEcuador.length,
-            Array.from(arrWithEcuador || []).map((c) => String(c.codigoPT))
-          );
+          //console.log('[LeftPanel] sillas_ecuador_index:', Array.from(ecuadorSet).sort());
+          //console.log('[LeftPanel] chairs (count):',arrWithEcuador.length,Array.from(arrWithEcuador || []).map((c) => String(c.codigoPT)) );
           console.log('[LeftPanel] categoriasSillas (count):', (categoriasArr || []).length);
         } catch {
           // ignore
@@ -1701,8 +1705,8 @@ export default function LeftPanel({
             // ✅ Dejar seleccionado el puesto completo al final
             api.selectObject?.(puestoGroup);
 
-            console.log('PARTS KONCISA', parts);
-            console.log('GROUP KONCISA', groupId);
+            //console.log('PARTS KONCISA', parts);
+            //console.log('GROUP KONCISA', groupId);
             console.log('PUESTO GROUP', puestoGroup);
           }}
         />
@@ -2492,10 +2496,7 @@ export default function LeftPanel({
                 onClick={() => !readOnly && onAddMepalTekSocial(it.codigoPT)}
                 style={cardBtn(readOnly)}
               >
-                <MepalTekSocialCardImage
-                  codigo={it.codigoPT}
-                  title={it.ui?.title || it.codigoPT}
-                />
+                <MepalTekSocialCardImage codigo={it.codigoPT} title={it.ui?.title || it.codigoPT} />
                 <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                   {it.codigoPT}
                 </div>
@@ -2562,9 +2563,7 @@ export default function LeftPanel({
             <div style={{ fontSize: 12, opacity: 0.8 }}>Mostrar todas las variantes</div>
           </div>
 
-          {!clakReady && (
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Clak...</div>
-          )}
+          {!clakReady && <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Clak...</div>}
 
           <div style={{ display: 'grid', gap: 8 }}>
             {clakFiltered.map((it) => (
@@ -2625,9 +2624,7 @@ export default function LeftPanel({
             }}
           />
 
-          {!edukReady && (
-            <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Eduk...</div>
-          )}
+          {!edukReady && <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Eduk...</div>}
 
           <div style={{ display: 'grid', gap: 8 }}>
             {edukFiltered.map((it) => (
