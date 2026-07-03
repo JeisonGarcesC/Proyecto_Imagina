@@ -4,12 +4,17 @@ import KoncisaPlusProperties, {
 } from './koncisaPlus/KoncisaPlusProperties';
 import MepalSaludProperties from './MepalSaludProperties';
 import ClakProperties from './ClakProperties';
+import AlmacenamientoProperties from './AlmacenamientoProperties';
 import { isClakPuffVariantPart } from './clakPuffVariants';
 import { sectionStyle } from './shared/PropertyStyles';
 import PropertyHeader from './shared/PropertyHeader';
 
 function isMepalSaludPart(part) {
   return part?.kind === 'MEPAL_SALUD';
+}
+
+function isAlmacenamientoPart(part) {
+  return part?.kind === 'ALMACENAMIENTO';
 }
 
 export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
@@ -44,6 +49,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const hasEditableProperties =
     isKoncisaPlusEditablePart(part) ||
     isMepalSaludPart(part) ||
+    isAlmacenamientoPart(part) ||
     isClakPuffVariantPart(part) ||
     isFloor;
 
@@ -87,6 +93,8 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       <MepalSaludProperties part={part} api={api} onClose={onClose} />
 
       <ClakProperties part={part} api={api} onClose={onClose} />
+
+      <AlmacenamientoProperties part={part} api={api} onClose={onClose} />
 
       {isFloor && (
         <div style={sectionStyle}>

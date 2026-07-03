@@ -505,7 +505,7 @@ export default function App() {
         >
           <LeftRail active={leftSection} onChange={setLeftSection} />
           {/* CONTENEDOR VERTICAL */}
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}>
             {/* SELECT ARRIBA */}
             {leftSection === 'typologies' && (
               <div
