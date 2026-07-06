@@ -6,7 +6,7 @@ export const KONCISA_DUCTO_RULES = {
   // =========================
   KONPLUSSCABLEDUCT: {
     codigoPT: '22000132403',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO346000.glb',
   },
 
   // =========================

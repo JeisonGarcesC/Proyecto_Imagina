@@ -197,6 +197,14 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
 
   for (let i = 0; i < puestos; i++) {
     const baseX = i * largoRealMm;
+    let zgrommet = 0;
+    console.log('anchoRealMm grommet: ', anchoRealMm);
+    if (anchoRealMm == 600) {
+      zgrommet = -190;
+    } else {
+      zgrommet = -255;
+    }
+    console.log('zgrommet grommet: ', zgrommet);
 
     if (tipoPuesto === 'sencillo') {
       out.push({
@@ -204,7 +212,8 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         diameterMm: 80,
         x: baseX,
         y: 740, //altura grommet
-        z: 0,
+        z: zgrommet,
+
         rotY: 0,
       });
     }
@@ -380,25 +389,39 @@ export function getDuctosConfig({
     if (tipoModulo === 'terminal') {
       ductX = baseX - 335; //-335
       ductY = 510;
-      ductZ = -116;
+      if (anchoRealMm == 600) {
+        ductZ = -116;
+      } else {
+        ductZ = -anchoRealMm / 2 + 55 + 128;
+      }
+
       ductRotY = 0;
     }
 
     if (tipoModulo === 'intermedio') {
-      ductX = 0;
+      ductX = moduleStartX;
       ductY = 510;
-      ductZ = 116;
+      if (anchoRealMm == 600) {
+        ductZ = -116;
+      } else {
+        ductZ = -anchoRealMm / 2 + 55 + 128;
+      }
       ductRotY = 0;
     }
 
     if (tipoModulo === 'individual') {
-      ductX = -180;
+      ductX = baseX - 692 / 2;
       ductY = 510;
-      ductZ = -116;
+      if (anchoRealMm == 600) {
+        ductZ = -116;
+      } else {
+        ductZ = -anchoRealMm / 2 + 55 + 128;
+      }
       ductRotY = 0;
     }
-
-    console.log('ductX', ductX);
+    //console.log('anchoRealMm: ', largoRealMm);
+    //console.log('anchoRealMm: ', anchoRealMm);
+    //console.log('ductX', ductX);
 
     //posicion de los ductos inicialmente
     out.push({

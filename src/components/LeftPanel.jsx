@@ -1536,7 +1536,7 @@ export default function LeftPanel({
 
             //console.log('PARTS KONCISA', parts);
             //console.log('GROUP KONCISA', groupId);
-            console.log('PUESTO GROUP', puestoGroup);
+            //console.log('PUESTO GROUP', puestoGroup);
           }}
         />
       )}

@@ -131,7 +131,7 @@ export default function ThreeCanvas({
   //use effect 4
   useEffect(() => {
     materialsByCodeRef.current = materialsByCode || new Map();
-    console.log('[ThreeCanvas] materialsByCodeRef size:', materialsByCodeRef.current.size);
+    //console.log('[ThreeCanvas] materialsByCodeRef size:', materialsByCodeRef.current.size);
   }, [materialsByCode]);
 
   //use effect 5
@@ -154,7 +154,7 @@ export default function ThreeCanvas({
       return;
     }
 
-    console.log('✅ materialsByCodeRef listo, cargando proyecto...');
+    //console.log('✅ materialsByCodeRef listo, cargando proyecto...');
     loadProjectRef.current(pendingProject);
     setPendingProject(null);
   }, [pendingProject]);
@@ -2845,7 +2845,7 @@ export default function ThreeCanvas({
     }
 
     async function loadProject(project) {
-      console.log('[loadProject] materialsByCodeRef size:', materialsByCodeRef.current?.size || 0);
+      //console.log('[loadProject] materialsByCodeRef size:', materialsByCodeRef.current?.size || 0);
 
       if (!project?.parts?.length) return;
 
@@ -5114,16 +5114,16 @@ export default function ThreeCanvas({
       // Estos valores están en milímetros.
       const DUCT_SIDE_OFFSETS_MM = {
         1000: {
-          RIGHT: { x: 0, y: 0, z: 0 },
-          LEFT: { x: -260, y: 0, z: 0 },
+          RIGHT: { x: -162, y: 0, z: 0 },
+          LEFT: { x: 0, y: 0, z: 0 },
         },
         1200: {
           RIGHT: { x: -260, y: 0, z: 0 },
           LEFT: { x: 0, y: 0, z: 0 },
         },
         1500: {
-          RIGHT: { x: 0, y: 0, z: 0 },
-          LEFT: { x: -260, y: 0, z: 0 },
+          RIGHT: { x: -410, y: 0, z: 0 },
+          LEFT: { x: 0, y: 0, z: 0 },
         },
       };
 
