@@ -39,6 +39,11 @@ export default function LeftRail({ active, onChange }) {
       image: '/assets/iconos_imagen/Clak.png',
     },
     {
+      id: 'zenAlmacenamiento',
+      label: 'Zen Almacenamiento',
+      image: '/assets/iconos_imagen/Almacenamiento.png',
+    },
+    {
       id: 'eduk',
       label: 'Eduk',
       image: '/assets/iconos_imagen/Eduk.png',
@@ -60,6 +65,9 @@ export default function LeftRail({ active, onChange }) {
         flexDirection: 'column',
         padding: 8,
         gap: 8,
+        minHeight: 0,
+        overflowY: 'auto',
+        overflowX: 'hidden',
         boxShadow: 'inset -1px 0 0 rgba(255, 255, 255, 0.65)',
       }}
     >

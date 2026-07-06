@@ -1,0 +1,226 @@
+[
+  {
+    "category": "Biblioteca",
+    "filename": "22000020026.glb",
+    "codeBase": "22000020026",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020026.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020026_lamiante.glb",
+    "codeBase": "22000020026",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020026_lamiante.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020028.glb",
+    "codeBase": "22000020028",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020028.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020028_lamiante.glb",
+    "codeBase": "22000020028",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020028_lamiante.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020029.glb",
+    "codeBase": "22000020029",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020029.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020029_lamiante.glb",
+    "codeBase": "22000020029",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020029_lamiante.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020563.glb",
+    "codeBase": "22000020563",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020563.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020563_cushion.glb",
+    "codeBase": "22000020563",
+    "variant": "cushion",
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020563_cushion.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020564.glb",
+    "codeBase": "22000020564",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020564.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020564__cushion.glb",
+    "codeBase": "22000020564",
+    "variant": "cushion",
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020564__cushion.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020565.glb",
+    "codeBase": "22000020565",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020565.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020565_cushion.glb",
+    "codeBase": "22000020565",
+    "variant": "cushion",
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020565_cushion.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020575.glb",
+    "codeBase": "22000020575",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020575.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020575_cushion.glb",
+    "codeBase": "22000020575",
+    "variant": "cushion",
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020575_cushion.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020576.glb",
+    "codeBase": "22000020576",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020576.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020576_cushion.glb",
+    "codeBase": "22000020576",
+    "variant": "cushion",
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020576_cushion.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020577.glb",
+    "codeBase": "22000020577",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020577.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000020577_cushion.glb",
+    "codeBase": "22000020577",
+    "variant": "cushion",
+    "url": "/assets/models/Almacenamiento/Pedestal/22000020577_cushion.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000033305.glb",
+    "codeBase": "22000033305",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Pedestal/22000033305.glb"
+  },
+  {
+    "category": "Pedestal",
+    "filename": "22000033305_cushion.glb",
+    "codeBase": "22000033305",
+    "variant": "cushion",
+    "url": "/assets/models/Almacenamiento/Pedestal/22000033305_cushion.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020051.glb",
+    "codeBase": "22000020051",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020051.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020051_lamiante.glb",
+    "codeBase": "22000020051",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020051_lamiante.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020055.glb",
+    "codeBase": "22000020055",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020055.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020055_lamiante.glb",
+    "codeBase": "22000020055",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020055_lamiante.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020059.glb",
+    "codeBase": "22000020059",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020059.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020059_lamiante.glb",
+    "codeBase": "22000020059",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020059_lamiante.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020067.glb",
+    "codeBase": "22000020067",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020067.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020067_lamiante.glb",
+    "codeBase": "22000020067",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020067_lamiante.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020069.glb",
+    "codeBase": "22000020069",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020069.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020069_lamiante.glb",
+    "codeBase": "22000020069",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020069_lamiante.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020071.glb",
+    "codeBase": "22000020071",
+    "variant": null,
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020071.glb"
+  },
+  {
+    "category": "Biblioteca",
+    "filename": "22000020071_lamiante.glb",
+    "codeBase": "22000020071",
+    "variant": "lamiante",
+    "url": "/assets/models/Almacenamiento/Biblioteca/22000020071_lamiante.glb"
+  }
+]

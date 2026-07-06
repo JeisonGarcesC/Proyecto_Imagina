@@ -68,6 +68,28 @@ import {
 } from './properties/clakPuffVariants';
 
 const MM_TO_M = 1 / 1000;
+const ALMACENAMIENTO_CUSHION_CODE = '22000008239';
+const ALMACENAMIENTO_LAMINATE_CODE = '22000007233';
+
+function normalizeVariantText(value) {
+  return String(value || '')
+    .replace(/^_+/, '')
+    .trim()
+    .toLowerCase();
+}
+
+function getAlmacenamientoAddonCodesByVariant(variantValue) {
+  const normalized = normalizeVariantText(variantValue);
+  const out = [];
+
+  if (!normalized) return out;
+  if (normalized.includes('cushion')) out.push(ALMACENAMIENTO_CUSHION_CODE);
+  if (normalized.includes('laminate') || normalized.includes('lamiante')) {
+    out.push(ALMACENAMIENTO_LAMINATE_CODE);
+  }
+
+  return out;
+}
 
 export default function ThreeCanvas({
   onApiReady,
@@ -553,7 +575,7 @@ export default function ThreeCanvas({
         groupId: obj.userData?.groupId || null,
         groupName: obj.userData?.groupName || null,
         logicalCode: obj.userData?.logicalCode || null,
-        instanceId: obj.userData?.instanceId || null,
+        instanceId: obj.userData?.instanceId || obj.uuid || null,
         ductCovers: obj.userData?.ductCovers || null,
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
@@ -1041,6 +1063,53 @@ export default function ThreeCanvas({
           continue;
         }
 
+        if (obj.userData?.kind === 'ALMACENAMIENTO') {
+          const parentCode = normalizeText(
+            obj.userData?.codigoPT || obj.userData?.code || p.code || ''
+          );
+          const label =
+            obj.userData?.name ||
+            obj.userData?.description ||
+            obj.userData?.almacenCategory ||
+            `Zen Almacenamiento ${parentCode}`;
+          const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+
+          addRow(
+            String(parentCode),
+            1,
+            obj.userData?.description || label,
+            obj.userData?.unitPrice || 0,
+            parentCode,
+            label,
+            obj.userData?.prices || undefined,
+            null,
+            groupInstanceId
+          );
+
+          const addonParts = Array.isArray(obj.userData?.almacenAddonParts)
+            ? obj.userData.almacenAddonParts
+            : [];
+
+          for (const it of addonParts) {
+            const addonCode = normalizeText(it.code || '');
+            const addonGroupId = addonCode ? `ADICION_${addonCode}` : 'ADICION_ALMACENAMIENTO';
+            const addonGroupName = addonCode || 'Adicion Almacenamiento';
+            addRow(
+              String(addonCode || it.code),
+              Number(it.qty || 1),
+              it.description,
+              it.unitPrice,
+              addonGroupId,
+              addonGroupName,
+              it.prices,
+              null,
+              `${groupInstanceId || parentCode}__${addonGroupId}`
+            );
+          }
+
+          continue;
+        }
+
         const code = obj.userData?.codigoPT || obj.userData?.code || p.code;
 
         const groupId = obj.userData?.groupId || null;
@@ -1128,6 +1197,7 @@ export default function ThreeCanvas({
           kind === 'MEPAL_TEK_SOCIAL' ||
           kind === 'CLAK' ||
           kind === 'EDUK' ||
+          kind === 'ALMACENAMIENTO' ||
           kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
           return cur;
@@ -1138,6 +1208,7 @@ export default function ThreeCanvas({
           !fallback &&
           [
             'PART',
+            'ALMACENAMIENTO',
             'SURFACE',
             'PRIVACY_PANEL',
             'GLB_PART',
@@ -1172,6 +1243,49 @@ export default function ThreeCanvas({
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    }
+
+    async function buildAlmacenamientoAddonParts(variantValue) {
+      const addonCodes = getAlmacenamientoAddonCodesByVariant(variantValue);
+      if (!addonCodes.length) return [];
+
+      const out = [];
+
+      for (const addonCode of addonCodes) {
+        const [detCO, detEUC, detUSD] = await Promise.all([
+          getChairDetail(addonCode, 'CO'),
+          getChairDetail(addonCode, 'EUC'),
+          getChairDetail(addonCode, 'USD'),
+        ]);
+
+        out.push({
+          code: addonCode,
+          description:
+            detCO?.descripcion ||
+            detEUC?.descripcion ||
+            detUSD?.descripcion ||
+            (addonCode === ALMACENAMIENTO_CUSHION_CODE ? 'Cushion' : 'Laminate'),
+          qty: 1,
+          unitPrice: Number(
+            (countryRef.current === 'EUC'
+              ? detEUC?.precio
+              : countryRef.current === 'USD'
+              ? detUSD?.precio
+              : detCO?.precio) ||
+              detCO?.precio ||
+              detEUC?.precio ||
+              detUSD?.precio ||
+              0
+          ),
+          prices: {
+            CO: Number(detCO?.precio || 0),
+            EUC: Number(detEUC?.precio || 0),
+            USD: Number(detUSD?.precio || 0),
+          },
+        });
+      }
+
+      return out;
     }
 
     // ====== Helpers ======
@@ -1348,6 +1462,8 @@ export default function ThreeCanvas({
         codigoPT, // negocio
         code: codigoPT, // compat
         name: item.ui?.title || '',
+        isPartRoot: true,
+        instanceId: obj.uuid,
 
         // 🔑 AQUÍ SE GUARDA EL GENÉRICO
         generico: item.generico || item.raw?.generico || null,
@@ -1356,7 +1472,14 @@ export default function ThreeCanvas({
         materialBase: item.materialBase || item.raw?.material || null,
         materialCode: null,
 
-        kind: 'PART',
+        kind: item?.variants ? 'ALMACENAMIENTO' : 'PART',
+        // Almacenamiento-specific metadata
+        almacenVariant: item?.model?.variant || null,
+        almacenCategory: item?.raw?.category || item?.model?.category || null,
+        almacenVariants: item?.variants || null,
+        almacenAddonParts: item?.variants
+          ? await buildAlmacenamientoAddonParts(item?.model?.variant)
+          : null,
       };
       obj.name = obj.userData.name || codigoPT;
 
@@ -1450,7 +1573,6 @@ export default function ThreeCanvas({
         `/assets/models/koncisapluss_${codigo}.glb`,
         `/assets/models/${codigo}.glb`,
       ];
-
       const gltf = await loadExistingGlb(possibleSrcs);
 
       if (!gltf) {
@@ -2521,6 +2643,96 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function swapAlmacenamientoVariant(instanceId, codigo, targetVariant = 'base') {
+      if (readOnly) return;
+
+      const currentCode = String(codigo || '').trim();
+      if (!currentCode) return;
+
+      const found = parts.find(({ obj }) => {
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      });
+
+      if (!found?.obj) {
+        console.warn('[swapAlmacenamientoVariant] No se encontró la pieza:', instanceId);
+        return;
+      }
+
+      const oldObj = found.obj;
+      const variantList = Array.isArray(oldObj?.userData?.almacenVariants)
+        ? oldObj.userData.almacenVariants
+        : [];
+
+      if (!variantList.length) {
+        console.warn('[swapAlmacenamientoVariant] La pieza no tiene variantes disponibles:', currentCode);
+        return;
+      }
+
+      const normTarget = String(targetVariant || 'base')
+        .trim()
+        .toLowerCase();
+
+      const targetEntry =
+        normTarget === 'base'
+          ? variantList.find((v) => !v?.variant) || variantList[0]
+          : variantList.find((v) =>
+              String(v?.variant || '')
+                .replace(/^_+/, '')
+                .toLowerCase() === normTarget
+            );
+
+      if (!targetEntry?.src) {
+        console.warn('[swapAlmacenamientoVariant] Variante no encontrada:', targetVariant, variantList);
+        return;
+      }
+
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+      const savedUserData = { ...oldObj.userData };
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      const gltf = await loadExistingGlb([targetEntry.src]);
+      if (!gltf) {
+        console.error('[swapAlmacenamientoVariant] No se encontró el GLB:', targetEntry.src);
+        return;
+      }
+
+      removePartObject(oldObj);
+
+      const newObj = gltf.scene;
+      const addonParts = await buildAlmacenamientoAddonParts(targetEntry?.variant || null);
+      newObj.userData = {
+        ...savedUserData,
+        kind: 'ALMACENAMIENTO',
+        codigoPT: currentCode,
+        code: currentCode,
+        name: savedUserData?.name || currentCode,
+        instanceId: newObj.uuid,
+        almacenVariant: targetEntry?.variant || null,
+        almacenCategory: targetEntry?.category || savedUserData?.almacenCategory || null,
+        almacenVariants: variantList,
+        almacenAddonParts: addonParts,
+      };
+
+      newObj.name = `ALMACENAMIENTO_${currentCode}`;
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.updateMatrixWorld(true);
+
+      if (parentGroup) {
+        parentGroup.add(newObj);
+      } else {
+        scene.add(newObj);
+      }
+
+      parts.push({ code: currentCode, obj: newObj });
+      pickables.push(newObj);
+
+      setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
     async function addCatalogItem(codigoPT) {
       if (readOnly) return;
       const codigo = String(codigoPT);
@@ -3518,6 +3730,7 @@ export default function ThreeCanvas({
 
     onApiReady?.({
       addPart,
+      addPartFromGlb,
       addSurface,
       addKoncisaPrivacyPanel,
       updateActivePrivacyPanelFinish,
@@ -3549,6 +3762,7 @@ export default function ThreeCanvas({
       addEduk,
       swapMepalSaludVariant,
       swapClakVariant,
+      swapAlmacenamientoVariant,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
       exportDXF: () => {
         const snap = getPartsSnapshot2D();
@@ -5775,6 +5989,9 @@ export default function ThreeCanvas({
           description: root.userData?.description || null,
           showGrid: root.userData?.showGrid !== false,
           mepalVariant: root.userData?.mepalVariant || 'normal',
+          almacenVariant: root.userData?.almacenVariant || null,
+          almacenCategory: root.userData?.almacenCategory || null,
+          almacenVariants: root.userData?.almacenVariants || null,
         },
       });
 

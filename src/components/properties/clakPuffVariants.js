@@ -76,6 +76,31 @@ export function getModuleCodeFor(width, height) {
   return null;
 }
 
+export function getSeatGroupCodesByCode(code) {
+  const normalized = normalizeClakPuffCode(code);
+  const seat = SEAT_VARIANTS[normalized];
+  if (!seat) return [];
+  const res = [];
+  // Group seats by size only (ignore grommet) so a single representative shows per size
+  for (const k of Object.keys(SEAT_VARIANTS)) {
+    const v = SEAT_VARIANTS[k];
+    if (String(v.size) === String(seat.size)) res.push(k);
+  }
+  return res;
+}
+
+export function getModuleGroupCodesByCode(code) {
+  const normalized = normalizeClakPuffCode(code);
+  const mod = MODULE_VARIANTS[normalized];
+  if (!mod) return [];
+  const res = [];
+  for (const k of Object.keys(MODULE_VARIANTS)) {
+    const v = MODULE_VARIANTS[k];
+    if (Number(v.width) === Number(mod.width) && Number(v.height) === Number(mod.height)) res.push(k);
+  }
+  return res;
+}
+
 export function normalizeClakPuffCode(code) {
   return String(code || '')
     .trim()

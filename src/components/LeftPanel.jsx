@@ -16,6 +16,12 @@ import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { buildKoncisaPlus } from '../koncisaPlus/KoncisaPlusBuilder';
+import {
+  getClakVariantOptionsByCode,
+  normalizeClakPuffCode,
+  getSeatVariantByCode,
+  getModuleVariantByCode,
+} from './properties/clakPuffVariants';
 
 const TYPOLOGY_IMAGE_EXTENSIONS = ['png', 'jpeg', 'jpg', 'webp'];
 const typologyImageCache = new Map();
@@ -165,6 +171,19 @@ function ClakCardImage({ codigo, title }) {
   );
 }
 
+function StorageCardImage({ codeBase, title }) {
+  return (
+    <CardImage
+      assetName={codeBase}
+      title={title}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
 function EdukCardImage({ codigo, title }) {
   return (
     <CardImage
@@ -264,11 +283,19 @@ export default function LeftPanel({
   const [qClak, setQClak] = useState('');
   const [clakItems, setClakItems] = useState([]);
   const [clakReady, setClakReady] = useState(false);
+  const [showClakVariants, setShowClakVariants] = useState(false);
 
   // EDUK states
   const [qEduk, setQEduk] = useState('');
   const [edukItems, setEdukItems] = useState([]);
   const [edukReady, setEdukReady] = useState(false);
+
+  // ZEN ALMACENAMIENTO states
+  const [qAlmacen, setQAlmacen] = useState('');
+  const [almacenItems, setAlmacenItems] = useState([]);
+  const [almacenReady, setAlmacenReady] = useState(false);
+  const [almacenCategoryFilter, setAlmacenCategoryFilter] = useState('');
+  const [almacenVariantsMap, setAlmacenVariantsMap] = useState(new Map());
 
   //Materiales genericos
   const [qMaterials, setQMaterials] = useState('');
@@ -1035,13 +1062,66 @@ export default function LeftPanel({
     const q = String(qClak || '')
       .trim()
       .toLowerCase();
-    if (!q) return clakItems || [];
-    return (clakItems || []).filter((it) => {
-      const code = String(it?.codigoPT ?? '').toLowerCase();
-      const title = String(it?.ui?.title ?? '').toLowerCase();
-      return code.includes(q) || title.includes(q);
-    });
-  }, [clakItems, qClak]);
+
+    // If user is searching, show matching items (including variants)
+    if (q) {
+      return (clakItems || []).filter((it) => {
+        const code = String(it?.codigoPT ?? '').toLowerCase();
+        const title = String(it?.ui?.title ?? '').toLowerCase();
+        return code.includes(q) || title.includes(q);
+      });
+    }
+
+    // When not searching, build a simple group-key and take first per key
+    if (!showClakVariants) {
+      const seen = new Set();
+      const out = [];
+      const groupingMap = new Map();
+
+      for (const it of clakItems || []) {
+        const codeNorm = normalizeClakPuffCode(it?.codigoPT);
+
+        // determine group key
+        let key = codeNorm;
+
+        const group = getClakVariantOptionsByCode(codeNorm);
+        if (group && Array.isArray(group) && group.length) {
+          key = `group_${normalizeClakPuffCode(group[0].code)}`;
+        } else {
+          const seat = getSeatVariantByCode(codeNorm);
+          if (seat) {
+            key = `seat_${String(seat.size)}`; // group by size only
+          } else {
+            const mod = getModuleVariantByCode(codeNorm);
+            if (mod) {
+              // Group module variants by width only so modules with same width
+              // (e.g., 174cm and 200cm) show as a single reference each by default.
+              key = `mod_${String(mod.width)}`;
+            }
+          }
+        }
+
+        if (!groupingMap.has(key)) groupingMap.set(key, []);
+        groupingMap.get(key).push(codeNorm);
+
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(it);
+      }
+
+      // Debug output to help diagnose why modules aren't being collapsed
+      try {
+        console.debug('[LeftPanel] clak grouping map:', Array.from(groupingMap.entries()).map(([k, arr]) => ({ key: k, codes: arr })));
+      } catch {
+        /* ignore */
+      }
+
+      return out;
+    }
+
+    // show all when user requested variants
+    return clakItems || [];
+  }, [clakItems, qClak, showClakVariants]);
 
   // ================================
   // Filtrado de EDUK
@@ -1057,6 +1137,97 @@ export default function LeftPanel({
       return code.includes(q) || title.includes(q);
     });
   }, [edukItems, qEduk]);
+
+  // ================================
+  // Filtrado ZEN ALMACENAMIENTO
+  // ================================
+  const almacenFiltered = useMemo(() => {
+    const q = String(qAlmacen || '').trim().toLowerCase();
+    if (!q) return almacenItems || [];
+    return (almacenItems || []).filter((it) => {
+      const code = String(it?.codigoPT ?? '').toLowerCase();
+      const title = String(it?.ui?.title ?? '').toLowerCase();
+      const cat = String(it?.raw?.category ?? '').toLowerCase();
+      return code.includes(q) || title.includes(q) || cat.includes(q);
+    });
+  }, [almacenItems, qAlmacen]);
+
+  const almacenByCategory = useMemo(() => {
+    const out = {};
+    const seenByCategoryCode = new Set();
+    (almacenFiltered || []).forEach((it) => {
+      const cat = it?.raw?.category || 'General';
+      const key = `${cat}__${String(it?.codigoPT || '')}`;
+      if (seenByCategoryCode.has(key)) return;
+      seenByCategoryCode.add(key);
+      if (!out[cat]) out[cat] = [];
+      out[cat].push(it);
+    });
+    return out;
+  }, [almacenFiltered]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch('/assets/models/Almacenamiento/manifest.json');
+        if (!res.ok) {
+          if (alive) setAlmacenReady(true);
+          return;
+        }
+        const arr = await res.json();
+        if (!alive) return;
+
+        // Cargar mapa de precios (reutiliza loader existente)
+        let priceMap = null;
+        try {
+          priceMap = await loadChairsPriceList(country);
+        } catch {
+          priceMap = null;
+        }
+
+        const mapped = (arr || []).map((it) => {
+          const codeBase = String(it.codeBase || it.filename || '').replace(/\.glb$/i, '');
+          const priceEntry = priceMap ? priceMap.get(String(codeBase)) : null;
+
+          return {
+            codigoPT: codeBase,
+            ui: {
+              title: (priceEntry?.descripcion || (it.codeBase || it.filename)) + (it.variant ? ` - ${it.variant}` : ''),
+              subtitle: 'Zen Almacenamiento',
+            },
+            prices: {
+              [country]: priceEntry?.precio || 0,
+            },
+            model: { kind: 'glb', src: it.url, category: it.category, variant: it.variant },
+            raw: Object.assign({}, it, { found: !!priceEntry }),
+          };
+        });
+
+        const displayItems = mapped.filter((it) => !it?.raw?.variant);
+
+        // construir mapa de variantes por codeBase
+        const vmap = new Map();
+        for (const it of mapped) {
+          const key = it.codigoPT;
+          const entry = { variant: it.raw?.variant || null, src: it.model?.src, category: it.model?.category || it.raw?.category };
+          if (!vmap.has(key)) vmap.set(key, []);
+          vmap.get(key).push(entry);
+        }
+
+        setAlmacenVariantsMap(vmap);
+
+        setAlmacenItems(displayItems);
+        setAlmacenReady(true);
+      } catch (err) {
+        console.error('Error cargando manifest Almacenamiento:', err);
+        if (alive) setAlmacenReady(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [country]);
 
   return (
     <div
@@ -2069,6 +2240,106 @@ export default function LeftPanel({
         </>
       )}
 
+      {/* ======================= ZEN ALMACENAMIENTO ======================= */}
+      {section === 'zenAlmacenamiento' && (
+        <>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+            Zen Almacenamiento
+          </h1>
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Selecciona un elemento de almacenamiento (Biblioteca o Pedestal).
+          </div>
+
+          <input
+            value={qAlmacen}
+            onChange={(e) => setQAlmacen(e.target.value)}
+            placeholder="Buscar por código o descripción..."
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 8,
+              outline: 'none',
+            }}
+          />
+
+          <select
+            value={almacenCategoryFilter}
+            onChange={(e) => setAlmacenCategoryFilter(e.target.value)}
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 10,
+              background: '#fff',
+            }}
+          >
+            <option value="">Todas</option>
+            <option value="Biblioteca">Biblioteca</option>
+            <option value="Pedestal">Pedestal</option>
+          </select>
+
+          {!almacenReady && (
+            <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Zen Almacenamiento...</div>
+          )}
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Mostrando <b>{almacenFiltered.length}</b> productos
+          </div>
+
+          <div style={{ display: 'grid', gap: 12 }}>
+            {Object.keys(almacenByCategory)
+              .filter((cat) => (almacenCategoryFilter ? cat === almacenCategoryFilter : true))
+              .map((cat) => (
+                <div key={cat}>
+                  <div style={{ fontWeight: 900, marginBottom: 8 }}>{cat}</div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {almacenByCategory[cat].map((it) => (
+                      <button
+                        key={String(it.codigoPT) + (it.raw?.variant || '')}
+                        disabled={readOnly}
+                        onClick={() => {
+                          if (readOnly) return;
+                          const codeBase = it.codigoPT;
+                          const variants = almacenVariantsMap.get(codeBase) || [];
+                          const baseVariant = variants.find((v) => !v?.variant) || variants[0] || null;
+                          const src = baseVariant?.src || it.model?.src;
+                          const itemFor3D = {
+                            codigoPT: codeBase,
+                            ui: it.ui,
+                            model: { kind: 'glb', src, variant: baseVariant?.variant || null },
+                            raw: it.raw,
+                            variants,
+                          };
+                          if (threeApiRef?.current?.addPartFromGlb) {
+                            threeApiRef.current.addPartFromGlb(itemFor3D);
+                          } else {
+                            onAddCatalogItem?.(it.codigoPT);
+                          }
+                        }}
+                        style={cardBtn(readOnly)}
+                      >
+                        <StorageCardImage codeBase={it.codigoPT} title={it.ui?.title || it.codigoPT} />
+                        <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{it.codigoPT}</div>
+                        <div style={{ fontSize: 12, opacity: 0.85, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{it.ui?.title}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+
+          {almacenReady && almacenFiltered.length === 0 && (
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
+              No hay productos disponibles en Zen Almacenamiento.
+            </div>
+          )}
+        </>
+      )}
+
       {/* ======================= OFFICE ACCESORIES ======================= */}
       {section === 'officeAccesories' && (
         <>
@@ -2269,6 +2540,28 @@ export default function LeftPanel({
               outline: 'none',
             }}
           />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <button
+              onClick={() => setShowClakVariants((s) => !s)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 8,
+                border: '1px solid #e5e7eb',
+                background: showClakVariants ? '#111827' : '#ffffff',
+                color: showClakVariants ? '#fff' : '#111827',
+                cursor: 'pointer',
+                fontSize: 13,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span style={{ width: 10, height: 10, borderRadius: 2, display: 'inline-block', background: showClakVariants ? '#34d399' : '#d1d5db' }} />
+              {showClakVariants ? 'Variantes: ON' : 'Variantes: OFF'}
+            </button>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>Mostrar todas las variantes</div>
+          </div>
 
           {!clakReady && <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Clak...</div>}
 
