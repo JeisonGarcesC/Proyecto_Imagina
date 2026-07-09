@@ -48,11 +48,49 @@ export const KONCISA_DUCTO_RULES = {
   },
 
   // =========================
+  // SENCILLO PASACABLE - INTERMEDIO
+  // =========================
+  KONPLUSSCABLEDUCTPASACABLEINT100: {
+    codigoPT: '22000136087',
+    modelSrc: '/assets/models/koncisaPlus/2KSO367000_PASACABLE_100.glb',
+  },
+  KONPLUSSCABLEDUCTPASACABLEINT120: {
+    codigoPT: '22000136088',
+    modelSrc: '/assets/models/koncisaPlus/2KSO367000_PASACABLE_120.glb',
+  },
+  KONPLUSSCABLEDUCTPASACABLEINT150: {
+    codigoPT: '22000136089',
+    modelSrc: '/assets/models/koncisaPlus/2KSO367000_PASACABLE_150.glb',
+  },
+
+  // =========================
+  // SENCILLO PASACABLE - TERMINAL
+  // =========================
+  KONPLUSSCABLEDUCTPASACABLETER100: {
+    codigoPT: '22000136090',
+    modelSrc: '/assets/models/koncisaPlus/2KSO368000_100.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO368000_100_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO368000_100_DER.glb',
+  },
+  KONPLUSSCABLEDUCTPASACABLETER120: {
+    codigoPT: '22000136091',
+    modelSrc: '/assets/models/koncisaPlus/2KSO368000_120.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO368000_120_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO368000_120_DER.glb',
+  },
+  KONPLUSSCABLEDUCTPASACABLETER150: {
+    codigoPT: '22000136092',
+    modelSrc: '/assets/models/koncisaPlus/2KSO368000_150.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO368000_150_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO368000_150_DER.glb',
+  },
+
+  // =========================
   // DOBLE - base general
   // =========================
   KONPLUSSCABLEDUCTDOUBLE: {
     codigoPT: '22000132829',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO345000.glb',
   },
 
   // =========================
@@ -60,15 +98,15 @@ export const KONCISA_DUCTO_RULES = {
   // =========================
   KONPLUSSCABLEDUCTDOUBLEINT100: {
     codigoPT: '22000132408',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO326000_100.glb',
   },
   KONPLUSSCABLEDUCTDOUBLEINT120: {
     codigoPT: '22000132409',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO326000_120.glb',
   },
   KONPLUSSCABLEDUCTDOUBLEINT150: {
     codigoPT: '22000132410',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO326000_150.glb',
   },
 
   // =========================
@@ -76,7 +114,9 @@ export const KONCISA_DUCTO_RULES = {
   // =========================
   KONPLUSSCABLEDUCTDOUBLETER100: {
     codigoPT: '22000132830',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO349000_100_IZQ.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO349000_100_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO349000_100_DER.glb',
   },
   KONPLUSSCABLEDUCTDOUBLETER120: {
     codigoPT: '22000132831',
@@ -86,9 +126,60 @@ export const KONCISA_DUCTO_RULES = {
   },
   KONPLUSSCABLEDUCTDOUBLETER150: {
     codigoPT: '22000132832',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO349000_150_IZQ.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO349000_150_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO349000_150_DER.glb',
+  },
+
+  // =========================
+  // DOBLE PASACABLE - INTERMEDIO
+  // =========================
+  KONPLUSSCABLEDUCTDOUBLEPASACABLEINT100: {
+    codigoPT: '22000136081',
+    modelSrc: '/assets/models/koncisaPlus/2KSO365000_100.glb',
+  },
+  KONPLUSSCABLEDUCTDOUBLEPASACABLEINT120: {
+    codigoPT: '22000136082',
+    modelSrc: '/assets/models/koncisaPlus/2KSO365000_120.glb',
+  },
+  KONPLUSSCABLEDUCTDOUBLEPASACABLEINT150: {
+    codigoPT: '22000136083',
+    modelSrc: '/assets/models/koncisaPlus/2KSO365000_150.glb',
+  },
+
+  // =========================
+  // DOBLE PASACABLE - TERMINAL
+  // =========================
+  KONPLUSSCABLEDUCTDOUBLEPASACABLETER100: {
+    codigoPT: '22000136084',
+    modelSrc: '/assets/models/koncisaPlus/2KSO366000_100_IZQ.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO366000_100_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO366000_100_DER.glb',
+  },
+  KONPLUSSCABLEDUCTDOUBLEPASACABLETER120: {
+    codigoPT: '22000136085',
+    modelSrc: '/assets/models/koncisaPlus/2KSO366000_120_IZQ.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO366000_120_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO366000_120_DER.glb',
+  },
+  KONPLUSSCABLEDUCTDOUBLEPASACABLETER150: {
+    codigoPT: '22000136086',
+    modelSrc: '/assets/models/koncisaPlus/2KSO366000_150_IZQ.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO366000_150_IZQ.glb',
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO366000_150_DER.glb',
   },
 };
+
+export function resolveKoncisaDuctBillingWidth(realWidthMm) {
+  const width = Number(realWidthMm || 0);
+
+  if (!Number.isFinite(width) || width <= 0) return null;
+  if (width <= 1000) return 1000;
+  if (width <= 1200) return 1200;
+  if (width <= 1500) return 1500;
+
+  return null;
+}
 
 function nominalTokenFromWidth(nominalWidthMm) {
   if (nominalWidthMm === 1000) return '100';
@@ -99,46 +190,76 @@ function nominalTokenFromWidth(nominalWidthMm) {
 
 export function resolveKoncisaDucto({
   tipoPuesto = 'sencillo',
-  tipoModulo = 'terminal', // terminal | intermedio | individual
+  tipoModulo = 'terminal',
   nominalWidthMm = 1200,
+  accesoCableado = 'GROMMET',
 }) {
-  const token =
-    nominalWidthMm === 1000
-      ? '100'
-      : nominalWidthMm === 1200
-        ? '120'
-        : nominalWidthMm === 1500
-          ? '150'
-          : null;
+  const tipoPuestoKey = String(tipoPuesto || 'sencillo')
+    .trim()
+    .toLowerCase();
+  const tipoModuloKey = String(tipoModulo || 'terminal')
+    .trim()
+    .toLowerCase();
+  const accesoKey = String(accesoCableado || 'GROMMET')
+    .trim()
+    .toUpperCase();
+
+  const realWidthMm = Number(nominalWidthMm || 0);
+  const billingWidthMm = resolveKoncisaDuctBillingWidth(realWidthMm);
+  const token = nominalTokenFromWidth(billingWidthMm);
+
+  const isIndividual = tipoModuloKey === 'individual';
+  const isSpecial = !isIndividual && !!billingWidthMm && billingWidthMm !== realWidthMm;
 
   if (!token) {
     return {
       logicalCode: null,
       codigoPT: null,
       modelSrc: null,
+      modelSrcLeft: null,
+      modelSrcRight: null,
       exists: false,
+      realWidthMm,
+      billingWidthMm: null,
+      isSpecial: false,
+      useNativeModel: false,
+      accesoCableado: accesoKey,
+      descriptionPrefix: '',
+      descriptionSuffix: '',
     };
   }
 
   let logicalCode = null;
 
-  if (tipoPuesto === 'sencillo') {
-    if (tipoModulo === 'individual') {
+  if (tipoPuestoKey === 'sencillo') {
+    const usePasacable = accesoKey === 'PASACABLE';
+
+    if (tipoModuloKey === 'individual') {
       logicalCode = 'KONPLUSSCABLEDUCT';
-    } else if (tipoModulo === 'intermedio') {
-      logicalCode = `KONPLUSSCABLEDUCTINT${token}`;
+    } else if (tipoModuloKey === 'intermedio') {
+      logicalCode = usePasacable
+        ? `KONPLUSSCABLEDUCTPASACABLEINT${token}`
+        : `KONPLUSSCABLEDUCTINT${token}`;
     } else {
-      logicalCode = `KONPLUSSCABLEDUCTTER${token}`;
+      logicalCode = usePasacable
+        ? `KONPLUSSCABLEDUCTPASACABLETER${token}`
+        : `KONPLUSSCABLEDUCTTER${token}`;
     }
   }
 
-  if (tipoPuesto === 'doble') {
-    if (tipoModulo === 'individual') {
+  if (tipoPuestoKey === 'doble') {
+    const usePasacable = accesoKey === 'PASACABLE';
+
+    if (tipoModuloKey === 'individual') {
       logicalCode = 'KONPLUSSCABLEDUCTDOUBLE';
-    } else if (tipoModulo === 'intermedio') {
-      logicalCode = `KONPLUSSCABLEDUCTDOUBLEINT${token}`;
+    } else if (tipoModuloKey === 'intermedio') {
+      logicalCode = usePasacable
+        ? `KONPLUSSCABLEDUCTDOUBLEPASACABLEINT${token}`
+        : `KONPLUSSCABLEDUCTDOUBLEINT${token}`;
     } else {
-      logicalCode = `KONPLUSSCABLEDUCTDOUBLETER${token}`;
+      logicalCode = usePasacable
+        ? `KONPLUSSCABLEDUCTDOUBLEPASACABLETER${token}`
+        : `KONPLUSSCABLEDUCTDOUBLETER${token}`;
     }
   }
 
@@ -151,5 +272,12 @@ export function resolveKoncisaDucto({
     modelSrcLeft: found?.modelSrcLeft || null,
     modelSrcRight: found?.modelSrcRight || null,
     exists: !!found,
+    realWidthMm,
+    billingWidthMm,
+    isSpecial,
+    useNativeModel: isSpecial,
+    accesoCableado: accesoKey,
+    descriptionPrefix: isSpecial ? 'ESPECIAL - ' : '',
+    descriptionSuffix: isSpecial ? `Medida real ${realWidthMm / 10} cm` : '',
   };
 }

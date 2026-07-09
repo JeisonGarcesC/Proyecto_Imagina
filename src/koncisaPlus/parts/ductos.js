@@ -18,19 +18,26 @@ export function createDucto({
   rotY = 0,
   rotZ = 0,
   side = 'RIGHT',
+  accesoCableado = 'GROMMET',
 }) {
   const resolved = resolveKoncisaDucto({
     tipoPuesto,
     tipoModulo,
     nominalWidthMm,
+    accesoCableado,
   });
 
   const sideKey = String(side || 'RIGHT').toUpperCase();
+
+  const isIndividual = String(tipoModulo || '').toUpperCase() === 'INDIVIDUAL';
 
   const modelSrc =
     sideKey === 'LEFT'
       ? resolved?.modelSrcLeft || resolved?.modelSrc
       : resolved?.modelSrcRight || resolved?.modelSrc;
+
+  const useNativeModel = !isIndividual && !!resolved?.useNativeModel;
+  const isSpecial = !isIndividual && !!resolved?.isSpecial;
 
   return {
     type: 'ducto',
@@ -45,15 +52,21 @@ export function createDucto({
     existsInCatalog: resolved.exists,
     rawCodigoPT: resolved.rawCodigoPT,
 
-    name: `Ducto ${tipoPuesto} ${tipoModulo} ${nominalWidthMm}`,
+    name: `${isSpecial && resolved?.descriptionPrefix ? `${resolved.descriptionPrefix} ` : ''}Ducto ${tipoPuesto} ${tipoModulo} ${isSpecial ? resolved?.billingWidthMm : nominalWidthMm}${isSpecial && resolved?.descriptionSuffix ? ` - ${resolved.descriptionSuffix}` : ''}`,
+
+    dimMm: {
+      widthMm: isSpecial ? resolved?.realWidthMm || nominalWidthMm : nominalWidthMm,
+      billingWidthMm: resolved?.billingWidthMm || nominalWidthMm,
+      heightMm: 203,
+      depthMm: 104,
+    },
 
     position: { x, y, z },
     rotation: { x: rotX, y: rotY, z: rotZ },
 
     model: {
-      kind: 'glb',
-      //src: resolved?.modelSrc || null,
-      src: modelSrc || null,
+      kind: useNativeModel ? 'native-koncisa-duct' : 'glb',
+      src: useNativeModel ? null : modelSrc || null,
     },
 
     meta: {
@@ -61,9 +74,20 @@ export function createDucto({
       tipoPuesto,
       tipoModulo,
       nominalWidthMm,
+
+      realWidthMm: isSpecial ? resolved?.realWidthMm || nominalWidthMm : nominalWidthMm,
+      billingWidthMm: resolved?.billingWidthMm || nominalWidthMm,
+
+      isSpecial,
+      useNativeModel,
+
+      descriptionPrefix: isSpecial ? resolved?.descriptionPrefix || '' : '',
+      descriptionSuffix: isSpecial ? resolved?.descriptionSuffix || '' : '',
+
       side: sideKey,
       modelSrcLeft: resolved?.modelSrcLeft || null,
       modelSrcRight: resolved?.modelSrcRight || null,
+      accesoCableado,
     },
   };
 }

@@ -377,6 +377,7 @@ export function buildKoncisaPlus(config = {}) {
         rotY: d.rotY ?? 0,
         rotZ: d.rotZ ?? 0,
         side: d.side ?? 'LEFT',
+        accesoCableado: config.accesoCableado || config.cableAccess || 'GROMMET',
       })
     );
   });

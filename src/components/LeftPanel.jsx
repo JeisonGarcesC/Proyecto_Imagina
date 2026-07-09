@@ -1587,14 +1587,26 @@ export default function LeftPanel({
                 continue;
               }
 
-              await api.addExternalGlbPart?.({
+              const ductoPayload = {
                 ...ducto,
                 groupId: ducto.groupId || groupId,
                 groupName: ducto.groupName || groupName,
-
-                // ✅ CLAVE
                 parentGroup: puestoGroup,
-              });
+              };
+
+              // Ductos especiales: se cobran/codifican con medida techo,
+              // pero se dibujan nativos con la medida real.
+              if (ducto.model?.kind === 'native-koncisa-duct' || ducto.meta?.useNativeModel) {
+                const created = api.addNativeKoncisaDuctPart?.(ductoPayload);
+
+                if (!created) {
+                  alert(`No se pudo crear el ducto especial: ${ducto.logicalCode}`);
+                }
+
+                continue;
+              }
+
+              await api.addExternalGlbPart?.(ductoPayload);
             }
 
             // =========================
