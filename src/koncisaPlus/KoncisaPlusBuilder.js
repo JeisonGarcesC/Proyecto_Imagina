@@ -127,6 +127,8 @@ function attachVigaModuleMetadata(vigaPart, vigaConfig = {}, fallbackIndex = 0) 
   vigaPart.meta = {
     ...(vigaPart.meta || {}),
     moduleIndex,
+    side: vigaConfig.side || vigaPart.meta?.side || 'CENTER',
+    tipoPuesto: vigaConfig.tipoPuesto || vigaPart.meta?.tipoPuesto || 'sencillo',
   };
 
   vigaPart.moduleIndex = moduleIndex;
@@ -341,12 +343,16 @@ export function buildKoncisaPlus(config = {}) {
     const vigaPart = createViga({
       groupId,
       groupName,
+
+      tipoPuesto: v.tipoPuesto || tipoPuesto,
+      moduleIndex: v.moduleIndex ?? index,
+      side: v.side || 'CENTER',
+
       nominalWidthMm: v.nominalWidthMm,
       x: v.x,
       y: v.y ?? 650,
       z: v.z ?? 0,
     });
-
     parts.push(attachVigaModuleMetadata(vigaPart, v, index));
   });
 
@@ -363,6 +369,9 @@ export function buildKoncisaPlus(config = {}) {
   });
 
   ductos.forEach((d) => {
+    const accesoCableado =
+      String(tipoPasoCable || '').toLowerCase() === 'pasacable' ? 'PASACABLE' : 'GROMMET';
+
     parts.push(
       createDucto({
         groupId,
@@ -377,6 +386,7 @@ export function buildKoncisaPlus(config = {}) {
         rotY: d.rotY ?? 0,
         rotZ: d.rotZ ?? 0,
         side: d.side ?? 'LEFT',
+        accesoCableado,
       })
     );
   });

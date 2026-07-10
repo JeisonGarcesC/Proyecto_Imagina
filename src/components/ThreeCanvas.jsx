@@ -1270,8 +1270,8 @@ export default function ThreeCanvas({
             (countryRef.current === 'EUC'
               ? detEUC?.precio
               : countryRef.current === 'USD'
-              ? detUSD?.precio
-              : detCO?.precio) ||
+                ? detUSD?.precio
+                : detCO?.precio) ||
               detCO?.precio ||
               detEUC?.precio ||
               detUSD?.precio ||
@@ -2664,7 +2664,10 @@ export default function ThreeCanvas({
         : [];
 
       if (!variantList.length) {
-        console.warn('[swapAlmacenamientoVariant] La pieza no tiene variantes disponibles:', currentCode);
+        console.warn(
+          '[swapAlmacenamientoVariant] La pieza no tiene variantes disponibles:',
+          currentCode
+        );
         return;
       }
 
@@ -2675,14 +2678,19 @@ export default function ThreeCanvas({
       const targetEntry =
         normTarget === 'base'
           ? variantList.find((v) => !v?.variant) || variantList[0]
-          : variantList.find((v) =>
-              String(v?.variant || '')
-                .replace(/^_+/, '')
-                .toLowerCase() === normTarget
+          : variantList.find(
+              (v) =>
+                String(v?.variant || '')
+                  .replace(/^_+/, '')
+                  .toLowerCase() === normTarget
             );
 
       if (!targetEntry?.src) {
-        console.warn('[swapAlmacenamientoVariant] Variante no encontrada:', targetVariant, variantList);
+        console.warn(
+          '[swapAlmacenamientoVariant] Variante no encontrada:',
+          targetVariant,
+          variantList
+        );
         return;
       }
 
@@ -3742,6 +3750,7 @@ export default function ThreeCanvas({
       addCatalogItem,
       addExternalGlbPart,
       addNativeBlockPart,
+      addNativeKoncisaDuctPart,
       toggleSnap,
       exportProject,
       loadProject,
@@ -6539,32 +6548,46 @@ export default function ThreeCanvas({
 
     // VIGAS Bloque nativo
     function addNativeBlockPart(part) {
-      if (readOnly) return;
-      if (!part?.dimMm) return;
+      if (readOnly) return null;
+      if (!part?.dimMm) return null;
 
-      //  CLAVE
       const parentGroup = part?.parentGroup || null;
 
-      const widthM = (part.dimMm.widthMm || 0) / 1000;
-      const heightM = (part.dimMm.heightMm || 0) / 1000;
-      const depthM = (part.dimMm.depthMm || 0) / 1000;
+      const widthM = Number(part.dimMm.widthMm || 0) / 1000;
+      const heightM = Number(part.dimMm.heightMm || 0) / 1000;
+      const depthM = Number(part.dimMm.depthMm || 0) / 1000;
+
+      if (widthM <= 0 || heightM <= 0 || depthM <= 0) {
+        console.warn('addNativeBlockPart: dimensiones inválidas', part);
+        return null;
+      }
 
       const geometry = new THREE.BoxGeometry(widthM, heightM, depthM);
-      const material = new THREE.MeshStandardMaterial({ color: 0x8a8a8a });
+
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x8a8a8a,
+        roughness: 0.75,
+        metalness: 0.05,
+      });
+
       const mesh = new THREE.Mesh(geometry, material);
 
       mesh.position.set(
-        (part.position?.x || 0) / 1000,
-        (part.position?.y || 0) / 1000,
-        (part.position?.z || 0) / 1000
+        Number(part.position?.x || 0) / 1000,
+        Number(part.position?.y || 0) / 1000,
+        Number(part.position?.z || 0) / 1000
       );
 
-      mesh.rotation.set(part.rotation?.x || 0, part.rotation?.y || 0, part.rotation?.z || 0);
+      mesh.rotation.set(
+        Number(part.rotation?.x || 0),
+        Number(part.rotation?.y || 0),
+        Number(part.rotation?.z || 0)
+      );
 
       const code = String(part.code || '').trim();
       const catalogItem = catalogByCodeRef.current?.get?.(code) || null;
 
-      const description =
+      const catalogDescription =
         catalogItem?.ui?.title ||
         catalogItem?.ui?.subtitle ||
         catalogItem?.raw?.descripcion ||
@@ -6572,6 +6595,18 @@ export default function ThreeCanvas({
         part.name ||
         part.code ||
         'Bloque nativo';
+
+      const isSpecial = !!part?.meta?.isSpecial;
+
+      const descriptionPrefix = String(part?.meta?.descriptionPrefix || '').trim();
+
+      const descriptionSuffix = String(part?.meta?.descriptionSuffix || '').trim();
+
+      const description = isSpecial
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
+            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+          }`
+        : catalogDescription;
 
       const unitPrice =
         Number(
@@ -6586,21 +6621,42 @@ export default function ThreeCanvas({
 
       mesh.userData = {
         isPartRoot: true,
+
         code: code || null,
         codigoPT: code || null,
+
         kind: part.type || 'BLOCK_PART',
+        subtype: part.subtype || null,
         line: part.line || null,
+
         dim: part.dimMm || null,
         description,
         unitPrice,
-        meta: part.meta || {},
+
+        meta: {
+          ...(part.meta || {}),
+          isSpecial,
+          descriptionPrefix,
+          descriptionSuffix,
+        },
+
         instanceId: `${code || 'block'}__${Date.now()}__${Math.random().toString(16).slice(2)}`,
 
         groupId: part?.groupId || parentGroup?.userData?.instanceId || null,
+
         groupName: part?.groupName || parentGroup?.userData?.name || null,
+
         parentAssemblyId: parentGroup?.userData?.instanceId || parentGroup?.userData?.code || null,
 
         logicalCode: part?.logicalCode || null,
+
+        realWidthMm:
+          part?.meta?.realWidthMm ??
+          part?.dimMm?.realWidthMm ??
+          part?.dimMm?.nominalWidthMm ??
+          null,
+
+        billingWidthMm: part?.meta?.billingWidthMm ?? part?.dimMm?.billingWidthMm ?? null,
       };
 
       mesh.name = code || part.name || 'BLOCK_PART';
@@ -6613,7 +6669,11 @@ export default function ThreeCanvas({
         scene.add(mesh);
       }
 
-      parts.push({ code: code || mesh.name, obj: mesh });
+      parts.push({
+        code: code || mesh.name,
+        obj: mesh,
+      });
+
       pickables.push(mesh);
 
       setActivePart(mesh);
@@ -6621,6 +6681,419 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
 
       return mesh;
+    }
+
+    function getNativeDuctLengthMm(part) {
+      const tipoModulo = String(part?.subtype || part?.meta?.tipoModulo || '')
+        .trim()
+        .toUpperCase();
+
+      const realMm = Number(
+        part?.meta?.realWidthMm || part?.dimMm?.widthMm || part?.meta?.nominalWidthMm || 1200
+      );
+
+      if (!Number.isFinite(realMm) || realMm <= 0) {
+        return 1200;
+      }
+
+      if (tipoModulo === 'INTERMEDIO') {
+        return realMm - 2;
+      }
+
+      if (tipoModulo === 'TERMINAL') {
+        return realMm / 2 + 313.5;
+      }
+
+      if (tipoModulo === 'INDIVIDUAL') {
+        return 694;
+      }
+
+      return realMm;
+    }
+
+    function getNativeDuctOffsetMm(part) {
+      const tipoPuesto = String(part?.meta?.tipoPuesto || '')
+        .trim()
+        .toUpperCase();
+
+      const tipoModulo = String(part?.subtype || part?.meta?.tipoModulo || '')
+        .trim()
+        .toUpperCase();
+
+      const side = String(part?.meta?.side || 'RIGHT').toUpperCase();
+
+      const accesoCableado = String(part?.meta?.accesoCableado || 'GROMMET')
+        .trim()
+        .toUpperCase();
+
+      const isPasacable = accesoCableado === 'PASACABLE';
+
+      if (tipoPuesto === 'DOBLE') {
+        const zOffsetDoble = isPasacable ? 0 : 0;
+
+        if (tipoModulo === 'INTERMEDIO') {
+          return { x: 0, y: 0, z: zOffsetDoble };
+        }
+
+        if (tipoModulo === 'TERMINAL') {
+          return {
+            x: side === 'RIGHT' ? -422 : 422,
+            y: 0,
+            z: zOffsetDoble,
+          };
+        }
+
+        return { x: 0, y: 0, z: zOffsetDoble };
+      }
+
+      const zOffset = isPasacable ? -65 : -78;
+
+      if (tipoModulo === 'INTERMEDIO') {
+        return { x: 0, y: 0, z: zOffset };
+      }
+
+      if (tipoModulo === 'TERMINAL') {
+        return {
+          x: side === 'RIGHT' ? -422 : 422,
+          y: 0,
+          z: zOffset,
+        };
+      }
+
+      return { x: 0, y: 0, z: zOffset };
+    }
+
+    function createNativeKoncisaDoubleDuctMesh(part = {}) {
+      const root = new THREE.Group();
+      root.name = part.code || part.name || 'KONCISA_DUCT_NATIVE_DOUBLE';
+
+      const lengthMm = getNativeDuctLengthMm(part);
+      const lengthM = Math.max(lengthMm / 1000, 0.1);
+
+      const tipoModulo = String(part?.meta?.tipoModulo || part?.subtype || 'terminal')
+        .trim()
+        .toLowerCase();
+
+      const side = String(part?.meta?.side || 'LEFT').toUpperCase();
+
+      const accesoCableado = String(part?.meta?.accesoCableado || 'GROMMET')
+        .trim()
+        .toUpperCase();
+
+      const isPasacable = accesoCableado === 'PASACABLE';
+
+      const depthM = isPasacable ? 0.15 : 0.204;
+      const heightM = isPasacable ? 0.13 : 0.202;
+      const baseHeightM = isPasacable ? 0.065 : 0.1;
+      const wallM = 0.003;
+      const coverDepthM = isPasacable ? 0.025 : 0.03;
+
+      const material = new THREE.MeshStandardMaterial({
+        color: isPasacable ? 0x7d7d7d : 0x6f8fbf,
+        roughness: 0.7,
+        metalness: 0.05,
+      });
+
+      function addBox(name, size, center) {
+        const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+        const mesh = new THREE.Mesh(geo, material.clone());
+        mesh.name = name;
+        mesh.position.set(center[0], center[1], center[2]);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        root.add(mesh);
+        return mesh;
+      }
+
+      const centerX = 0;
+
+      addBox(
+        'ducto-doble-caja-principal',
+        [lengthM, baseHeightM, depthM],
+        [centerX, baseHeightM / 2, 0]
+      );
+
+      addBox(
+        isPasacable
+          ? 'ducto-doble-pasacable-tapa-superior-frontal'
+          : 'ducto-doble-grommet-tapa-superior-frontal',
+        [Math.min(lengthM, 0.5), heightM - baseHeightM, coverDepthM],
+        [centerX, baseHeightM + (heightM - baseHeightM) / 2, -depthM / 2 - coverDepthM / 2]
+      );
+
+      addBox(
+        isPasacable
+          ? 'ducto-doble-pasacable-tapa-superior-posterior'
+          : 'ducto-doble-grommet-tapa-superior-posterior',
+        [Math.min(lengthM, 0.5), heightM - baseHeightM, coverDepthM],
+        [centerX, baseHeightM + (heightM - baseHeightM) / 2, depthM / 2 + coverDepthM / 2]
+      );
+
+      addBox(
+        'ducto-doble-pared-lateral-izquierda',
+        [wallM, heightM, depthM],
+        [-lengthM / 2, heightM / 2, 0]
+      );
+
+      addBox(
+        'ducto-doble-pared-lateral-derecha',
+        [wallM, heightM, depthM],
+        [lengthM / 2, heightM / 2, 0]
+      );
+
+      addBox(
+        'ducto-doble-nervio-central',
+        [lengthM, wallM, isPasacable ? 0.012 : 0.018],
+        [centerX, baseHeightM + 0.045, 0]
+      );
+
+      addBox(
+        'ducto-doble-borde-frontal',
+        [lengthM, wallM, 0.012],
+        [centerX, baseHeightM + 0.045, -depthM / 2]
+      );
+
+      addBox(
+        'ducto-doble-borde-posterior',
+        [lengthM, wallM, 0.012],
+        [centerX, baseHeightM + 0.045, depthM / 2]
+      );
+
+      if (tipoModulo === 'terminal') {
+        const closeX = side === 'RIGHT' ? -lengthM / 2 : lengthM / 2;
+
+        addBox(
+          isPasacable
+            ? 'ducto-doble-pasacable-cierre-terminal'
+            : 'ducto-doble-grommet-cierre-terminal',
+          [wallM * 1.5, heightM, depthM],
+          [closeX, heightM / 2, 0]
+        );
+      }
+
+      return root;
+    }
+
+    function createNativeKoncisaSingleDuctMesh(part = {}) {
+      const root = new THREE.Group();
+      root.name = part.code || part.name || 'KONCISA_DUCT_NATIVE_SINGLE';
+
+      const lengthMm = getNativeDuctLengthMm(part);
+      const lengthM = Math.max(lengthMm / 1000, 0.1);
+
+      const tipoModulo = String(part?.meta?.tipoModulo || part?.subtype || 'terminal')
+        .trim()
+        .toLowerCase();
+
+      const side = String(part?.meta?.side || 'LEFT').toUpperCase();
+
+      const accesoCableado = String(part?.meta?.accesoCableado || 'GROMMET')
+        .trim()
+        .toUpperCase();
+
+      const isPasacable = accesoCableado === 'PASACABLE';
+
+      const depthM = isPasacable ? 0.08 : 0.104;
+      const heightM = isPasacable ? 0.13 : 0.203;
+      const wallM = 0.003;
+      const coverHeightM = isPasacable ? 0.025 : 0.05;
+
+      const material = new THREE.MeshStandardMaterial({
+        color: isPasacable ? 0x7d7d7d : 0x8a8a8a,
+        roughness: 0.75,
+        metalness: 0.05,
+      });
+
+      function addBox(name, size, center) {
+        const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+        const mesh = new THREE.Mesh(geo, material.clone());
+        mesh.name = name;
+        mesh.position.set(center[0], center[1], center[2]);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        root.add(mesh);
+        return mesh;
+      }
+
+      const startX = tipoModulo === 'intermedio' ? 0 : -lengthM / 2;
+      const centerX = startX + lengthM / 2;
+
+      addBox(
+        'ducto-sencillo-caja-inferior',
+        [lengthM, heightM * 0.5, depthM],
+        [centerX, heightM * 0.25, 0]
+      );
+
+      addBox(
+        isPasacable
+          ? 'ducto-sencillo-pasacable-tapa-superior'
+          : 'ducto-sencillo-grommet-tapa-superior',
+        [lengthM, wallM, coverHeightM],
+        [centerX, heightM * 0.75, -depthM * 0.25]
+      );
+
+      addBox(
+        isPasacable
+          ? 'ducto-sencillo-pasacable-tapa-posterior'
+          : 'ducto-sencillo-grommet-tapa-posterior',
+        [Math.min(lengthM, 0.5), wallM, heightM * 0.5],
+        [centerX, heightM * 0.75, depthM * 0.25]
+      );
+
+      if (isPasacable) {
+        addBox(
+          'ducto-sencillo-pasacable-ranura-central',
+          [Math.min(lengthM, 0.5), wallM, 0.012],
+          [centerX, heightM * 0.78, 0]
+        );
+      }
+
+      if (tipoModulo === 'intermedio') {
+        addBox(
+          'ducto-sencillo-tapa-lateral-izq',
+          [wallM, heightM * 0.45, depthM],
+          [startX + 0.047, heightM * 0.45, 0]
+        );
+
+        addBox(
+          'ducto-sencillo-tapa-lateral-der',
+          [wallM, heightM * 0.45, depthM],
+          [startX + lengthM - 0.047, heightM * 0.45, 0]
+        );
+      } else if (tipoModulo === 'individual') {
+        addBox('ducto-sencillo-cierre-izq', [wallM, heightM, depthM], [startX, heightM / 2, 0]);
+
+        addBox(
+          'ducto-sencillo-cierre-der',
+          [wallM, heightM, depthM],
+          [startX + lengthM, heightM / 2, 0]
+        );
+      } else {
+        const closeAtLeft = side === 'RIGHT';
+        const closeX = closeAtLeft ? startX : startX + lengthM;
+
+        addBox(
+          isPasacable
+            ? 'ducto-sencillo-pasacable-cierre-terminal'
+            : 'ducto-sencillo-grommet-cierre-terminal',
+          [wallM, heightM * 0.9, depthM],
+          [closeX, heightM * 0.45, 0]
+        );
+      }
+
+      return root;
+    }
+
+    function createNativeKoncisaDuctMesh(part = {}) {
+      const tipoPuesto = String(part?.meta?.tipoPuesto || '')
+        .trim()
+        .toUpperCase();
+
+      if (tipoPuesto === 'DOBLE') {
+        return createNativeKoncisaDoubleDuctMesh(part);
+      }
+
+      return createNativeKoncisaSingleDuctMesh(part);
+    }
+
+    function addNativeKoncisaDuctPart(part) {
+      if (readOnly) return null;
+
+      const parentGroup = part?.parentGroup || null;
+      const obj = createNativeKoncisaDuctMesh(part);
+
+      const nativeOffsetMm = getNativeDuctOffsetMm(part);
+
+      obj.position.set(
+        ((part.position?.x || 0) + nativeOffsetMm.x) / 1000,
+        ((part.position?.y || 0) + nativeOffsetMm.y) / 1000,
+        ((part.position?.z || 0) + nativeOffsetMm.z) / 1000
+      );
+
+      obj.rotation.set(part.rotation?.x || 0, part.rotation?.y || 0, part.rotation?.z || 0);
+
+      const code = String(part.code || '').trim();
+      const catalogItem = catalogByCodeRef.current?.get?.(code) || null;
+      const prefix = part?.meta?.descriptionPrefix ? `${part.meta.descriptionPrefix} ` : '';
+      const suffix = part?.meta?.descriptionSuffix ? ` - ${part.meta.descriptionSuffix}` : '';
+
+      const baseDescription =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
+        part.name ||
+        part.code ||
+        'Ducto Koncisa Plus';
+
+      const description = `${prefix}${baseDescription}${suffix}`;
+
+      const unitPrice =
+        Number(
+          catalogItem?.prices?.[countryRef.current] ??
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
+        ) || 0;
+
+      const ductModuleType = part?.meta?.tipoModulo || 'terminal';
+      const initialDuctCovers = normalizeDuctCoverState(
+        ductModuleType,
+        part?.meta?.ductCovers || defaultDuctCoverState(ductModuleType)
+      );
+
+      obj.userData = {
+        isPartRoot: true,
+        code: code || null,
+        codigoPT: code || null,
+        kind: part.type || 'ducto',
+        line: part.line || null,
+        dim: part.dimMm || null,
+        description,
+        unitPrice,
+        meta: part.meta || {},
+        instanceId: `${code || 'native-duct'}__${Date.now()}__${Math.random().toString(16).slice(2)}`,
+        groupId: part?.groupId || parentGroup?.userData?.instanceId || null,
+        groupName: part?.groupName || parentGroup?.userData?.name || null,
+        parentAssemblyId: parentGroup?.userData?.instanceId || parentGroup?.userData?.code || null,
+        logicalCode: part?.logicalCode || null,
+        modelSrc: null,
+        model: part?.model || { kind: 'native-koncisa-duct' },
+        ductCovers: initialDuctCovers,
+      };
+
+      obj.traverse((node) => {
+        if (!node) return;
+
+        node.userData = {
+          ...(node.userData || {}),
+          parentAssemblyId: obj.userData.parentAssemblyId,
+          groupId: obj.userData.groupId,
+          groupName: obj.userData.groupName,
+        };
+
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+
+      if (parentGroup) {
+        parentGroup.add(obj);
+      } else {
+        scene.add(obj);
+      }
+
+      parts.push({ code: code || obj.name, obj });
+      pickables.push(obj);
+      setActivePart(obj);
+      emitBOM();
+      refreshFloorAndGrid();
+
+      return obj;
     }
 
     async function addExternalGlbPart(part) {

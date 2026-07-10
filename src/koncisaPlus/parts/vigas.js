@@ -4,6 +4,9 @@ import { resolveKoncisaViga } from '../rules/koncisaVigaRules';
 export function createViga({
   groupId = null,
   groupName = null,
+  tipoPuesto = 'sencillo',
+  moduleIndex = 0,
+  side = 'CENTER',
   nominalWidthMm = 1200,
   x = 0,
   y = 650,
@@ -11,9 +14,23 @@ export function createViga({
 }) {
   const resolved = resolveKoncisaViga({ nominalWidthMm });
 
-  const widthMm = Math.max(1, nominalWidthMm - 87);
+  const realWidthMm = resolved?.realWidthMm || nominalWidthMm;
+
+  // Medida física de la viga:
+  // se calcula con la medida real, no con la medida de cobro.
+  const widthMm = Math.max(1, realWidthMm - 87);
   const heightMm = 50.8;
   const depthMm = 25.4;
+
+  const isSpecial = !!resolved?.isSpecial;
+
+  const baseName = `Viga ${resolved?.billingWidthMm || nominalWidthMm}`;
+
+  const name = `${
+    isSpecial && resolved?.descriptionPrefix ? resolved.descriptionPrefix : ''
+  }${baseName}${
+    isSpecial && resolved?.descriptionSuffix ? ` - ${resolved.descriptionSuffix}` : ''
+  }`;
 
   return {
     type: 'viga',
@@ -28,13 +45,16 @@ export function createViga({
     existsInCatalog: resolved.exists,
     rawCodigoPT: resolved.codigoPT,
 
-    name: `Viga ${nominalWidthMm}`,
+    name,
 
     dimMm: {
       widthMm,
       heightMm,
       depthMm,
-      nominalWidthMm,
+
+      nominalWidthMm: realWidthMm,
+      realWidthMm,
+      billingWidthMm: resolved?.billingWidthMm || realWidthMm,
     },
 
     position: {
@@ -51,7 +71,18 @@ export function createViga({
 
     meta: {
       category: 'vigas',
-      nominalWidthMm,
+
+      tipoPuesto,
+      moduleIndex,
+      side,
+
+      nominalWidthMm: realWidthMm,
+      realWidthMm,
+      billingWidthMm: resolved?.billingWidthMm || realWidthMm,
+
+      isSpecial,
+      descriptionPrefix: isSpecial ? resolved?.descriptionPrefix || '' : '',
+      descriptionSuffix: isSpecial ? resolved?.descriptionSuffix || '' : '',
     },
   };
 }

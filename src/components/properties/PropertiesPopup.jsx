@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import KoncisaPlusProperties, {
   isKoncisaPlusEditablePart,
-} from './koncisaPlus/KoncisaPlusProperties';
+} from './koncisaPlusCarpetaProperties/KoncisaPlusProperties';
 import MepalSaludProperties from './MepalSaludProperties';
 import ClakProperties from './ClakProperties';
 import AlmacenamientoProperties from './AlmacenamientoProperties';
