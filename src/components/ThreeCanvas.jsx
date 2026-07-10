@@ -6548,32 +6548,46 @@ export default function ThreeCanvas({
 
     // VIGAS Bloque nativo
     function addNativeBlockPart(part) {
-      if (readOnly) return;
-      if (!part?.dimMm) return;
+      if (readOnly) return null;
+      if (!part?.dimMm) return null;
 
-      //  CLAVE
       const parentGroup = part?.parentGroup || null;
 
-      const widthM = (part.dimMm.widthMm || 0) / 1000;
-      const heightM = (part.dimMm.heightMm || 0) / 1000;
-      const depthM = (part.dimMm.depthMm || 0) / 1000;
+      const widthM = Number(part.dimMm.widthMm || 0) / 1000;
+      const heightM = Number(part.dimMm.heightMm || 0) / 1000;
+      const depthM = Number(part.dimMm.depthMm || 0) / 1000;
+
+      if (widthM <= 0 || heightM <= 0 || depthM <= 0) {
+        console.warn('addNativeBlockPart: dimensiones inválidas', part);
+        return null;
+      }
 
       const geometry = new THREE.BoxGeometry(widthM, heightM, depthM);
-      const material = new THREE.MeshStandardMaterial({ color: 0x8a8a8a });
+
+      const material = new THREE.MeshStandardMaterial({
+        color: 0x8a8a8a,
+        roughness: 0.75,
+        metalness: 0.05,
+      });
+
       const mesh = new THREE.Mesh(geometry, material);
 
       mesh.position.set(
-        (part.position?.x || 0) / 1000,
-        (part.position?.y || 0) / 1000,
-        (part.position?.z || 0) / 1000
+        Number(part.position?.x || 0) / 1000,
+        Number(part.position?.y || 0) / 1000,
+        Number(part.position?.z || 0) / 1000
       );
 
-      mesh.rotation.set(part.rotation?.x || 0, part.rotation?.y || 0, part.rotation?.z || 0);
+      mesh.rotation.set(
+        Number(part.rotation?.x || 0),
+        Number(part.rotation?.y || 0),
+        Number(part.rotation?.z || 0)
+      );
 
       const code = String(part.code || '').trim();
       const catalogItem = catalogByCodeRef.current?.get?.(code) || null;
 
-      const description =
+      const catalogDescription =
         catalogItem?.ui?.title ||
         catalogItem?.ui?.subtitle ||
         catalogItem?.raw?.descripcion ||
@@ -6581,6 +6595,18 @@ export default function ThreeCanvas({
         part.name ||
         part.code ||
         'Bloque nativo';
+
+      const isSpecial = !!part?.meta?.isSpecial;
+
+      const descriptionPrefix = String(part?.meta?.descriptionPrefix || '').trim();
+
+      const descriptionSuffix = String(part?.meta?.descriptionSuffix || '').trim();
+
+      const description = isSpecial
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
+            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+          }`
+        : catalogDescription;
 
       const unitPrice =
         Number(
@@ -6595,21 +6621,42 @@ export default function ThreeCanvas({
 
       mesh.userData = {
         isPartRoot: true,
+
         code: code || null,
         codigoPT: code || null,
+
         kind: part.type || 'BLOCK_PART',
+        subtype: part.subtype || null,
         line: part.line || null,
+
         dim: part.dimMm || null,
         description,
         unitPrice,
-        meta: part.meta || {},
+
+        meta: {
+          ...(part.meta || {}),
+          isSpecial,
+          descriptionPrefix,
+          descriptionSuffix,
+        },
+
         instanceId: `${code || 'block'}__${Date.now()}__${Math.random().toString(16).slice(2)}`,
 
         groupId: part?.groupId || parentGroup?.userData?.instanceId || null,
+
         groupName: part?.groupName || parentGroup?.userData?.name || null,
+
         parentAssemblyId: parentGroup?.userData?.instanceId || parentGroup?.userData?.code || null,
 
         logicalCode: part?.logicalCode || null,
+
+        realWidthMm:
+          part?.meta?.realWidthMm ??
+          part?.dimMm?.realWidthMm ??
+          part?.dimMm?.nominalWidthMm ??
+          null,
+
+        billingWidthMm: part?.meta?.billingWidthMm ?? part?.dimMm?.billingWidthMm ?? null,
       };
 
       mesh.name = code || part.name || 'BLOCK_PART';
@@ -6622,7 +6669,11 @@ export default function ThreeCanvas({
         scene.add(mesh);
       }
 
-      parts.push({ code: code || mesh.name, obj: mesh });
+      parts.push({
+        code: code || mesh.name,
+        obj: mesh,
+      });
+
       pickables.push(mesh);
 
       setActivePart(mesh);
@@ -6630,6 +6681,34 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
 
       return mesh;
+    }
+
+    function getNativeDuctLengthMm(part) {
+      const tipoModulo = String(part?.subtype || part?.meta?.tipoModulo || '')
+        .trim()
+        .toUpperCase();
+
+      const realMm = Number(
+        part?.meta?.realWidthMm || part?.dimMm?.widthMm || part?.meta?.nominalWidthMm || 1200
+      );
+
+      if (!Number.isFinite(realMm) || realMm <= 0) {
+        return 1200;
+      }
+
+      if (tipoModulo === 'INTERMEDIO') {
+        return realMm - 2;
+      }
+
+      if (tipoModulo === 'TERMINAL') {
+        return realMm / 2 + 313.5;
+      }
+
+      if (tipoModulo === 'INDIVIDUAL') {
+        return 694;
+      }
+
+      return realMm;
     }
 
     function getNativeDuctOffsetMm(part) {

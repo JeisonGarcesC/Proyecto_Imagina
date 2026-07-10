@@ -315,6 +315,9 @@ export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
 
     if (tipoPuesto === 'sencillo') {
       out.push({
+        tipoPuesto,
+        moduleIndex: i,
+        side: 'CENTER',
         nominalWidthMm: largoRealMm,
         x: baseX,
         y: 690,
@@ -324,6 +327,9 @@ export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
 
     if (tipoPuesto === 'doble') {
       out.push({
+        tipoPuesto,
+        moduleIndex: i,
+        side: 'FRONT',
         nominalWidthMm: largoRealMm,
         x: baseX,
         y: 690,
@@ -331,6 +337,9 @@ export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
       });
 
       out.push({
+        tipoPuesto,
+        moduleIndex: i,
+        side: 'BACK',
         nominalWidthMm: largoRealMm,
         x: baseX,
         y: 690,
