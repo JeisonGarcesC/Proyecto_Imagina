@@ -52,6 +52,26 @@ function normalizeMepalItemCode(item) {
   return String(code || '').trim();
 }
 
+function isMepalItemDisabled(item) {
+  if (!item || typeof item !== 'object') return false;
+
+  const value = item.disabled ?? item.deshabilitado ?? item.enabled;
+
+  if (value == null) return false;
+  if (typeof value === 'boolean') {
+    // enabled=false should behave as disabled=true.
+    if ('enabled' in item) return !value;
+    return value;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if ('enabled' in item) {
+    return ['false', '0', 'no', 'n'].includes(normalized);
+  }
+
+  return ['true', '1', 'si', 'sí', 'yes', 'y'].includes(normalized);
+}
+
 async function loadMepalTekSocialCodes() {
   if (cacheMepalTekSocialCodes) return cacheMepalTekSocialCodes;
 
@@ -66,6 +86,7 @@ async function loadMepalTekSocialCodes() {
     const seen = new Set();
 
     for (const item of arr) {
+      if (isMepalItemDisabled(item)) continue;
       const code = normalizeMepalItemCode(item);
       if (!code || seen.has(code)) continue;
       seen.add(code);

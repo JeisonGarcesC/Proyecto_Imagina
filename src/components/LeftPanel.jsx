@@ -106,6 +106,19 @@ function TypologyCardImage({ codigoPT, title }) {
   return <CardImage assetName={codigoPT} title={title} />;
 }
 
+function ChairCardImage({ codigoPT, title }) {
+  return (
+    <CardImage
+      assetName={codigoPT}
+      title={title}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
 function PlantCardImage({ plantName, title }) {
   return (
     <CardImage
@@ -1204,11 +1217,12 @@ export default function LeftPanel({
           };
         });
 
-        const displayItems = mapped.filter((it) => !it?.raw?.variant);
+        const activeItems = mapped.filter((it) => !it?.raw?.disabled);
+        const displayItems = activeItems.filter((it) => !it?.raw?.variant);
 
         // construir mapa de variantes por codeBase
         const vmap = new Map();
-        for (const it of mapped) {
+        for (const it of activeItems) {
           const key = it.codigoPT;
           const entry = { variant: it.raw?.variant || null, src: it.model?.src, category: it.model?.category || it.raw?.category };
           if (!vmap.has(key)) vmap.set(key, []);
@@ -2116,6 +2130,7 @@ export default function LeftPanel({
                 onClick={() => !readOnly && onAddChair(it.codigoPT)}
                 style={cardBtn(readOnly)}
               >
+                <ChairCardImage codigoPT={it.codigoPT} title={it.ui?.title || it.codigoPT} />
                 <div style={{ fontWeight: 900 }}>{it.codigoPT}</div>
                 <div style={{ fontSize: 12, opacity: 0.85 }}>{it.ui?.title}</div>
 
