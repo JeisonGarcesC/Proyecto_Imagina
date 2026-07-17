@@ -19,6 +19,8 @@ import { createPasacable } from './parts/pasacables';
 import { resolveKoncisaFloorDuct } from './rules/koncisaFloorDuctRules';
 import { resolveKoncisaCeilingDuct } from './rules/koncisaCeilingDuctRules';
 
+import { buildKoncisaLeader } from './leader/KoncisaLeaderBuilder';
+
 function normalizeCostadoZone(value) {
   const text = String(value || '')
     .trim()
@@ -137,6 +139,14 @@ function attachVigaModuleMetadata(vigaPart, vigaConfig = {}, fallbackIndex = 0) 
 }
 
 export function buildKoncisaPlus(config = {}) {
+  const layoutType = String(config?.layoutType || 'STANDARD')
+    .trim()
+    .toUpperCase();
+
+  if (layoutType === 'LEADER') {
+    return buildKoncisaLeader(config);
+  }
+
   const groupId = `KONCISA_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
   const groupName = `Koncisa Plus`;
 
@@ -248,6 +258,7 @@ export function buildKoncisaPlus(config = {}) {
       index: s.index ?? index,
     });
 
+    //quitar la linea de abajo
     parts.push(attachSurfaceModuleMetadata(surfacePart, s, index));
   });
 

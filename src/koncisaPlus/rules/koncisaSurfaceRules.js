@@ -199,11 +199,39 @@ function resolveVariantSuffix(variant) {
   return `-${variant}`;
 }
 
+function resolveCeilingDimension(realMm, availableDimensions = []) {
+  const value = Number(realMm || 0);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  const sorted = [...availableDimensions].sort((a, b) => a - b);
+
+  return sorted.find((dimension) => value <= dimension) || null;
+}
+
+export function resolveKoncisaSurfaceBillingWidth(realWidthMm) {
+  return resolveCeilingDimension(realWidthMm, [1000, 1200, 1500]);
+}
+
+export function resolveKoncisaSurfaceBillingDepth({ realDepthMm, tipoPuesto = 'sencillo' }) {
+  const tipoPuestoKey = String(tipoPuesto || 'sencillo')
+    .trim()
+    .toLowerCase();
+
+  if (tipoPuestoKey === 'doble') {
+    return resolveCeilingDimension(realDepthMm, [1200, 1500]);
+  }
+
+  return resolveCeilingDimension(realDepthMm, [600, 750]);
+}
+
 export function buildKoncisaSurfaceLogicalCode({
   billingWidthMm,
   billingDepthMm,
   shape = 'RECT',
-  thicknessMm = 25,
+  thicknessMm = 30,
   finishCode = '22008689',
   variant = '',
 }) {
@@ -218,24 +246,85 @@ export function buildKoncisaSurfaceLogicalCode({
   return `KONPLUSS${widthToken}${depthToken}${shape}${thicknessMm}-${finishCode}${variantSuffix}`;
 }
 
-export function resolveKoncisaSurfaceCodigoPT(params) {
-  const logicalCode = buildKoncisaSurfaceLogicalCode(params);
+export function resolveKoncisaSurfaceCodigoPT({
+  realWidthMm,
+  realDepthMm,
 
-  if (!logicalCode) {
+  // Se conservan por compatibilidad con las llamadas existentes.
+  billingWidthMm,
+  billingDepthMm,
+
+  tipoPuesto = 'sencillo',
+  shape = 'RECT',
+  thicknessMm = 30,
+  finishCode = '22008689',
+  variant = '',
+}) {
+  const resolvedRealWidthMm = Number(realWidthMm ?? billingWidthMm ?? 0);
+
+  const resolvedRealDepthMm = Number(realDepthMm ?? billingDepthMm ?? 0);
+
+  const resolvedBillingWidthMm = resolveKoncisaSurfaceBillingWidth(resolvedRealWidthMm);
+
+  const resolvedBillingDepthMm = resolveKoncisaSurfaceBillingDepth({
+    realDepthMm: resolvedRealDepthMm,
+    tipoPuesto,
+  });
+
+  if (!resolvedBillingWidthMm || !resolvedBillingDepthMm) {
     return {
       logicalCode: null,
       codigoPT: null,
       exists: false,
       rawCodigoPT: null,
+
+      realWidthMm: resolvedRealWidthMm,
+      realDepthMm: resolvedRealDepthMm,
+
+      billingWidthMm: resolvedBillingWidthMm,
+      billingDepthMm: resolvedBillingDepthMm,
+
+      isSpecial: false,
+      descriptionPrefix: '',
+      descriptionSuffix: '',
     };
   }
 
+  const logicalCode = buildKoncisaSurfaceLogicalCode({
+    billingWidthMm: resolvedBillingWidthMm,
+    billingDepthMm: resolvedBillingDepthMm,
+    shape,
+    thicknessMm,
+    finishCode,
+    variant,
+  });
+
   const rawCodigoPT = KONCISA_SURFACE_RULES[logicalCode] || '00000000';
+
+  const exists = rawCodigoPT !== '00000000';
+
+  const isSpecial =
+    resolvedRealWidthMm !== resolvedBillingWidthMm ||
+    resolvedRealDepthMm !== resolvedBillingDepthMm;
 
   return {
     logicalCode,
-    codigoPT: rawCodigoPT !== '00000000' ? rawCodigoPT : null,
-    exists: rawCodigoPT !== '00000000',
+    codigoPT: exists ? rawCodigoPT : null,
+    exists,
     rawCodigoPT,
+
+    realWidthMm: resolvedRealWidthMm,
+    realDepthMm: resolvedRealDepthMm,
+
+    billingWidthMm: resolvedBillingWidthMm,
+    billingDepthMm: resolvedBillingDepthMm,
+
+    isSpecial,
+
+    descriptionPrefix: isSpecial ? 'ESPECIAL -' : '',
+
+    descriptionSuffix: isSpecial
+      ? `Medida real: Profundidad (ancho): ${resolvedRealDepthMm / 10} cm, Largo: ${resolvedRealWidthMm / 10} cm`
+      : '',
   };
 }

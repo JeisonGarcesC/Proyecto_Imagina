@@ -608,6 +608,7 @@ export default function ThreeCanvas({
       return true;
     }
 
+    /*
     function getPartsSnapshot2D() {
       return parts
         .map(({ obj, code }) => {
@@ -615,6 +616,54 @@ export default function ThreeCanvas({
 
           obj.updateMatrixWorld(true);
 
+          const objectType = String(obj.userData?.type || obj.userData?.kind || '')
+            .trim()
+            .toLowerCase();
+
+          const objectCategory = String(obj.userData?.meta?.category || '')
+            .trim()
+            .toLowerCase();
+
+          const isSurface =
+            objectType === 'superficie' ||
+            objectType === 'surface' ||
+            objectCategory === 'superficies';
+
+          // =====================================================
+          // SUPERFICIES: usar bounds mundiales ya rotados
+          // =====================================================
+
+          if (isSurface) {
+            const worldBox = new THREE.Box3().setFromObject(obj);
+
+            const worldSize = new THREE.Vector3();
+            const worldCenter = new THREE.Vector3();
+
+            worldBox.getSize(worldSize);
+            worldBox.getCenter(worldCenter);
+
+            return {
+              id: obj.userData?.instanceId || obj.uuid,
+
+              codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
+
+              x: worldCenter.x,
+              z: worldCenter.z,
+
+              // Estas dimensiones ya incluyen la rotación del 3D.
+              w: Math.max(0.001, worldSize.x),
+              d: Math.max(0.001, worldSize.z),
+
+              // No volver a rotarla en el visor 2D.
+              rotY: 0,
+
+              kind: obj.userData?.kind || 'SURFACE',
+
+              type: obj.userData?.type || 'superficie',
+
+              subtype: obj.userData?.subtype || null,
+            };
+          }
           // Preferir bounds2d robustos (si los calculas al cargar GLB / crear procedural)
           const b = obj.userData?.bounds2d;
 
@@ -632,6 +681,13 @@ export default function ThreeCanvas({
             const w = Math.max(0.001, sizeLocal.x * ws.x);
             const d = Math.max(0.001, sizeLocal.z * ws.z);
 
+            const worldQuaternion = new THREE.Quaternion();
+            obj.getWorldQuaternion(worldQuaternion);
+
+            const worldEuler = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ');
+
+            const worldRotY = Number(worldEuler.y || 0);
+
             return {
               id: obj.userData?.instanceId || obj.uuid,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
@@ -639,7 +695,7 @@ export default function ThreeCanvas({
               z: centerWorld.z,
               w,
               d,
-              rotY: obj.rotation.y || 0,
+              rotY: worldRotY,
               kind: obj.userData?.kind || 'PART',
             };
           }
@@ -659,6 +715,121 @@ export default function ThreeCanvas({
             w: Math.max(0.001, size.x),
             d: Math.max(0.001, size.z),
             rotY: obj.rotation.y || 0,
+            kind: obj.userData?.kind || 'PART',
+          };
+        })
+        .filter(Boolean);
+    }
+*/
+
+    function getPartsSnapshot2D() {
+      return parts
+        .map(({ obj, code }) => {
+          if (!obj) return null;
+
+          obj.updateMatrixWorld(true);
+
+          const objectType = String(obj.userData?.type || obj.userData?.kind || '')
+            .trim()
+            .toLowerCase();
+
+          const objectCategory = String(obj.userData?.meta?.category || '')
+            .trim()
+            .toLowerCase();
+
+          const isSurface =
+            objectType === 'superficie' ||
+            objectType === 'surface' ||
+            objectCategory === 'superficies';
+
+          if (isSurface) {
+            const worldBox = new THREE.Box3().setFromObject(obj);
+
+            const worldSize = new THREE.Vector3();
+            const worldCenter = new THREE.Vector3();
+
+            worldBox.getSize(worldSize);
+            worldBox.getCenter(worldCenter);
+
+            return {
+              id: obj.userData?.instanceId || obj.uuid,
+
+              codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
+
+              x: worldCenter.x,
+              z: worldCenter.z,
+
+              w: Math.max(0.001, worldSize.x),
+              d: Math.max(0.001, worldSize.z),
+
+              rotY: 0,
+
+              kind: obj.userData?.kind || 'SURFACE',
+
+              type: obj.userData?.type || 'superficie',
+
+              subtype: obj.userData?.subtype || null,
+            };
+          }
+
+          const b = obj.userData?.bounds2d;
+
+          if (b?.localCenter && b?.sizeLocal) {
+            const localCenter = new THREE.Vector3().fromArray(b.localCenter);
+
+            const sizeLocal = new THREE.Vector3().fromArray(b.sizeLocal);
+
+            const centerWorld = localCenter.clone().applyMatrix4(obj.matrixWorld);
+
+            const ws = new THREE.Vector3();
+            obj.getWorldScale(ws);
+
+            const w = Math.max(0.001, sizeLocal.x * ws.x);
+
+            const d = Math.max(0.001, sizeLocal.z * ws.z);
+
+            const worldQuaternion = new THREE.Quaternion();
+            obj.getWorldQuaternion(worldQuaternion);
+
+            const worldEuler = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ');
+
+            return {
+              id: obj.userData?.instanceId || obj.uuid,
+
+              codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
+
+              x: centerWorld.x,
+              z: centerWorld.z,
+
+              w,
+              d,
+
+              rotY: Number(worldEuler.y || 0),
+
+              kind: obj.userData?.kind || 'PART',
+            };
+          }
+
+          const box = new THREE.Box3().setFromObject(obj);
+          const size = new THREE.Vector3();
+          const center = new THREE.Vector3();
+
+          box.getSize(size);
+          box.getCenter(center);
+
+          return {
+            id: obj.userData?.instanceId || obj.uuid,
+
+            codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
+
+            x: center.x,
+            z: center.z,
+
+            w: Math.max(0.001, size.x),
+            d: Math.max(0.001, size.z),
+
+            rotY: 0,
+
             kind: obj.userData?.kind || 'PART',
           };
         })
@@ -3750,6 +3921,7 @@ export default function ThreeCanvas({
       addCatalogItem,
       addExternalGlbPart,
       addNativeBlockPart,
+      addKoncisaCostadoAssemblyPart,
       addNativeKoncisaDuctPart,
       toggleSnap,
       exportProject,
@@ -6346,12 +6518,12 @@ export default function ThreeCanvas({
         codigoPT,
         dim,
         position,
+        rotation,
         groupId,
         groupName,
         logicalCode,
         parentGroup = null,
 
-        // NUEVO
         edgeFinish = null,
         edgeColor = 0x2f2f2f,
       } = {},
@@ -6416,7 +6588,24 @@ export default function ThreeCanvas({
 
       // La descripción SIEMPRE debe salir primero del catálogo real.
       // Solo si no existe en catálogo, usamos lo que venga manual.
-      const description =
+      /*const description =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
+        catalogItem?.raw?.Descripcion ||
+        catalogItem?.raw?.nombre ||
+        incomingItem?.ui?.title ||
+        incomingItem?.ui?.subtitle ||
+        incomingItem?.raw?.descripcion ||
+        incomingItem?.raw?.description ||
+        incomingItem?.raw?.Descripcion ||
+        incomingItem?.raw?.nombre ||
+        incomingItem?.description ||
+        incomingItem?.name ||
+        code;*/
+
+      const catalogDescription =
         catalogItem?.ui?.title ||
         catalogItem?.ui?.subtitle ||
         catalogItem?.raw?.descripcion ||
@@ -6432,6 +6621,18 @@ export default function ThreeCanvas({
         incomingItem?.description ||
         incomingItem?.name ||
         code;
+
+      const isSpecial = !!incomingItem?.meta?.isSpecial;
+
+      const descriptionPrefix = String(incomingItem?.meta?.descriptionPrefix || '').trim();
+
+      const descriptionSuffix = String(incomingItem?.meta?.descriptionSuffix || '').trim();
+
+      const description = isSpecial
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
+            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+          }`
+        : catalogDescription;
 
       const rawPrice =
         catalogItem?.prices?.[countryRef.current] ??
@@ -6462,6 +6663,8 @@ export default function ThreeCanvas({
         dim: { widthMm, depthMm, thickMm },
         dimMm: { widthMm, depthMm, thickMm },
 
+        billingDimMm: incomingItem?.billingDimMm || null,
+
         units: 'm',
         instanceId,
 
@@ -6484,8 +6687,14 @@ export default function ThreeCanvas({
 
         meta: {
           ...(createSurfaceMeta({ widthM, depthM, thicknessM }) || {}),
+          ...(incomingItem?.meta || {}),
+
           canto: finalEdgeFinish,
           edgeFinish: finalEdgeFinish,
+
+          isSpecial,
+          descriptionPrefix,
+          descriptionSuffix,
         },
       };
 
@@ -6519,17 +6728,58 @@ export default function ThreeCanvas({
         edgeColor,
       });
 
+      // =====================================================
+      // POSICIÓN Y ROTACIÓN DE LA SUPERFICIE
+      // =====================================================
+
       if (position) {
-        group.position.set(position.x || 0, position.y || 0, position.z || 0);
+        group.position.set(
+          Number(position?.x || 0),
+          Number(position?.y || 0),
+          Number(position?.z || 0)
+        );
       } else {
         group.position.set(parts.length * 0.9, 0, 0);
       }
+
+      group.rotation.set(
+        Number(rotation?.x || 0),
+        Number(rotation?.y || 0),
+        Number(rotation?.z || 0)
+      );
 
       if (parentGroup) {
         parentGroup.add(group);
       } else {
         scene.add(group);
       }
+
+      group.updateMatrixWorld(true);
+
+      const worldPosition = new THREE.Vector3();
+      group.getWorldPosition(worldPosition);
+
+      console.log('SUPERFICIE UBICADA', {
+        subtype: incomingItem?.subtype || null,
+
+        localPosition: {
+          x: group.position.x,
+          y: group.position.y,
+          z: group.position.z,
+        },
+
+        worldPosition: {
+          x: worldPosition.x,
+          y: worldPosition.y,
+          z: worldPosition.z,
+        },
+
+        rotation: {
+          x: group.rotation.x,
+          y: group.rotation.y,
+          z: group.rotation.z,
+        },
+      });
 
       parts.push({ code, obj: group });
       pickables.push(group);
@@ -6601,6 +6851,10 @@ export default function ThreeCanvas({
       const descriptionPrefix = String(part?.meta?.descriptionPrefix || '').trim();
 
       const descriptionSuffix = String(part?.meta?.descriptionSuffix || '').trim();
+
+      const descriptionNote = String(part?.meta?.descriptionNote || '').trim();
+
+      //const description = descriptionNote ? `${catalogDescription} - ${descriptionNote}`: catalogDescription;
 
       const description = isSpecial
         ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
@@ -7094,6 +7348,528 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
 
       return obj;
+    }
+
+    const costadoModelCache = new Map();
+
+    async function loadCostadoModel(src) {
+      const modelSrc = String(src || '').trim();
+
+      if (!modelSrc) {
+        throw new Error('Se intentó cargar un modelo de costado sin ruta.');
+      }
+
+      if (!costadoModelCache.has(modelSrc)) {
+        const loadPromise = loader.loadAsync(modelSrc).catch((error) => {
+          // Si falla, se elimina del caché para permitir
+          // un nuevo intento después de corregir la ruta.
+          costadoModelCache.delete(modelSrc);
+
+          throw new Error(
+            `No fue posible cargar el modelo ${modelSrc}: ${error?.message || error}`
+          );
+        });
+
+        /*
+         * Se guarda la promesa, no solamente el resultado.
+         * Así, si dos costados solicitan el mismo modelo
+         * simultáneamente, solo se hace una carga.
+         */
+        costadoModelCache.set(modelSrc, loadPromise);
+      }
+
+      return costadoModelCache.get(modelSrc);
+    }
+
+    async function addKoncisaCostadoAssemblyPart(part = {}) {
+      if (readOnly) return null;
+
+      const parentGroup = part?.parentGroup || null;
+
+      const assembly = part?.meta?.costadoAssembly || part?.assembly || null;
+
+      if (!assembly) {
+        console.warn(
+          'addKoncisaCostadoAssemblyPart: el costado no tiene configuración de ensamble',
+          part
+        );
+
+        return null;
+      }
+
+      const {
+        leftLegSrc,
+        rightLegSrc,
+        centerBracketSrc,
+
+        rootOffsetMm = {},
+        leftOffsetMm = {},
+        rightOffsetMm = {},
+        centerBracketOffsetMm = {},
+
+        leftRotation = {},
+        rightRotation = {},
+        centerBracketRotation = {},
+
+        leftScale = 1,
+        rightScale = 1,
+        centerBracketScale = 1,
+
+        crossbar = {},
+      } = assembly;
+
+      if (!leftLegSrc || !rightLegSrc || !centerBracketSrc) {
+        console.warn('addKoncisaCostadoAssemblyPart: faltan modelos del ensamble', {
+          leftLegSrc,
+          rightLegSrc,
+          centerBracketSrc,
+        });
+
+        return null;
+      }
+
+      const realDepthMm = Number(
+        part?.meta?.realDepthMm ??
+          part?.dimMm?.realDepthMm ??
+          part?.dimMm?.depthMm ??
+          part?.meta?.depthMm ??
+          600
+      );
+
+      if (!Number.isFinite(realDepthMm) || realDepthMm <= 0) {
+        console.warn('addKoncisaCostadoAssemblyPart: profundidad inválida', realDepthMm);
+
+        return null;
+      }
+
+      const root = new THREE.Group();
+
+      const code = String(part?.code || '').trim();
+
+      root.name = part?.name || code || 'KONCISA_COSTADO_ASSEMBLY';
+
+      //Agregar la caja dentro del ensamble del costado
+      const hasOutletBox = !!part?.meta?.hasOutletBox;
+
+      const outletBoxSrc = part?.meta?.outletBoxSrc || assembly?.outletBoxSrc || null;
+
+      const outletBoxOffsetMm = part?.meta?.outletBoxOffsetMm || assembly?.outletBoxOffsetMm || {};
+
+      const outletBoxRotation = part?.meta?.outletBoxRotation || assembly?.outletBoxRotation || {};
+
+      const outletBoxScale = Number(part?.meta?.outletBoxScale ?? assembly?.outletBoxScale ?? 1);
+
+      // =====================================================
+      // Cargar los tres GLB simultáneamente
+      // =====================================================
+
+      let leftGltf;
+      let rightGltf;
+      let centerGltf;
+      let outletBoxGltf = null;
+
+      try {
+        const loadingTasks = [
+          loadCostadoModel(leftLegSrc),
+          loadCostadoModel(rightLegSrc),
+          loadCostadoModel(centerBracketSrc),
+        ];
+
+        if (hasOutletBox && outletBoxSrc) {
+          loadingTasks.push(loadCostadoModel(outletBoxSrc));
+        }
+
+        const loadedModels = await Promise.all(loadingTasks);
+
+        leftGltf = loadedModels[0];
+        rightGltf = loadedModels[1];
+        centerGltf = loadedModels[2];
+
+        outletBoxGltf = hasOutletBox && outletBoxSrc ? loadedModels[3] || null : null;
+      } catch (error) {
+        console.error('No fue posible cargar los modelos del costado ensamblado', error);
+
+        return null;
+      }
+
+      const leftLeg = leftGltf.scene.clone(true);
+      const rightLeg = rightGltf.scene.clone(true);
+      const centerBracket = centerGltf.scene.clone(true);
+
+      leftLeg.name = 'KONCISA_COSTADO_LEFT_LEG';
+      rightLeg.name = 'KONCISA_COSTADO_RIGHT_LEG';
+      centerBracket.name = 'KONCISA_COSTADO_CENTER_BRACKET';
+
+      const outletBox = outletBoxGltf?.scene ? outletBoxGltf.scene.clone(true) : null;
+
+      // =====================================================
+      // Configuración del travesaño
+      // =====================================================
+
+      const crossbarHeightMm = Number(crossbar?.heightMm ?? 25.4);
+
+      const crossbarWidthMm = Number(crossbar?.depthMm ?? 50.8);
+
+      const endClearanceMm = Number(crossbar?.endClearanceMm ?? 0);
+
+      const crossbarOffsetMm = {
+        x: Number(crossbar?.offsetMm?.x || 0),
+        y: Number(crossbar?.offsetMm?.y || 0),
+        z: Number(crossbar?.offsetMm?.z || 0),
+      };
+
+      /*
+       * La profundidad del costado corre sobre Z.
+       * La resta permite acortar el travesaño para formas
+       * trapezoidales, curvas u otras variantes.
+       */
+      const crossbarLengthMm = Math.max(1, realDepthMm - endClearanceMm);
+
+      /*
+       * Las patas se separan usando el largo real del travesaño.
+       * Después se aplican sus offsets independientes.
+       */
+      const halfSpanMm = crossbarLengthMm / 2;
+
+      const leftPositionMm = {
+        x: Number(leftOffsetMm?.x || 0),
+        y: Number(leftOffsetMm?.y || 0),
+        z: -halfSpanMm + Number(leftOffsetMm?.z || 0),
+      };
+
+      const rightPositionMm = {
+        x: Number(rightOffsetMm?.x || 0),
+        y: Number(rightOffsetMm?.y || 0),
+        z: halfSpanMm + Number(rightOffsetMm?.z || 0),
+      };
+
+      const bracketPositionMm = {
+        x: Number(centerBracketOffsetMm?.x || 0),
+        y: Number(centerBracketOffsetMm?.y || 0),
+        z: Number(centerBracketOffsetMm?.z || 0),
+      };
+
+      // =====================================================
+      // Posicionar las piezas GLB dentro del root
+      // =====================================================
+
+      leftLeg.position.set(
+        leftPositionMm.x / 1000,
+        leftPositionMm.y / 1000,
+        leftPositionMm.z / 1000
+      );
+
+      rightLeg.position.set(
+        rightPositionMm.x / 1000,
+        rightPositionMm.y / 1000,
+        rightPositionMm.z / 1000
+      );
+
+      centerBracket.position.set(
+        bracketPositionMm.x / 1000,
+        bracketPositionMm.y / 1000,
+        bracketPositionMm.z / 1000
+      );
+
+      leftLeg.rotation.set(
+        Number(leftRotation?.x || 0),
+        Number(leftRotation?.y || 0),
+        Number(leftRotation?.z || 0)
+      );
+
+      rightLeg.rotation.set(
+        Number(rightRotation?.x || 0),
+        Number(rightRotation?.y || 0),
+        Number(rightRotation?.z || 0)
+      );
+
+      centerBracket.rotation.set(
+        Number(centerBracketRotation?.x || 0),
+        Number(centerBracketRotation?.y || 0),
+        Number(centerBracketRotation?.z || 0)
+      );
+
+      leftLeg.scale.setScalar(Number(leftScale || 1));
+      rightLeg.scale.setScalar(Number(rightScale || 1));
+      centerBracket.scale.setScalar(Number(centerBracketScale || 1));
+
+      if (outletBox) {
+        outletBox.name = 'KONCISA_COSTADO_OUTLET_BOX';
+
+        outletBox.position.set(
+          Number(outletBoxOffsetMm?.x || 0) / 1000,
+          Number(outletBoxOffsetMm?.y || 0) / 1000,
+          Number(outletBoxOffsetMm?.z || 0) / 1000
+        );
+
+        outletBox.rotation.set(
+          Number(outletBoxRotation?.x || 0),
+          Number(outletBoxRotation?.y || 0),
+          Number(outletBoxRotation?.z || 0)
+        );
+
+        outletBox.scale.setScalar(Number.isFinite(outletBoxScale) ? outletBoxScale : 1);
+
+        outletBox.userData = {
+          ...(outletBox.userData || {}),
+
+          costadoComponent: 'OUTLET_BOX',
+
+          // No es una raíz ni una pieza adicional de BOM.
+          isPartRoot: false,
+          excludeFromBOM: true,
+        };
+
+        root.add(outletBox);
+      }
+
+      // =====================================================
+      // Crear travesaño procedural
+      // =====================================================
+
+      //X = altura del perfil
+      //Y = ancho del perfil
+      //Z = largo del travesaño
+
+      const crossbarGeometry = new THREE.BoxGeometry(
+        crossbarHeightMm / 1000,
+        crossbarWidthMm / 1000,
+        crossbarLengthMm / 1000
+      );
+
+      //new THREE.BoxGeometry(
+      //25.4 / 1000,
+      //50.8 / 1000,
+      //crossbarLengthMm / 1000
+      //);
+
+      const crossbarMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(254 / 255, 250 / 255, 252 / 255),
+        roughness: 0.72,
+        metalness: 0.08,
+      });
+
+      const crossbarMesh = new THREE.Mesh(crossbarGeometry, crossbarMaterial);
+
+      crossbarMesh.name = 'KONCISA_COSTADO_CROSSBAR';
+
+      crossbarMesh.position.set(
+        crossbarOffsetMm.x / 1000,
+        crossbarOffsetMm.y / 1000,
+        crossbarOffsetMm.z / 1000
+      );
+
+      crossbarMesh.castShadow = true;
+      crossbarMesh.receiveShadow = true;
+
+      // =====================================================
+      // Identificar internamente cada componente
+      // =====================================================
+
+      leftLeg.userData = {
+        ...(leftLeg.userData || {}),
+        costadoComponent: 'LEFT_LEG',
+      };
+
+      rightLeg.userData = {
+        ...(rightLeg.userData || {}),
+        costadoComponent: 'RIGHT_LEG',
+      };
+
+      centerBracket.userData = {
+        ...(centerBracket.userData || {}),
+        costadoComponent: 'CENTER_BRACKET',
+      };
+
+      crossbarMesh.userData = {
+        ...(crossbarMesh.userData || {}),
+        costadoComponent: 'CROSSBAR',
+      };
+
+      root.add(leftLeg);
+      root.add(rightLeg);
+      root.add(centerBracket);
+      root.add(crossbarMesh);
+
+      // =====================================================
+      // Posición general del costado
+      // =====================================================
+
+      const lado = String(part?.meta?.lado || 'izq')
+        .trim()
+        .toLowerCase();
+
+      const baseOffsetX = Number(rootOffsetMm?.x || 0);
+      const baseOffsetY = Number(rootOffsetMm?.y || 0);
+      const baseOffsetZ = Number(rootOffsetMm?.z || 0);
+
+      const sideOffsetZMm = lado === 'der' ? -baseOffsetZ : baseOffsetZ;
+
+      root.position.set(
+        (Number(part?.position?.x || 0) + baseOffsetX) / 1000,
+        (Number(part?.position?.y || 0) + baseOffsetY) / 1000,
+        (Number(part?.position?.z || 0) + sideOffsetZMm) / 1000
+      );
+
+      root.rotation.set(
+        Number(part?.rotation?.x || 0),
+        Number(part?.rotation?.y || 0),
+        Number(part?.rotation?.z || 0)
+      );
+
+      // =====================================================
+      // Código, descripción y precio
+      // =====================================================
+
+      const catalogItem = catalogByCodeRef.current?.get?.(code) || null;
+
+      const baseDescription =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
+        part?.name ||
+        code ||
+        'Costado Koncisa Plus';
+
+      const prefix = String(part?.meta?.descriptionPrefix || '').trim();
+
+      const suffix = String(part?.meta?.descriptionSuffix || '').trim();
+
+      const description = part?.meta?.isSpecial
+        ? `${prefix ? `${prefix} ` : ''}${baseDescription}${suffix ? ` - ${suffix}` : ''}`
+        : baseDescription;
+
+      const unitPrice =
+        Number(
+          catalogItem?.prices?.[countryRef.current] ??
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
+        ) || 0;
+
+      const instanceId = `${code || 'costado'}__${Date.now()}__${Math.random()
+        .toString(16)
+        .slice(2)}`;
+
+      root.userData = {
+        isPartRoot: true,
+
+        code: code || null,
+        codigoPT: code || null,
+
+        kind: part?.type || 'costado',
+        type: part?.type || 'costado',
+        subtype: part?.subtype || null,
+
+        line: part?.line || 'KONCISA.PLUS',
+
+        name: part?.name || baseDescription,
+        description,
+        unitPrice,
+
+        dim: part?.dimMm || null,
+        dimMm: part?.dimMm || null,
+
+        instanceId,
+
+        groupId: part?.groupId || parentGroup?.userData?.instanceId || null,
+
+        groupName: part?.groupName || parentGroup?.userData?.name || null,
+
+        parentAssemblyId: parentGroup?.userData?.instanceId || parentGroup?.userData?.code || null,
+
+        logicalCode: part?.logicalCode || null,
+
+        model: {
+          kind: 'koncisa-costado-assembly',
+          src: null,
+        },
+
+        modelSrc: null,
+
+        meta: {
+          ...(part?.meta || {}),
+
+          category: 'costados',
+          costadoAssembly: assembly,
+
+          realDepthMm,
+          crossbarLengthMm,
+
+          componentPositionsMm: {
+            LEFT_LEG: leftPositionMm,
+            RIGHT_LEG: rightPositionMm,
+            CENTER_BRACKET: bracketPositionMm,
+            CROSSBAR: crossbarOffsetMm,
+          },
+        },
+      };
+
+      /*
+       * Los hijos no deben ser raíces independientes.
+       * Así el clic en cualquier pata selecciona el ensamble completo.
+       */
+      root.traverse((node) => {
+        if (!node) return;
+
+        if (node !== root) {
+          node.userData = {
+            ...(node.userData || {}),
+
+            isPartRoot: false,
+
+            parentCostadoInstanceId: instanceId,
+            parentAssemblyId: root.userData.parentAssemblyId,
+
+            groupId: root.userData.groupId,
+            groupName: root.userData.groupName,
+          };
+        }
+
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+
+      root.updateMatrixWorld(true);
+
+      // Bounds para vista 2D.
+      const bounds2d = computeBounds2D(root);
+
+      if (bounds2d) {
+        root.userData.bounds2d = {
+          localCenter: bounds2d.localCenter.toArray(),
+          sizeLocal: bounds2d.sizeLocal.toArray(),
+        };
+      }
+
+      if (parentGroup) {
+        parentGroup.add(root);
+      } else {
+        scene.add(root);
+      }
+
+      /*
+       * Solo se agrega el root al BOM.
+       * Las patas, soporte y travesaño son componentes visuales.
+       */
+      parts.push({
+        code: code || root.name,
+        obj: root,
+      });
+
+      pickables.push(root);
+
+      setActivePart(root);
+      emitBOM();
+      refreshFloorAndGrid();
+
+      return root;
     }
 
     async function addExternalGlbPart(part) {

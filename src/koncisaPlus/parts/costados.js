@@ -1,16 +1,18 @@
 // src/koncisaPlus/parts/costados.js
 import { resolveKoncisaCostadoTerminal } from '../rules/koncisaCostadoRules';
-
 import { resolveKoncisaCostadoIntermedio } from '../rules/resolveKoncisaCostadoIntermedio';
 
 export function createCostado({
   groupId = null,
   groupName = null,
+
   tipo = 'terminal', // terminal | intermedio
   tipoPuesto = 'sencillo', // sencillo | doble
+
   depthMm = 600,
   forma = 'RECT',
   lado = 'izq', // izq | der | center
+
   x = 0,
   y = 0,
   z = 0,
@@ -31,7 +33,25 @@ export function createCostado({
     });
   }
 
-  const rotationY = tipo === 'terminal' ? (lado === 'der' ? Math.PI : 0) : 0;
+  const rotationY = tipo === 'terminal' && lado === 'der' ? Math.PI : 0;
+
+  const hasAssembly = !!resolved?.assembly;
+  const isSpecial = !!resolved?.isSpecial;
+
+  const realDepthMm = Number(resolved?.realDepthMm ?? depthMm);
+
+  const billingDepthMm = Number(resolved?.billingDepthMm ?? depthMm);
+
+  const baseName =
+    tipo === 'intermedio'
+      ? `Costado intermedio ${billingDepthMm}`
+      : `Costado terminal ${lado} ${forma} ${billingDepthMm}`;
+
+  const name = isSpecial
+    ? `${resolved?.descriptionPrefix || 'ESPECIAL -'} ${baseName}${
+        resolved?.descriptionSuffix ? ` - ${resolved.descriptionSuffix}` : ''
+      }`
+    : baseName;
 
   return {
     type: 'costado',
@@ -46,11 +66,12 @@ export function createCostado({
     existsInCatalog: !!resolved?.exists,
     rawCodigoPT: resolved?.codigoPT || null,
 
-    name:
-      tipo === 'intermedio' ? `Costado intermedio ${depthMm}` : `Costado terminal ${lado} ${forma}`,
+    name,
 
     dimMm: {
-      depthMm,
+      depthMm: realDepthMm,
+      realDepthMm,
+      billingDepthMm,
     },
 
     position: {
@@ -66,17 +87,33 @@ export function createCostado({
     },
 
     model: {
-      kind: 'glb',
-      src: resolved?.modelSrc || null,
+      kind: hasAssembly ? 'koncisa-costado-assembly' : 'glb',
+
+      src: hasAssembly ? null : resolved?.modelSrc || null,
     },
 
     meta: {
       category: 'costados',
+
       tipo,
       lado,
       forma,
       tipoPuesto,
-      depthMm,
+
+      depthMm: realDepthMm,
+      realDepthMm,
+      billingDepthMm,
+
+      isSpecial,
+
+      descriptionPrefix: isSpecial ? resolved?.descriptionPrefix || '' : '',
+
+      descriptionSuffix: isSpecial ? resolved?.descriptionSuffix || '' : '',
+
+      costadoAssembly: resolved?.assembly || null,
+
+      // Se conserva el GLB completo como respaldo.
+      fallbackModelSrc: resolved?.modelSrc || null,
     },
   };
 }

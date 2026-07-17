@@ -51,6 +51,9 @@ export function resolveKoncisaCostadoIntermedio({ tipoPuesto = 'sencillo', depth
     logicalCode,
     codigoPT: found?.codigoPT || null,
     modelSrc: found?.modelSrc || null,
+
+    assembly: found?.assembly || null,
+
     exists: !!found,
   };
 }

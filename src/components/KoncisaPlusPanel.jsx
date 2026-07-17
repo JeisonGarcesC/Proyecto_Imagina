@@ -106,24 +106,68 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [ceilingDuctSide, setCeilingDuctSide] = useState('LEFT');
 
   const handleCreate = () => {
+    // =========================================
+    // PUESTO LÍDER
+    // =========================================
+    if (layoutType === 'LEADER') {
+      const leaderThickMm = leaderMaterialType === 'FORMICA' ? 30 : 25;
+
+      onCreate({
+        layoutType: 'LEADER',
+
+        leaderModoEspecial,
+
+        leaderMainWidthMm,
+        leaderMainDepthMm,
+
+        leaderReturnLengthMm,
+        leaderReturnDepthMm,
+
+        leaderSide,
+
+        leaderMainCostadoForma,
+        leaderJunctionHasOutletBox,
+
+        thickMm: leaderThickMm,
+        leaderMaterialType,
+
+        finishCode: leaderMaterialType === 'FORMICA' ? '22008689' : '22015137',
+
+        leaderHasGrommetBox,
+      });
+
+      return;
+    }
+
+    // =========================================
+    // PUESTO ESTÁNDAR
+    // =========================================
     onCreate({
+      layoutType: 'STANDARD',
+
       puestos,
       tipoPuesto,
       tipoCostado,
       modoEspecial,
+
       largoRealMm,
       anchoRealMm,
       largoCobroMm,
       anchoCobroMm,
+
       tipoPasoCable,
       pasacablePosition,
       grommetFinish,
+
       hasDuct: true,
+
       finishCode: selectedFinish.finishCode,
       thickMm: selectedFinish.thickMm,
       variant: selectedFinish.variant,
       finishLabel: selectedFinish.label,
+
       ductModes,
+
       privacyPanel: {
         enabled: includePrivacyPanel,
         tipo: selectedPrivacyPanelFinish.tipo,
@@ -134,18 +178,19 @@ export default function KoncisaPlusPanel({ onCreate }) {
         hasCanto: selectedPrivacyPanelFinish.hasCanto,
         hasBacker: selectedPrivacyPanelFinish.hasBacker,
 
-        // Para lateral normalmente debe tomar el fondo/ancho del puesto.
-        // Si luego quieres que lateral use largo, se cambia aquí.
         lengthMm: selectedPrivacyPanelFinish.tipo === 'lateral' ? anchoCobroMm : largoCobroMm,
       },
+
       floorDuct: {
         enabled: includeFloorDuct,
       },
+
       ceilingDuct: {
         enabled: includeCeilingDuct,
         side: ceilingDuctSide,
       },
     });
+
     // TEMPORAL: prueba de pantalla lateral visible
     /*
     window.threeApi?.addKoncisaPrivacyPanel?.({
@@ -206,275 +251,65 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
   //console.log('DUCT MODES PANEL', ductModes);
 
+  // variables y consantes para puestos leader
+  const [layoutType, setLayoutType] = useState('STANDARD');
+
+  // =========================
+  // PUESTO LÍDER
+  // =========================
+  const [leaderMainWidthMm, setLeaderMainWidthMm] = useState(1500);
+  const [leaderMainDepthMm, setLeaderMainDepthMm] = useState(600);
+
+  const [leaderReturnLengthMm, setLeaderReturnLengthMm] = useState(900);
+  const [leaderReturnDepthMm, setLeaderReturnDepthMm] = useState(600);
+
+  const [leaderSide, setLeaderSide] = useState('RIGHT');
+  const [leaderMaterialType, setLeaderMaterialType] = useState('FORMICA');
+
+  const [leaderHasGrommetBox, setLeaderHasGrommetBox] = useState(false);
+
+  const [leaderModoEspecial, setLeaderModoEspecial] = useState(false);
+
+  const leaderMainWidthOptionsNormal = [1500, 1650, 1800];
+
+  const leaderMainWidthOptionsSpecial = [1500, 1550, 1600, 1650, 1700, 1750, 1800];
+
+  const leaderMainDepthOptionsNormal = [600, 750];
+
+  const leaderMainDepthOptionsSpecial = [600, 650, 700, 750];
+
+  const leaderReturnLengthOptionsNormal = [900, 1000];
+
+  const leaderReturnLengthOptionsSpecial = [900, 950, 1000];
+
+  const leaderMainWidthOptions = leaderModoEspecial
+    ? leaderMainWidthOptionsSpecial
+    : leaderMainWidthOptionsNormal;
+
+  const leaderMainDepthOptions = leaderModoEspecial
+    ? leaderMainDepthOptionsSpecial
+    : leaderMainDepthOptionsNormal;
+
+  const leaderReturnLengthOptions = leaderModoEspecial
+    ? leaderReturnLengthOptionsSpecial
+    : leaderReturnLengthOptionsNormal;
+
+  const [leaderMainCostadoForma, setLeaderMainCostadoForma] = useState('RECT');
+
+  const [leaderJunctionHasOutletBox, setLeaderJunctionHasOutletBox] = useState(false);
+
+  const leaderCostadoOptions = [
+    { value: 'RECT', label: 'Rectangular' },
+    { value: 'TEK', label: 'Tek' },
+    { value: 'ORTOGONAL', label: 'Ortogonal' },
+    { value: 'O', label: 'O' },
+    { value: 'CURVO', label: 'Curvo' },
+    { value: 'TRAP', label: 'Trapezoidal' },
+  ];
+
   return (
     <div style={{ padding: 12, display: 'grid', gap: 12 }}>
       <h3 style={{ margin: 0 }}>Koncisa Plus</h3>
-      <div>
-        <label>Tipo de puesto</label>
-        <select
-          value={tipoPuesto}
-          onChange={(e) => handleTipoPuestoChange(e.target.value)}
-          style={{ width: '100%' }}
-        >
-          <option value="sencillo">Sencillo</option>
-          <option value="doble">Doble</option>
-        </select>
-      </div>
-      <div>
-        <label>Puestos</label>
-        <select
-          value={puestos}
-          onChange={(e) => setPuestos(Number(e.target.value))}
-          style={{ width: '100%' }}
-        >
-          <option value={1}>1 puesto</option>
-          <option value={2}>2 puestos</option>
-          <option value={3}>3 puestos</option>
-          <option value={4}>4 puestos</option>
-          <option value={5}>5 puestos</option>
-          <option value={6}>6 puestos</option>
-          <option value={7}>7 puestos</option>
-          <option value={8}>8 puestos</option>
-          <option value={9}>9 puestos</option>
-          <option value={10}>10 puestos</option>
-          <option value={11}>11 puestos</option>
-          <option value={12}>12 puestos</option>
-        </select>
-      </div>
-      <div>
-        <label>
-          <input
-            type="checkbox"
-            checked={modoEspecial}
-            onChange={(e) => setModoEspecial(e.target.checked)}
-          />{' '}
-          Puesto especial
-        </label>
-      </div>
-      <div>
-        <label>Largo real</label>
-        <select
-          value={largoRealMm}
-          onChange={(e) => setLargoRealMm(Number(e.target.value))}
-          style={{ width: '100%' }}
-        >
-          {opcionesLargo.map((v) => (
-            <option key={v} value={v}>
-              {v} mm
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label>Ancho real</label>
-        <select
-          value={anchoRealMm}
-          onChange={(e) => setAnchoRealMm(Number(e.target.value))}
-          style={{ width: '100%' }}
-        >
-          {opcionesAncho.map((v) => (
-            <option key={v} value={v}>
-              {v} mm
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label>Acabado / tipo de superficie</label>
-        <select
-          value={selectedFinishId}
-          onChange={(e) => setSelectedFinishId(e.target.value)}
-          style={{ width: '100%' }}
-        >
-          {KONCISA_SURFACE_FINISH_OPTIONS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div
-        style={{
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          padding: 10,
-          background: '#fff',
-          display: 'grid',
-          gap: 8,
-        }}
-      >
-        <label>
-          <input
-            type="checkbox"
-            checked={includePrivacyPanel}
-            onChange={(e) => setIncludePrivacyPanel(e.target.checked)}
-          />{' '}
-          Incluir pantalla
-        </label>
-
-        {includePrivacyPanel && (
-          <>
-            <div>
-              <label>Acabado / tipo de pantalla</label>
-              <select
-                value={selectedPrivacyPanelFinishId}
-                onChange={(e) => setSelectedPrivacyPanelFinishId(e.target.value)}
-                style={{ width: '100%' }}
-              >
-                {KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              <div>Tipo: {selectedPrivacyPanelFinish.tipo}</div>
-              <div>Material: {selectedPrivacyPanelFinish.material}</div>
-              <div>Finish code: {selectedPrivacyPanelFinish.finishCode}</div>
-              <div>Canto: {selectedPrivacyPanelFinish.hasCanto ? 'Sí' : 'No'}</div>
-              <div>Backer: {selectedPrivacyPanelFinish.hasBacker ? 'Sí' : 'No'}</div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <button type="button" onClick={() => setDuctConfigOpen(true)}>
-        Configurar ductos
-      </button>
-
-      <DuctConfigModal
-        open={ductConfigOpen}
-        onClose={() => setDuctConfigOpen(false)}
-        puestos={puestos}
-        ductModes={ductModes}
-        setDuctModes={setDuctModes}
-      />
-
-      <div>
-        <label>
-          <input
-            type="checkbox"
-            checked={includeFloorDuct}
-            onChange={(e) => setIncludeFloorDuct(e.target.checked)}
-          />{' '}
-          Incluir ducto bajante a piso
-        </label>
-      </div>
-
-      <div
-        style={{
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          padding: 10,
-          background: '#fff',
-          display: 'grid',
-          gap: 8,
-        }}
-      >
-        <label>
-          <input
-            type="checkbox"
-            checked={includeCeilingDuct}
-            onChange={(e) => setIncludeCeilingDuct(e.target.checked)}
-          />{' '}
-          Incluir ducto bajante a techo
-        </label>
-
-        {includeCeilingDuct && (
-          <div>
-            <label>Lado del ducto a techo</label>
-            <select
-              value={ceilingDuctSide}
-              onChange={(e) => setCeilingDuctSide(e.target.value)}
-              style={{ width: '100%' }}
-            >
-              <option value="LEFT">Izquierda</option>
-              <option value="RIGHT">Derecha</option>
-            </select>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <label>Tipo de costado</label>
-        <select
-          value={tipoCostado}
-          onChange={(e) => setTipoCostado(e.target.value)}
-          style={{ width: '100%' }}
-        >
-          {opcionesCostado.map((op) => (
-            <option key={op.value} value={op.value}>
-              {op.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label>Acceso para cableado</label>
-        <select
-          value={tipoPasoCable}
-          onChange={(e) => setTipoPasoCable(e.target.value)}
-          style={{ width: '100%' }}
-        >
-          <option value="none">Ninguno</option>
-          <option value="grommet">Grommet</option>
-          <option value="pasacable">Pasacable</option>
-        </select>
-      </div>
-      {/* =========================
-    PASACABLE
-========================= */}
-      {tipoPasoCable === 'pasacable' && (
-        <div>
-          <label>Posición pasacables</label>
-
-          {tipoPuesto === 'sencillo' && (
-            <select
-              value={pasacablePosition}
-              onChange={(e) => setPasacablePosition(e.target.value)}
-            >
-              <option value="LEFT">Izquierda</option>
-              <option value="CENTER">Centro</option>
-              <option value="RIGHT">Derecha</option>
-            </select>
-          )}
-
-          {tipoPuesto === 'doble' && (
-            <select
-              value={pasacablePosition}
-              onChange={(e) => setPasacablePosition(e.target.value)}
-            >
-              <option value="CENTER">Centro</option>
-              <option value="LEFT_RIGHT">Izq - Der</option>
-              <option value="LEFT_LEFT">Izq - Izq</option>
-              <option value="RIGHT_RIGHT">Der - Der</option>
-            </select>
-          )}
-        </div>
-      )}
-
-      {/* =========================
-    GROMMET
-========================= */}
-      {tipoPasoCable === 'grommet' && (
-        <div>
-          <label>Acabado del grommet</label>
-          <select
-            value={grommetFinish}
-            onChange={(e) => setGrommetFinish(e.target.value)}
-            style={{ width: '100%' }}
-          >
-            <option value="ALUMINIUM">Aluminium</option>
-            <option value="PAINTED">Painted</option>
-            <option value="METALICO">Metálico</option>
-            <option value="ALUMINIUM_PINTADO">Aluminium pintado</option>
-          </select>
-        </div>
-      )}
 
       <div
         style={{
@@ -482,22 +317,538 @@ export default function KoncisaPlusPanel({ onCreate }) {
           borderRadius: 8,
           padding: 10,
           background: '#fafafa',
-          fontSize: 13,
+          display: 'grid',
+          gap: 8,
         }}
       >
-        <div>
-          <b>Resumen técnico</b>
-        </div>
-        <div>Largo real: {largoRealMm} mm</div>
-        <div>Ancho real: {anchoRealMm} mm</div>
-        <div>Largo de cobro/código: {largoCobroMm} mm</div>
-        <div>Ancho de cobro/código: {anchoCobroMm} mm</div>
-        <div>Acabado: {selectedFinish.label}</div>
-        <div>Finish code: {selectedFinish.finishCode}</div>
-        <div>Espesor: {selectedFinish.thickMm} mm</div>
-        <div>Variante: {selectedFinish.variant || 'base'}</div>
+        <label>Tipo de configuración</label>
+
+        <select
+          value={layoutType}
+          onChange={(e) => setLayoutType(e.target.value)}
+          style={{ width: '100%' }}
+        >
+          <option value="STANDARD">Puesto estándar</option>
+          <option value="LEADER">Puesto líder</option>
+        </select>
       </div>
-      <button onClick={handleCreate}>Crear puesto</button>
+      {layoutType === 'LEADER' && (
+        <>
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fff',
+              display: 'grid',
+              gap: 10,
+            }}
+          >
+            <div style={{ fontWeight: 700 }}>Superficie principal</div>
+
+            <div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={leaderModoEspecial}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+
+                    setLeaderModoEspecial(checked);
+
+                    if (!checked) {
+                      setLeaderMainWidthMm(1500);
+                      setLeaderMainDepthMm(600);
+                      setLeaderReturnLengthMm(900);
+                    }
+                  }}
+                />{' '}
+                Puesto líder rematable / medida especial
+              </label>
+            </div>
+
+            <div>
+              <label>Largo principal</label>
+
+              <select
+                value={leaderMainWidthMm}
+                onChange={(e) => setLeaderMainWidthMm(Number(e.target.value))}
+                style={{ width: '100%' }}
+              >
+                {leaderMainWidthOptions.map((value) => (
+                  <option key={value} value={value}>
+                    {value} mm
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label>Profundidad principal</label>
+
+              <select
+                value={leaderMainDepthMm}
+                onChange={(e) => setLeaderMainDepthMm(Number(e.target.value))}
+                style={{ width: '100%' }}
+              >
+                {leaderMainDepthOptions.map((value) => (
+                  <option key={value} value={value}>
+                    {value} mm
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label>Material de superficie</label>
+
+              <select
+                value={leaderMaterialType}
+                onChange={(e) => setLeaderMaterialType(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                <option value="FORMICA">Fórmica 30 mm</option>
+
+                <option value="MELAMINA">Melamina 25 mm</option>
+              </select>
+            </div>
+          </div>
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fff',
+              display: 'grid',
+              gap: 10,
+            }}
+          >
+            <div style={{ fontWeight: 700 }}>Superficie de retorno</div>
+
+            <div>
+              <label>Lado del retorno</label>
+
+              <select
+                value={leaderSide}
+                onChange={(e) => setLeaderSide(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                <option value="LEFT">Izquierda</option>
+                <option value="RIGHT">Derecha</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Largo del retorno</label>
+
+              <select
+                value={leaderReturnLengthMm}
+                onChange={(e) => setLeaderReturnLengthMm(Number(e.target.value))}
+                style={{ width: '100%' }}
+              >
+                {leaderReturnLengthOptions.map((value) => (
+                  <option key={value} value={value}>
+                    {value} mm
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label>Profundidad del retorno</label>
+
+              <select
+                value={leaderReturnDepthMm}
+                onChange={(e) => setLeaderReturnDepthMm(Number(e.target.value))}
+                style={{ width: '100%' }}
+              >
+                <option value={600}>600 mm</option>
+              </select>
+            </div>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={leaderHasGrommetBox}
+                onChange={(e) => setLeaderHasGrommetBox(e.target.checked)}
+              />{' '}
+              Incluir caja para grommet
+            </label>
+          </div>
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fff',
+              display: 'grid',
+              gap: 10,
+            }}
+          >
+            <div style={{ fontWeight: 700 }}>Costados de la superficie principal</div>
+
+            <div>
+              <label>Tipo de costado</label>
+
+              <select
+                value={leaderMainCostadoForma}
+                onChange={(e) => setLeaderMainCostadoForma(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                {leaderCostadoOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ fontSize: 12, opacity: 0.75 }}>
+              El mismo tipo de costado se utilizará en ambos extremos de la superficie principal.
+            </div>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={leaderJunctionHasOutletBox}
+                onChange={(e) => setLeaderJunctionHasOutletBox(e.target.checked)}
+              />{' '}
+              Incluir caja de tomas en el costado junto al retorno
+            </label>
+          </div>
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fafafa',
+              fontSize: 13,
+            }}
+          >
+            <div>
+              <b>Resumen del puesto líder</b>
+            </div>
+
+            <div>
+              Superficie principal: {leaderMainWidthMm} × {leaderMainDepthMm} mm
+            </div>
+
+            <div>
+              Retorno: {leaderReturnLengthMm} × {leaderReturnDepthMm} mm
+            </div>
+
+            <div>Lado: {leaderSide === 'RIGHT' ? 'Derecho' : 'Izquierdo'}</div>
+
+            <div>
+              Material: {leaderMaterialType === 'FORMICA' ? 'Fórmica 30 mm' : 'Melamina 25 mm'}
+            </div>
+
+            <div>Caja para grommet: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
+          </div>
+
+          <button type="button" onClick={handleCreate}>
+            Crear puesto líder
+          </button>
+        </>
+      )}
+
+      {layoutType === 'STANDARD' && (
+        <>
+          {/* Todo el formulario estándar actual */}
+          <div>
+            <label>Tipo de puesto</label>
+            <select
+              value={tipoPuesto}
+              onChange={(e) => handleTipoPuestoChange(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <option value="sencillo">Sencillo</option>
+              <option value="doble">Doble</option>
+            </select>
+          </div>
+          <div>
+            <label>Puestos</label>
+            <select
+              value={puestos}
+              onChange={(e) => setPuestos(Number(e.target.value))}
+              style={{ width: '100%' }}
+            >
+              <option value={1}>1 puesto</option>
+              <option value={2}>2 puestos</option>
+              <option value={3}>3 puestos</option>
+              <option value={4}>4 puestos</option>
+              <option value={5}>5 puestos</option>
+              <option value={6}>6 puestos</option>
+              <option value={7}>7 puestos</option>
+              <option value={8}>8 puestos</option>
+              <option value={9}>9 puestos</option>
+              <option value={10}>10 puestos</option>
+              <option value={11}>11 puestos</option>
+              <option value={12}>12 puestos</option>
+            </select>
+          </div>
+          <div>
+            <label>
+              <input
+                type="checkbox"
+                checked={modoEspecial}
+                onChange={(e) => setModoEspecial(e.target.checked)}
+              />{' '}
+              Puesto especial
+            </label>
+          </div>
+          <div>
+            <label>Largo real</label>
+            <select
+              value={largoRealMm}
+              onChange={(e) => setLargoRealMm(Number(e.target.value))}
+              style={{ width: '100%' }}
+            >
+              {opcionesLargo.map((v) => (
+                <option key={v} value={v}>
+                  {v} mm
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Ancho real</label>
+            <select
+              value={anchoRealMm}
+              onChange={(e) => setAnchoRealMm(Number(e.target.value))}
+              style={{ width: '100%' }}
+            >
+              {opcionesAncho.map((v) => (
+                <option key={v} value={v}>
+                  {v} mm
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label>Acabado / tipo de superficie</label>
+            <select
+              value={selectedFinishId}
+              onChange={(e) => setSelectedFinishId(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              {KONCISA_SURFACE_FINISH_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fff',
+              display: 'grid',
+              gap: 8,
+            }}
+          >
+            <label>
+              <input
+                type="checkbox"
+                checked={includePrivacyPanel}
+                onChange={(e) => setIncludePrivacyPanel(e.target.checked)}
+              />{' '}
+              Incluir pantalla
+            </label>
+
+            {includePrivacyPanel && (
+              <>
+                <div>
+                  <label>Acabado / tipo de pantalla</label>
+                  <select
+                    value={selectedPrivacyPanelFinishId}
+                    onChange={(e) => setSelectedPrivacyPanelFinishId(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    {KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ fontSize: 12, opacity: 0.8 }}>
+                  <div>Tipo: {selectedPrivacyPanelFinish.tipo}</div>
+                  <div>Material: {selectedPrivacyPanelFinish.material}</div>
+                  <div>Finish code: {selectedPrivacyPanelFinish.finishCode}</div>
+                  <div>Canto: {selectedPrivacyPanelFinish.hasCanto ? 'Sí' : 'No'}</div>
+                  <div>Backer: {selectedPrivacyPanelFinish.hasBacker ? 'Sí' : 'No'}</div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <button type="button" onClick={() => setDuctConfigOpen(true)}>
+            Configurar ductos
+          </button>
+
+          <DuctConfigModal
+            open={ductConfigOpen}
+            onClose={() => setDuctConfigOpen(false)}
+            puestos={puestos}
+            ductModes={ductModes}
+            setDuctModes={setDuctModes}
+          />
+
+          <div>
+            <label>
+              <input
+                type="checkbox"
+                checked={includeFloorDuct}
+                onChange={(e) => setIncludeFloorDuct(e.target.checked)}
+              />{' '}
+              Incluir ducto bajante a piso
+            </label>
+          </div>
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fff',
+              display: 'grid',
+              gap: 8,
+            }}
+          >
+            <label>
+              <input
+                type="checkbox"
+                checked={includeCeilingDuct}
+                onChange={(e) => setIncludeCeilingDuct(e.target.checked)}
+              />{' '}
+              Incluir ducto bajante a techo
+            </label>
+
+            {includeCeilingDuct && (
+              <div>
+                <label>Lado del ducto a techo</label>
+                <select
+                  value={ceilingDuctSide}
+                  onChange={(e) => setCeilingDuctSide(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <option value="LEFT">Izquierda</option>
+                  <option value="RIGHT">Derecha</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label>Tipo de costado</label>
+            <select
+              value={tipoCostado}
+              onChange={(e) => setTipoCostado(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              {opcionesCostado.map((op) => (
+                <option key={op.value} value={op.value}>
+                  {op.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label>Acceso para cableado</label>
+            <select
+              value={tipoPasoCable}
+              onChange={(e) => setTipoPasoCable(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <option value="none">Ninguno</option>
+              <option value="grommet">Grommet</option>
+              <option value="pasacable">Pasacable</option>
+            </select>
+          </div>
+          {/* =========================
+    PASACABLE
+========================= */}
+          {tipoPasoCable === 'pasacable' && (
+            <div>
+              <label>Posición pasacables</label>
+
+              {tipoPuesto === 'sencillo' && (
+                <select
+                  value={pasacablePosition}
+                  onChange={(e) => setPasacablePosition(e.target.value)}
+                >
+                  <option value="LEFT">Izquierda</option>
+                  <option value="CENTER">Centro</option>
+                  <option value="RIGHT">Derecha</option>
+                </select>
+              )}
+
+              {tipoPuesto === 'doble' && (
+                <select
+                  value={pasacablePosition}
+                  onChange={(e) => setPasacablePosition(e.target.value)}
+                >
+                  <option value="CENTER">Centro</option>
+                  <option value="LEFT_RIGHT">Izq - Der</option>
+                  <option value="LEFT_LEFT">Izq - Izq</option>
+                  <option value="RIGHT_RIGHT">Der - Der</option>
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* =========================
+    GROMMET
+========================= */}
+          {tipoPasoCable === 'grommet' && (
+            <div>
+              <label>Acabado del grommet</label>
+              <select
+                value={grommetFinish}
+                onChange={(e) => setGrommetFinish(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                <option value="ALUMINIUM">Aluminium</option>
+                <option value="PAINTED">Painted</option>
+                <option value="METALICO">Metálico</option>
+                <option value="ALUMINIUM_PINTADO">Aluminium pintado</option>
+              </select>
+            </div>
+          )}
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fafafa',
+              fontSize: 13,
+            }}
+          >
+            <div>
+              <b>Resumen técnico</b>
+            </div>
+            <div>Largo real: {largoRealMm} mm</div>
+            <div>Ancho real: {anchoRealMm} mm</div>
+            <div>Largo de cobro/código: {largoCobroMm} mm</div>
+            <div>Ancho de cobro/código: {anchoCobroMm} mm</div>
+            <div>Acabado: {selectedFinish.label}</div>
+            <div>Finish code: {selectedFinish.finishCode}</div>
+            <div>Espesor: {selectedFinish.thickMm} mm</div>
+            <div>Variante: {selectedFinish.variant || 'base'}</div>
+          </div>
+          <button onClick={handleCreate}>Crear puesto</button>
+        </>
+      )}
     </div>
   );
 }

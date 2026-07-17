@@ -1124,7 +1124,10 @@ export default function LeftPanel({
 
       // Debug output to help diagnose why modules aren't being collapsed
       try {
-        console.debug('[LeftPanel] clak grouping map:', Array.from(groupingMap.entries()).map(([k, arr]) => ({ key: k, codes: arr })));
+        console.debug(
+          '[LeftPanel] clak grouping map:',
+          Array.from(groupingMap.entries()).map(([k, arr]) => ({ key: k, codes: arr }))
+        );
       } catch {
         /* ignore */
       }
@@ -1155,7 +1158,9 @@ export default function LeftPanel({
   // Filtrado ZEN ALMACENAMIENTO
   // ================================
   const almacenFiltered = useMemo(() => {
-    const q = String(qAlmacen || '').trim().toLowerCase();
+    const q = String(qAlmacen || '')
+      .trim()
+      .toLowerCase();
     if (!q) return almacenItems || [];
     return (almacenItems || []).filter((it) => {
       const code = String(it?.codigoPT ?? '').toLowerCase();
@@ -1206,7 +1211,9 @@ export default function LeftPanel({
           return {
             codigoPT: codeBase,
             ui: {
-              title: (priceEntry?.descripcion || (it.codeBase || it.filename)) + (it.variant ? ` - ${it.variant}` : ''),
+              title:
+                (priceEntry?.descripcion || it.codeBase || it.filename) +
+                (it.variant ? ` - ${it.variant}` : ''),
               subtitle: 'Zen Almacenamiento',
             },
             prices: {
@@ -1224,7 +1231,11 @@ export default function LeftPanel({
         const vmap = new Map();
         for (const it of activeItems) {
           const key = it.codigoPT;
-          const entry = { variant: it.raw?.variant || null, src: it.model?.src, category: it.model?.category || it.raw?.category };
+          const entry = {
+            variant: it.raw?.variant || null,
+            src: it.model?.src,
+            category: it.model?.category || it.raw?.category,
+          };
           if (!vmap.has(key)) vmap.set(key, []);
           vmap.get(key).push(entry);
         }
@@ -1445,14 +1456,25 @@ export default function LeftPanel({
             }
 
             const result = buildKoncisaPlus(config);
-            const { groupId, groupName, parts } = result;
-
-            // ✅ 1. Crear grupo padre del puesto
-            const puestoGroup = api.createKoncisaPlusAssemblyGroup?.({
-              ...config,
+            const {
               groupId,
               groupName,
-            });
+              parts = [],
+              layoutType = config.layoutType || 'STANDARD',
+            } = result || {};
+
+            console.log('Koncisa Plus config:', config);
+            console.log('Koncisa Plus result:', result);
+            console.log('Koncisa Plus parts:', parts);
+
+            const puestoGroup =
+              api.createKoncisaPlusAssemblyGroup?.({
+                ...config,
+
+                groupId,
+                groupName,
+                layoutType,
+              }) || null;
 
             if (!puestoGroup) {
               alert('No se pudo crear el grupo del puesto Koncisa Plus.');
@@ -1472,29 +1494,45 @@ export default function LeftPanel({
 
               const { widthMm, depthMm, thickMm } = surface.dimMm || {};
 
+              console.log('SUPERFICIE A CREAR', {
+                subtype: surface.subtype,
+                position: surface.position,
+                rotation: surface.rotation,
+              });
+
               api.addSurface?.(
                 {
                   line: surface.line,
                   codigoPT: surface.code,
-                  widthM: (widthMm || 0) / 1000,
-                  depthM: (depthMm || 0) / 1000,
-                  thicknessM: (thickMm || 0) / 1000,
+
+                  widthM: Number(widthMm || 0) / 1000,
+                  depthM: Number(depthMm || 0) / 1000,
+                  thicknessM: Number(thickMm || 0) / 1000,
+
                   dim: {
                     widthMm,
                     depthMm,
                     thickMm,
                   },
+
                   position: {
-                    x: (surface.position?.x || 0) / 1000,
-                    y: (surface.position?.y || 0) / 1000,
-                    z: (surface.position?.z || 0) / 1000,
+                    x: Number(surface.position?.x || 0) / 1000,
+                    y: Number(surface.position?.y || 0) / 1000,
+                    z: Number(surface.position?.z || 0) / 1000,
                   },
+
+                  rotation: {
+                    x: Number(surface.rotation?.x || 0),
+                    y: Number(surface.rotation?.y || 0),
+                    z: Number(surface.rotation?.z || 0),
+                  },
+
                   groupId: surface.groupId || groupId,
                   groupName: surface.groupName || groupName,
                   parentGroup: puestoGroup,
+
                   logicalCode: surface.logicalCode,
 
-                  // NUEVO
                   edgeFinish: surface.meta?.canto || surface.canto || 'PVC-2MM',
                 },
                 surface
@@ -1547,24 +1585,62 @@ export default function LeftPanel({
             // COSTADOS
             // =========================
             const costados = parts.filter((p) => p.type === 'costado');
+            //console.log('Koncisa Plus: agregando costados', costados);
 
             for (const costado of costados) {
-              if (!costado.code) {
-                alert(`No tenemos disponible este costado: ${costado.logicalCode}`);
+              if (!costado?.code) {
+                alert(
+                  `No tenemos disponible este costado: ${
+                    costado?.logicalCode || 'sin código lógico'
+                  }`
+                );
+
+                continue;
+              }
+
+              const modelKind = String(costado?.model?.kind || 'glb')
+                .trim()
+                .toLowerCase();
+
+              if (modelKind === 'koncisa-costado-assembly') {
+                const assembly = costado?.meta?.costadoAssembly || null;
+
+                if (
+                  !assembly?.leftLegSrc ||
+                  !assembly?.rightLegSrc ||
+                  !assembly?.centerBracketSrc
+                ) {
+                  alert(`El costado ${costado.logicalCode} no tiene completo su ensamble 3D.`);
+
+                  continue;
+                }
+
+                await api.addKoncisaCostadoAssemblyPart?.({
+                  ...costado,
+
+                  groupId: costado.groupId || groupId,
+
+                  groupName: costado.groupName || groupName,
+
+                  parentGroup: puestoGroup,
+                });
+
                 continue;
               }
 
               if (!costado?.model?.src) {
                 alert(`Este costado no tiene modelo 3D asociado: ${costado.logicalCode}`);
+
                 continue;
               }
 
               await api.addExternalGlbPart?.({
                 ...costado,
+
                 groupId: costado.groupId || groupId,
+
                 groupName: costado.groupName || groupName,
 
-                // ✅ CLAVE
                 parentGroup: puestoGroup,
               });
             }
@@ -1667,6 +1743,22 @@ export default function LeftPanel({
                 ...ductoTecho,
                 groupId: ductoTecho.groupId || groupId,
                 groupName: ductoTecho.groupName || groupName,
+                parentGroup: puestoGroup,
+              });
+            }
+
+            // =========================
+            // LAMINA UNION
+            // =========================
+            const leaderSupports = parts.filter((p) => p.type === 'leaderUnionSupport');
+
+            for (const support of leaderSupports) {
+              api.addNativeBlockPart?.({
+                ...support,
+
+                groupId: support.groupId || groupId,
+                groupName: support.groupName || groupName,
+
                 parentGroup: puestoGroup,
               });
             }
@@ -2332,7 +2424,8 @@ export default function LeftPanel({
                           if (readOnly) return;
                           const codeBase = it.codigoPT;
                           const variants = almacenVariantsMap.get(codeBase) || [];
-                          const baseVariant = variants.find((v) => !v?.variant) || variants[0] || null;
+                          const baseVariant =
+                            variants.find((v) => !v?.variant) || variants[0] || null;
                           const src = baseVariant?.src || it.model?.src;
                           const itemFor3D = {
                             codigoPT: codeBase,
@@ -2349,9 +2442,29 @@ export default function LeftPanel({
                         }}
                         style={cardBtn(readOnly)}
                       >
-                        <StorageCardImage codeBase={it.codigoPT} title={it.ui?.title || it.codigoPT} />
-                        <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{it.codigoPT}</div>
-                        <div style={{ fontSize: 12, opacity: 0.85, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{it.ui?.title}</div>
+                        <StorageCardImage
+                          codeBase={it.codigoPT}
+                          title={it.ui?.title || it.codigoPT}
+                        />
+                        <div
+                          style={{
+                            fontWeight: 900,
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {it.codigoPT}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            opacity: 0.85,
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {it.ui?.title}
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -2584,7 +2697,15 @@ export default function LeftPanel({
                 gap: 8,
               }}
             >
-              <span style={{ width: 10, height: 10, borderRadius: 2, display: 'inline-block', background: showClakVariants ? '#34d399' : '#d1d5db' }} />
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 2,
+                  display: 'inline-block',
+                  background: showClakVariants ? '#34d399' : '#d1d5db',
+                }}
+              />
               {showClakVariants ? 'Variantes: ON' : 'Variantes: OFF'}
             </button>
             <div style={{ fontSize: 12, opacity: 0.8 }}>Mostrar todas las variantes</div>
