@@ -257,7 +257,9 @@ export function buildKoncisaLeader(config = {}) {
       : `Costado ${leaderMainCostadoForma} con caja de tomas ${outletResolved.billingDepthMm}`;
   }
 
-  const returnCostadoSide = sideKey === 'RIGHT' ? 'der' : 'izq';
+  //const returnCostadoSide = sideKey === 'RIGHT' ? 'der' : 'izq';
+
+  //const returnCostadoSide = sideKey === 'RIGHT' ? 'izq' : 'der';
 
   const returnTerminalX = returnX;
 
@@ -265,7 +267,7 @@ export function buildKoncisaLeader(config = {}) {
 
   //console.log('returnTerminalZ: ', returnTerminalZ);
   //console.log('leaderReturnLengthMm : ', leaderReturnLengthMm);
-
+  /*
   const returnTerminalCostado = createCostado({
     groupId,
     groupName,
@@ -285,12 +287,26 @@ export function buildKoncisaLeader(config = {}) {
     z: -leaderReturnLengthMm,
   });
 
+  const baseRotationY = Number(returnTerminalCostado.rotation?.y || 0);
+
+  const extraRotationY = sideKey === 'RIGHT' ? Math.PI / 2 : -Math.PI / 2;
+
+  returnTerminalCostado.rotation = {
+    ...(returnTerminalCostado.rotation || {}),
+    x: 0,
+    y: baseRotationY + extraRotationY,
+    z: 0,
+  };
+*/
+
+  /*
   returnTerminalCostado.rotation = {
     ...(returnTerminalCostado.rotation || {}),
     x: 0,
     y: sideKey === 'RIGHT' ? Math.PI / 2 : -Math.PI / 2,
     z: 0,
   };
+*/
 
   /*
   returnTerminalCostado.meta = {
@@ -301,6 +317,7 @@ export function buildKoncisaLeader(config = {}) {
     replaceZone: 'RETURN_END',
   };
 */
+  /*
   returnTerminalCostado.meta = {
     ...(returnTerminalCostado.meta || {}),
 
@@ -314,6 +331,69 @@ export function buildKoncisaLeader(config = {}) {
     pedestalTarget: true,
 
     hasOutletBox: false,
+  };
+
+  returnTerminalCostado.replaceKey = 'KONCISA_LEADER_RETURN_END';
+
+  parts.push(returnTerminalCostado);
+*/
+  // =====================================================
+  // COSTADO DEL EXTREMO DE LA SUPERFICIE DE RETORNO
+  // =====================================================
+
+  /*
+   * El costado se construye siempre desde su orientación local IZQ.
+   * La orientación global LEFT/RIGHT del puesto se controla después
+   * rotando el ensamble completo ±90 grados.
+   */
+  const returnCostadoSide = 'izq';
+
+  //posicion de los costados de puesto lider, superficie extra.
+  const returnTerminalCostado = createCostado({
+    groupId,
+    groupName,
+
+    tipo: 'terminal',
+    tipoPuesto: 'sencillo',
+
+    depthMm: leaderReturnDepthMm,
+
+    forma: leaderMainCostadoForma,
+    lado: returnCostadoSide,
+
+    x: returnX,
+    y: 0,
+    z: -leaderReturnLengthMm,
+  });
+
+  returnTerminalCostado.rotation = {
+    ...(returnTerminalCostado.rotation || {}),
+    x: 0,
+
+    y: sideKey === 'RIGHT' ? -Math.PI / 2 : -Math.PI / 2,
+
+    z: 0,
+  };
+
+  returnTerminalCostado.meta = {
+    ...(returnTerminalCostado.meta || {}),
+
+    layoutType: 'LEADER',
+    leaderRole: 'RETURN_END',
+
+    moduleIndex: 0,
+    replaceZone: 'RETURN_END',
+
+    pedestalTarget: true,
+    hasOutletBox: false,
+
+    /*
+     * Guardamos ambos conceptos:
+     * - lado local: orientación usada para construir el costado;
+     * - leaderSide: ubicación global del retorno.
+     */
+    localCostadoSide: returnCostadoSide,
+    leaderSide: sideKey,
   };
 
   returnTerminalCostado.replaceKey = 'KONCISA_LEADER_RETURN_END';
