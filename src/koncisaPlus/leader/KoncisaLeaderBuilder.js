@@ -7,6 +7,8 @@ import { createLeaderMainBeam } from './parts/leaderBeams';
 
 import { resolveLeaderCostadoWithOutlet } from './rules/leaderCostadoOutletRules';
 
+import { createLeaderMainSkirt } from './parts/leaderSkirts';
+
 export function buildKoncisaLeader(config = {}) {
   const groupId = `KONCISA_LEADER_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 
@@ -29,6 +31,10 @@ export function buildKoncisaLeader(config = {}) {
     finishCode = '22008689',
 
     leaderHasGrommetBox = false,
+
+    // Falda principal
+    leaderSkirtMaterialType = 'METALICA',
+    leaderSkirtFinishCode = null,
   } = config;
 
   const parts = [];
@@ -97,6 +103,51 @@ export function buildKoncisaLeader(config = {}) {
   });
 
   parts.push(returnSurface);
+
+  // =====================================================
+  // FALDA DE LA SUPERFICIE PRINCIPAL
+  // =====================================================
+
+  const mainSkirt = createLeaderMainSkirt({
+    groupId,
+    groupName,
+
+    realMainWidthMm: leaderMainWidthMm,
+
+    materialType: leaderSkirtMaterialType,
+    finishCode: leaderSkirtFinishCode,
+
+    x: 0,
+
+    /*
+     * Superficie:
+     * centro Y = 710
+     * espesor = 30
+     *
+     * Falda:
+     * alto = 300
+     *
+     * Parte inferior de superficie:
+     * 710 - 15 = 695
+     *
+     * Centro de falda:
+     * 695 - 150 = 545
+     */
+    y: 545,
+
+    /*
+     * La falda va debajo de la superficie principal,
+     * hacia su borde posterior.
+     *
+     * Este valor podrá ajustarse visualmente cuando
+     * tengamos el ensamble renderizado.
+     */
+    z: -leaderMainDepthMm / 2 + 30,
+
+    rotationY: 0,
+  });
+
+  parts.push(mainSkirt);
 
   // =====================================================
   // COSTADOS DE LA SUPERFICIE PRINCIPAL
