@@ -731,6 +731,21 @@ export default function App() {
               if (readOnly) return;
               threeApiRef.current?.movePartToXZ?.(id, x, z);
             }}
+            onMoveParts2D={(updates) => {
+              if (readOnly || !updates?.length) return false;
+
+              const api = threeApiRef.current;
+              if (!api?.movePartToXZ) return false;
+
+              const previousMoveAsGroup = api.getMoveAsGroup?.();
+              if (previousMoveAsGroup === true) api.setMoveAsGroup?.(false);
+
+              try {
+                return updates.every(({ id, x, z }) => api.movePartToXZ(id, x, z) !== false);
+              } finally {
+                if (previousMoveAsGroup === true) api.setMoveAsGroup?.(true);
+              }
+            }}
             isPartMovementLocked2D={(id) =>
               readOnly || threeApiRef.current?.isPartMovementLocked?.(id) === true
             }

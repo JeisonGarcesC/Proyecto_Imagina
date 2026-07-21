@@ -216,6 +216,8 @@ export function resolveKoncisaSurfaceBillingWidth(realWidthMm) {
 }
 
 export function resolveKoncisaSurfaceBillingDepth({ realDepthMm, tipoPuesto = 'sencillo' }) {
+  console.log('tipoPuesto', tipoPuesto);
+  console.log('realDepthMm', realDepthMm);
   const tipoPuestoKey = String(tipoPuesto || 'sencillo')
     .trim()
     .toLowerCase();
@@ -271,6 +273,12 @@ export function resolveKoncisaSurfaceCodigoPT({
     tipoPuesto,
   });
 
+  console.log('resolvedRealWidthMm', resolvedRealWidthMm);
+  console.log('resolvedRealDepthMm', resolvedRealDepthMm);
+  console.log('resolvedBillingDepthMm', resolvedBillingDepthMm);
+  console.log('resolvedBillingWidthMm', resolvedBillingWidthMm);
+  //console.log('logicalCode', logicalCode);
+
   if (!resolvedBillingWidthMm || !resolvedBillingDepthMm) {
     return {
       logicalCode: null,
@@ -298,6 +306,8 @@ export function resolveKoncisaSurfaceCodigoPT({
     finishCode,
     variant,
   });
+
+  //console.log('logicalCode', logicalCode);
 
   const rawCodigoPT = KONCISA_SURFACE_RULES[logicalCode] || '00000000';
 

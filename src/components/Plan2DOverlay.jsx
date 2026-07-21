@@ -123,6 +123,7 @@ export default function Plan2DOverlay({
   },
   onPlan2DTransformChange,
   onMovePart2D,
+  onMoveParts2D,
   isPartMovementLocked2D,
   transformTool = 'move',
   onBeginRotation2D,
@@ -543,17 +544,34 @@ export default function Plan2DOverlay({
       }
 
       if (pieceDrag && pieceDrag.pointerId === e.pointerId) {
-        const movedPx = Math.hypot(e.clientX - pieceDrag.startClientX, e.clientY - pieceDrag.startClientY);
+        const movedPx = Math.hypot(
+          e.clientX - pieceDrag.startClientX,
+          e.clientY - pieceDrag.startClientY
+        );
         if (!pieceDrag.hasMoved && movedPx < 4) return;
 
+        if (!pieceDrag.hasMoved && pieceDrag.replaceSelectionOnDrag) {
+          onPickIds?.([pieceDrag.id]);
+        }
         pieceDrag.hasMoved = true;
         const world = canvasToWorld(mx, my);
         if (!world) return;
 
-        const nextX = world.x + pieceDrag.dx;
-        const nextZ = world.z + pieceDrag.dz;
+        const deltaX = world.x - pieceDrag.startWorldX;
+        const deltaZ = world.z - pieceDrag.startWorldZ;
 
-        onMovePart2D?.(pieceDrag.id, nextX, nextZ);
+        if (pieceDrag.initialPositions.length > 1) {
+          onMoveParts2D?.(
+            pieceDrag.initialPositions.map(({ id, x, z }) => ({
+              id,
+              x: x + deltaX,
+              z: z + deltaZ,
+            }))
+          );
+        } else {
+          const initial = pieceDrag.initialPositions[0];
+          onMovePart2D?.(pieceDrag.id, initial.x + deltaX, initial.z + deltaZ);
+        }
         return;
       }
 
@@ -587,11 +605,36 @@ export default function Plan2DOverlay({
       scaleStartPx,
       canvasToPlanPixel,
       onMovePart2D,
+      onMoveParts2D,
+      onPickIds,
       onUpdateRotation2D,
       pickPartAtCanvasPoint,
       isPartMovementLocked2D,
     ]
   );
+
+  const cancelPieceDrag = useCallback(() => {
+    const pieceDrag = dragPieceRef.current;
+    if (!pieceDrag) return;
+
+    if (pieceDrag.hasMoved) {
+      if (pieceDrag.initialPositions.length > 1) {
+        onMoveParts2D?.(pieceDrag.initialPositions);
+      } else {
+        const initial = pieceDrag.initialPositions[0];
+        onMovePart2D?.(pieceDrag.id, initial.x, initial.z);
+      }
+      suppressNextClickRef.current = true;
+    }
+
+    dragPieceRef.current = null;
+    setDragPieceId(null);
+
+    const canvas = canvasRef.current;
+    if (canvas?.hasPointerCapture?.(pieceDrag.pointerId)) {
+      canvas.releasePointerCapture(pieceDrag.pointerId);
+    }
+  }, [onMovePart2D, onMoveParts2D]);
 
   const handlePointerUp = useCallback((e) => {
     const canvas = canvasRef.current;
@@ -618,6 +661,14 @@ export default function Plan2DOverlay({
       canvas.releasePointerCapture(e.pointerId);
     }
   }, [onEndRotation2D]);
+
+  const handlePointerCancel = useCallback(
+    (e) => {
+      cancelPieceDrag();
+      handlePointerUp(e);
+    },
+    [cancelPieceDrag, handlePointerUp]
+  );
 
   // zoom wheel
   const handleWheel = useCallback(
@@ -714,18 +765,36 @@ export default function Plan2DOverlay({
       const world = canvasToWorld(mx, my);
       if (!world) return;
 
-      if (!e.ctrlKey && !e.metaKey) onPickId?.(picked.id);
+      const selectedSet = new Set(selectedIds || []);
+      const useMultipleSelection = selectedSet.has(picked.id) && selectedSet.size > 1;
+      const dragIds = useMultipleSelection ? Array.from(selectedSet) : [picked.id];
+      const snapshotById = new Map(
+        (getSnapshot?.() || []).filter((part) => part?.id).map((part) => [part.id, part])
+      );
+      const initialPositions = dragIds
+        .map((id) => snapshotById.get(id))
+        .filter(Boolean)
+        .map(({ id, x, z }) => ({ id, x, z }));
 
-      if (isPartMovementLocked2D?.(picked.id)) return;
+      if (
+        initialPositions.length !== dragIds.length ||
+        dragIds.some((id) => isPartMovementLocked2D?.(id))
+      ) {
+        return;
+      }
+
+      if (!e.ctrlKey && !e.metaKey) onPickId?.(picked.id);
 
       setDragPieceId(picked.id);
       dragPieceRef.current = {
         id: picked.id,
-        dx: picked.x - world.x,
-        dz: picked.z - world.z,
+        initialPositions,
+        startWorldX: world.x,
+        startWorldZ: world.z,
         startClientX: e.clientX,
         startClientY: e.clientY,
         hasMoved: false,
+        replaceSelectionOnDrag: !selectedSet.has(picked.id),
         pointerId: e.pointerId,
       };
       canvas.setPointerCapture?.(e.pointerId);
@@ -741,6 +810,8 @@ export default function Plan2DOverlay({
       onBeginRotation2D,
       pickPartAtCanvasPoint,
       canvasToWorld,
+      selectedIds,
+      getSnapshot,
       onPickId,
       isPartMovementLocked2D,
     ]
@@ -748,14 +819,22 @@ export default function Plan2DOverlay({
 
   useEffect(() => {
     const onEscape = (e) => {
-      if (e.key !== 'Escape' || !rotationDragRef.current) return;
-      rotationDragRef.current = null;
-      setIsRotatingPiece(false);
-      onCancelRotation2D?.();
+      if (e.key !== 'Escape') return;
+      if (rotationDragRef.current) {
+        rotationDragRef.current = null;
+        setIsRotatingPiece(false);
+        onCancelRotation2D?.();
+      }
+      cancelPieceDrag();
     };
     window.addEventListener('keydown', onEscape);
     return () => window.removeEventListener('keydown', onEscape);
-  }, [onCancelRotation2D]);
+  }, [onCancelRotation2D, cancelPieceDrag]);
+
+  useEffect(() => {
+    window.addEventListener('blur', cancelPieceDrag);
+    return () => window.removeEventListener('blur', cancelPieceDrag);
+  }, [cancelPieceDrag]);
 
   useEffect(() => {
     if (transformTool === 'rotate' || !rotationDragRef.current) return;
@@ -1559,7 +1638,8 @@ export default function Plan2DOverlay({
         onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onLostPointerCapture={cancelPieceDrag}
         onPointerLeave={() => {
           if (!dragPieceRef.current && !rotationDragRef.current && !dragRef.current.isDown) {
             setHoveredMovablePieceId(null);
