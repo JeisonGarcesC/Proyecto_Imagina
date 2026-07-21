@@ -7410,6 +7410,7 @@ export default function ThreeCanvas({
         rightMaxZFromPivotMm,
         centerBracketMinZFromPivotMm,
         centerBracketMaxZFromPivotMm,
+        crossbarInsetXMm = 0,
 
         rootOffsetMm = {},
         leftOffsetMm = {},
@@ -7536,12 +7537,21 @@ export default function ThreeCanvas({
       const layoutType = String(part?.meta?.layoutType || '')
         .trim()
         .toUpperCase();
-      const usesBoundedDepthPositioning =
-        positioningMode === 'bounded-depth-v1' &&
+      const resolvedPositioningMode = part?.meta?.positioningMode || positioningMode;
+      const usesStandardBoundedDepthPositioning =
+        resolvedPositioningMode === 'bounded-depth-v1' &&
         tipoPuesto === 'sencillo' &&
         forma === 'RECT' &&
         layoutType !== 'LEADER' &&
         (realDepthMm === 600 || realDepthMm === 750);
+      const usesLeaderBoundedDepthPositioning =
+        resolvedPositioningMode === 'bounded-depth-leader-v1' &&
+        tipoPuesto === 'sencillo' &&
+        forma === 'RECT' &&
+        layoutType === 'LEADER' &&
+        [600, 650, 700, 750].includes(realDepthMm);
+      const usesBoundedDepthPositioning =
+        usesStandardBoundedDepthPositioning || usesLeaderBoundedDepthPositioning;
 
       /*
        * La profundidad del costado corre sobre Z.
@@ -7590,6 +7600,7 @@ export default function ThreeCanvas({
         const rightInnerFaceZ = rightPositionMm.z + resolvedRightMinZFromPivotMm;
 
         crossbarLengthMm = Math.max(1, rightInnerFaceZ - leftInnerFaceZ);
+        crossbarOffsetMm.x += Number(crossbarInsetXMm);
         crossbarOffsetMm.z = (leftInnerFaceZ + rightInnerFaceZ) / 2;
         bracketPositionMm.z =
           -(resolvedCenterBracketMinZFromPivotMm + resolvedCenterBracketMaxZFromPivotMm) / 2;
@@ -7750,13 +7761,22 @@ export default function ThreeCanvas({
       const baseOffsetZ = Number(rootOffsetMm?.z || 0);
 
       const sideOffsetZMm = lado === 'der' ? -baseOffsetZ : baseOffsetZ;
-      const rootPositionZMm = usesBoundedDepthPositioning
-        ? 0
-        : Number(part?.position?.z || 0) + sideOffsetZMm;
+      const boundedDepthRootPositionMm = part?.meta?.boundedDepthRootPositionMm || {};
+      const rootPositionXMm = usesLeaderBoundedDepthPositioning
+        ? Number(boundedDepthRootPositionMm?.x ?? part?.position?.x ?? 0)
+        : Number(part?.position?.x || 0);
+      const rootPositionYMm = usesLeaderBoundedDepthPositioning
+        ? Number(boundedDepthRootPositionMm?.y ?? part?.position?.y ?? 0)
+        : Number(part?.position?.y || 0);
+      const rootPositionZMm = usesLeaderBoundedDepthPositioning
+        ? Number(boundedDepthRootPositionMm?.z ?? part?.position?.z ?? 0)
+        : usesStandardBoundedDepthPositioning
+          ? 0
+          : Number(part?.position?.z || 0) + sideOffsetZMm;
 
       root.position.set(
-        (Number(part?.position?.x || 0) + baseOffsetX) / 1000,
-        (Number(part?.position?.y || 0) + baseOffsetY) / 1000,
+        (rootPositionXMm + baseOffsetX) / 1000,
+        (rootPositionYMm + baseOffsetY) / 1000,
         rootPositionZMm / 1000
       );
 

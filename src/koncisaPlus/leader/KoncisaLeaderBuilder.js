@@ -9,6 +9,22 @@ import { resolveLeaderCostadoWithOutlet } from './rules/leaderCostadoOutletRules
 
 import { createLeaderMainSkirt } from './parts/leaderSkirts';
 
+function enableBoundedDepthForLeaderRect(costado, rootPositionMm) {
+  const isRectAssembly =
+    String(costado?.meta?.forma || '').toUpperCase() === 'RECT' &&
+    costado?.model?.kind === 'koncisa-costado-assembly';
+
+  if (!isRectAssembly) return costado;
+
+  costado.meta = {
+    ...(costado.meta || {}),
+    positioningMode: 'bounded-depth-leader-v1',
+    boundedDepthRootPositionMm: rootPositionMm,
+  };
+
+  return costado;
+}
+
 export function buildKoncisaLeader(config = {}) {
   const groupId = `KONCISA_LEADER_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 
@@ -206,6 +222,12 @@ export function buildKoncisaLeader(config = {}) {
     hasOutletBox: false,
   };
 
+  enableBoundedDepthForLeaderRect(mainTerminalCostado, {
+    x: mainTerminalX,
+    y: 0,
+    z: 0,
+  });
+
   mainTerminalCostado.replaceKey = 'KONCISA_LEADER_MAIN_FREE_END';
 
   parts.push(mainTerminalCostado);
@@ -288,6 +310,12 @@ export function buildKoncisaLeader(config = {}) {
     descriptionSuffix:
       outletResolved?.descriptionSuffix || junctionCostado.meta?.descriptionSuffix || '',
   };
+
+  enableBoundedDepthForLeaderRect(junctionCostado, {
+    x: junctionCostadoX,
+    y: 0,
+    z: 0,
+  });
 
   junctionCostado.replaceKey = `KONCISA_LEADER_MAIN_RETURN_${sideKey}`;
 
@@ -446,6 +474,12 @@ export function buildKoncisaLeader(config = {}) {
     localCostadoSide: returnCostadoSide,
     leaderSide: sideKey,
   };
+
+  enableBoundedDepthForLeaderRect(returnTerminalCostado, {
+    x: returnTerminalX,
+    y: 0,
+    z: returnTerminalZ,
+  });
 
   returnTerminalCostado.replaceKey = 'KONCISA_LEADER_RETURN_END';
 

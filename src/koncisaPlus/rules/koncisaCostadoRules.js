@@ -78,6 +78,7 @@ export const KONCISA_COSTADO_RULES = {
       rightMaxZFromPivotMm: 0,
       centerBracketMinZFromPivotMm: -126,
       centerBracketMaxZFromPivotMm: 0,
+      crossbarInsetXMm: 12.7 + 13.0, //posicion del travesaño
 
       rootOffsetMm: {
         x: 0,
@@ -99,7 +100,7 @@ export const KONCISA_COSTADO_RULES = {
       },
 
       centerBracketOffsetMm: {
-        x: 0,
+        x: 40,
         y: 0,
         z: 0,
       },
@@ -139,6 +140,7 @@ export const KONCISA_COSTADO_RULES = {
       rightMaxZFromPivotMm: 0,
       centerBracketMinZFromPivotMm: -126,
       centerBracketMaxZFromPivotMm: 0,
+      crossbarInsetXMm: 12.7 + 13.0, //posicion del travesaño
 
       leftOffsetMm: {
         x: 0,
@@ -153,7 +155,7 @@ export const KONCISA_COSTADO_RULES = {
       },
 
       centerBracketOffsetMm: {
-        x: 0,
+        x: 40,
         y: 0,
         z: 0,
       },
