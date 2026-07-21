@@ -124,6 +124,7 @@ export default function Plan2DOverlay({
   },
   onPlan2DTransformChange,
   onMovePart2D,
+  isPartMovementLocked2D,
 }) {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureStart, setMeasureStart] = useState(null);
@@ -135,7 +136,9 @@ export default function Plan2DOverlay({
   const [scaleHoverPx, setScaleHoverPx] = useState(null);
 
   const [dragPieceId, setDragPieceId] = useState(null);
-  const [dragOffset, setDragOffset] = useState(null); // { dx, dz }
+  const [hoveredMovablePieceId, setHoveredMovablePieceId] = useState(null);
+  const dragPieceRef = useRef(null);
+  const suppressNextClickRef = useRef(false);
 
   const planImageRef = useRef(null);
 
@@ -408,8 +411,47 @@ export default function Plan2DOverlay({
     ensureInitializedView();
   }, [ensureInitializedView]);
 
-  // Mouse move for wall preview + pan drag
-  const handleMouseMove = useCallback(
+  const pickRectHit = useCallback(
+    (mx, my, p, s) => {
+      const [px, py] = toCanvas(p.x, p.z);
+      const rw = p.w * s;
+      const rd = p.d * s;
+      const ang = -(p.rotY || 0);
+      const dx = mx - px;
+      const dy = my - py;
+      const rx = dx * Math.cos(ang) - dy * Math.sin(ang);
+      const ry = dx * Math.sin(ang) + dy * Math.cos(ang);
+
+      if (Math.abs(rx) <= rw / 2 && Math.abs(ry) <= rd / 2) {
+        return rx * rx + ry * ry;
+      }
+
+      return null;
+    },
+    [toCanvas]
+  );
+
+  const pickPartAtCanvasPoint = useCallback(
+    (mx, my) => {
+      const snap = getAllBounds()?.snap || [];
+      const { s } = viewRef.current;
+      let best = null;
+      let bestDist = Infinity;
+
+      for (const p of snap) {
+        const dist = pickRectHit(mx, my, p, s);
+        if (dist == null || dist >= bestDist) continue;
+        bestDist = dist;
+        best = p;
+      }
+
+      return best;
+    },
+    [getAllBounds, pickRectHit]
+  );
+
+  // Pointer move for wall preview, pan and piece dragging.
+  const handlePointerMove = useCallback(
     (e) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -445,14 +487,20 @@ export default function Plan2DOverlay({
         return;
       }
 
-      if (dragPieceId && dragOffset) {
+      const pieceDrag = dragPieceRef.current;
+
+      if (pieceDrag && pieceDrag.pointerId === e.pointerId) {
+        const movedPx = Math.hypot(e.clientX - pieceDrag.startClientX, e.clientY - pieceDrag.startClientY);
+        if (!pieceDrag.hasMoved && movedPx < 4) return;
+
+        pieceDrag.hasMoved = true;
         const world = canvasToWorld(mx, my);
         if (!world) return;
 
-        const nextX = world.x + dragOffset.dx;
-        const nextZ = world.z + dragOffset.dz;
+        const nextX = world.x + pieceDrag.dx;
+        const nextZ = world.z + pieceDrag.dz;
 
-        onMovePart2D?.(dragPieceId, nextX, nextZ);
+        onMovePart2D?.(pieceDrag.id, nextX, nextZ);
         return;
       }
 
@@ -463,11 +511,18 @@ export default function Plan2DOverlay({
         return;
       }
 
-      if (!isWallDrawMode) return;
+      if (isWallDrawMode) {
+        const wpt = canvasToWorld(mx, my);
+        if (!wpt) return;
+        setMouseWorld({ x: wpt.x, z: wpt.z });
+        return;
+      }
 
-      const wpt = canvasToWorld(mx, my);
-      if (!wpt) return;
-      setMouseWorld({ x: wpt.x, z: wpt.z });
+      if (!measureMode && !scaleMode) {
+        const hovered = pickPartAtCanvasPoint(mx, my);
+        const isMovable = hovered?.id && !isPartMovementLocked2D?.(hovered.id);
+        setHoveredMovablePieceId(isMovable ? hovered.id : null);
+      }
     },
     [
       measureMode,
@@ -478,14 +533,28 @@ export default function Plan2DOverlay({
       scaleMode,
       scaleStartPx,
       canvasToPlanPixel,
+      onMovePart2D,
+      pickPartAtCanvasPoint,
+      isPartMovementLocked2D,
     ]
   );
 
-  const handleMouseUp = useCallback(() => {
+  const handlePointerUp = useCallback((e) => {
+    const canvas = canvasRef.current;
+    const pieceDrag = dragPieceRef.current;
+
+    if (pieceDrag?.pointerId === e.pointerId) {
+      suppressNextClickRef.current = pieceDrag.hasMoved;
+      dragPieceRef.current = null;
+      setDragPieceId(null);
+    }
+
     dragRef.current.isDown = false;
     dragRef.current.mode = null;
-    setDragPieceId(null);
-    setDragOffset(null);
+
+    if (canvas?.hasPointerCapture?.(e.pointerId)) {
+      canvas.releasePointerCapture(e.pointerId);
+    }
   }, []);
 
   // zoom wheel
@@ -525,54 +594,7 @@ export default function Plan2DOverlay({
     commitWall();
   }, [isWallDrawMode, commitWall]);
 
-  const pickRectHit = useCallback(
-    (mx, my, p, s) => {
-      // bounding rect en canvas con rotación (aprox):
-      const [px, py] = toCanvas(p.x, p.z);
-      const rw = p.w * s;
-      const rd = p.d * s;
-
-      // transformar punto a coords del rect rotado
-      const ang = -(p.rotY || 0);
-      const dx = mx - px;
-      const dy = my - py;
-      const rx = dx * Math.cos(ang) - dy * Math.sin(ang);
-      const ry = dx * Math.sin(ang) + dy * Math.cos(ang);
-
-      if (Math.abs(rx) <= rw / 2 && Math.abs(ry) <= rd / 2) {
-        return rx * rx + ry * ry;
-      }
-      return null;
-    },
-    [toCanvas]
-  );
-
-  const pickPartAtCanvasPoint = useCallback(
-    (mx, my) => {
-      const b = getAllBounds();
-      const snap = b?.snap || [];
-      if (!snap.length) return null;
-
-      const { s } = viewRef.current;
-
-      let best = null;
-      let bestDist = Infinity;
-
-      for (const p of snap) {
-        const dist = pickRectHit(mx, my, p, s);
-        if (dist == null) continue;
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = p;
-        }
-      }
-
-      return best || null;
-    },
-    [getAllBounds, pickRectHit]
-  );
-
-  const handleMouseDown = useCallback(
+  const handlePointerDown = useCallback(
     (e) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -589,6 +611,7 @@ export default function Plan2DOverlay({
         dragRef.current.startMy = my;
         dragRef.current.startCx = viewRef.current.cx;
         dragRef.current.startCz = viewRef.current.cz;
+        canvas.setPointerCapture?.(e.pointerId);
         e.preventDefault();
         return;
       }
@@ -603,14 +626,24 @@ export default function Plan2DOverlay({
       const world = canvasToWorld(mx, my);
       if (!world) return;
 
-      onPickIds?.([picked.id]);
+      if (!e.ctrlKey && !e.metaKey) {
+        onPickIds?.([picked.id]);
+      }
       onPickId?.(picked.id);
 
+      if (isPartMovementLocked2D?.(picked.id)) return;
+
       setDragPieceId(picked.id);
-      setDragOffset({
+      dragPieceRef.current = {
+        id: picked.id,
         dx: picked.x - world.x,
         dz: picked.z - world.z,
-      });
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        hasMoved: false,
+        pointerId: e.pointerId,
+      };
+      canvas.setPointerCapture?.(e.pointerId);
 
       e.preventDefault();
     },
@@ -622,11 +655,17 @@ export default function Plan2DOverlay({
       canvasToWorld,
       onPickIds,
       onPickId,
+      isPartMovementLocked2D,
     ]
   );
 
   const handleClick = useCallback(
     (e) => {
+      if (suppressNextClickRef.current) {
+        suppressNextClickRef.current = false;
+        return;
+      }
+
       const canvas = canvasRef.current;
       if (!canvas) return;
 
@@ -1336,14 +1375,27 @@ export default function Plan2DOverlay({
           width,
           height: '100%',
           display: 'block',
-          cursor: measureMode || isWallDrawMode ? 'crosshair' : 'pointer',
+          touchAction: 'none',
+          cursor:
+            measureMode || isWallDrawMode || scaleMode
+              ? 'crosshair'
+              : dragPieceId
+                ? 'grabbing'
+                : hoveredMovablePieceId
+                  ? 'grab'
+                  : 'default',
         }}
         onClick={handleClick}
-        onMouseMove={handleMouseMove}
+        onPointerMove={handlePointerMove}
         onDoubleClick={handleDoubleClick}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={() => {
+          if (!dragPieceRef.current && !dragRef.current.isDown) {
+            setHoveredMovablePieceId(null);
+          }
+        }}
         onWheel={handleWheel}
         onContextMenu={(e) => e.preventDefault()}
       />

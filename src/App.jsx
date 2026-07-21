@@ -717,6 +717,9 @@ export default function App() {
               if (readOnly) return;
               threeApiRef.current?.movePartToXZ?.(id, x, z);
             }}
+            isPartMovementLocked2D={(id) =>
+              readOnly || threeApiRef.current?.isPartMovementLocked?.(id) === true
+            }
             walls={walls}
             wallMode={wallMode}
             wallHeight={wallHeight}

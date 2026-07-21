@@ -857,14 +857,48 @@ export default function ThreeCanvas({
       const nextZ = Number(z);
       if (!Number.isFinite(nextX) || !Number.isFinite(nextZ)) return false;
 
-      obj.position.x = nextX;
-      obj.position.z = nextZ;
       obj.updateMatrixWorld(true);
 
-      if (selectionHelper) selectionHelper.update();
-      refreshFloorAndGrid();
+      const bounds2d = obj.userData?.bounds2d;
+      let currentCenterWorld;
+
+      if (bounds2d?.localCenter) {
+        currentCenterWorld = new THREE.Vector3()
+          .fromArray(bounds2d.localCenter)
+          .applyMatrix4(obj.matrixWorld);
+      } else {
+        currentCenterWorld = new THREE.Box3().setFromObject(obj).getCenter(new THREE.Vector3());
+      }
+
+      const currentRootWorld = obj.getWorldPosition(new THREE.Vector3());
+      const targetRootWorld = currentRootWorld.clone();
+      targetRootWorld.x += nextX - currentCenterWorld.x;
+      targetRootWorld.z += nextZ - currentCenterWorld.z;
+
+      let deltaX;
+      let deltaZ;
+
+      if (obj.parent) {
+        obj.parent.updateMatrixWorld(true);
+        const targetLocal = obj.parent.worldToLocal(targetRootWorld.clone());
+        deltaX = targetLocal.x - obj.position.x;
+        deltaZ = targetLocal.z - obj.position.z;
+      } else {
+        deltaX = targetRootWorld.x - obj.position.x;
+        deltaZ = targetRootWorld.z - obj.position.z;
+      }
+
+      moveTargetOrGroup(obj, deltaX, 0, deltaZ);
       emitBOM();
       return true;
+    }
+
+    function isPartMovementLocked(instanceId) {
+      const found = parts.find(
+        ({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId
+      );
+
+      return found?.obj?.userData?.lockedMovement === true;
     }
 
     function emitBOM() {
@@ -3982,6 +4016,7 @@ export default function ThreeCanvas({
       updateSelectedCeilingDuctSide,
       updateSelectedPartTransformPatch,
       movePartToXZ: (id, x, z) => movePartToXZInternal(id, x, z),
+      isPartMovementLocked,
       selectFloor,
       updateFloorVisualOptions,
       replaceSelectedCostadoWithPedestal,
