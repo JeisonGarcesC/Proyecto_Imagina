@@ -49,3 +49,86 @@ body {
 .read-the-docs {
   color: #888;
 }
+
+.plan2d-overlay {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  height: var(--plan2d-normal-height, 240px);
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+  z-index: 20;
+  transition: height 180ms ease, top 180ms ease;
+}
+
+.plan2d-overlay--half {
+  height: 50%;
+}
+
+.plan2d-overlay--maximized {
+  top: 12px;
+  height: auto;
+}
+
+.plan2d-overlay__controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: calc(100% - 16px);
+}
+
+.plan2d-overlay__size-button {
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+}
+
+.plan2d-overlay__size-button--active {
+  border-color: rgba(37, 99, 235, 0.5);
+  background: rgba(37, 99, 235, 0.14);
+  color: rgba(30, 64, 175, 1);
+}
+
+@media (max-width: 720px), (max-height: 560px) {
+  .plan2d-overlay {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    max-width: calc(100% - 16px);
+    max-height: calc(100% - 16px);
+  }
+
+  .plan2d-overlay--half {
+    height: 55%;
+  }
+
+  .plan2d-overlay--maximized {
+    top: 8px;
+  }
+
+  .plan2d-overlay__controls {
+    top: 6px;
+    right: 6px;
+    gap: 6px;
+    max-width: calc(100% - 12px);
+  }
+
+  .plan2d-overlay__controls button {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+}

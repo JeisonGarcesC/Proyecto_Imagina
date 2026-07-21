@@ -30,6 +30,8 @@ function drawDimText(ctx, x1, y1, x2, y2, label, opts = {}) {
   ctx.fillStyle = bg;
   ctx.fillRect(-w / 2 - pad, -h / 2 - pad, w + pad * 2, h + pad * 2);
 
+  ctx.fillStyle = fg;
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(label, 0, 0);
 
@@ -54,6 +56,7 @@ function drawMeasureLine(ctx, x1, y1, x2, y2, label, opts = {}) {
   } = opts;
 
   const ang = Math.atan2(y2 - y1, x2 - x1);
+  const nx = -Math.sin(ang);
   const ny = Math.cos(ang);
   const tick = 8;
 
@@ -190,6 +193,7 @@ export default function Plan2DOverlay({
 
   // visible toggle
   const [visible, setVisible] = useState(defaultVisible);
+  const [viewMode, setViewMode] = useState('normal');
 
   // draft muros
   const [draftPts, setDraftPts] = useState([]); // [{x,z}...]
@@ -1138,31 +1142,14 @@ export default function Plan2DOverlay({
 
   return (
     <div
+      className={`plan2d-overlay plan2d-overlay--${viewMode}`}
       style={{
-        position: 'absolute',
-        left: 12,
-        right: 12,
-        bottom: 12,
-        height,
-        borderRadius: 14,
-        overflow: 'hidden',
-        boxShadow: '0 10px 26px rgba(0,0,0,0.18)',
-        border: '1px solid rgba(0,0,0,0.08)',
-        background: 'rgba(255,255,255,0.2)',
-        pointerEvents: 'auto',
-        zIndex: 20,
+        '--plan2d-normal-height': typeof height === 'number' ? `${height}px` : height,
       }}
     >
       {/* barra superior */}
       <div
-        style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          display: 'flex',
-          gap: 8,
-          zIndex: 30,
-        }}
+        className="plan2d-overlay__controls"
       >
         <button
           onClick={fitView}
@@ -1176,6 +1163,43 @@ export default function Plan2DOverlay({
           title="Fit (F)"
         >
           Fit
+        </button>
+
+        {viewMode !== 'normal' && (
+          <button
+            onClick={() => setViewMode('normal')}
+            className="plan2d-overlay__size-button"
+            title="Restaurar tamaño normal"
+            aria-label="Restaurar vista 2D al tamaño normal"
+          >
+            Restaurar
+          </button>
+        )}
+
+        <button
+          onClick={() => setViewMode((current) => (current === 'half' ? 'normal' : 'half'))}
+          className={`plan2d-overlay__size-button ${
+            viewMode === 'half' ? 'plan2d-overlay__size-button--active' : ''
+          }`}
+          title={viewMode === 'half' ? 'Restaurar tamaño normal' : 'Usar media área del visor'}
+          aria-label={viewMode === 'half' ? 'Restaurar vista 2D' : 'Ampliar vista 2D a mitad'}
+          aria-pressed={viewMode === 'half'}
+        >
+          Mitad
+        </button>
+
+        <button
+          onClick={() =>
+            setViewMode((current) => (current === 'maximized' ? 'normal' : 'maximized'))
+          }
+          className={`plan2d-overlay__size-button ${
+            viewMode === 'maximized' ? 'plan2d-overlay__size-button--active' : ''
+          }`}
+          title={viewMode === 'maximized' ? 'Restaurar tamaño normal' : 'Maximizar vista 2D'}
+          aria-label={viewMode === 'maximized' ? 'Restaurar vista 2D' : 'Maximizar vista 2D'}
+          aria-pressed={viewMode === 'maximized'}
+        >
+          Maximizar
         </button>
 
         <button
