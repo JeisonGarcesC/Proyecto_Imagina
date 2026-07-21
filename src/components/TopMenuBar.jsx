@@ -19,6 +19,9 @@ export default function TopMenuBar({
   catalogCountries = [],
   materialsByCode,
   threeApiRef,
+  threeApi,
+  transformTool = 'move',
+  onTransformToolChange,
   onLogout,
   onNewProject,
   debugSaveAlert = false,
@@ -62,11 +65,11 @@ export default function TopMenuBar({
   }, [user]);
 
   useEffect(() => {
-    const moveAsGroup = threeApiRef.current?.getMoveAsGroup?.();
+    const moveAsGroup = threeApi?.getMoveAsGroup?.();
     if (typeof moveAsGroup === 'boolean') {
       setMoveMode(moveAsGroup ? 'group' : 'single');
     }
-  }, [threeApiRef]);
+  }, [threeApi]);
 
   useEffect(() => {
     const onMouseDown = (e) => {
@@ -274,7 +277,33 @@ export default function TopMenuBar({
 
       <div className="topbar-center">
         <div className="topbar-control-group">
-          <span className="topbar-group-title">Mover</span>
+          <span className="topbar-group-title">Herramienta</span>
+          <div className="topbar-segmented">
+            <button
+              type="button"
+              className={`topbar-segment ${transformTool === 'move' ? 'is-active' : ''}`}
+              onClick={() => onTransformToolChange?.('move')}
+            >
+              Mover
+            </button>
+            <button
+              type="button"
+              className={`topbar-segment ${transformTool === 'rotate' ? 'is-active' : ''}`}
+              onClick={() => onTransformToolChange?.('rotate')}
+            >
+              Rotar
+            </button>
+            <button type="button" className="topbar-segment" onClick={() => threeApiRef.current?.rotateByDegrees?.({ degrees: -90 })}>
+              −90°
+            </button>
+            <button type="button" className="topbar-segment" onClick={() => threeApiRef.current?.rotateByDegrees?.({ degrees: 90 })}>
+              +90°
+            </button>
+          </div>
+        </div>
+
+        <div className="topbar-control-group">
+          <span className="topbar-group-title">Alcance</span>
           <div className="topbar-segmented">
             <button
               type="button"

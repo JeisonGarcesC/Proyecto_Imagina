@@ -455,6 +455,7 @@ export default function App() {
     y: 0,
     part: null,
   });
+  const [transformTool, setTransformTool] = useState('move');
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -467,6 +468,9 @@ export default function App() {
         catalogCountries={CATALOG_COUNTRIES}
         materialsByCode={materialsByCode}
         threeApiRef={threeApiRef}
+        threeApi={threeApi}
+        transformTool={transformTool}
+        onTransformToolChange={setTransformTool}
         onLogout={logout}
         onNewProject={() => threeApiRef.current?.clearProject?.()}
         debugSaveAlert={false}
@@ -686,9 +690,13 @@ export default function App() {
               setThreeApi(api);
               setIsReady(true);
             }}
-            onSelectionChange={setSelectedPart}
+            onSelectionChange={(part) => {
+              setSelectedPart(part);
+              setSelectedIds(part?.instanceId ? [part.instanceId] : []);
+            }}
             onBOMChange={handleBOMChange}
             onFloatingEditorRequest={setFloatingEditor}
+            transformTool={transformTool}
           />
           <PropertiesPopup
             open={floatingEditor.open}
@@ -719,6 +727,16 @@ export default function App() {
             }}
             isPartMovementLocked2D={(id) =>
               readOnly || threeApiRef.current?.isPartMovementLocked?.(id) === true
+            }
+            transformTool={transformTool}
+            onBeginRotation2D={(id) => threeApiRef.current?.beginRotation?.({ sourceId: id })}
+            onUpdateRotation2D={(deltaAngle, snapAngle = 0) =>
+              threeApiRef.current?.updateRotation?.({ deltaAngle, snapAngle })
+            }
+            onEndRotation2D={() => threeApiRef.current?.endRotation?.()}
+            onCancelRotation2D={() => threeApiRef.current?.cancelRotation?.()}
+            getRotationState2D={(id) =>
+              threeApiRef.current?.getRotationState?.({ sourceId: id }) || null
             }
             walls={walls}
             wallMode={wallMode}

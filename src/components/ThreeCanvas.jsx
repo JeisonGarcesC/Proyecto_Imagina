@@ -101,6 +101,7 @@ export default function ThreeCanvas({
   catalogByCode,
   country = 'CO',
   onFloatingEditorRequest,
+  transformTool = 'move',
 }) {
   const mountRef = useRef(null);
 
@@ -123,6 +124,8 @@ export default function ThreeCanvas({
 
   const countryRef = useRef(country);
   const emitBOMRef = useRef(null);
+  const transformToolRef = useRef(transformTool);
+  const cancelRotationRef = useRef(null);
 
   //mover todos los objetos del padre
   const [moveAsGroup, setMoveAsGroup] = useState(true);
@@ -160,6 +163,11 @@ export default function ThreeCanvas({
   useEffect(() => {
     catalogByCodeRef.current = catalogByCode || new Map();
   }, [catalogByCode]);
+
+  useEffect(() => {
+    transformToolRef.current = transformTool;
+    if (transformTool !== 'rotate') cancelRotationRef.current?.();
+  }, [transformTool]);
 
   //use effect 6
   useEffect(() => {
@@ -256,6 +264,92 @@ export default function ThreeCanvas({
     let isDragging = false;
 
     let selectionHelper = null;
+    let rotationSession = null;
+    let isRotating3D = false;
+    let rotationPointerStartAngle = 0;
+
+    const rotationHandle = new THREE.Group();
+    rotationHandle.name = 'ROTATION_HANDLE';
+    rotationHandle.visible = false;
+
+    const rotationRing = new THREE.Mesh(
+      new THREE.TorusGeometry(1, 0.035, 10, 72),
+      new THREE.MeshBasicMaterial({ color: 0xff9800, depthTest: false })
+    );
+    rotationRing.rotation.x = Math.PI / 2;
+    rotationRing.renderOrder = 1000;
+    rotationRing.userData.isRotationHandle = true;
+
+    const rotationKnob = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffc107, depthTest: false })
+    );
+    rotationKnob.position.x = 1;
+    rotationKnob.renderOrder = 1001;
+    rotationKnob.userData.isRotationHandle = true;
+
+    const rotationLabelCanvas = document.createElement('canvas');
+    rotationLabelCanvas.width = 192;
+    rotationLabelCanvas.height = 72;
+    const rotationLabelTexture = new THREE.CanvasTexture(rotationLabelCanvas);
+    const rotationLabel = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: rotationLabelTexture, depthTest: false, transparent: true })
+    );
+    rotationLabel.position.set(0, 0.18, 0);
+    rotationLabel.renderOrder = 1002;
+    let rotationLabelDegrees = null;
+
+    rotationHandle.add(rotationRing, rotationKnob, rotationLabel);
+    scene.add(rotationHandle);
+
+    function updateRotationHandle() {
+      if (!activePart || transformToolRef.current !== 'rotate') {
+        rotationHandle.visible = false;
+        return;
+      }
+
+      const targets =
+        moveAsGroupRef.current && activePart.userData?.groupId
+          ? getGroupedObjects(activePart)
+          : [activePart];
+      const box = new THREE.Box3();
+      targets.forEach((obj) => box.expandByObject(obj));
+      if (box.isEmpty()) {
+        rotationHandle.visible = false;
+        return;
+      }
+
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const radius = Math.max(0.35, Math.hypot(size.x, size.z) / 2 + 0.18);
+      rotationHandle.position.set(center.x, box.max.y + 0.08, center.z);
+      rotationHandle.scale.setScalar(radius);
+      rotationLabel.scale.set(0.7 / radius, 0.26 / radius, 1 / radius);
+      const worldQuaternion = activePart.getWorldQuaternion(new THREE.Quaternion());
+      const baseAngle = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
+      const displayAngle = normalizeAngle(
+        rotationSession ? rotationSession.initialSourceAngle + rotationSession.appliedAngle : baseAngle
+      );
+      const degrees = Math.round(THREE.MathUtils.radToDeg(displayAngle));
+      if (degrees !== rotationLabelDegrees) {
+        rotationLabelDegrees = degrees;
+        const ctx = rotationLabelCanvas.getContext('2d');
+        ctx.clearRect(0, 0, rotationLabelCanvas.width, rotationLabelCanvas.height);
+        ctx.fillStyle = 'rgba(255,255,255,0.94)';
+        ctx.fillRect(20, 8, 152, 56);
+        ctx.strokeStyle = '#ff9800';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(20, 8, 152, 56);
+        ctx.fillStyle = '#4e3a00';
+        ctx.font = 'bold 34px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${degrees}°`, 96, 37);
+        rotationLabelTexture.needsUpdate = true;
+      }
+      rotationHandle.visible = true;
+      rotationHandle.updateMatrixWorld(true);
+    }
 
     function computeBounds2D(root) {
       // Calcula bounds en el espacio LOCAL del root (robusto para GLTF con hijos y pivotes raros)
@@ -534,6 +628,7 @@ export default function ThreeCanvas({
         scene.add(selectionHelper);
         selectionHelper.update();
       }
+      updateRotationHandle();
 
       const subKey = obj?.userData?.activeSubKey || null;
       const finishes = obj?.userData?.finishes || {};
@@ -634,13 +729,12 @@ export default function ThreeCanvas({
           // =====================================================
 
           if (isSurface) {
-            const worldBox = new THREE.Box3().setFromObject(obj);
-
-            const worldSize = new THREE.Vector3();
-            const worldCenter = new THREE.Vector3();
-
-            worldBox.getSize(worldSize);
-            worldBox.getCenter(worldCenter);
+            const localBounds = computeBounds2D(obj);
+            if (!localBounds) return null;
+            const worldCenter = localBounds.localCenter.clone().applyMatrix4(obj.matrixWorld);
+            const worldScale = obj.getWorldScale(new THREE.Vector3());
+            const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
+            const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
 
             return {
               id: obj.userData?.instanceId || obj.uuid,
@@ -743,13 +837,12 @@ export default function ThreeCanvas({
             objectCategory === 'superficies';
 
           if (isSurface) {
-            const worldBox = new THREE.Box3().setFromObject(obj);
-
-            const worldSize = new THREE.Vector3();
-            const worldCenter = new THREE.Vector3();
-
-            worldBox.getSize(worldSize);
-            worldBox.getCenter(worldCenter);
+            const localBounds = computeBounds2D(obj);
+            if (!localBounds) return null;
+            const worldCenter = localBounds.localCenter.clone().applyMatrix4(obj.matrixWorld);
+            const worldScale = obj.getWorldScale(new THREE.Vector3());
+            const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
+            const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
 
             return {
               id: obj.userData?.instanceId || obj.uuid,
@@ -759,10 +852,10 @@ export default function ThreeCanvas({
               x: worldCenter.x,
               z: worldCenter.z,
 
-              w: Math.max(0.001, worldSize.x),
-              d: Math.max(0.001, worldSize.z),
+              w: Math.max(0.001, localBounds.sizeLocal.x * Math.abs(worldScale.x)),
+              d: Math.max(0.001, localBounds.sizeLocal.z * Math.abs(worldScale.z)),
 
-              rotY: 0,
+              rotY: Number(worldRotY || 0),
 
               kind: obj.userData?.kind || 'SURFACE',
 
@@ -806,6 +899,24 @@ export default function ThreeCanvas({
 
               rotY: Number(worldEuler.y || 0),
 
+              kind: obj.userData?.kind || 'PART',
+            };
+          }
+
+          const computedBounds = computeBounds2D(obj);
+          if (computedBounds) {
+            const centerWorld = computedBounds.localCenter.clone().applyMatrix4(obj.matrixWorld);
+            const worldScale = obj.getWorldScale(new THREE.Vector3());
+            const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
+            const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
+            return {
+              id: obj.userData?.instanceId || obj.uuid,
+              codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
+              x: centerWorld.x,
+              z: centerWorld.z,
+              w: Math.max(0.001, computedBounds.sizeLocal.x * Math.abs(worldScale.x)),
+              d: Math.max(0.001, computedBounds.sizeLocal.z * Math.abs(worldScale.z)),
+              rotY: Number(worldRotY || 0),
               kind: obj.userData?.kind || 'PART',
             };
           }
@@ -4017,6 +4128,13 @@ export default function ThreeCanvas({
       updateSelectedPartTransformPatch,
       movePartToXZ: (id, x, z) => movePartToXZInternal(id, x, z),
       isPartMovementLocked,
+      beginRotation: ({ sourceId } = {}) => beginRotation({ sourceId }),
+      updateRotation: ({ deltaAngle, snapAngle = 0 } = {}) =>
+        updateRotation({ deltaAngle, snapAngle }),
+      endRotation,
+      cancelRotation,
+      rotateByDegrees: ({ sourceId, degrees } = {}) => rotateByDegrees({ sourceId, degrees }),
+      getRotationState: ({ sourceId } = {}) => getRotationState({ sourceId }),
       selectFloor,
       updateFloorVisualOptions,
       replaceSelectedCostadoWithPedestal,
@@ -4081,6 +4199,194 @@ export default function ThreeCanvas({
       if (selectionHelper) selectionHelper.update();
       refreshFloorAndGrid();
     }
+
+    function normalizeAngle(angle) {
+      return THREE.MathUtils.euclideanModulo(angle + Math.PI, Math.PI * 2) - Math.PI;
+    }
+
+    function findPartById(instanceId) {
+      if (!instanceId) return activePart;
+      return parts.find(
+        ({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId
+      )?.obj;
+    }
+
+    function getRotationTargets(source) {
+      if (!source) return [];
+      const candidates = moveAsGroupRef.current && source.userData?.groupId
+        ? getGroupedObjects(source)
+        : [source];
+
+      const unique = Array.from(new Map(candidates.filter(Boolean).map((obj) => [obj.uuid, obj])).values());
+
+      return unique.filter((obj) => {
+        let ancestor = obj.parent;
+        while (ancestor) {
+          if (unique.includes(ancestor)) return false;
+          ancestor = ancestor.parent;
+        }
+        return true;
+      });
+    }
+
+    function beginRotation({ sourceId } = {}) {
+      const source = getRootPartObject(findPartById(sourceId)) || findPartById(sourceId);
+      if (
+        !source ||
+        source.userData?.isFloor ||
+        source.userData?.lockedMovement ||
+        source.userData?.lockedRotation
+      ) {
+        return null;
+      }
+
+      const targets = getRotationTargets(source);
+      if (!targets.length || targets.some((obj) => obj.userData?.lockedRotation)) return null;
+
+      const box = new THREE.Box3();
+      targets.forEach((obj) => {
+        obj.updateMatrixWorld(true);
+        box.expandByObject(obj);
+      });
+      if (box.isEmpty()) return null;
+
+      const pivot = box.getCenter(new THREE.Vector3());
+      const boundsSize = box.getSize(new THREE.Vector3());
+      const sourceWorldQuaternion = source.getWorldQuaternion(new THREE.Quaternion());
+      rotationSession = {
+        source,
+        sourceId: source.userData?.instanceId || source.uuid,
+        pivot,
+        boundsWidth: boundsSize.x,
+        boundsDepth: boundsSize.z,
+        appliedAngle: 0,
+        initialSourceAngle: new THREE.Euler().setFromQuaternion(sourceWorldQuaternion, 'YXZ').y,
+        targets: targets.map((obj) => ({
+          obj,
+          parent: obj.parent || null,
+          worldPosition: obj.getWorldPosition(new THREE.Vector3()),
+          worldQuaternion: obj.getWorldQuaternion(new THREE.Quaternion()),
+          localPosition: obj.position.clone(),
+          localQuaternion: obj.quaternion.clone(),
+        })),
+      };
+
+      return getRotationState();
+    }
+
+    function applyRotationDelta(deltaAngle) {
+      if (!rotationSession) return false;
+      const angle = normalizeAngle(Number(deltaAngle) || 0);
+      const { pivot } = rotationSession;
+      const deltaQuaternion = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        angle
+      );
+
+      rotationSession.targets.forEach(({ obj, parent, worldPosition, worldQuaternion }) => {
+        const nextWorld = worldPosition
+          .clone()
+          .sub(pivot)
+          .applyQuaternion(deltaQuaternion)
+          .add(pivot);
+        const desiredWorldQuaternion = worldQuaternion.clone().premultiply(deltaQuaternion);
+
+        if (parent) {
+          parent.updateMatrixWorld(true);
+          obj.position.copy(parent.worldToLocal(nextWorld));
+          const inverseParentWorldQuaternion = parent
+            .getWorldQuaternion(new THREE.Quaternion())
+            .invert();
+          obj.quaternion.copy(inverseParentWorldQuaternion.multiply(desiredWorldQuaternion));
+        } else {
+          obj.position.copy(nextWorld);
+          obj.quaternion.copy(desiredWorldQuaternion);
+        }
+        obj.quaternion.normalize();
+        obj.updateMatrixWorld(true);
+      });
+
+      rotationSession.appliedAngle = angle;
+      if (selectionHelper) selectionHelper.update();
+      updateRotationHandle();
+      refreshFloorAndGrid();
+      return true;
+    }
+
+    function updateRotation({ deltaAngle, snapAngle = 0 } = {}) {
+      if (!rotationSession) return false;
+      let nextAngle = Number(deltaAngle);
+      if (!Number.isFinite(nextAngle)) return false;
+      const snap = Number(snapAngle);
+      if (Number.isFinite(snap) && snap > 0) nextAngle = Math.round(nextAngle / snap) * snap;
+      return applyRotationDelta(nextAngle);
+    }
+
+    function endRotation() {
+      if (!rotationSession) return false;
+      rotationSession = null;
+      updateRotationHandle();
+      return true;
+    }
+
+    function cancelRotation() {
+      if (!rotationSession) return false;
+      rotationSession.targets.forEach(({ obj, parent, localPosition, localQuaternion }) => {
+        if (obj.parent !== parent) return;
+        obj.position.copy(localPosition);
+        obj.quaternion.copy(localQuaternion);
+        obj.updateMatrixWorld(true);
+      });
+      rotationSession = null;
+      isRotating3D = false;
+      controls.enabled = true;
+      if (selectionHelper) selectionHelper.update();
+      updateRotationHandle();
+      refreshFloorAndGrid();
+      return true;
+    }
+
+    function rotateByDegrees({ sourceId, degrees } = {}) {
+      const radians = THREE.MathUtils.degToRad(Number(degrees));
+      if (!Number.isFinite(radians) || !beginRotation({ sourceId })) return false;
+      applyRotationDelta(radians);
+      endRotation();
+      return true;
+    }
+
+    function getRotationState({ sourceId } = {}) {
+      if (!rotationSession) {
+        const source = getRootPartObject(findPartById(sourceId)) || findPartById(sourceId);
+        if (!source) return null;
+        const targets = getRotationTargets(source);
+        const box = new THREE.Box3();
+        targets.forEach((obj) => box.expandByObject(obj));
+        if (box.isEmpty()) return null;
+        const pivot = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const worldQuaternion = source.getWorldQuaternion(new THREE.Quaternion());
+        return {
+          sourceId: source.userData?.instanceId || source.uuid,
+          pivotX: pivot.x,
+          pivotZ: pivot.z,
+          boundsWidth: size.x,
+          boundsDepth: size.z,
+          angle: new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y,
+          deltaAngle: 0,
+        };
+      }
+      return {
+        sourceId: rotationSession.sourceId,
+        pivotX: rotationSession.pivot.x,
+        pivotZ: rotationSession.pivot.z,
+        boundsWidth: rotationSession.boundsWidth,
+        boundsDepth: rotationSession.boundsDepth,
+        angle: normalizeAngle(rotationSession.initialSourceAngle + rotationSession.appliedAngle),
+        deltaAngle: rotationSession.appliedAngle,
+      };
+    }
+
+    cancelRotationRef.current = cancelRotation;
 
     //eliminar por grupo
     function removeTargetOrGroup(target) {
@@ -6105,6 +6411,14 @@ export default function ThreeCanvas({
     function onKeyDown(e) {
       if (readOnly) return;
 
+      if (e.key === 'Escape' && rotationSession) {
+        e.preventDefault();
+        cancelRotation();
+        isRotating3D = false;
+        controls.enabled = true;
+        return;
+      }
+
       // si estás escribiendo en un input, no interceptar teclas
       const tag = (e.target?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
@@ -6169,10 +6483,31 @@ export default function ThreeCanvas({
     // ====== Pointer (Select + Drag) ======
     function onPointerDown(e) {
       if (readOnly) return;
-      if (!pickables.length) return;
 
       updateMouseFromEvent(e);
       raycaster.setFromCamera(mouse, camera);
+
+      if (transformToolRef.current === 'rotate' && rotationHandle.visible) {
+        const handleHits = raycaster.intersectObjects(rotationHandle.children, true);
+        if (handleHits.length && beginRotation({})) {
+          dragPlane.set(new THREE.Vector3(0, 1, 0), -rotationSession.pivot.y);
+          if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+            rotationPointerStartAngle = Math.atan2(
+              dragPoint.z - rotationSession.pivot.z,
+              dragPoint.x - rotationSession.pivot.x
+            );
+            isRotating3D = true;
+            controls.enabled = false;
+            renderer.domElement.setPointerCapture?.(e.pointerId);
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          cancelRotation();
+        }
+      }
+
+      if (!pickables.length) return;
 
       const hits = raycaster.intersectObjects(pickables, true);
       if (!hits.length) return;
@@ -6182,6 +6517,12 @@ export default function ThreeCanvas({
       if (!root) return;
 
       setActivePart(root);
+
+      if (transformToolRef.current === 'rotate') {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
 
       if (root?.userData?.lockedMovement) {
         e.preventDefault();
@@ -6258,6 +6599,22 @@ export default function ThreeCanvas({
 
     function onPointerMove(e) {
       if (readOnly) return;
+
+      if (isRotating3D && rotationSession) {
+        updateMouseFromEvent(e);
+        raycaster.setFromCamera(mouse, camera);
+        if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+          const pointerAngle = Math.atan2(
+            dragPoint.z - rotationSession.pivot.z,
+            dragPoint.x - rotationSession.pivot.x
+          );
+          updateRotation({
+            deltaAngle: pointerAngle - rotationPointerStartAngle,
+            snapAngle: e.shiftKey ? THREE.MathUtils.degToRad(15) : 0,
+          });
+        }
+        return;
+      }
       if (!isDragging || !activePart) return;
 
       updateMouseFromEvent(e);
@@ -6289,6 +6646,17 @@ export default function ThreeCanvas({
     }
 
     function onPointerUp(e) {
+      if (isRotating3D) {
+        isRotating3D = false;
+        endRotation();
+        controls.enabled = true;
+        try {
+          renderer.domElement.releasePointerCapture?.(e.pointerId);
+        } catch (err) {
+          void err;
+        }
+        return;
+      }
       if (readOnly) {
         // en solo-lectura igual liberamos el capture si existiera
         try {
@@ -6316,6 +6684,11 @@ export default function ThreeCanvas({
     }
 
     function onPointerCancel(e) {
+      if (isRotating3D) {
+        cancelRotation();
+        isRotating3D = false;
+        controls.enabled = true;
+      }
       dragGroupStartRef.current = null;
       dragRootStartRef.current = null;
       endDrag(e.pointerId);
@@ -6350,10 +6723,11 @@ export default function ThreeCanvas({
     // ====== Loop ======
     let rafId;
     function animate() {
-      if (!isDragging && controls.enabled === false) controls.enabled = true;
+      if (!isDragging && !isRotating3D && controls.enabled === false) controls.enabled = true;
 
       controls.update();
       if (selectionHelper) selectionHelper.update();
+      updateRotationHandle();
 
       if (!isDragging) snapActivePart();
 
@@ -8442,12 +8816,20 @@ export default function ThreeCanvas({
       }
 
       controls.dispose();
+      rotationRing.geometry.dispose();
+      rotationRing.material.dispose();
+      rotationKnob.geometry.dispose();
+      rotationKnob.material.dispose();
+      rotationLabelTexture.dispose();
+      rotationLabel.material.dispose();
+      scene.remove(rotationHandle);
       renderer.dispose();
       if (renderer.domElement?.parentNode === container) {
         container.removeChild(renderer.domElement);
       }
 
       loadProjectRef.current = null;
+      cancelRotationRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

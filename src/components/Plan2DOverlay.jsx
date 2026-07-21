@@ -125,6 +125,12 @@ export default function Plan2DOverlay({
   onPlan2DTransformChange,
   onMovePart2D,
   isPartMovementLocked2D,
+  transformTool = 'move',
+  onBeginRotation2D,
+  onUpdateRotation2D,
+  onEndRotation2D,
+  onCancelRotation2D,
+  getRotationState2D,
 }) {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureStart, setMeasureStart] = useState(null);
@@ -139,6 +145,8 @@ export default function Plan2DOverlay({
   const [hoveredMovablePieceId, setHoveredMovablePieceId] = useState(null);
   const dragPieceRef = useRef(null);
   const suppressNextClickRef = useRef(false);
+  const rotationDragRef = useRef(null);
+  const [isRotatingPiece, setIsRotatingPiece] = useState(false);
 
   const planImageRef = useRef(null);
 
@@ -450,6 +458,37 @@ export default function Plan2DOverlay({
     [getAllBounds, pickRectHit]
   );
 
+  const getRotationHandle = useCallback(() => {
+    if (transformTool !== 'rotate') return null;
+    const sourceId = selectedIds?.[selectedIds.length - 1];
+    if (!sourceId) return null;
+    const snap = getAllBounds()?.snap || [];
+    const source = snap.find((part) => part.id === sourceId);
+    const state = getRotationState2D?.(sourceId);
+    if (!source || !state) return null;
+
+    const [pivotPx, pivotPy] = toCanvas(state.pivotX, state.pivotZ);
+    const { s } = viewRef.current;
+    const boundsWidth = Number(state.boundsWidth) || source.w;
+    const boundsDepth = Number(state.boundsDepth) || source.d;
+    const radiusPx = Math.max(
+      38,
+      Math.min(110, Math.hypot(boundsWidth * s, boundsDepth * s) / 2 + 24)
+    );
+    const screenAngle = -(state.angle || 0);
+    return {
+      sourceId,
+      pivotX: state.pivotX,
+      pivotZ: state.pivotZ,
+      pivotPx,
+      pivotPy,
+      radiusPx,
+      knobX: pivotPx + Math.cos(screenAngle) * radiusPx,
+      knobY: pivotPy + Math.sin(screenAngle) * radiusPx,
+      angle: state.angle || 0,
+    };
+  }, [transformTool, selectedIds, getAllBounds, getRotationState2D, toCanvas]);
+
   // Pointer move for wall preview, pan and piece dragging.
   const handlePointerMove = useCallback(
     (e) => {
@@ -488,6 +527,21 @@ export default function Plan2DOverlay({
       }
 
       const pieceDrag = dragPieceRef.current;
+
+      const rotationDrag = rotationDragRef.current;
+      if (rotationDrag?.pointerId === e.pointerId) {
+        const world = canvasToWorld(mx, my);
+        if (!world) return;
+        const pointerAngle = Math.atan2(
+          world.z - rotationDrag.pivotZ,
+          world.x - rotationDrag.pivotX
+        );
+        onUpdateRotation2D?.(
+          pointerAngle - rotationDrag.startPointerAngle,
+          e.shiftKey ? Math.PI / 12 : 0
+        );
+        return;
+      }
 
       if (pieceDrag && pieceDrag.pointerId === e.pointerId) {
         const movedPx = Math.hypot(e.clientX - pieceDrag.startClientX, e.clientY - pieceDrag.startClientY);
@@ -534,6 +588,7 @@ export default function Plan2DOverlay({
       scaleStartPx,
       canvasToPlanPixel,
       onMovePart2D,
+      onUpdateRotation2D,
       pickPartAtCanvasPoint,
       isPartMovementLocked2D,
     ]
@@ -542,6 +597,14 @@ export default function Plan2DOverlay({
   const handlePointerUp = useCallback((e) => {
     const canvas = canvasRef.current;
     const pieceDrag = dragPieceRef.current;
+    const rotationDrag = rotationDragRef.current;
+
+    if (rotationDrag?.pointerId === e.pointerId) {
+      rotationDragRef.current = null;
+      setIsRotatingPiece(false);
+      suppressNextClickRef.current = true;
+      onEndRotation2D?.();
+    }
 
     if (pieceDrag?.pointerId === e.pointerId) {
       suppressNextClickRef.current = pieceDrag.hasMoved;
@@ -555,7 +618,7 @@ export default function Plan2DOverlay({
     if (canvas?.hasPointerCapture?.(e.pointerId)) {
       canvas.releasePointerCapture(e.pointerId);
     }
-  }, []);
+  }, [onEndRotation2D]);
 
   // zoom wheel
   const handleWheel = useCallback(
@@ -620,6 +683,33 @@ export default function Plan2DOverlay({
       if (e.button !== 0) return;
       if (measureMode || scaleMode || isWallDrawMode) return;
 
+      if (transformTool === 'rotate') {
+        const handle = getRotationHandle();
+        if (handle && Math.hypot(mx - handle.knobX, my - handle.knobY) <= 14) {
+          const world = canvasToWorld(mx, my);
+          const started = world && onBeginRotation2D?.(handle.sourceId);
+          if (!started) return;
+          rotationDragRef.current = {
+            pointerId: e.pointerId,
+            pivotX: started.pivotX,
+            pivotZ: started.pivotZ,
+            startPointerAngle: Math.atan2(world.z - started.pivotZ, world.x - started.pivotX),
+          };
+          setIsRotatingPiece(true);
+          canvas.setPointerCapture?.(e.pointerId);
+          e.preventDefault();
+          return;
+        }
+
+        const pickedForRotation = pickPartAtCanvasPoint(mx, my);
+        if (pickedForRotation?.id) {
+          if (!e.ctrlKey && !e.metaKey) onPickIds?.([pickedForRotation.id]);
+          onPickId?.(pickedForRotation.id);
+        }
+        e.preventDefault();
+        return;
+      }
+
       const picked = pickPartAtCanvasPoint(mx, my);
       if (!picked?.id) return;
 
@@ -651,6 +741,9 @@ export default function Plan2DOverlay({
       measureMode,
       scaleMode,
       isWallDrawMode,
+      transformTool,
+      getRotationHandle,
+      onBeginRotation2D,
       pickPartAtCanvasPoint,
       canvasToWorld,
       onPickIds,
@@ -658,6 +751,24 @@ export default function Plan2DOverlay({
       isPartMovementLocked2D,
     ]
   );
+
+  useEffect(() => {
+    const onEscape = (e) => {
+      if (e.key !== 'Escape' || !rotationDragRef.current) return;
+      rotationDragRef.current = null;
+      setIsRotatingPiece(false);
+      onCancelRotation2D?.();
+    };
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, [onCancelRotation2D]);
+
+  useEffect(() => {
+    if (transformTool === 'rotate' || !rotationDragRef.current) return;
+    rotationDragRef.current = null;
+    setIsRotatingPiece(false);
+    onCancelRotation2D?.();
+  }, [transformTool, onCancelRotation2D]);
 
   const handleClick = useCallback(
     (e) => {
@@ -1099,6 +1210,49 @@ export default function Plan2DOverlay({
         ctx.restore();
       }
 
+      const rotationHandle = getRotationHandle();
+      if (rotationHandle) {
+        const degrees = ((rotationHandle.angle * 180) / Math.PI + 360) % 360;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 152, 0, 0.95)';
+        ctx.fillStyle = 'rgba(255, 193, 7, 1)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(
+          rotationHandle.pivotPx,
+          rotationHandle.pivotPy,
+          rotationHandle.radiusPx,
+          0,
+          Math.PI * 2
+        );
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(rotationHandle.pivotPx, rotationHandle.pivotPy);
+        ctx.lineTo(rotationHandle.knobX, rotationHandle.knobY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(rotationHandle.knobX, rotationHandle.knobY, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        const label = `${Math.round(degrees)}°`;
+        ctx.font = 'bold 12px sans-serif';
+        const labelWidth = ctx.measureText(label).width + 12;
+        ctx.fillStyle = 'rgba(255,255,255,0.94)';
+        ctx.fillRect(
+          rotationHandle.pivotPx - labelWidth / 2,
+          rotationHandle.pivotPy - 10,
+          labelWidth,
+          20
+        );
+        ctx.fillStyle = 'rgba(80,60,0,0.95)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, rotationHandle.pivotPx, rotationHandle.pivotPy);
+        ctx.restore();
+      }
+
       // Medidas guardadas
       for (const m of measurements) {
         const [x1, y1] = toCanvasLocal(m.a.x, m.a.z);
@@ -1149,6 +1303,7 @@ export default function Plan2DOverlay({
     scaleMode,
     scaleStartPx,
     scaleHoverPx,
+    getRotationHandle,
   ]);
 
   if (!visible) {
@@ -1379,6 +1534,10 @@ export default function Plan2DOverlay({
           cursor:
             measureMode || isWallDrawMode || scaleMode
               ? 'crosshair'
+              : isRotatingPiece
+                ? 'grabbing'
+                : transformTool === 'rotate'
+                  ? 'default'
               : dragPieceId
                 ? 'grabbing'
                 : hoveredMovablePieceId
@@ -1392,7 +1551,7 @@ export default function Plan2DOverlay({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onPointerLeave={() => {
-          if (!dragPieceRef.current && !dragRef.current.isDown) {
+          if (!dragPieceRef.current && !rotationDragRef.current && !dragRef.current.isDown) {
             setHoveredMovablePieceId(null);
           }
         }}
