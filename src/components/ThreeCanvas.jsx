@@ -7398,9 +7398,18 @@ export default function ThreeCanvas({
       }
 
       const {
+        positioningMode,
+
         leftLegSrc,
         rightLegSrc,
         centerBracketSrc,
+
+        leftMinZFromPivotMm,
+        leftMaxZFromPivotMm,
+        rightMinZFromPivotMm,
+        rightMaxZFromPivotMm,
+        centerBracketMinZFromPivotMm,
+        centerBracketMaxZFromPivotMm,
 
         rootOffsetMm = {},
         leftOffsetMm = {},
@@ -7518,12 +7527,28 @@ export default function ThreeCanvas({
         z: Number(crossbar?.offsetMm?.z || 0),
       };
 
+      const tipoPuesto = String(part?.meta?.tipoPuesto || '')
+        .trim()
+        .toLowerCase();
+      const forma = String(part?.meta?.forma || '')
+        .trim()
+        .toUpperCase();
+      const layoutType = String(part?.meta?.layoutType || '')
+        .trim()
+        .toUpperCase();
+      const usesBoundedDepthPositioning =
+        positioningMode === 'bounded-depth-v1' &&
+        tipoPuesto === 'sencillo' &&
+        forma === 'RECT' &&
+        layoutType !== 'LEADER' &&
+        (realDepthMm === 600 || realDepthMm === 750);
+
       /*
        * La profundidad del costado corre sobre Z.
        * La resta permite acortar el travesaño para formas
        * trapezoidales, curvas u otras variantes.
        */
-      const crossbarLengthMm = Math.max(1, realDepthMm - endClearanceMm);
+      let crossbarLengthMm = Math.max(1, realDepthMm - endClearanceMm);
 
       /*
        * Las patas se separan usando el largo real del travesaño.
@@ -7548,6 +7573,27 @@ export default function ThreeCanvas({
         y: Number(centerBracketOffsetMm?.y || 0),
         z: Number(centerBracketOffsetMm?.z || 0),
       };
+
+      if (usesBoundedDepthPositioning) {
+        const halfDepthMm = realDepthMm / 2;
+        const resolvedLeftMinZFromPivotMm = Number(leftMinZFromPivotMm);
+        const resolvedLeftMaxZFromPivotMm = Number(leftMaxZFromPivotMm);
+        const resolvedRightMinZFromPivotMm = Number(rightMinZFromPivotMm);
+        const resolvedRightMaxZFromPivotMm = Number(rightMaxZFromPivotMm);
+        const resolvedCenterBracketMinZFromPivotMm = Number(centerBracketMinZFromPivotMm);
+        const resolvedCenterBracketMaxZFromPivotMm = Number(centerBracketMaxZFromPivotMm);
+
+        leftPositionMm.z = -halfDepthMm - resolvedLeftMinZFromPivotMm;
+        rightPositionMm.z = halfDepthMm - resolvedRightMaxZFromPivotMm;
+
+        const leftInnerFaceZ = leftPositionMm.z + resolvedLeftMaxZFromPivotMm;
+        const rightInnerFaceZ = rightPositionMm.z + resolvedRightMinZFromPivotMm;
+
+        crossbarLengthMm = Math.max(1, rightInnerFaceZ - leftInnerFaceZ);
+        crossbarOffsetMm.z = (leftInnerFaceZ + rightInnerFaceZ) / 2;
+        bracketPositionMm.z =
+          -(resolvedCenterBracketMinZFromPivotMm + resolvedCenterBracketMaxZFromPivotMm) / 2;
+      }
 
       // =====================================================
       // Posicionar las piezas GLB dentro del root
@@ -7704,11 +7750,14 @@ export default function ThreeCanvas({
       const baseOffsetZ = Number(rootOffsetMm?.z || 0);
 
       const sideOffsetZMm = lado === 'der' ? -baseOffsetZ : baseOffsetZ;
+      const rootPositionZMm = usesBoundedDepthPositioning
+        ? 0
+        : Number(part?.position?.z || 0) + sideOffsetZMm;
 
       root.position.set(
         (Number(part?.position?.x || 0) + baseOffsetX) / 1000,
         (Number(part?.position?.y || 0) + baseOffsetY) / 1000,
-        (Number(part?.position?.z || 0) + sideOffsetZMm) / 1000
+        rootPositionZMm / 1000
       );
 
       root.rotation.set(

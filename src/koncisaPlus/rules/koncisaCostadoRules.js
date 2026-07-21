@@ -64,11 +64,20 @@ export const KONCISA_COSTADO_RULES = {
     codigoPT: '22000132392',
 
     assembly: {
+      positioningMode: 'bounded-depth-v1',
+
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO330000_60.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO330000_60.glb',
 
       centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET.glb',
+
+      leftMinZFromPivotMm: -50.869405,
+      leftMaxZFromPivotMm: 0,
+      rightMinZFromPivotMm: -50.800003,
+      rightMaxZFromPivotMm: 0,
+      centerBracketMinZFromPivotMm: -126,
+      centerBracketMaxZFromPivotMm: 0,
 
       rootOffsetMm: {
         x: 0,
@@ -116,11 +125,20 @@ export const KONCISA_COSTADO_RULES = {
     modelSrc: '/assets/models/koncisaPlus/2KSO330000_75.glb',
 
     assembly: {
+      positioningMode: 'bounded-depth-v1',
+
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO330000_75.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO330000_75.glb',
 
       centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET.glb',
+
+      leftMinZFromPivotMm: -50.869405,
+      leftMaxZFromPivotMm: 0,
+      rightMinZFromPivotMm: -50.800003,
+      rightMaxZFromPivotMm: 0,
+      centerBracketMinZFromPivotMm: -126,
+      centerBracketMaxZFromPivotMm: 0,
 
       leftOffsetMm: {
         x: 0,
