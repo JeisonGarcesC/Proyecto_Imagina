@@ -121,6 +121,7 @@ export default function App() {
   const readOnly = !perms.canEdit;
 
   const threeApiRef = useRef(null);
+  const isSelectingFromPlan2DRef = useRef(false);
   const [threeApi, setThreeApi] = useState(null);
 
   const [isReady, setIsReady] = useState(false);
@@ -692,7 +693,9 @@ export default function App() {
             }}
             onSelectionChange={(part) => {
               setSelectedPart(part);
-              setSelectedIds(part?.instanceId ? [part.instanceId] : []);
+              if (!isSelectingFromPlan2DRef.current) {
+                setSelectedIds(part?.instanceId ? [part.instanceId] : []);
+              }
             }}
             onBOMChange={handleBOMChange}
             onFloatingEditorRequest={setFloatingEditor}
@@ -715,12 +718,15 @@ export default function App() {
           <Plan2DOverlay
             getSnapshot={() => threeApiRef.current?.getPartsSnapshot2D?.() || []}
             selectedIds={selectedIds}
-            onPickIds={(ids) => {
-              setSelectedIds(ids);
-              const last = ids?.[ids.length - 1];
-              if (last) threeApiRef.current?.selectPartById?.(last);
+            onPickIds={(ids) => setSelectedIds(Array.from(new Set(ids || [])))}
+            onPickId={(id) => {
+              isSelectingFromPlan2DRef.current = true;
+              try {
+                threeApiRef.current?.selectPartById?.(id);
+              } finally {
+                isSelectingFromPlan2DRef.current = false;
+              }
             }}
-            onPickId={(id) => threeApiRef.current?.selectPartById?.(id)}
             onMovePart2D={(id, x, z) => {
               if (readOnly) return;
               threeApiRef.current?.movePartToXZ?.(id, x, z);

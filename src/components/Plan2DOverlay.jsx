@@ -112,7 +112,6 @@ export default function Plan2DOverlay({
   height = 220,
   defaultVisible = true,
   title = 'Planta 2D',
-  allowMultiSelect = true,
   invertZ = true,
   plan2DSrc,
   plan2DVisible = true,
@@ -702,8 +701,7 @@ export default function Plan2DOverlay({
         }
 
         const pickedForRotation = pickPartAtCanvasPoint(mx, my);
-        if (pickedForRotation?.id) {
-          if (!e.ctrlKey && !e.metaKey) onPickIds?.([pickedForRotation.id]);
+        if (pickedForRotation?.id && !e.ctrlKey && !e.metaKey) {
           onPickId?.(pickedForRotation.id);
         }
         e.preventDefault();
@@ -716,10 +714,7 @@ export default function Plan2DOverlay({
       const world = canvasToWorld(mx, my);
       if (!world) return;
 
-      if (!e.ctrlKey && !e.metaKey) {
-        onPickIds?.([picked.id]);
-      }
-      onPickId?.(picked.id);
+      if (!e.ctrlKey && !e.metaKey) onPickId?.(picked.id);
 
       if (isPartMovementLocked2D?.(picked.id)) return;
 
@@ -746,7 +741,6 @@ export default function Plan2DOverlay({
       onBeginRotation2D,
       pickPartAtCanvasPoint,
       canvasToWorld,
-      onPickIds,
       onPickId,
       isPartMovementLocked2D,
     ]
@@ -863,7 +857,11 @@ export default function Plan2DOverlay({
       // PICK piezas
       const b = getAllBounds();
       const snap = b?.snap || [];
-      if (!snap.length) return;
+      const wantsMulti = e.ctrlKey || e.metaKey;
+      if (!snap.length) {
+        if (!wantsMulti) onPickIds?.([]);
+        return;
+      }
 
       const { s } = viewRef.current;
 
@@ -879,13 +877,13 @@ export default function Plan2DOverlay({
         }
       }
 
-      if (!best?.id) return;
-
-      const wantsMulti = allowMultiSelect && (e.ctrlKey || e.metaKey || e.shiftKey);
+      if (!best?.id) {
+        if (!wantsMulti) onPickIds?.([]);
+        return;
+      }
 
       if (!wantsMulti) {
         onPickIds?.([best.id]);
-        onPickId?.(best.id);
         return;
       }
 
@@ -895,7 +893,6 @@ export default function Plan2DOverlay({
 
       const arr = Array.from(next);
       onPickIds?.(arr);
-      onPickId?.(best.id);
     },
     [
       measureMode,
@@ -905,9 +902,7 @@ export default function Plan2DOverlay({
       getAllBounds,
       pickRectHit,
       onPickIds,
-      onPickId,
       selectedIds,
-      allowMultiSelect,
       scaleMode,
       scaleStartPx,
       canvasToPlanPixel,
@@ -1345,6 +1340,21 @@ export default function Plan2DOverlay({
       <div
         className="plan2d-overlay__controls"
       >
+        <span
+          aria-live="polite"
+          style={{
+            padding: '6px 10px',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.92)',
+            color: '#243042',
+            fontSize: 12,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Seleccionados: {selectedIds.length}
+        </span>
+
         <button
           onClick={fitView}
           style={{
