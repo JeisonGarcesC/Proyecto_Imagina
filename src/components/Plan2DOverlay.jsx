@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { buildSnapGeometry, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
+import {
+  createDimension2D,
+  dimensionHitDistance,
+  DIMENSION_TYPES,
+} from '../plan2d/dimension2D';
+import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 
 const MIN_ZOOM = 20;
 const MAX_ZOOM = 50_000;
@@ -146,7 +152,8 @@ export default function Plan2DOverlay({
   const [measureStart, setMeasureStart] = useState(null);
   const [measureHover, setMeasureHover] = useState(null);
   const [measureSnap, setMeasureSnap] = useState(null);
-  const [measurements, setMeasurements] = useState([]);
+  const [dimensions, setDimensions] = useState([]);
+  const [selectedDimensionId, setSelectedDimensionId] = useState(null);
 
   const [scaleMode, setScaleMode] = useState(false);
   const [scaleStartPx, setScaleStartPx] = useState(null);
@@ -409,6 +416,30 @@ export default function Plan2DOverlay({
     [canvasToWorld, getSnapshot]
   );
 
+  const pickDimensionAtCanvasPoint = useCallback(
+    (mx, my) => {
+      const mouseWorldPoint = canvasToWorld(mx, my);
+      if (!mouseWorldPoint) return null;
+      let closest = null;
+      let closestDistance = Infinity;
+      dimensions.forEach((dimension) => {
+        const distance = dimensionHitDistance({
+          mouseWorldPoint,
+          screenPoint: { x: mx, y: my },
+          dimension,
+          tolerance: 8,
+          view: { toCanvas },
+        });
+        if (distance < closestDistance) {
+          closest = dimension;
+          closestDistance = distance;
+        }
+      });
+      return closest;
+    },
+    [canvasToWorld, dimensions, toCanvas]
+  );
+
   const commitWall = useCallback(() => {
     if ((draftPts?.length || 0) < 2) return;
 
@@ -436,7 +467,8 @@ export default function Plan2DOverlay({
   }, []);
 
   const clearMeasurements = useCallback(() => {
-    setMeasurements([]);
+    setDimensions([]);
+    setSelectedDimensionId(null);
     clearMeasureDraft();
   }, [clearMeasureDraft]);
 
@@ -785,6 +817,14 @@ export default function Plan2DOverlay({
 
       // drag de pieza con botón izquierdo
       if (e.button !== 0) return;
+      if (!measureMode && !scaleMode && !isWallDrawMode) {
+        const dimension = pickDimensionAtCanvasPoint(mx, my);
+        if (dimension) {
+          setSelectedDimensionId(dimension.id);
+          e.preventDefault();
+          return;
+        }
+      }
       if (measureMode || scaleMode || isWallDrawMode) return;
 
       if (transformTool === 'rotate') {
@@ -880,6 +920,7 @@ export default function Plan2DOverlay({
       onPickId,
       onBeginMove2D,
       isPartMovementLocked2D,
+      pickDimensionAtCanvasPoint,
     ]
   );
 
@@ -970,7 +1011,13 @@ export default function Plan2DOverlay({
         setMeasureSnap(resolved.snapped ? resolved : null);
 
         if (!measureStart) {
-          setMeasureStart({ x: wpt.x, z: wpt.z });
+          setMeasureStart({
+            x: wpt.x,
+            z: wpt.z,
+            reference: resolved.snapped
+              ? { type: resolved.type, sourceId: resolved.sourceId }
+              : null,
+          });
           setMeasureHover({ x: wpt.x, z: wpt.z });
           return;
         }
@@ -978,19 +1025,32 @@ export default function Plan2DOverlay({
         const len = Math.hypot(wpt.x - measureStart.x, wpt.z - measureStart.z);
 
         if (len > 0.001) {
-          setMeasurements((prev) => [
-            ...prev,
-            {
-              id: `MEASURE_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-              a: measureStart,
-              b: { x: wpt.x, z: wpt.z },
+          const dimension = createDimension2D({
+            type: DIMENSION_TYPES.ALIGNED,
+            startPoint: measureStart,
+            endPoint: wpt,
+            references: {
+              start: measureStart.reference || null,
+              end: resolved.snapped
+                ? { type: resolved.type, sourceId: resolved.sourceId }
+                : null,
             },
-          ]);
+          });
+          if (dimension) setDimensions((prev) => [...prev, dimension]);
         }
 
         setMeasureStart(null);
         setMeasureHover(null);
         return;
+      }
+
+      if (!isWallDrawMode) {
+        const dimension = pickDimensionAtCanvasPoint(mx, my);
+        if (dimension) {
+          setSelectedDimensionId(dimension.id);
+          return;
+        }
+        setSelectedDimensionId(null);
       }
 
       // MUROS
@@ -1061,6 +1121,7 @@ export default function Plan2DOverlay({
       scaleStartPx,
       canvasToPlanPixel,
       onPlan2DTransformChange,
+      pickDimensionAtCanvasPoint,
     ]
   );
 
@@ -1096,13 +1157,23 @@ export default function Plan2DOverlay({
         });
       }
 
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedDimensionId) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setDimensions((prev) => prev.filter((dimension) => dimension.id !== selectedDimensionId));
+        setSelectedDimensionId(null);
+        return;
+      }
+
       if ((ev.key === 'Delete' || ev.key === 'Backspace') && measureMode && !measureStart) {
-        setMeasurements((prev) => prev.slice(0, -1));
+        ev.preventDefault();
+        ev.stopPropagation();
+        setDimensions((prev) => prev.slice(0, -1));
       }
     };
 
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [
     measureMode,
     measureStart,
@@ -1111,6 +1182,7 @@ export default function Plan2DOverlay({
     clearDraft,
     clearMeasureDraft,
     fitView,
+    selectedDimensionId,
   ]);
 
   useEffect(() => {
@@ -1402,13 +1474,12 @@ export default function Plan2DOverlay({
         ctx.restore();
       }
 
-      // Medidas guardadas
-      for (const m of measurements) {
-        const [x1, y1] = toCanvasLocal(m.a.x, m.a.z);
-        const [x2, y2] = toCanvasLocal(m.b.x, m.b.z);
-        const len = Math.hypot(m.b.x - m.a.x, m.b.z - m.a.z);
-
-        drawMeasureLine(ctx, x1, y1, x2, y2, fmtMeasure(len));
+      // Cotas permanentes
+      for (const dimension of dimensions) {
+        drawDimension2D(ctx, dimension, {
+          toCanvas: toCanvasLocal,
+          selected: dimension.id === selectedDimensionId,
+        });
       }
 
       // Medida en preview
@@ -1482,7 +1553,8 @@ export default function Plan2DOverlay({
     measureStart,
     measureHover,
     measureSnap,
-    measurements,
+    dimensions,
+    selectedDimensionId,
     plan2DTransform,
     scaleMode,
     scaleStartPx,
@@ -1620,7 +1692,7 @@ export default function Plan2DOverlay({
             gap: 6,
             opacity: isWallDrawMode ? 0.6 : 1,
           }}
-          title={isWallDrawMode ? 'Desactiva muros para medir' : 'Regla (R)'}
+          title={isWallDrawMode ? 'Desactiva muros para acotar' : 'Cota (R)'}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
@@ -1631,7 +1703,7 @@ export default function Plan2DOverlay({
               strokeLinejoin="round"
             />
           </svg>
-          Regla
+          Cota
         </button>
 
         <button
@@ -1673,9 +1745,9 @@ export default function Plan2DOverlay({
               background: 'rgba(255,255,255,0.92)',
               cursor: 'pointer',
             }}
-            title="Borrar medidas"
+            title="Borrar cotas"
           >
-            Limpiar medidas
+            Limpiar cotas
           </button>
         )}
 

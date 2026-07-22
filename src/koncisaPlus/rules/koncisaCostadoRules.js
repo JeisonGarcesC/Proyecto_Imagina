@@ -199,19 +199,19 @@ export const KONCISA_COSTADO_RULES = {
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_060_ORTOGONAL_DER: {
     codigoPT: '22000136064',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO363000_60_DER.glb',
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_075_ORTOGONAL_DER: {
     codigoPT: '22000136065',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO363000_75_DER.glb',
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_060_ORTOGONAL_IZQ: {
     codigoPT: '22000136064',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO363000_60_IZQ.glb',
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_075_ORTOGONAL_IZQ: {
     codigoPT: '22000136065',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO363000_75_IZQ.glb',
   },
 
   // =========================
@@ -219,11 +219,11 @@ export const KONCISA_COSTADO_RULES = {
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_060_O: {
     codigoPT: '22000133828',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO355000_60_O.glb',
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_075_O: {
     codigoPT: '22000133829',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO355000_75_O.glb',
   },
 
   // =========================
@@ -231,19 +231,19 @@ export const KONCISA_COSTADO_RULES = {
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_060_CURVO_DER: {
     codigoPT: '22000133830',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO356000_60_CURVO_DER.glb',
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_075_CURVO_DER: {
     codigoPT: '22000133831',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO356000_75_CURVO_DER.glb',
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_060_CURVO_IZQ: {
     codigoPT: '22000134104',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO356000_60_CURVO_IZQ.glb',
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_075_CURVO_IZQ: {
     codigoPT: '22000134105',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO356000_75_CURVO_IZQ.glb',
   },
 
   // =========================
@@ -397,8 +397,23 @@ export const KONCISA_COSTADO_RULES = {
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_TEK: {
     codigoPT: '22000133823',
-    modelSrc: null,
-    assembly: null,
+    modelSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_150.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_150.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO364000_150.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
 
   // =========================
@@ -406,11 +421,43 @@ export const KONCISA_COSTADO_RULES = {
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_120_ORTOGONAL: {
     codigoPT: '22000136066',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO364000_120.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_120.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO364000_120.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_ORTOGONAL: {
     codigoPT: '22000136067',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO364000_150.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_150.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO364000_150.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
 
   // =========================
@@ -418,11 +465,43 @@ export const KONCISA_COSTADO_RULES = {
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_120_O: {
     codigoPT: '22000133826',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO354000_120.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO354000_120.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO354000_120.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_O: {
     codigoPT: '22000133827',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO354000_150.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO354000_150.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO354000_150.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
 
   // =========================
@@ -430,11 +509,43 @@ export const KONCISA_COSTADO_RULES = {
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_120_CURVO: {
     codigoPT: '22000133832',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO357000_120.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO357000_120.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO357000_120.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_CURVO: {
     codigoPT: '22000133833',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO357000_150.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO357000_150.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO357000_150.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
 
   // =========================
@@ -442,11 +553,43 @@ export const KONCISA_COSTADO_RULES = {
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_120_TRAP: {
     codigoPT: '22000132404',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO340000_120.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO340000_120.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO340000_120.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_TRAP: {
     codigoPT: '22000132405',
-    modelSrc: null,
+    modelSrc: '/assets/models/koncisaPlus/2KSO340000_150.glb',
+    assembly: createCostadoAssembly({
+      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO340000_150.glb',
+
+      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO340000_150.glb',
+      leftOffsetMm: {
+        z: 35,
+      },
+
+      crossbar: {
+        endClearanceMm: 35,
+
+        offsetMm: {
+          z: 17.5,
+        },
+      },
+    }),
   },
 
   // =========================
