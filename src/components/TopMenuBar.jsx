@@ -189,6 +189,10 @@ export default function TopMenuBar({
     setDeleteMode(mode);
   };
 
+  const handleDelete = () => {
+    threeApiRef.current?.removeSelectedOrActive?.();
+  };
+
   return (
     <header ref={barRef} className="topbar-shell">
       <div className="topbar-left">
@@ -315,7 +319,21 @@ export default function TopMenuBar({
         </div>
 
         <div className="topbar-control-group">
-          <span className="topbar-group-title">Eliminar</span>
+          <button
+            type="button"
+            className="topbar-group-title"
+            onClick={handleDelete}
+            title="Eliminar selección"
+            style={{
+              border: 0,
+              padding: 0,
+              background: 'transparent',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Eliminar
+          </button>
           <div className="topbar-segmented">
             <button
               type="button"

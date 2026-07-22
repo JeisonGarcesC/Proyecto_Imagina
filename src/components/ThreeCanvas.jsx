@@ -139,8 +139,8 @@ export default function ThreeCanvas({
     moveAsGroupRef.current = moveAsGroup;
   }, [moveAsGroup]);
 
-  const [deleteAsGroup, setDeleteAsGroup] = useState(true);
-  const deleteAsGroupRef = useRef(true);
+  const [deleteAsGroup, setDeleteAsGroup] = useState(false);
+  const deleteAsGroupRef = useRef(false);
 
   //use effect 2
   useEffect(() => {
@@ -4224,6 +4224,7 @@ export default function ThreeCanvas({
       },
       getDeleteAsGroup: () => deleteAsGroupRef.current,
       removeTargetOrGroup: (target) => removeTargetOrGroup(target),
+      removeSelectedOrActive: () => removeSelectedOrActive(),
       removeActiveOrGroup: () => removeTargetOrGroup(activePart),
       updateSelectedDuctType,
       updateSelectedDuctCovers,
@@ -4506,6 +4507,87 @@ export default function ThreeCanvas({
         const ok = removePartObject(obj);
         if (ok) removedAny = true;
       });
+
+      return removedAny;
+    }
+
+    function getDeletionTargets(ids) {
+      const selectedObjects = Array.from(new Set(ids || []))
+        .map((id) => findPartById(id))
+        .filter(Boolean);
+      const sourceObjects = selectedObjects.length ? selectedObjects : [activePart].filter(Boolean);
+      const targetsByKey = new Map();
+
+      sourceObjects.forEach((obj) => {
+        const physicalRoot = getRootPartObject(obj) || obj;
+
+        if (deleteAsGroupRef.current) {
+          const assembly = getKoncisaAssemblyObject(obj) || getKoncisaAssemblyObject(physicalRoot);
+          if (assembly) {
+            targetsByKey.set('assembly:' + assembly.uuid, { obj: assembly, isAssembly: true });
+            return;
+          }
+
+          const groupId = physicalRoot.userData?.groupId;
+          if (groupId) {
+            const key = 'group:' + groupId;
+            if (!targetsByKey.has(key)) {
+              targetsByKey.set(key, { obj: physicalRoot, isAssembly: false });
+            }
+            return;
+          }
+        }
+
+        targetsByKey.set('part:' + physicalRoot.uuid, { obj: physicalRoot, isAssembly: false });
+      });
+
+      const targets = Array.from(targetsByKey.values());
+      return targets.filter(({ obj }, index) =>
+        !targets.some(
+          ({ obj: candidate }, candidateIndex) =>
+            candidateIndex !== index && isDescendantOf(obj, candidate)
+        )
+      );
+    }
+
+    function clearSelectionAfterRemoval() {
+      selectedIds3D = [];
+      activePart = null;
+      activeSubMesh = null;
+
+      if (selectionHelper) {
+        scene.remove(selectionHelper);
+        selectionHelper = null;
+      }
+
+      clearAdditionalSelectionHelpers();
+      updateRotationHandle();
+      onSelectionChange?.(null);
+    }
+
+    function removeSelectedOrActive() {
+      if (readOnly) return false;
+
+      const targets = getDeletionTargets(selectedIds3D);
+      if (!targets.length) return false;
+
+      if (
+        targets.length > 1 &&
+        !window.confirm('\u00bfDesea eliminar ' + targets.length + ' elementos seleccionados\u003f')
+      ) {
+        return false;
+      }
+
+      let removedAny = false;
+      targets.forEach(({ obj, isAssembly }) => {
+        const removed = isAssembly ? removePartObject(obj) : removeTargetOrGroup(obj);
+        if (removed) removedAny = true;
+      });
+
+      if (removedAny) {
+        clearSelectionAfterRemoval();
+        refreshFloorAndGrid();
+      }
 
       return removedAny;
     }
@@ -6534,11 +6616,8 @@ export default function ThreeCanvas({
 
       //  Supr / Backspace para eliminar pieza seleccionada
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (activePart) {
-          e.preventDefault();
-          //removeActivePart();
-          removeTargetOrGroup(activePart);
-        }
+        e.preventDefault();
+        removeSelectedOrActive();
         return;
       }
 
