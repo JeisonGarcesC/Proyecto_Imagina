@@ -133,7 +133,7 @@ export default function App() {
   const [wallThickness, setWallThickness] = useState(0.1);
   const [walls, setWalls] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [moveAsGroup, setMoveAsGroup] = useState(false);
+  const [moveAsGroup, setMoveAsGroup] = useState(true);
   const [surfaceOpen, setSurfaceOpen] = useState(false);
 
   //Tipologias

@@ -139,8 +139,8 @@ export default function ThreeCanvas({
     moveAsGroupRef.current = moveAsGroup;
   }, [moveAsGroup]);
 
-  const [deleteAsGroup, setDeleteAsGroup] = useState(false);
-  const deleteAsGroupRef = useRef(false);
+  const [deleteAsGroup, setDeleteAsGroup] = useState(true);
+  const deleteAsGroupRef = useRef(true);
 
   //use effect 2
   useEffect(() => {

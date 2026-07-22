@@ -38,7 +38,7 @@ export default function TopMenuBar({
 }) {
   const [open, setOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [deleteMode, setDeleteMode] = useState('single');
+  const [deleteMode, setDeleteMode] = useState('group');
   const fileRef = useRef(null);
   const barRef = useRef(null);
 
