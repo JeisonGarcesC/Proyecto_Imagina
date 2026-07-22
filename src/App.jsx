@@ -3,6 +3,7 @@ import './App.css';
 import { useEffect, useRef, useState, useMemo } from 'react';
 
 import ThreeCanvas from './components/ThreeCanvas';
+import { pasteClipboard } from './clipboard/pasteClipboard';
 import CatalogPanel from './components/CatalogPanel';
 import PropertiesPanel from './components/PropertiesPanel';
 import SurfaceModal from './components/SurfaceModal';
@@ -147,11 +148,27 @@ export default function App() {
       if (!event.ctrlKey || event.altKey || isEditableTarget(event.target)) return;
 
       const key = event.key?.toLowerCase?.();
+      const api = threeApiRef.current;
+
+      if (key === 'c' && !event.shiftKey) {
+        const copied = api?.copySelection?.();
+        if (copied) event.preventDefault();
+        return;
+      }
+
+      if (key === 'v' && !event.shiftKey) {
+        if (!api) return;
+        event.preventDefault();
+        pasteClipboard({ api }).catch((error) => {
+          console.error('No se pudo pegar el contenido copiado.', error);
+        });
+        return;
+      }
+
       const isUndo = key === 'z' && !event.shiftKey;
       const isRedo = key === 'y' || (key === 'z' && event.shiftKey);
       if (!isUndo && !isRedo) return;
 
-      const api = threeApiRef.current;
       const canReplay = isUndo ? api?.canUndoHistory?.() : api?.canRedoHistory?.();
       if (!canReplay) return;
 

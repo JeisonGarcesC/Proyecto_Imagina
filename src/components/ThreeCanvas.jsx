@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { OrbitControls, GLTFLoader } from 'three-stdlib';
 import { createSurfaceMesh, createSurfaceMeta } from '../factories/surfaceFactory';
 import { createHistoryManager, HISTORY_ACTION_TYPES } from '../history/historyManager';
+import { setClipboard } from '../clipboard/clipboardManager';
 
 import { MODEL_TYPES } from '../catalog/catalogData';
 
@@ -3189,14 +3190,14 @@ export default function ThreeCanvas({
       }
 
       if (item.model?.kind === MODEL_TYPES.GLB) {
+        const previousLength = parts.length;
         await addPartFromGlb(item); // le pasas el ITEM, no el codigo
-        return;
+        return parts.slice(previousLength).findLast(({ obj }) => obj)?.obj || null;
       }
 
       if (item.model?.kind === MODEL_TYPES.PROCEDURAL) {
         const d = item.model.defaults || { widthM: 1.2, depthM: 0.6, thicknessM: 0.025 };
-        addSurface(d, item); //  le pasas item para guardar codigoPT en userData
-        return;
+        return addSurface(d, item); //  le pasas item para guardar codigoPT en userData
       }
 
       console.error('addCatalogItem: item.model.kind inválido:', item);
@@ -4173,6 +4174,24 @@ export default function ThreeCanvas({
         if (obj) setActivePart(obj);
       },
       addCatalogItem,
+      addClipboardCatalogItem: async (kind, code) => {
+        const normalizedKind = String(kind || '').toUpperCase();
+        const previousLength = parts.length;
+        const creators = {
+          TYPOLOGY: addTypology,
+          CHAIR: addChair,
+          ARES: addAres,
+          PLANT: addPlant,
+          OFFICE_ACCESSORY: addOfficeAccessory,
+          MEPAL_SALUD: addMepalSalud,
+          MEPAL_TEK_SOCIAL: addMepalTekSocial,
+          CLAK: addClak,
+          EDUK: addEduk,
+        };
+        const creator = creators[normalizedKind] || addCatalogItem;
+        await creator(code);
+        return parts.slice(previousLength).findLast(({ obj }) => obj)?.obj || null;
+      },
       addExternalGlbPart,
       addNativeBlockPart,
       addKoncisaCostadoAssemblyPart,
@@ -4230,6 +4249,57 @@ export default function ThreeCanvas({
         setDeleteAsGroup(next);
       },
       getDeleteAsGroup: () => deleteAsGroupRef.current,
+      copySelection,
+      applyClipboardObjectState: (object, instruction) => {
+        if (!object || !instruction?.transform) return false;
+        const { position, quaternion, scale } = instruction.transform;
+        if (Array.isArray(position)) object.position.fromArray(position);
+        if (Array.isArray(quaternion)) object.quaternion.fromArray(quaternion);
+        if (Array.isArray(scale)) object.scale.fromArray(scale);
+        if (instruction.finishes) reapplyFinishesToRoot(object, instruction.finishes);
+        object.updateMatrixWorld(true);
+        emitBOM();
+        refreshFloorAndGrid();
+        return true;
+      },
+      selectCreatedObjects: (objects = []) => {
+        const created = Array.from(new Set(objects)).filter(Boolean);
+        const ids = created
+          .map((object) => object.userData?.instanceId || object.uuid)
+          .filter(Boolean);
+        if (!ids.length) return false;
+        syncSelectedIds3D(ids);
+        setActivePart(created[created.length - 1], { targetIds: ids });
+        return true;
+      },
+      mapPastedAssemblyIdentities: (instruction, assembly) => {
+        if (!instruction || !assembly) return [];
+        const available = [
+          ...parts.map(({ obj }) => obj).filter((obj) => obj && isDescendantOf(obj, assembly)),
+          ...getFloatingChildrenOfAssembly(assembly),
+        ];
+        const used = new Set();
+        const sourceComponents = [
+          ...(instruction.components?.internal || []),
+          ...(instruction.components?.external || []),
+        ];
+
+        return sourceComponents.flatMap((source) => {
+          const sourceCode = source.payload?.codigoPT || source.payload?.code || source.source?.code;
+          const sourceKind = source.source?.kind;
+          const object = available.find((candidate) => {
+            if (used.has(candidate)) return false;
+            const code = candidate.userData?.codigoPT || candidate.userData?.code;
+            const kind = candidate.userData?.kind || candidate.userData?.type;
+            return (!sourceCode || code === sourceCode) && (!sourceKind || kind === sourceKind);
+          });
+          if (!object) return [];
+          used.add(object);
+          const oldId = source.source?.relationships?.oldId;
+          const newId = object.userData?.instanceId || object.uuid;
+          return oldId && newId ? [[oldId, newId]] : [];
+        });
+      },
       removeTargetOrGroup: (target) => removeTargetOrGroup(target),
       removeSelectedOrActive: () => removeSelectedOrActive(),
       removeActiveOrGroup: () => removeTargetOrGroup(activePart),
@@ -4356,6 +4426,190 @@ export default function ThreeCanvas({
       });
 
       return targets;
+    }
+
+    function toClipboardData(value, seen = new WeakSet()) {
+      if (value == null || typeof value === 'string' || typeof value === 'boolean') return value;
+      if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+      if (Array.isArray(value)) {
+        return value.map((item) => toClipboardData(item, seen)).filter((item) => item !== undefined);
+      }
+      if (typeof value !== 'object') return undefined;
+
+      const prototype = Object.getPrototypeOf(value);
+      if (prototype !== Object.prototype && prototype !== null) return undefined;
+      if (seen.has(value)) return undefined;
+      seen.add(value);
+
+      const output = {};
+      Object.entries(value).forEach(([key, item]) => {
+        const serialized = toClipboardData(item, seen);
+        if (serialized !== undefined) output[key] = serialized;
+      });
+      seen.delete(value);
+      return output;
+    }
+
+    function collectCopyFinishes(object) {
+      const finishes = toClipboardData(object.userData?.finishes || {}) || {};
+      object.traverse?.((node) => {
+        if (!node?.isMesh || !node.userData?.materialCode) return;
+        const key = getMeshPathKey(object, node);
+        finishes[key] = {
+          materialCode: node.userData.materialCode,
+          materialBase: object.userData?.materialBase || null,
+          subName: node.name || key,
+        };
+      });
+      return Object.keys(finishes).length ? finishes : null;
+    }
+
+    function getCopyObjectId(object) {
+      return object?.userData?.instanceId || object?.uuid || null;
+    }
+
+    function serializeCopyObject(object, role = 'ROOT') {
+      const assembly = getKoncisaAssemblyObject(object);
+      const oldId = getCopyObjectId(object);
+      const oldAssemblyId = object.userData?.parentAssemblyId || getAssemblyId(assembly);
+      const partRecord = parts.find(({ obj }) => obj === object);
+      const worldPosition = object.getWorldPosition(new THREE.Vector3());
+      const worldQuaternion = object.getWorldQuaternion(new THREE.Quaternion());
+
+      return {
+        type:
+          object.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? 'ASSEMBLY' : 'PHYSICAL_OBJECT',
+        role,
+        kind: object.userData?.kind || object.userData?.type || 'PART',
+        code: object.userData?.code || partRecord?.code || null,
+        codigoPT: object.userData?.codigoPT || partRecord?.code || null,
+        configuration: toClipboardData({
+          config: object.userData?.config || null,
+          procedural: object.userData?.procedural || null,
+          dim: object.userData?.dim || null,
+          dimMm: object.userData?.dimMm || null,
+          billingDimMm: object.userData?.billingDimMm || null,
+          model: object.userData?.model || null,
+          almacenVariant: object.userData?.almacenVariant || null,
+          almacenCategory: object.userData?.almacenCategory || null,
+        }),
+        transform: {
+          position: object.position.toArray(),
+          quaternion: object.quaternion.toArray(),
+          scale: object.scale.toArray(),
+          worldPosition: worldPosition.toArray(),
+          worldQuaternion: worldQuaternion.toArray(),
+        },
+        metadata: toClipboardData(object.userData) || {},
+        finishes: collectCopyFinishes(object),
+        relationships: {
+          oldId,
+          oldGroupId: object.userData?.groupId || null,
+          oldAssemblyId: oldAssemblyId || null,
+          oldParentId: object.parent === scene ? null : getCopyObjectId(object.parent),
+          oldParentCostadoInstanceId: object.userData?.parentCostadoInstanceId || null,
+        },
+      };
+    }
+
+    function resolveCopyTargets() {
+      const selectedObjects = Array.from(new Set(selectedIds3D))
+        .map((id) => findPartById(id))
+        .filter(Boolean);
+      const sourceObjects = selectedObjects.length ? selectedObjects : [activePart].filter(Boolean);
+      const targets = [];
+
+      sourceObjects.forEach((source) => {
+        const physicalRoot = getRootPartObject(source) || source;
+        if (!physicalRoot || physicalRoot.userData?.isFloor) return;
+
+        if (!moveAsGroupRef.current) {
+          targets.push(physicalRoot);
+          return;
+        }
+
+        const assembly =
+          getKoncisaAssemblyObject(source) || getKoncisaAssemblyObject(physicalRoot);
+        if (assembly) {
+          targets.push(assembly);
+          return;
+        }
+
+        if (physicalRoot.userData?.groupId) {
+          targets.push(...getGroupedObjects(physicalRoot));
+        } else {
+          targets.push(physicalRoot);
+        }
+      });
+
+      const uniqueTargets = Array.from(new Set(targets));
+      const targetSet = new Set(uniqueTargets);
+      return uniqueTargets.filter((object) => {
+        let ancestor = object.parent;
+        while (ancestor) {
+          if (targetSet.has(ancestor)) return false;
+          ancestor = ancestor.parent;
+        }
+        return true;
+      });
+    }
+
+    function serializeCopyTargets(targets) {
+      const serializedItems = targets.map((object) => {
+        const item = serializeCopyObject(object);
+        const isAssembly = item.type === 'ASSEMBLY';
+        if (!isAssembly) return item;
+
+        item.components = {
+          internal: parts
+            .map(({ obj }) => obj)
+            .filter((candidate) => candidate && isDescendantOf(candidate, object))
+            .map((candidate) => serializeCopyObject(candidate, 'INTERNAL')),
+          external: getFloatingChildrenOfAssembly(object).map((candidate) =>
+            serializeCopyObject(candidate, 'EXTERNAL')
+          ),
+        };
+        return item;
+      });
+
+      const allItems = serializedItems.flatMap((item) => [
+        item,
+        ...(item.components?.internal || []),
+        ...(item.components?.external || []),
+      ]);
+      const copiedObjects = targets.flatMap((object) => [
+        object,
+        ...(object.userData?.kind === 'KONCISA_PLUS_ASSEMBLY'
+          ? getFloatingChildrenOfAssembly(object)
+          : []),
+      ]);
+      const bounds = new THREE.Box3();
+      copiedObjects.forEach((object) => bounds.expandByObject(object));
+
+      return {
+        version: 1,
+        copiedAt: Date.now(),
+        anchor: bounds.isEmpty() ? [0, 0, 0] : bounds.getCenter(new THREE.Vector3()).toArray(),
+        scope: moveAsGroupRef.current ? 'GROUP' : 'INDIVIDUAL',
+        identityMap: {
+          oldIds: Array.from(
+            new Set(allItems.map((item) => item.relationships?.oldId).filter(Boolean))
+          ),
+          oldGroupIds: Array.from(
+            new Set(allItems.map((item) => item.relationships?.oldGroupId).filter(Boolean))
+          ),
+          oldAssemblyIds: Array.from(
+            new Set(allItems.map((item) => item.relationships?.oldAssemblyId).filter(Boolean))
+          ),
+        },
+        items: serializedItems,
+      };
+    }
+
+    function copySelection() {
+      const targets = resolveCopyTargets();
+      if (!targets.length) return null;
+      return setClipboard(serializeCopyTargets(targets));
     }
 
     function resolveRotationTargets({ sourceId } = {}) {
