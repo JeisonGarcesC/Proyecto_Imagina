@@ -1,8 +1,18 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { buildSnapGeometry, resolveSnapPoint, SNAP_TYPES } from '../plan2d/geometrySnap2D';
 
 const MIN_ZOOM = 20;
 const MAX_ZOOM = 50_000;
 const ZOOM_FACTOR = 0.0015;
+const MEASURE_SNAP_TOLERANCE_PX = 10;
+
+const SNAP_LABELS = Object.freeze({
+  [SNAP_TYPES.VERTEX]: 'Vértice detectado',
+  [SNAP_TYPES.ENDPOINT]: 'Extremo detectado',
+  [SNAP_TYPES.MIDPOINT]: 'Punto medio detectado',
+  [SNAP_TYPES.CENTER]: 'Centro detectado',
+  [SNAP_TYPES.SEGMENT]: 'Segmento detectado',
+});
 
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
@@ -143,6 +153,7 @@ export default function Plan2DOverlay({
   const [measureMode, setMeasureMode] = useState(false);
   const [measureStart, setMeasureStart] = useState(null);
   const [measureHover, setMeasureHover] = useState(null);
+  const [measureSnap, setMeasureSnap] = useState(null);
   const [measurements, setMeasurements] = useState([]);
 
   const [scaleMode, setScaleMode] = useState(false);
@@ -391,6 +402,21 @@ export default function Plan2DOverlay({
     [invertZ]
   );
 
+  const resolveMeasureSnap = useCallback(
+    (mx, my) => {
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint) return null;
+      return resolveSnapPoint({
+        worldPoint,
+        screenPoint: { x: mx, y: my },
+        scale: viewRef.current.s,
+        geometry: buildSnapGeometry(getSnapshot?.() || []),
+        tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
+      });
+    },
+    [canvasToWorld, getSnapshot]
+  );
+
   const commitWall = useCallback(() => {
     if ((draftPts?.length || 0) < 2) return;
 
@@ -414,6 +440,7 @@ export default function Plan2DOverlay({
   const clearMeasureDraft = useCallback(() => {
     setMeasureStart(null);
     setMeasureHover(null);
+    setMeasureSnap(null);
   }, []);
 
   const clearMeasurements = useCallback(() => {
@@ -601,10 +628,11 @@ export default function Plan2DOverlay({
         return;
       }
 
-      if (measureMode && measureStart) {
-        const wpt = canvasToWorld(mx, my);
-        if (!wpt) return;
-        setMeasureHover({ x: wpt.x, z: wpt.z });
+      if (measureMode) {
+        const resolved = resolveMeasureSnap(mx, my);
+        if (!resolved) return;
+        setMeasureSnap(resolved.snapped ? resolved : null);
+        if (measureStart) setMeasureHover(resolved.point);
         return;
       }
 
@@ -853,6 +881,7 @@ export default function Plan2DOverlay({
       onBeginRotation2D,
       pickPartAtCanvasPoint,
       canvasToWorld,
+      resolveMeasureSnap,
       selectedIds,
       getSnapshot,
       getSelectionTargetIds,
@@ -943,8 +972,10 @@ export default function Plan2DOverlay({
 
       // REGLA
       if (measureMode) {
-        const wpt = canvasToWorld(mx, my);
-        if (!wpt) return;
+        const resolved = resolveMeasureSnap(mx, my);
+        if (!resolved) return;
+        const wpt = resolved.point;
+        setMeasureSnap(resolved.snapped ? resolved : null);
 
         if (!measureStart) {
           setMeasureStart({ x: wpt.x, z: wpt.z });
@@ -1028,6 +1059,7 @@ export default function Plan2DOverlay({
       measureStart,
       isWallDrawMode,
       canvasToWorld,
+      resolveMeasureSnap,
       getAllBounds,
       pickRectHit,
       getSelectionTargetIds,
@@ -1066,6 +1098,7 @@ export default function Plan2DOverlay({
           if (!next) {
             setMeasureStart(null);
             setMeasureHover(null);
+            setMeasureSnap(null);
           }
           return next;
         });
@@ -1399,6 +1432,39 @@ export default function Plan2DOverlay({
         }
       }
 
+      if (measureMode && measureSnap?.snapped) {
+        const [snapX, snapY] = toCanvasLocal(measureSnap.point.x, measureSnap.point.z);
+        const label = SNAP_LABELS[measureSnap.type] || 'Punto detectado';
+        ctx.save();
+        ctx.strokeStyle = 'rgba(22, 163, 74, 1)';
+        ctx.fillStyle = 'rgba(220, 252, 231, 0.96)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(snapX, snapY, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(snapX - 9, snapY);
+        ctx.lineTo(snapX + 9, snapY);
+        ctx.moveTo(snapX, snapY - 9);
+        ctx.lineTo(snapX, snapY + 9);
+        ctx.stroke();
+
+        ctx.font = '12px sans-serif';
+        const labelWidth = ctx.measureText(label).width + 12;
+        const labelX = Math.min(w - labelWidth - 4, snapX + 12);
+        const labelY = Math.max(18, snapY - 12);
+        ctx.fillStyle = 'rgba(255,255,255,0.96)';
+        ctx.fillRect(labelX, labelY - 15, labelWidth, 20);
+        ctx.strokeStyle = 'rgba(22, 163, 74, 0.75)';
+        ctx.strokeRect(labelX, labelY - 15, labelWidth, 20);
+        ctx.fillStyle = 'rgba(21, 128, 61, 1)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, labelX + 6, labelY - 5);
+        ctx.restore();
+      }
+
       // Header
       ctx.fillStyle = 'rgba(0,0,0,0.62)';
       ctx.font = '13px sans-serif';
@@ -1422,6 +1488,7 @@ export default function Plan2DOverlay({
     measureMode,
     measureStart,
     measureHover,
+    measureSnap,
     measurements,
     plan2DTransform,
     scaleMode,
@@ -1542,6 +1609,7 @@ export default function Plan2DOverlay({
               if (!next) {
                 setMeasureStart(null);
                 setMeasureHover(null);
+                setMeasureSnap(null);
               }
               return next;
             });
@@ -1584,6 +1652,7 @@ export default function Plan2DOverlay({
               setMeasureMode(false);
               setMeasureStart(null);
               setMeasureHover(null);
+              setMeasureSnap(null);
             }
           }}
           disabled={!plan2DSrc || isWallDrawMode}
