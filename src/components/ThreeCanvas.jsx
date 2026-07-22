@@ -4327,28 +4327,62 @@ export default function ThreeCanvas({
       return activePart;
     }
 
-    function resolveRotationTargets({ sourceId } = {}) {
-      const sourceObject = resolveRotationSource(sourceId);
-      const physicalRoot = getRootPartObject(sourceObject) || sourceObject;
-      if (!physicalRoot) return [];
-
-      if (!moveAsGroupRef.current) return [physicalRoot];
-
-      const assembly =
-        getKoncisaAssemblyObject(sourceObject) || getKoncisaAssemblyObject(physicalRoot);
-      if (assembly) return [assembly];
-
-      const candidates = physicalRoot.userData?.groupId
-        ? getGroupedObjects(physicalRoot)
-        : [physicalRoot];
-      const unique = Array.from(
-        new Map(candidates.filter(Boolean).map((obj) => [obj.uuid, obj])).values()
+    function getAssemblyRotationTargets(assembly) {
+      const assemblyIds = new Set(
+        [assembly.userData?.instanceId, assembly.userData?.code, assembly.uuid].filter(Boolean)
       );
+      const targets = [assembly];
 
-      return unique.filter((obj) => {
+      parts.forEach(({ obj }) => {
+        if (!obj || isDescendantOf(obj, assembly)) return;
+        if (assemblyIds.has(obj.userData?.parentAssemblyId)) targets.push(obj);
+      });
+
+      return targets;
+    }
+
+    function resolveRotationTargets({ sourceId } = {}) {
+      const selectedSources = Array.from(new Set(selectedIds3D))
+        .map((id) => findPartById(id))
+        .filter(Boolean);
+      const fallbackSource = resolveRotationSource(sourceId);
+      const sourceObjects = selectedSources.length
+        ? selectedSources
+        : [fallbackSource].filter(Boolean);
+      const targetsById = new Map();
+
+      sourceObjects.forEach((sourceObject) => {
+        const physicalRoot = getRootPartObject(sourceObject) || sourceObject;
+        if (!physicalRoot) return;
+
+        if (!moveAsGroupRef.current) {
+          targetsById.set(physicalRoot.uuid, physicalRoot);
+          return;
+        }
+
+        const assembly =
+          getKoncisaAssemblyObject(sourceObject) || getKoncisaAssemblyObject(physicalRoot);
+        if (assembly) {
+          getAssemblyRotationTargets(assembly).forEach((target) => {
+            targetsById.set(target.uuid, target);
+          });
+          return;
+        }
+
+        const candidates = physicalRoot.userData?.groupId
+          ? getGroupedObjects(physicalRoot)
+          : [physicalRoot];
+        candidates.filter(Boolean).forEach((target) => {
+          targetsById.set(target.uuid, target);
+        });
+      });
+
+      const uniqueTargets = Array.from(targetsById.values());
+      const targetSet = new Set(uniqueTargets);
+      return uniqueTargets.filter((obj) => {
         let ancestor = obj.parent;
         while (ancestor) {
-          if (unique.includes(ancestor)) return false;
+          if (targetSet.has(ancestor)) return false;
           ancestor = ancestor.parent;
         }
         return true;
