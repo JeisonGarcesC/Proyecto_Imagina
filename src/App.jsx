@@ -459,6 +459,11 @@ export default function App() {
   });
   const [transformTool, setTransformTool] = useState('move');
 
+  useEffect(() => {
+    if (!isReady) return;
+    threeApiRef.current?.setSelectedIds3D?.(selectedIds);
+  }, [isReady, selectedIds]);
+
   const handleMoveAsGroupChange = (nextValue) => {
     const nextMoveAsGroup = Boolean(nextValue);
     if (nextMoveAsGroup === moveAsGroup) return;
@@ -729,9 +734,39 @@ export default function App() {
             }}
             onSelectionChange={(part) => {
               setSelectedPart(part);
-              if (!isSelectingFromPlan2DRef.current) {
-                setSelectedIds(part?.instanceId ? [part.instanceId] : []);
+              if (isSelectingFromPlan2DRef.current) return;
+              if (!part?.instanceId) {
+                setSelectedIds([]);
+                return;
               }
+
+              const snapshot = threeApiRef.current?.getPartsSnapshot2D?.() || [];
+              const groupId = String(part.groupId || '').trim();
+              const targetIds =
+                moveAsGroup && groupId
+                  ? snapshot
+                      .filter(
+                        (candidate) => String(candidate?.groupId || '').trim() === groupId
+                      )
+                      .map((candidate) => candidate.id)
+                      .filter(Boolean)
+                  : [part.instanceId];
+              const normalizedTargetIds = Array.from(new Set(targetIds));
+
+              if (!part.selectionToggle) {
+                setSelectedIds(normalizedTargetIds);
+                return;
+              }
+
+              setSelectedIds((currentIds) => {
+                const nextIds = new Set(currentIds);
+                const targetIsSelected = normalizedTargetIds.every((id) => nextIds.has(id));
+                normalizedTargetIds.forEach((id) => {
+                  if (targetIsSelected) nextIds.delete(id);
+                  else nextIds.add(id);
+                });
+                return Array.from(nextIds);
+              });
             }}
             onBOMChange={handleBOMChange}
             onFloatingEditorRequest={setFloatingEditor}

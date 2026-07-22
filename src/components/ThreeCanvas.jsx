@@ -264,6 +264,7 @@ export default function ThreeCanvas({
     let isDragging = false;
 
     let selectionHelper = null;
+    let additionalSelectionHelpers = [];
     let rotationSession = null;
     let isRotating3D = false;
     let rotationPointerStartAngle = 0;
@@ -611,7 +612,33 @@ export default function ThreeCanvas({
       grid.visible = floor?.userData?.showGrid !== false;
     }
 
-    function setActivePart(obj) {
+    function clearAdditionalSelectionHelpers() {
+      additionalSelectionHelpers.forEach((helper) => {
+        scene.remove(helper);
+        helper.geometry?.dispose?.();
+        helper.material?.dispose?.();
+      });
+      additionalSelectionHelpers = [];
+    }
+
+    function syncSelectedIds3D(ids = []) {
+      clearAdditionalSelectionHelpers();
+      const selectedSet = new Set(ids || []);
+      const activeId = activePart?.userData?.instanceId || activePart?.uuid || null;
+
+      if (selectionHelper) selectionHelper.visible = Boolean(activeId && selectedSet.has(activeId));
+
+      parts.forEach(({ obj }) => {
+        const id = obj?.userData?.instanceId || obj?.uuid;
+        if (!id || !selectedSet.has(id) || obj === activePart) return;
+        const helper = new THREE.BoxHelper(obj, 0xffcc00);
+        scene.add(helper);
+        helper.update();
+        additionalSelectionHelpers.push(helper);
+      });
+    }
+
+    function setActivePart(obj, selectionContext = null) {
       activePart = obj;
       activeSubMesh = null; // ✅ cada vez que cambia selección, reset submesh
 
@@ -671,6 +698,7 @@ export default function ThreeCanvas({
         groupName: obj.userData?.groupName || null,
         logicalCode: obj.userData?.logicalCode || null,
         instanceId: obj.userData?.instanceId || obj.uuid || null,
+        selectionToggle: selectionContext?.toggle === true,
         ductCovers: obj.userData?.ductCovers || null,
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
@@ -4080,6 +4108,7 @@ export default function ThreeCanvas({
       removePartById,
       applyFinishToActivePart,
       getPartsSnapshot2D,
+      setSelectedIds3D: syncSelectedIds3D,
       selectPartById,
       addTypology,
       addChair,
@@ -6520,7 +6549,7 @@ export default function ThreeCanvas({
       const root = getRootPartObject(hitObj);
       if (!root) return;
 
-      setActivePart(root);
+      setActivePart(root, { toggle: e.ctrlKey || e.metaKey });
 
       if (transformToolRef.current === 'rotate') {
         e.preventDefault();
@@ -6731,6 +6760,7 @@ export default function ThreeCanvas({
 
       controls.update();
       if (selectionHelper) selectionHelper.update();
+      additionalSelectionHelpers.forEach((helper) => helper.update());
       updateRotationHandle();
 
       if (!isDragging) snapActivePart();
@@ -8806,6 +8836,8 @@ export default function ThreeCanvas({
       renderer.domElement.removeEventListener('lostpointercapture', onPointerCancel);
 
       window.removeEventListener('pointerup', onPointerUp);
+
+      clearAdditionalSelectionHelpers();
 
       // limpiar muros (si existen)
       if (wallsGroupRef.current) {
