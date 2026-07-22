@@ -127,6 +127,45 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [selectedPart, setSelectedPart] = useState(null);
 
+  useEffect(() => {
+    const isEditableTarget = (target) => {
+      const tagName = target?.tagName?.toLowerCase?.();
+      return (
+        tagName === 'input' ||
+        tagName === 'textarea' ||
+        tagName === 'select' ||
+        target?.isContentEditable === true ||
+        Boolean(
+          target?.closest?.(
+            '[contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]'
+          )
+        )
+      );
+    };
+
+    const onHistoryKeyDown = (event) => {
+      if (!event.ctrlKey || event.altKey || isEditableTarget(event.target)) return;
+
+      const key = event.key?.toLowerCase?.();
+      const isUndo = key === 'z' && !event.shiftKey;
+      const isRedo = key === 'y' || (key === 'z' && event.shiftKey);
+      if (!isUndo && !isRedo) return;
+
+      const api = threeApiRef.current;
+      const canReplay = isUndo ? api?.canUndoHistory?.() : api?.canRedoHistory?.();
+      if (!canReplay) return;
+
+      event.preventDefault();
+      const replay = isUndo ? api.undoHistory() : api.redoHistory();
+      Promise.resolve(replay).catch((error) => {
+        console.error(`No se pudo ${isUndo ? 'deshacer' : 'rehacer'} la acción.`, error);
+      });
+    };
+
+    window.addEventListener('keydown', onHistoryKeyDown);
+    return () => window.removeEventListener('keydown', onHistoryKeyDown);
+  }, []);
+
   // Muros
   const [wallMode, setWallMode] = useState('NONE');
   const [wallHeight, setWallHeight] = useState(2.4);

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls, GLTFLoader } from 'three-stdlib';
 import { createSurfaceMesh, createSurfaceMeta } from '../factories/surfaceFactory';
+import { createHistoryManager, HISTORY_ACTION_TYPES } from '../history/historyManager';
 
 import { MODEL_TYPES } from '../catalog/catalogData';
 
@@ -268,6 +269,7 @@ export default function ThreeCanvas({
     let selectionHelper = null;
     let additionalSelectionHelpers = [];
     let rotationSession = null;
+    const historyManager = createHistoryManager({ replayAction: replayHistoryAction });
     let isRotating3D = false;
     let rotationPointerStartAngle = 0;
 
@@ -4237,6 +4239,10 @@ export default function ThreeCanvas({
       cancelRotation,
       rotateByDegrees: ({ sourceId, degrees } = {}) => rotateByDegrees({ sourceId, degrees }),
       getRotationState: ({ sourceId } = {}) => getRotationState({ sourceId }),
+      undoHistory: () => historyManager.undo(),
+      redoHistory: () => historyManager.redo(),
+      canUndoHistory: () => historyManager.canUndo(),
+      canRedoHistory: () => historyManager.canRedo(),
       selectFloor,
       updateFloorVisualOptions,
       replaceSelectedCostadoWithPedestal,
@@ -4389,6 +4395,84 @@ export default function ThreeCanvas({
       });
     }
 
+    const ROTATION_HISTORY_EPSILON = 1e-8;
+
+    function createRotationSnapshot({ obj, parent, position, quaternion, scale }) {
+      return {
+        id: obj.userData?.instanceId || obj.uuid,
+        object: obj,
+        parent,
+        position: position.toArray(),
+        quaternion: quaternion.toArray(),
+        scale: scale.toArray(),
+      };
+    }
+
+    function captureRotationState(targets, useInitialState = false) {
+      return targets.map((target) =>
+        createRotationSnapshot({
+          obj: target.obj,
+          parent: target.parent,
+          position: useInitialState ? target.localPosition : target.obj.position,
+          quaternion: useInitialState ? target.localQuaternion : target.obj.quaternion,
+          scale: useInitialState ? target.localScale : target.obj.scale,
+        })
+      );
+    }
+
+    function rotationStateChanged(before, after) {
+      if (before.length !== after.length) return true;
+
+      return before.some((previous, index) => {
+        const next = after[index];
+        if (
+          !next ||
+          previous.id !== next.id ||
+          previous.object !== next.object ||
+          previous.parent !== next.parent
+        ) {
+          return true;
+        }
+
+        const positionChanged = previous.position.some(
+          (value, component) => Math.abs(value - next.position[component]) > ROTATION_HISTORY_EPSILON
+        );
+        const scaleChanged = previous.scale.some(
+          (value, component) => Math.abs(value - next.scale[component]) > ROTATION_HISTORY_EPSILON
+        );
+        const quaternionDot = previous.quaternion.reduce(
+          (sum, value, component) => sum + value * next.quaternion[component],
+          0
+        );
+
+        return (
+          positionChanged ||
+          scaleChanged ||
+          1 - Math.min(1, Math.abs(quaternionDot)) > ROTATION_HISTORY_EPSILON
+        );
+      });
+    }
+
+    function applyRotationHistoryState(snapshots) {
+      snapshots.forEach(({ object, parent, position, quaternion, scale }) => {
+        if (!object || object.parent !== parent) return;
+        object.position.fromArray(position);
+        object.quaternion.fromArray(quaternion).normalize();
+        object.scale.fromArray(scale);
+        object.updateMatrixWorld(true);
+      });
+
+      if (selectionHelper) selectionHelper.update();
+      additionalSelectionHelpers.forEach((helper) => helper.update());
+      updateRotationHandle();
+      refreshFloorAndGrid();
+    }
+
+    function replayHistoryAction(action, direction) {
+      if (action.type !== HISTORY_ACTION_TYPES.ROTATE) return;
+      applyRotationHistoryState(direction === 'undo' ? action.before : action.after);
+    }
+
     function beginRotation({ sourceId } = {}) {
       const sourceObject = resolveRotationSource(sourceId);
       const source = getRootPartObject(sourceObject) || sourceObject;
@@ -4414,6 +4498,16 @@ export default function ThreeCanvas({
       const pivot = box.getCenter(new THREE.Vector3());
       const boundsSize = box.getSize(new THREE.Vector3());
       const sourceWorldQuaternion = source.getWorldQuaternion(new THREE.Quaternion());
+      const sessionTargets = targets.map((obj) => ({
+        obj,
+        parent: obj.parent || null,
+        worldPosition: obj.getWorldPosition(new THREE.Vector3()),
+        worldQuaternion: obj.getWorldQuaternion(new THREE.Quaternion()),
+        localPosition: obj.position.clone(),
+        localQuaternion: obj.quaternion.clone(),
+        localScale: obj.scale.clone(),
+      }));
+
       rotationSession = {
         source,
         sourceId: source.userData?.instanceId || source.uuid,
@@ -4422,14 +4516,8 @@ export default function ThreeCanvas({
         boundsDepth: boundsSize.z,
         appliedAngle: 0,
         initialSourceAngle: new THREE.Euler().setFromQuaternion(sourceWorldQuaternion, 'YXZ').y,
-        targets: targets.map((obj) => ({
-          obj,
-          parent: obj.parent || null,
-          worldPosition: obj.getWorldPosition(new THREE.Vector3()),
-          worldQuaternion: obj.getWorldQuaternion(new THREE.Quaternion()),
-          localPosition: obj.position.clone(),
-          localQuaternion: obj.quaternion.clone(),
-        })),
+        targets: sessionTargets,
+        historyBefore: captureRotationState(sessionTargets, true),
       };
 
       return getRotationState();
@@ -4485,7 +4573,19 @@ export default function ThreeCanvas({
 
     function endRotation() {
       if (!rotationSession) return false;
+      const before = rotationSession.historyBefore;
+      const after = captureRotationState(rotationSession.targets);
       rotationSession = null;
+
+      if (!historyManager.isReplaying && rotationStateChanged(before, after)) {
+        historyManager.pushAction({
+          type: HISTORY_ACTION_TYPES.ROTATE,
+          targets: before.map(({ id }) => id),
+          before,
+          after,
+        });
+      }
+
       updateRotationHandle();
       return true;
     }
@@ -7049,9 +7149,11 @@ export default function ThreeCanvas({
 
     window.addEventListener('pointerup', onPointerUp);
     function onWindowPointerCancel(e) {
+      if (rotationSession) cancelRotation();
       cancelDragSession(e.pointerId);
     }
     function onWindowBlur() {
+      if (rotationSession) cancelRotation();
       cancelDragSession();
     }
     window.addEventListener('pointercancel', onWindowPointerCancel);
@@ -9141,6 +9243,7 @@ export default function ThreeCanvas({
 
     // ====== Cleanup ======
     return () => {
+      historyManager.clearHistory();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
       cancelAnimationFrame(rafId);
