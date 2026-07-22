@@ -1,18 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { buildSnapGeometry, resolveSnapPoint, SNAP_TYPES } from '../plan2d/geometrySnap2D';
+import { buildSnapGeometry, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
 
 const MIN_ZOOM = 20;
 const MAX_ZOOM = 50_000;
 const ZOOM_FACTOR = 0.0015;
 const MEASURE_SNAP_TOLERANCE_PX = 10;
-
-const SNAP_LABELS = Object.freeze({
-  [SNAP_TYPES.VERTEX]: 'Vértice detectado',
-  [SNAP_TYPES.ENDPOINT]: 'Extremo detectado',
-  [SNAP_TYPES.MIDPOINT]: 'Punto medio detectado',
-  [SNAP_TYPES.CENTER]: 'Centro detectado',
-  [SNAP_TYPES.SEGMENT]: 'Segmento detectado',
-});
 
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
@@ -1434,7 +1426,8 @@ export default function Plan2DOverlay({
 
       if (measureMode && measureSnap?.snapped) {
         const [snapX, snapY] = toCanvasLocal(measureSnap.point.x, measureSnap.point.z);
-        const label = SNAP_LABELS[measureSnap.type] || 'Punto detectado';
+        const sourceLabel = measureSnap.sourceId ? ` · ${measureSnap.sourceId}` : '';
+        const label = `${SNAP_LABELS[measureSnap.type] || 'Punto detectado'}${sourceLabel}`;
         ctx.save();
         ctx.strokeStyle = 'rgba(22, 163, 74, 1)';
         ctx.fillStyle = 'rgba(220, 252, 231, 0.96)';
