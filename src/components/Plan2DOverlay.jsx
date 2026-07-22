@@ -100,6 +100,7 @@ function drawMeasureLine(ctx, x1, y1, x2, y2, label, opts = {}) {
 export default function Plan2DOverlay({
   getSnapshot,
   selectedIds = [],
+  moveAsGroup = false,
   onPickIds,
   onPickId,
   walls = [],
@@ -458,6 +459,24 @@ export default function Plan2DOverlay({
     [getAllBounds, pickRectHit]
   );
 
+  const getSelectionTargetIds = useCallback(
+    (part, snapshot) => {
+      if (!part?.id) return [];
+      const groupId = String(part.groupId || '').trim();
+      if (!moveAsGroup || !groupId) return [part.id];
+
+      return Array.from(
+        new Set(
+          snapshot
+            .filter((candidate) => String(candidate?.groupId || '').trim() === groupId)
+            .map((candidate) => candidate.id)
+            .filter(Boolean)
+        )
+      );
+    },
+    [moveAsGroup]
+  );
+
   const getRotationHandle = useCallback(() => {
     if (transformTool !== 'rotate') return null;
     const sourceId = selectedIds?.[selectedIds.length - 1];
@@ -551,7 +570,7 @@ export default function Plan2DOverlay({
         if (!pieceDrag.hasMoved && movedPx < 4) return;
 
         if (!pieceDrag.hasMoved && pieceDrag.replaceSelectionOnDrag) {
-          onPickIds?.([pieceDrag.id]);
+          onPickIds?.(pieceDrag.selectionIds);
         }
         pieceDrag.hasMoved = true;
         const world = canvasToWorld(mx, my);
@@ -766,10 +785,13 @@ export default function Plan2DOverlay({
       if (!world) return;
 
       const selectedSet = new Set(selectedIds || []);
-      const useMultipleSelection = selectedSet.has(picked.id) && selectedSet.size > 1;
-      const dragIds = useMultipleSelection ? Array.from(selectedSet) : [picked.id];
+      const snapshot = getSnapshot?.() || [];
+      const selectionIds = getSelectionTargetIds(picked, snapshot);
+      const targetIsSelected = selectionIds.every((id) => selectedSet.has(id));
+      const useMultipleSelection = targetIsSelected && selectedSet.size > 1;
+      const dragIds = useMultipleSelection ? Array.from(selectedSet) : selectionIds;
       const snapshotById = new Map(
-        (getSnapshot?.() || []).filter((part) => part?.id).map((part) => [part.id, part])
+        snapshot.filter((part) => part?.id).map((part) => [part.id, part])
       );
       const initialPositions = dragIds
         .map((id) => snapshotById.get(id))
@@ -783,18 +805,19 @@ export default function Plan2DOverlay({
         return;
       }
 
-      if (!e.ctrlKey && !e.metaKey) onPickId?.(picked.id);
+      onPickId?.(picked.id);
 
       setDragPieceId(picked.id);
       dragPieceRef.current = {
         id: picked.id,
+        selectionIds,
         initialPositions,
         startWorldX: world.x,
         startWorldZ: world.z,
         startClientX: e.clientX,
         startClientY: e.clientY,
         hasMoved: false,
-        replaceSelectionOnDrag: !selectedSet.has(picked.id),
+        replaceSelectionOnDrag: !targetIsSelected,
         pointerId: e.pointerId,
       };
       canvas.setPointerCapture?.(e.pointerId);
@@ -812,6 +835,7 @@ export default function Plan2DOverlay({
       canvasToWorld,
       selectedIds,
       getSnapshot,
+      getSelectionTargetIds,
       onPickId,
       isPartMovementLocked2D,
     ]
@@ -961,14 +985,19 @@ export default function Plan2DOverlay({
         return;
       }
 
+      const targetIds = getSelectionTargetIds(best, snap);
+
       if (!wantsMulti) {
-        onPickIds?.([best.id]);
+        onPickIds?.(targetIds);
         return;
       }
 
       const next = new Set(selectedIds || []);
-      if (next.has(best.id)) next.delete(best.id);
-      else next.add(best.id);
+      const targetIsSelected = targetIds.every((id) => next.has(id));
+      targetIds.forEach((id) => {
+        if (targetIsSelected) next.delete(id);
+        else next.add(id);
+      });
 
       const arr = Array.from(next);
       onPickIds?.(arr);
@@ -980,6 +1009,7 @@ export default function Plan2DOverlay({
       canvasToWorld,
       getAllBounds,
       pickRectHit,
+      getSelectionTargetIds,
       onPickIds,
       selectedIds,
       scaleMode,
@@ -1431,7 +1461,7 @@ export default function Plan2DOverlay({
             whiteSpace: 'nowrap',
           }}
         >
-          Seleccionados: {selectedIds.length}
+          Seleccionados: {selectedIds.length} piezas
         </span>
 
         <button

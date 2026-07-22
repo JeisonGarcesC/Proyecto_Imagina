@@ -846,6 +846,7 @@ export default function ThreeCanvas({
 
             return {
               id: obj.userData?.instanceId || obj.uuid,
+              groupId: obj.userData?.groupId || null,
 
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
@@ -889,6 +890,7 @@ export default function ThreeCanvas({
             return {
               id: obj.userData?.instanceId || obj.uuid,
 
+              groupId: obj.userData?.groupId || null,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
               x: centerWorld.x,
@@ -911,6 +913,7 @@ export default function ThreeCanvas({
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
             return {
               id: obj.userData?.instanceId || obj.uuid,
+              groupId: obj.userData?.groupId || null,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
               x: centerWorld.x,
               z: centerWorld.z,
@@ -930,6 +933,7 @@ export default function ThreeCanvas({
 
           return {
             id: obj.userData?.instanceId || obj.uuid,
+            groupId: obj.userData?.groupId || null,
 
             codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 

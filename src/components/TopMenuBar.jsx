@@ -19,9 +19,10 @@ export default function TopMenuBar({
   catalogCountries = [],
   materialsByCode,
   threeApiRef,
-  threeApi,
   transformTool = 'move',
   onTransformToolChange,
+  moveAsGroup = false,
+  onMoveAsGroupChange,
   onLogout,
   onNewProject,
   debugSaveAlert = false,
@@ -37,7 +38,6 @@ export default function TopMenuBar({
 }) {
   const [open, setOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [moveMode, setMoveMode] = useState('single');
   const [deleteMode, setDeleteMode] = useState('single');
   const fileRef = useRef(null);
   const barRef = useRef(null);
@@ -63,13 +63,6 @@ export default function TopMenuBar({
     const u = user?.username || '';
     return u ? `${ses} · ${u}` : ses;
   }, [user]);
-
-  useEffect(() => {
-    const moveAsGroup = threeApi?.getMoveAsGroup?.();
-    if (typeof moveAsGroup === 'boolean') {
-      setMoveMode(moveAsGroup ? 'group' : 'single');
-    }
-  }, [threeApi]);
 
   useEffect(() => {
     const onMouseDown = (e) => {
@@ -187,8 +180,7 @@ export default function TopMenuBar({
 
   const handleMoveMode = (mode) => {
     const asGroup = mode === 'group';
-    threeApiRef.current?.setMoveAsGroup?.(asGroup);
-    setMoveMode(mode);
+    onMoveAsGroupChange?.(asGroup);
   };
 
   const handleDeleteMode = (mode) => {
@@ -307,14 +299,14 @@ export default function TopMenuBar({
           <div className="topbar-segmented">
             <button
               type="button"
-              className={`topbar-segment ${moveMode === 'group' ? 'is-active' : ''}`}
+              className={`topbar-segment ${moveAsGroup ? 'is-active' : ''}`}
               onClick={() => handleMoveMode('group')}
             >
               Puesto completo
             </button>
             <button
               type="button"
-              className={`topbar-segment ${moveMode === 'single' ? 'is-active' : ''}`}
+              className={`topbar-segment ${!moveAsGroup ? 'is-active' : ''}`}
               onClick={() => handleMoveMode('single')}
             >
               Pieza individual

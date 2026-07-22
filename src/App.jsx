@@ -133,6 +133,7 @@ export default function App() {
   const [wallThickness, setWallThickness] = useState(0.1);
   const [walls, setWalls] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [moveAsGroup, setMoveAsGroup] = useState(false);
   const [surfaceOpen, setSurfaceOpen] = useState(false);
 
   //Tipologias
@@ -458,6 +459,39 @@ export default function App() {
   });
   const [transformTool, setTransformTool] = useState('move');
 
+  const handleMoveAsGroupChange = (nextValue) => {
+    const nextMoveAsGroup = Boolean(nextValue);
+    if (nextMoveAsGroup === moveAsGroup) return;
+
+    if (nextMoveAsGroup) {
+      const snapshot = threeApiRef.current?.getPartsSnapshot2D?.() || [];
+      const partsById = new Map(snapshot.filter((part) => part?.id).map((part) => [part.id, part]));
+      const idsByGroup = new Map();
+
+      snapshot.forEach((part) => {
+        const groupId = String(part?.groupId || '').trim();
+        if (!part?.id || !groupId) return;
+        const memberIds = idsByGroup.get(groupId) || [];
+        memberIds.push(part.id);
+        idsByGroup.set(groupId, memberIds);
+      });
+
+      setSelectedIds((currentIds) => {
+        const expandedIds = new Set();
+        currentIds.forEach((id) => {
+          const part = partsById.get(id);
+          const groupId = String(part?.groupId || '').trim();
+          const targetIds = groupId ? idsByGroup.get(groupId) || [id] : [id];
+          targetIds.forEach((targetId) => expandedIds.add(targetId));
+        });
+        return Array.from(expandedIds);
+      });
+    }
+
+    setMoveAsGroup(nextMoveAsGroup);
+    threeApiRef.current?.setMoveAsGroup?.(nextMoveAsGroup);
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* TOP BAR */}
@@ -469,9 +503,10 @@ export default function App() {
         catalogCountries={CATALOG_COUNTRIES}
         materialsByCode={materialsByCode}
         threeApiRef={threeApiRef}
-        threeApi={threeApi}
         transformTool={transformTool}
         onTransformToolChange={setTransformTool}
+        moveAsGroup={moveAsGroup}
+        onMoveAsGroupChange={handleMoveAsGroupChange}
         onLogout={logout}
         onNewProject={() => threeApiRef.current?.clearProject?.()}
         debugSaveAlert={false}
@@ -688,6 +723,7 @@ export default function App() {
             country={country}
             onApiReady={(api) => {
               threeApiRef.current = api;
+              api.setMoveAsGroup?.(moveAsGroup);
               setThreeApi(api);
               setIsReady(true);
             }}
@@ -718,6 +754,7 @@ export default function App() {
           <Plan2DOverlay
             getSnapshot={() => threeApiRef.current?.getPartsSnapshot2D?.() || []}
             selectedIds={selectedIds}
+            moveAsGroup={moveAsGroup}
             onPickIds={(ids) => setSelectedIds(Array.from(new Set(ids || [])))}
             onPickId={(id) => {
               isSelectingFromPlan2DRef.current = true;
