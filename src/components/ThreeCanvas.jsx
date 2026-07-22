@@ -306,15 +306,13 @@ export default function ThreeCanvas({
     scene.add(rotationHandle);
 
     function updateRotationHandle() {
-      if (!activePart || transformToolRef.current !== 'rotate') {
+      const rotationSource = resolveRotationSource();
+      if (!rotationSource || transformToolRef.current !== 'rotate') {
         rotationHandle.visible = false;
         return;
       }
 
-      const targets =
-        moveAsGroupRef.current && activePart.userData?.groupId
-          ? getGroupedObjects(activePart)
-          : [activePart];
+      const targets = resolveRotationTargets();
       const box = new THREE.Box3();
       targets.forEach((obj) => box.expandByObject(obj));
       if (box.isEmpty()) {
@@ -328,7 +326,7 @@ export default function ThreeCanvas({
       rotationHandle.position.set(center.x, box.max.y + 0.08, center.z);
       rotationHandle.scale.setScalar(radius);
       rotationLabel.scale.set(0.7 / radius, 0.26 / radius, 1 / radius);
-      const worldQuaternion = activePart.getWorldQuaternion(new THREE.Quaternion());
+      const worldQuaternion = rotationSource.getWorldQuaternion(new THREE.Quaternion());
       const baseAngle = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
       const displayAngle = normalizeAngle(
         rotationSession ? rotationSession.initialSourceAngle + rotationSession.appliedAngle : baseAngle
@@ -4315,13 +4313,37 @@ export default function ThreeCanvas({
       )?.obj;
     }
 
-    function getRotationTargets(source) {
-      if (!source) return [];
-      const candidates = moveAsGroupRef.current && source.userData?.groupId
-        ? getGroupedObjects(source)
-        : [source];
+    function resolveRotationSource(sourceId) {
+      if (sourceId) return findPartById(sourceId);
 
-      const unique = Array.from(new Map(candidates.filter(Boolean).map((obj) => [obj.uuid, obj])).values());
+      if (selectedIds3D.length) {
+        const activeId = activePart?.userData?.instanceId || activePart?.uuid;
+        if (activeId && selectedIds3D.includes(activeId)) return activePart;
+
+        const selectedSource = findPartById(selectedIds3D[selectedIds3D.length - 1]);
+        if (selectedSource) return selectedSource;
+      }
+
+      return activePart;
+    }
+
+    function resolveRotationTargets({ sourceId } = {}) {
+      const sourceObject = resolveRotationSource(sourceId);
+      const physicalRoot = getRootPartObject(sourceObject) || sourceObject;
+      if (!physicalRoot) return [];
+
+      if (!moveAsGroupRef.current) return [physicalRoot];
+
+      const assembly =
+        getKoncisaAssemblyObject(sourceObject) || getKoncisaAssemblyObject(physicalRoot);
+      if (assembly) return [assembly];
+
+      const candidates = physicalRoot.userData?.groupId
+        ? getGroupedObjects(physicalRoot)
+        : [physicalRoot];
+      const unique = Array.from(
+        new Map(candidates.filter(Boolean).map((obj) => [obj.uuid, obj])).values()
+      );
 
       return unique.filter((obj) => {
         let ancestor = obj.parent;
@@ -4334,7 +4356,8 @@ export default function ThreeCanvas({
     }
 
     function beginRotation({ sourceId } = {}) {
-      const source = getRootPartObject(findPartById(sourceId)) || findPartById(sourceId);
+      const sourceObject = resolveRotationSource(sourceId);
+      const source = getRootPartObject(sourceObject) || sourceObject;
       if (
         !source ||
         source.userData?.isFloor ||
@@ -4344,7 +4367,7 @@ export default function ThreeCanvas({
         return null;
       }
 
-      const targets = getRotationTargets(source);
+      const targets = resolveRotationTargets({ sourceId });
       if (!targets.length || targets.some((obj) => obj.userData?.lockedRotation)) return null;
 
       const box = new THREE.Box3();
@@ -4460,9 +4483,10 @@ export default function ThreeCanvas({
 
     function getRotationState({ sourceId } = {}) {
       if (!rotationSession) {
-        const source = getRootPartObject(findPartById(sourceId)) || findPartById(sourceId);
+        const sourceObject = resolveRotationSource(sourceId);
+        const source = getRootPartObject(sourceObject) || sourceObject;
         if (!source) return null;
-        const targets = getRotationTargets(source);
+        const targets = resolveRotationTargets({ sourceId });
         const box = new THREE.Box3();
         targets.forEach((obj) => box.expandByObject(obj));
         if (box.isEmpty()) return null;
@@ -6652,11 +6676,8 @@ export default function ThreeCanvas({
           moveTargetOrGroup(activePart, 0, -MOVE_STEP, 0);
           break;
         case 'r': {
-          if (!activePart) break;
-          const step = e.altKey ? THREE.MathUtils.degToRad(15) : THREE.MathUtils.degToRad(90);
-          activePart.rotation.y += e.shiftKey ? -step : step;
-          activePart.updateMatrixWorld(true);
-          if (selectionHelper) selectionHelper.update();
+          const degrees = e.altKey ? 15 : 90;
+          rotateByDegrees({ degrees: e.shiftKey ? -degrees : degrees });
           break;
         }
         case ' ':
