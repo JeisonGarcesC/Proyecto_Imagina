@@ -337,7 +337,9 @@ export default function ThreeCanvas({
       const worldQuaternion = rotationSource.getWorldQuaternion(new THREE.Quaternion());
       const baseAngle = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
       const displayAngle = normalizeAngle(
-        rotationSession ? rotationSession.initialSourceAngle + rotationSession.appliedAngle : baseAngle
+        rotationSession
+          ? rotationSession.initialSourceAngle + rotationSession.appliedAngle
+          : baseAngle
       );
       const degrees = Math.round(THREE.MathUtils.radToDeg(displayAngle));
       if (degrees !== rotationLabelDegrees) {
@@ -4196,6 +4198,7 @@ export default function ThreeCanvas({
       addExternalGlbPart,
       addNativeBlockPart,
       addKoncisaCostadoAssemblyPart,
+      addKoncisaLeaderSkirtAssemblyPart,
       addNativeKoncisaDuctPart,
       toggleSnap,
       exportProject,
@@ -4278,7 +4281,8 @@ export default function ThreeCanvas({
         ];
 
         return sourceComponents.flatMap((source) => {
-          const sourceCode = source.payload?.codigoPT || source.payload?.code || source.source?.code;
+          const sourceCode =
+            source.payload?.codigoPT || source.payload?.code || source.source?.code;
           const sourceKind = source.source?.kind;
           const object = available.find((candidate) => {
             if (used.has(candidate)) return false;
@@ -4388,9 +4392,7 @@ export default function ThreeCanvas({
 
     function findPartById(instanceId) {
       if (!instanceId) return activePart;
-      return parts.find(
-        ({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId
-      )?.obj;
+      return parts.find(({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId)?.obj;
     }
 
     function resolveRotationSource(sourceId) {
@@ -4425,7 +4427,9 @@ export default function ThreeCanvas({
       if (value == null || typeof value === 'string' || typeof value === 'boolean') return value;
       if (typeof value === 'number') return Number.isFinite(value) ? value : null;
       if (Array.isArray(value)) {
-        return value.map((item) => toClipboardData(item, seen)).filter((item) => item !== undefined);
+        return value
+          .map((item) => toClipboardData(item, seen))
+          .filter((item) => item !== undefined);
       }
       if (typeof value !== 'object') return undefined;
 
@@ -4470,8 +4474,7 @@ export default function ThreeCanvas({
       const worldQuaternion = object.getWorldQuaternion(new THREE.Quaternion());
 
       return {
-        type:
-          object.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? 'ASSEMBLY' : 'PHYSICAL_OBJECT',
+        type: object.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? 'ASSEMBLY' : 'PHYSICAL_OBJECT',
         role,
         kind: object.userData?.kind || object.userData?.type || 'PART',
         code: object.userData?.code || partRecord?.code || null,
@@ -4521,8 +4524,7 @@ export default function ThreeCanvas({
           return;
         }
 
-        const assembly =
-          getKoncisaAssemblyObject(source) || getKoncisaAssemblyObject(physicalRoot);
+        const assembly = getKoncisaAssemblyObject(source) || getKoncisaAssemblyObject(physicalRoot);
         if (assembly) {
           targets.push(assembly);
           return;
@@ -4889,9 +4891,7 @@ export default function ThreeCanvas({
       );
       const roots = Array.from(new Set(expanded.filter(Boolean))).filter(
         (object, _index, all) =>
-          !all.some(
-            (candidate) => candidate !== object && isDescendantOf(object, candidate)
-          )
+          !all.some((candidate) => candidate !== object && isDescendantOf(object, candidate))
       );
       return roots.map(captureDeletedObject);
     }
@@ -4973,8 +4973,7 @@ export default function ThreeCanvas({
             Math.abs(value - next.position[component]) > TRANSFORM_HISTORY_EPSILON
         );
         const scaleChanged = previous.scale.some(
-          (value, component) =>
-            Math.abs(value - next.scale[component]) > TRANSFORM_HISTORY_EPSILON
+          (value, component) => Math.abs(value - next.scale[component]) > TRANSFORM_HISTORY_EPSILON
         );
         const quaternionDot = previous.quaternion.reduce(
           (sum, value, component) => sum + value * next.quaternion[component],
@@ -5250,11 +5249,12 @@ export default function ThreeCanvas({
       });
 
       const targets = Array.from(targetsByKey.values());
-      return targets.filter(({ obj }, index) =>
-        !targets.some(
-          ({ obj: candidate }, candidateIndex) =>
-            candidateIndex !== index && isDescendantOf(obj, candidate)
-        )
+      return targets.filter(
+        ({ obj }, index) =>
+          !targets.some(
+            ({ obj: candidate }, candidateIndex) =>
+              candidateIndex !== index && isDescendantOf(obj, candidate)
+          )
       );
     }
 
@@ -7684,9 +7684,7 @@ export default function ThreeCanvas({
         const before = completedDragSession.initialPositions.map(({ obj, localPosition }) =>
           createMoveSnapshot(obj, localPosition)
         );
-        const after = captureMoveState(
-          completedDragSession.initialPositions.map(({ obj }) => obj)
-        );
+        const after = captureMoveState(completedDragSession.initialPositions.map(({ obj }) => obj));
         pushMoveHistory(before, after);
       }
       refreshFloorAndGrid();
@@ -8798,6 +8796,546 @@ export default function ThreeCanvas({
       }
 
       return costadoModelCache.get(modelSrc);
+    }
+
+    // =====================================================
+    // FALDA PRINCIPAL PUESTO LÍDER
+    // Cuerpo nativo + canto condicional + 2 soportes GLB
+    // =====================================================
+
+    const leaderSkirtModelCache = new Map();
+
+    async function loadLeaderSkirtModel(src) {
+      const modelSrc = String(src || '').trim();
+
+      if (!modelSrc) {
+        throw new Error('Se intentó cargar un soporte de falda sin ruta.');
+      }
+
+      if (!leaderSkirtModelCache.has(modelSrc)) {
+        const loadPromise = loader.loadAsync(modelSrc).catch((error) => {
+          leaderSkirtModelCache.delete(modelSrc);
+
+          throw new Error(
+            `No fue posible cargar el modelo ${modelSrc}: ${error?.message || error}`
+          );
+        });
+
+        leaderSkirtModelCache.set(modelSrc, loadPromise);
+      }
+
+      return leaderSkirtModelCache.get(modelSrc);
+    }
+
+    /**
+     * Crea el contorno frontal de la falda.
+     *
+     * La geometría se genera sobre los ejes:
+     * X = longitud
+     * Y = altura
+     *
+     * Luego se extruye sobre:
+     * Z = espesor
+     */
+    function createLeaderSkirtShape({ lengthMm, heightMm, bottomCornerRadiusMm = 30 }) {
+      const lengthM = Math.max(1, Number(lengthMm)) / 1000;
+      const heightM = Math.max(1, Number(heightMm)) / 1000;
+
+      const maximumRadiusM = Math.min(lengthM / 2, heightM / 2);
+
+      const radiusM = Math.min(
+        Math.max(0, Number(bottomCornerRadiusMm) || 0) / 1000,
+        maximumRadiusM
+      );
+
+      const halfLength = lengthM / 2;
+      const halfHeight = heightM / 2;
+
+      const shape = new THREE.Shape();
+
+      // Parte superior izquierda
+      shape.moveTo(-halfLength, halfHeight);
+
+      // Parte superior derecha
+      shape.lineTo(halfLength, halfHeight);
+
+      // Costado derecho hasta el inicio de la curva
+      shape.lineTo(halfLength, -halfHeight + radiusM);
+
+      // Esquina inferior derecha
+      shape.quadraticCurveTo(halfLength, -halfHeight, halfLength - radiusM, -halfHeight);
+
+      // Parte inferior
+      shape.lineTo(-halfLength + radiusM, -halfHeight);
+
+      // Esquina inferior izquierda
+      shape.quadraticCurveTo(-halfLength, -halfHeight, -halfLength, -halfHeight + radiusM);
+
+      // Regresar a la parte superior
+      shape.lineTo(-halfLength, halfHeight);
+
+      shape.closePath();
+
+      return shape;
+    }
+
+    async function addKoncisaLeaderSkirtAssemblyPart(part = {}) {
+      if (readOnly) return null;
+
+      const parentGroup = part?.parentGroup || null;
+
+      const assembly = part?.meta?.skirtAssembly || part?.assembly || null;
+
+      if (!assembly) {
+        console.warn(
+          'addKoncisaLeaderSkirtAssemblyPart: la falda no tiene configuración de ensamble',
+          part
+        );
+
+        return null;
+      }
+
+      const code = String(part?.code || part?.rawCodigoPT || '').trim();
+
+      const bodyConfig = assembly?.body || {};
+      const edgeConfig = assembly?.edge || {};
+      const supportConfig = assembly?.support || {};
+
+      const lengthMm = Number(
+        bodyConfig?.lengthMm ?? part?.meta?.physicalLengthMm ?? part?.dimMm?.widthMm ?? 1210
+      );
+
+      const heightMm = Number(
+        bodyConfig?.heightMm ?? part?.meta?.heightMm ?? part?.dimMm?.heightMm ?? 300
+      );
+
+      const thicknessMm = Number(
+        bodyConfig?.thicknessMm ?? part?.meta?.thicknessMm ?? part?.dimMm?.depthMm ?? 15
+      );
+
+      const bottomCornerRadiusMm = Number(bodyConfig?.bottomCornerRadiusMm ?? 30);
+
+      if (
+        !Number.isFinite(lengthMm) ||
+        !Number.isFinite(heightMm) ||
+        !Number.isFinite(thicknessMm) ||
+        lengthMm <= 0 ||
+        heightMm <= 0 ||
+        thicknessMm <= 0
+      ) {
+        console.warn('addKoncisaLeaderSkirtAssemblyPart: dimensiones inválidas', {
+          lengthMm,
+          heightMm,
+          thicknessMm,
+        });
+
+        return null;
+      }
+
+      const root = new THREE.Group();
+
+      root.name = part?.name || code || 'KONCISA_LEADER_SKIRT_ASSEMBLY';
+
+      // =====================================================
+      // CUERPO NATIVO
+      // =====================================================
+
+      const shape = createLeaderSkirtShape({
+        lengthMm,
+        heightMm,
+        bottomCornerRadiusMm,
+      });
+
+      const bodyGeometry = new THREE.ExtrudeGeometry(shape, {
+        depth: thicknessMm / 1000,
+
+        bevelEnabled: false,
+        curveSegments: 16,
+        steps: 1,
+      });
+
+      /*
+       * ExtrudeGeometry empieza en Z = 0.
+       * Se desplaza medio espesor para que el cuerpo quede
+       * centrado con respecto al root.
+       */
+      bodyGeometry.translate(0, 0, -thicknessMm / 2000);
+
+      bodyGeometry.computeVertexNormals();
+
+      const materialType = String(part?.meta?.materialType || 'METALICA')
+        .trim()
+        .toUpperCase();
+
+      const bodyMaterial =
+        materialType === 'METALICA'
+          ? new THREE.MeshStandardMaterial({
+              color: new THREE.Color(0.72, 0.74, 0.76),
+
+              roughness: 0.45,
+              metalness: 0.65,
+              side: THREE.DoubleSide,
+            })
+          : new THREE.MeshStandardMaterial({
+              color: new THREE.Color(0.78, 0.78, 0.78),
+
+              roughness: 0.72,
+              metalness: 0.05,
+              side: THREE.DoubleSide,
+            });
+
+      const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+
+      bodyMesh.name = 'KONCISA_LEADER_SKIRT_BODY';
+
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+
+      bodyMesh.userData = {
+        ...(bodyMesh.userData || {}),
+
+        skirtComponent: 'BODY',
+
+        isPartRoot: false,
+        excludeFromBOM: true,
+      };
+
+      root.add(bodyMesh);
+
+      // =====================================================
+      // CANTO
+      // Solo Formica y Melamina
+      // =====================================================
+
+      const hasEdge = edgeConfig?.enabled === true && materialType !== 'METALICA';
+
+      if (hasEdge) {
+        /*
+         * Por ahora el canto se representa mediante el
+         * contorno exterior de la falda.
+         *
+         * No se genera para METALICA.
+         */
+        const edgeGeometry = new THREE.EdgesGeometry(bodyGeometry);
+
+        const edgeMaterial = new THREE.LineBasicMaterial({
+          color: 0x353535,
+        });
+
+        const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+
+        edgeLines.name = 'KONCISA_LEADER_SKIRT_EDGE';
+
+        edgeLines.userData = {
+          ...(edgeLines.userData || {}),
+
+          skirtComponent: 'EDGE',
+
+          isPartRoot: false,
+          excludeFromBOM: true,
+        };
+
+        root.add(edgeLines);
+      }
+
+      // =====================================================
+      // SOPORTES GLB
+      // =====================================================
+
+      const supportSrc = String(supportConfig?.src || part?.meta?.supportModelSrc || '').trim();
+
+      let supportLeft = null;
+      let supportRight = null;
+
+      if (supportSrc) {
+        try {
+          /*
+           * Se carga una sola vez y después se clona.
+           */
+          const supportGltf = await loadLeaderSkirtModel(supportSrc);
+
+          const supportBase = supportGltf.scene.clone(true);
+
+          supportLeft = supportBase;
+          supportRight = supportBase.clone(true);
+
+          supportLeft.name = 'KONCISA_LEADER_SKIRT_SUPPORT_LEFT';
+
+          supportRight.name = 'KONCISA_LEADER_SKIRT_SUPPORT_RIGHT';
+
+          const supportInsetMm = Math.max(
+            0,
+            Number(supportConfig?.insetMm ?? part?.meta?.supportInsetMm ?? 500)
+          );
+
+          /*
+           * Cada soporte queda aproximadamente a 500 mm
+           * del extremo correspondiente.
+           */
+          const supportX = Math.max(0, lengthMm / 2 - supportInsetMm);
+
+          const supportOffsetMm = supportConfig?.offsetMm || {};
+
+          const supportOffsetX = Number(supportOffsetMm?.x || 0);
+
+          const supportOffsetY = Number(supportOffsetMm?.y || 0);
+
+          const supportOffsetZ = Number(supportOffsetMm?.z || 0);
+
+          supportLeft.position.set(
+            (-supportX + supportOffsetX) / 1000,
+            supportOffsetY / 1000,
+            supportOffsetZ / 1000
+          );
+
+          supportRight.position.set(
+            (supportX + supportOffsetX) / 1000,
+            supportOffsetY / 1000,
+            supportOffsetZ / 1000
+          );
+
+          const supportRotation = supportConfig?.rotation || {};
+
+          supportLeft.rotation.set(
+            Number(supportRotation?.x || 0),
+            Number(supportRotation?.y || 0),
+            Number(supportRotation?.z || 0)
+          );
+
+          supportRight.rotation.set(
+            Number(supportRotation?.x || 0),
+            Number(supportRotation?.y || 0),
+            Number(supportRotation?.z || 0)
+          );
+
+          const supportScale = Number(supportConfig?.scale ?? 1);
+
+          const finalSupportScale = Number.isFinite(supportScale) ? supportScale : 1;
+
+          supportLeft.scale.setScalar(finalSupportScale);
+
+          supportRight.scale.setScalar(finalSupportScale);
+
+          supportLeft.userData = {
+            ...(supportLeft.userData || {}),
+
+            skirtComponent: 'SUPPORT_LEFT',
+
+            isPartRoot: false,
+            excludeFromBOM: true,
+          };
+
+          supportRight.userData = {
+            ...(supportRight.userData || {}),
+
+            skirtComponent: 'SUPPORT_RIGHT',
+
+            isPartRoot: false,
+            excludeFromBOM: true,
+          };
+
+          root.add(supportLeft);
+          root.add(supportRight);
+        } catch (error) {
+          /*
+           * La falda se crea aunque falle el GLB.
+           * Así podrás seguir ajustando el cuerpo nativo.
+           */
+          console.error('No fue posible cargar los soportes de la falda', error);
+        }
+      } else {
+        console.warn('La falda líder no tiene supportModelSrc.');
+      }
+
+      // =====================================================
+      // POSICIÓN GENERAL
+      // =====================================================
+
+      root.position.set(
+        Number(part?.position?.x || 0) / 1000,
+        Number(part?.position?.y || 0) / 1000,
+        Number(part?.position?.z || 0) / 1000
+      );
+
+      root.rotation.set(
+        Number(part?.rotation?.x || 0),
+        Number(part?.rotation?.y || 0),
+        Number(part?.rotation?.z || 0)
+      );
+
+      // =====================================================
+      // INFORMACIÓN COMERCIAL
+      // =====================================================
+
+      const catalogItem = catalogByCodeRef.current?.get?.(code) || null;
+
+      const catalogDescription =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
+        part?.name ||
+        code ||
+        'Falda puesto líder';
+
+      const prefix = String(part?.meta?.descriptionPrefix || '').trim();
+
+      const suffix = String(part?.meta?.descriptionSuffix || '').trim();
+
+      const description = part?.meta?.isSpecial
+        ? `${prefix ? `${prefix} ` : ''}${catalogDescription}${suffix ? ` - ${suffix}` : ''}`
+        : catalogDescription;
+
+      const unitPrice =
+        Number(
+          catalogItem?.prices?.[countryRef.current] ??
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
+        ) || 0;
+
+      const instanceId = `${code || 'leader-skirt'}__${Date.now()}__${Math.random()
+        .toString(16)
+        .slice(2)}`;
+
+      root.userData = {
+        isPartRoot: true,
+
+        code: code || null,
+        codigoPT: code || null,
+
+        kind: part?.type || 'leaderSkirt',
+        type: part?.type || 'leaderSkirt',
+        subtype: part?.subtype || 'leader-main-skirt',
+
+        line: part?.line || 'KONCISA.PLUS',
+
+        name: part?.name || catalogDescription,
+
+        description,
+        unitPrice,
+
+        dim: part?.dimMm || null,
+        dimMm: part?.dimMm || null,
+
+        instanceId,
+
+        groupId: part?.groupId || parentGroup?.userData?.instanceId || null,
+
+        groupName: part?.groupName || parentGroup?.userData?.name || null,
+
+        parentAssemblyId: parentGroup?.userData?.instanceId || parentGroup?.userData?.code || null,
+
+        logicalCode: part?.logicalCode || null,
+
+        model: {
+          kind: 'koncisa-leader-skirt-assembly',
+
+          src: null,
+        },
+
+        modelSrc: null,
+
+        materialType,
+        finishCode: part?.meta?.finishCode || null,
+
+        meta: {
+          ...(part?.meta || {}),
+
+          category: 'leader-skirts',
+
+          skirtAssembly: assembly,
+
+          physicalLengthMm: lengthMm,
+          heightMm,
+          thicknessMm,
+
+          hasEdge,
+
+          supportPositionsMm: {
+            left: supportLeft
+              ? {
+                  x: supportLeft.position.x * 1000,
+                  y: supportLeft.position.y * 1000,
+                  z: supportLeft.position.z * 1000,
+                }
+              : null,
+
+            right: supportRight
+              ? {
+                  x: supportRight.position.x * 1000,
+                  y: supportRight.position.y * 1000,
+                  z: supportRight.position.z * 1000,
+                }
+              : null,
+          },
+        },
+      };
+
+      /*
+       * Todos los componentes visuales pertenecen a una
+       * única raíz y no deben entrar individualmente al BOM.
+       */
+      root.traverse((node) => {
+        if (!node) return;
+
+        if (node !== root) {
+          node.userData = {
+            ...(node.userData || {}),
+
+            isPartRoot: false,
+            excludeFromBOM: true,
+
+            parentSkirtInstanceId: instanceId,
+            parentAssemblyId: root.userData.parentAssemblyId,
+
+            groupId: root.userData.groupId,
+            groupName: root.userData.groupName,
+          };
+        }
+
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+
+      root.updateMatrixWorld(true);
+
+      const bounds2d = computeBounds2D(root);
+
+      if (bounds2d) {
+        root.userData.bounds2d = {
+          localCenter: bounds2d.localCenter.toArray(),
+
+          sizeLocal: bounds2d.sizeLocal.toArray(),
+        };
+      }
+
+      if (parentGroup) {
+        parentGroup.add(root);
+      } else {
+        scene.add(root);
+      }
+
+      /*
+       * Solo la raíz entra al BOM.
+       */
+      parts.push({
+        code: code || root.name,
+        obj: root,
+      });
+
+      pickables.push(root);
+
+      setActivePart(root);
+      emitBOM();
+      refreshFloorAndGrid();
+
+      return root;
     }
 
     async function addKoncisaCostadoAssemblyPart(part = {}) {

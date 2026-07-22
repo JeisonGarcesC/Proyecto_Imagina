@@ -1,5 +1,4 @@
 // src/koncisaPlus/rules/koncisaCostadoRules.js
-// src/koncisaPlus/rules/koncisaCostadoRules.js
 
 function createCostadoAssembly({
   leftLegSrc,
