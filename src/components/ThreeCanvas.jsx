@@ -270,7 +270,10 @@ export default function ThreeCanvas({
     let additionalSelectionHelpers = [];
     let rotationSession = null;
     let moveSession2D = null;
-    const historyManager = createHistoryManager({ replayAction: replayHistoryAction });
+    const historyManager = createHistoryManager({
+      replayAction: replayHistoryAction,
+      onDiscard: discardHistoryAction,
+    });
     let isRotating3D = false;
     let rotationPointerStartAngle = 0;
 
@@ -3370,12 +3373,12 @@ export default function ThreeCanvas({
       return obj?.userData?.instanceId || obj?.userData?.code || obj?.uuid || null;
     }
 
-    function removeFloatingChildrenOfAssembly(assemblyObj) {
+    function getFloatingChildrenOfAssembly(assemblyObj) {
       const assemblyId = getAssemblyId(assemblyObj);
 
-      if (!assemblyId) return;
+      if (!assemblyId) return [];
 
-      const floatingChildren = parts
+      return parts
         .map((p) => p.obj)
         .filter((obj) => {
           if (!obj) return false;
@@ -3390,10 +3393,13 @@ export default function ThreeCanvas({
 
           return parentAssemblyId === assemblyId;
         });
+    }
 
-      floatingChildren.forEach((child) => {
+    function removeFloatingChildrenOfAssembly(assemblyObj, options = {}) {
+      getFloatingChildrenOfAssembly(assemblyObj).forEach((child) => {
         removePartObject(child, {
           skipFloatingChildren: true,
+          disposeResources: options.disposeResources,
         });
       });
     }
@@ -3403,14 +3409,14 @@ export default function ThreeCanvas({
 
       const root = getRootPartObject(obj) || obj;
 
-      const { skipFloatingChildren = false } = options;
+      const { skipFloatingChildren = false, disposeResources = true } = options;
 
       const isAssembly =
         root.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || root.userData?.type === 'koncisa-plus';
 
       // Si se elimina un puesto, primero elimina pantallas asociadas que estén por fuera.
       if (isAssembly && !skipFloatingChildren) {
-        removeFloatingChildrenOfAssembly(root);
+        removeFloatingChildrenOfAssembly(root, { disposeResources });
       }
 
       // Quitar de su padre real.
@@ -3446,7 +3452,7 @@ export default function ThreeCanvas({
         onSelectionChange?.(null);
       }
 
-      disposeObject3D(root);
+      if (disposeResources) disposeObject3D(root);
 
       emitBOM();
 
@@ -4504,6 +4510,137 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    function resolveUserDeletionRoots(targets) {
+      const roots = [];
+
+      targets.forEach(({ obj, isAssembly }) => {
+        if (isAssembly) {
+          roots.push(obj, ...getFloatingChildrenOfAssembly(obj));
+          return;
+        }
+
+        const expandedTargets =
+          deleteAsGroupRef.current && obj?.userData?.groupId ? getGroupedObjects(obj) : [obj];
+        roots.push(...expandedTargets);
+      });
+
+      const uniqueRoots = Array.from(new Set(roots.filter(Boolean)));
+      const rootSet = new Set(uniqueRoots);
+      return uniqueRoots.filter((object) => {
+        let ancestor = object.parent;
+        while (ancestor) {
+          if (rootSet.has(ancestor)) return false;
+          ancestor = ancestor.parent;
+        }
+        return true;
+      });
+    }
+
+    function captureDeletedObject(object) {
+      const parent = object.parent || null;
+      return {
+        id: object.userData?.instanceId || object.uuid,
+        object,
+        parent,
+        parentIndex: parent?.children?.indexOf(object) ?? -1,
+        position: object.position.toArray(),
+        quaternion: object.quaternion.toArray(),
+        scale: object.scale.toArray(),
+        partRecords: parts
+          .map((record, index) =>
+            record?.obj && (record.obj === object || isDescendantOf(record.obj, object))
+              ? { record, index }
+              : null
+          )
+          .filter(Boolean),
+        pickableRecords: pickables
+          .map((pickable, index) =>
+            pickable && (pickable === object || isDescendantOf(pickable, object))
+              ? { object: pickable, index }
+              : null
+          )
+          .filter(Boolean),
+      };
+    }
+
+    function restoreArrayEntry(array, value, index) {
+      if (array.includes(value)) return;
+      const insertionIndex = Math.max(0, Math.min(Number(index) || 0, array.length));
+      array.splice(insertionIndex, 0, value);
+    }
+
+    function restoreDeletedObjects(deletedObjects) {
+      [...deletedObjects]
+        .sort((a, b) => a.parentIndex - b.parentIndex)
+        .forEach(({ object, parent, parentIndex, position, quaternion, scale }) => {
+          if (!object || !parent) return;
+
+          if (object.parent !== parent) parent.add(object);
+          const currentIndex = parent.children.indexOf(object);
+          if (currentIndex >= 0 && parentIndex >= 0 && currentIndex !== parentIndex) {
+            parent.children.splice(currentIndex, 1);
+            parent.children.splice(Math.min(parentIndex, parent.children.length), 0, object);
+          }
+
+          object.position.fromArray(position);
+          object.quaternion.fromArray(quaternion).normalize();
+          object.scale.fromArray(scale);
+          object.updateMatrixWorld(true);
+        });
+
+      deletedObjects
+        .flatMap(({ partRecords }) => partRecords)
+        .sort((a, b) => a.index - b.index)
+        .forEach(({ record, index }) => restoreArrayEntry(parts, record, index));
+
+      deletedObjects
+        .flatMap(({ pickableRecords }) => pickableRecords)
+        .sort((a, b) => a.index - b.index)
+        .forEach(({ object, index }) => restoreArrayEntry(pickables, object, index));
+
+      emitBOM();
+      updateRotationHandle();
+      refreshFloorAndGrid();
+    }
+
+    function disconnectDeletedObjects(deletedObjects) {
+      let removedAny = false;
+      deletedObjects.forEach(({ object }) => {
+        if (!object || (!object.parent && !parts.some(({ obj }) => obj === object))) return;
+        const removed = removePartObject(object, {
+          skipFloatingChildren: true,
+          disposeResources: false,
+        });
+        if (removed) removedAny = true;
+      });
+
+      if (removedAny) {
+        clearSelectionAfterRemoval();
+        refreshFloorAndGrid();
+      }
+      return removedAny;
+    }
+
+    function isConnectedToScene(object) {
+      let current = object;
+      while (current) {
+        if (current === scene) return true;
+        current = current.parent;
+      }
+      return false;
+    }
+
+    function discardHistoryAction(action) {
+      if (action.type !== HISTORY_ACTION_TYPES.DELETE) return;
+      action.deletedObjects?.forEach(({ object }) => {
+        if (!object || isConnectedToScene(object)) return;
+        const remainsRegistered = parts.some(
+          ({ obj }) => obj === object || isDescendantOf(obj, object)
+        );
+        if (!remainsRegistered) disposeObject3D(object);
+      });
+    }
+
     function createRotationSnapshot({ obj, parent, position, quaternion, scale }) {
       return {
         id: obj.userData?.instanceId || obj.uuid,
@@ -4583,6 +4720,9 @@ export default function ThreeCanvas({
         applyRotationHistoryState(state);
       } else if (action.type === HISTORY_ACTION_TYPES.MOVE) {
         applyMoveHistoryState(state);
+      } else if (action.type === HISTORY_ACTION_TYPES.DELETE) {
+        if (direction === 'undo') restoreDeletedObjects(action.deletedObjects || []);
+        else disconnectDeletedObjects(action.deletedObjects || []);
       }
     }
 
@@ -4849,15 +4989,15 @@ export default function ThreeCanvas({
         return false;
       }
 
-      let removedAny = false;
-      targets.forEach(({ obj, isAssembly }) => {
-        const removed = isAssembly ? removePartObject(obj) : removeTargetOrGroup(obj);
-        if (removed) removedAny = true;
-      });
+      const deletionRoots = resolveUserDeletionRoots(targets);
+      const deletedObjects = deletionRoots.map((object) => captureDeletedObject(object));
+      const removedAny = disconnectDeletedObjects(deletedObjects);
 
       if (removedAny) {
-        clearSelectionAfterRemoval();
-        refreshFloorAndGrid();
+        historyManager.pushAction({
+          type: HISTORY_ACTION_TYPES.DELETE,
+          deletedObjects,
+        });
       }
 
       return removedAny;
