@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
+const MIN_ZOOM = 20;
+const MAX_ZOOM = 50_000;
+const ZOOM_FACTOR = 0.0015;
+
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
   const r2 = Math.round(m * 100) / 100;
@@ -336,7 +340,7 @@ export default function Plan2DOverlay({
     viewRef.current = {
       cx,
       cz,
-      s: Math.max(25, Math.min(260, fitS)), // clamp zoom razonable
+      s: Math.max(MIN_ZOOM, Math.min(260, fitS)), // clamp zoom razonable
       initialized: true,
     };
   }, [getAllBounds, resolveCanvasSize]);
@@ -707,11 +711,17 @@ export default function Plan2DOverlay({
       const before = canvasToWorld(mx, my);
       if (!before) return;
 
-      const delta = Math.sign(e.deltaY);
-      const factor = delta > 0 ? 0.9 : 1.1;
+      const deltaUnit =
+        e.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : e.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? rect.height
+            : 1;
+      const deltaPixels = e.deltaY * deltaUnit;
+      const factor = Math.exp(-deltaPixels * ZOOM_FACTOR);
 
       const s0 = viewRef.current.s;
-      const s1 = Math.max(20, Math.min(360, s0 * factor));
+      const s1 = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, s0 * factor));
       viewRef.current.s = s1;
 
       // zoom al cursor: mantener el punto bajo el mouse fijo
@@ -1083,7 +1093,6 @@ export default function Plan2DOverlay({
     if (!canvas) return;
 
     const onWheel = (e) => {
-      e.preventDefault();
       handleWheel?.(e);
     };
 
@@ -1686,7 +1695,6 @@ export default function Plan2DOverlay({
             setHoveredMovablePieceId(null);
           }
         }}
-        onWheel={handleWheel}
         onContextMenu={(e) => e.preventDefault()}
       />
     </div>
