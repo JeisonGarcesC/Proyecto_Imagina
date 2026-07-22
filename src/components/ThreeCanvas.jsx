@@ -262,6 +262,8 @@ export default function ThreeCanvas({
     const dragPoint = new THREE.Vector3();
     const dragOffset = new THREE.Vector3();
     let isDragging = false;
+    let dragSession3D = null;
+    let selectedIds3D = [];
 
     let selectionHelper = null;
     let additionalSelectionHelpers = [];
@@ -623,7 +625,8 @@ export default function ThreeCanvas({
 
     function syncSelectedIds3D(ids = []) {
       clearAdditionalSelectionHelpers();
-      const selectedSet = new Set(ids || []);
+      selectedIds3D = Array.from(new Set(ids || []));
+      const selectedSet = new Set(selectedIds3D);
       const activeId = activePart?.userData?.instanceId || activePart?.uuid || null;
 
       if (selectionHelper) selectionHelper.visible = Boolean(activeId && selectedSet.has(activeId));
@@ -699,6 +702,8 @@ export default function ThreeCanvas({
         logicalCode: obj.userData?.logicalCode || null,
         instanceId: obj.userData?.instanceId || obj.uuid || null,
         selectionToggle: selectionContext?.toggle === true,
+        selectionPreserve: selectionContext?.preserve === true,
+        selectionTargetIds: selectionContext?.targetIds || null,
         ductCovers: obj.userData?.ductCovers || null,
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
@@ -1585,6 +1590,71 @@ export default function ThreeCanvas({
       }
 
       return fallback;
+    }
+
+    function getKoncisaAssemblyObject(object) {
+      let current = object;
+
+      while (current) {
+        if (
+          current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ||
+          current.userData?.type === 'koncisa-plus'
+        ) {
+          return current;
+        }
+        current = current.parent;
+      }
+
+      const parentAssemblyId = object?.userData?.parentAssemblyId;
+      if (!parentAssemblyId) return null;
+
+      let matchedAssembly = null;
+      scene.traverse((candidate) => {
+        if (matchedAssembly) return;
+        const candidateIds = [
+          candidate.userData?.instanceId,
+          candidate.userData?.code,
+          candidate.uuid,
+        ];
+        if (candidateIds.includes(parentAssemblyId)) matchedAssembly = candidate;
+      });
+      return matchedAssembly;
+    }
+
+    function resolveSelectionTargets(object) {
+      const physicalRoot = getRootPartObject(object);
+      const physicalId = physicalRoot?.userData?.instanceId || physicalRoot?.uuid;
+
+      if (!physicalRoot || !physicalId || !moveAsGroupRef.current) {
+        return physicalId ? [physicalId] : [];
+      }
+
+      const assembly = getKoncisaAssemblyObject(object) || getKoncisaAssemblyObject(physicalRoot);
+      if (!assembly) return [physicalId];
+
+      const assemblyIds = new Set(
+        [assembly.userData?.instanceId, assembly.userData?.code, assembly.uuid].filter(Boolean)
+      );
+      const physicalObjects = parts.map(({ obj }) => obj).filter(Boolean);
+      let members = physicalObjects.filter((candidate) => isDescendantOf(candidate, assembly));
+      const linkedMembers = physicalObjects.filter((candidate) =>
+        assemblyIds.has(candidate.userData?.parentAssemblyId)
+      );
+
+      if (linkedMembers.length) members = Array.from(new Set([...members, ...linkedMembers]));
+
+      if (!members.length) {
+        const groupId = assembly.userData?.groupId || physicalRoot.userData?.groupId;
+        if (groupId) {
+          members = physicalObjects.filter((candidate) => candidate.userData?.groupId === groupId);
+        }
+      }
+
+      const resolvedIds = members
+        .map((candidate) => candidate.userData?.instanceId || candidate.uuid)
+        .filter(Boolean);
+
+      return Array.from(new Set(resolvedIds.length ? resolvedIds : [physicalId]));
     }
 
     function updateMouseFromEvent(e) {
@@ -6452,6 +6522,12 @@ export default function ThreeCanvas({
         return;
       }
 
+      if (e.key === 'Escape' && dragSession3D) {
+        e.preventDefault();
+        cancelDragSession();
+        return;
+      }
+
       // si estás escribiendo en un input, no interceptar teclas
       const tag = (e.target?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
@@ -6514,6 +6590,34 @@ export default function ThreeCanvas({
     window.addEventListener('keydown', onKeyDown);
 
     // ====== Pointer (Select + Drag) ======
+    function setObjectWorldPosition(obj, worldPosition) {
+      if (obj.parent) {
+        obj.parent.updateMatrixWorld(true);
+        obj.position.copy(obj.parent.worldToLocal(worldPosition.clone()));
+      } else {
+        obj.position.copy(worldPosition);
+      }
+      obj.updateMatrixWorld(true);
+    }
+
+    function restoreDragSession() {
+      if (!dragSession3D) return;
+      dragSession3D.initialPositions.forEach(({ obj, localPosition }) => {
+        obj.position.copy(localPosition);
+        obj.updateMatrixWorld(true);
+      });
+      dragSession3D = null;
+      refreshFloorAndGrid();
+    }
+
+    function cancelDragSession(pointerId) {
+      const sessionPointerId = pointerId ?? dragSession3D?.pointerId;
+      restoreDragSession();
+      dragGroupStartRef.current = null;
+      dragRootStartRef.current = null;
+      endDrag(sessionPointerId);
+    }
+
     function onPointerDown(e) {
       if (readOnly) return;
 
@@ -6549,7 +6653,33 @@ export default function ThreeCanvas({
       const root = getRootPartObject(hitObj);
       if (!root) return;
 
-      setActivePart(root, { toggle: e.ctrlKey || e.metaKey });
+      const rootId = root.userData?.instanceId || root.uuid;
+      const selectionTargetIds = resolveSelectionTargets(hitObj);
+      const currentSelectedSet = new Set(selectedIds3D);
+      const targetIsSelected = selectionTargetIds.every((id) => currentSelectedSet.has(id));
+      const wantsToggle = e.ctrlKey || e.metaKey;
+      const preserveSelection =
+        !wantsToggle && targetIsSelected && selectedIds3D.length > selectionTargetIds.length;
+      let dragIds;
+
+      if (preserveSelection) {
+        dragIds = selectedIds3D;
+      } else if (wantsToggle) {
+        const nextIds = new Set(selectedIds3D);
+        selectionTargetIds.forEach((id) => {
+          if (targetIsSelected) nextIds.delete(id);
+          else nextIds.add(id);
+        });
+        dragIds = Array.from(nextIds);
+      } else {
+        dragIds = selectionTargetIds;
+      }
+
+      setActivePart(root, {
+        toggle: wantsToggle,
+        preserve: preserveSelection,
+        targetIds: selectionTargetIds,
+      });
 
       if (transformToolRef.current === 'rotate') {
         e.preventDefault();
@@ -6617,11 +6747,36 @@ export default function ThreeCanvas({
       }
 
       // ---- DRAG ----
-      isDragging = true;
+      if (!dragIds.includes(rootId)) return;
+
+      const dragIdSet = new Set(dragIds);
+      const dragCandidates = parts
+        .map(({ obj }) => obj)
+        .filter((obj) => dragIdSet.has(obj?.userData?.instanceId || obj?.uuid));
+      const dragCandidateSet = new Set(dragCandidates);
+      const dragTargets = dragCandidates.filter((obj) => {
+        let ancestor = obj.parent;
+        while (ancestor) {
+          if (dragCandidateSet.has(ancestor)) return false;
+          ancestor = ancestor.parent;
+        }
+        return true;
+      });
+      if (!dragTargets.length || dragTargets.some((obj) => obj.userData?.lockedMovement)) return;
 
       dragPlane.set(new THREE.Vector3(0, 1, 0), -root.position.y);
-      raycaster.ray.intersectPlane(dragPlane, dragPoint);
+      if (!raycaster.ray.intersectPlane(dragPlane, dragPoint)) return;
       dragOffset.copy(dragPoint).sub(root.position);
+      dragSession3D = {
+        pointerId: e.pointerId,
+        pointerStart: dragPoint.clone(),
+        initialPositions: dragTargets.map((obj) => ({
+          obj,
+          localPosition: obj.position.clone(),
+          worldPosition: obj.getWorldPosition(new THREE.Vector3()),
+        })),
+      };
+      isDragging = true;
 
       controls.enabled = false;
       renderer.domElement.setPointerCapture?.(e.pointerId);
@@ -6654,6 +6809,17 @@ export default function ThreeCanvas({
       raycaster.setFromCamera(mouse, camera);
 
       if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+        if (dragSession3D) {
+          const delta = dragPoint.clone().sub(dragSession3D.pointerStart);
+          delta.y = 0;
+          dragSession3D.initialPositions.forEach(({ obj, worldPosition }) => {
+            setObjectWorldPosition(obj, worldPosition.clone().add(delta));
+          });
+          if (selectionHelper) selectionHelper.update();
+          refreshFloorAndGrid();
+          return;
+        }
+
         const nextPos = dragPoint.clone().sub(dragOffset);
 
         if (
@@ -6704,6 +6870,8 @@ export default function ThreeCanvas({
       if (!isDragging) return;
       isDragging = false;
       controls.enabled = true;
+      const completedDragSession = dragSession3D;
+      dragSession3D = null;
       try {
         renderer.domElement.releasePointerCapture?.(e.pointerId);
       } catch (err) {
@@ -6712,7 +6880,22 @@ export default function ThreeCanvas({
 
       dragGroupStartRef.current = null;
       dragRootStartRef.current = null;
+      const activeLocalBeforeSnap = activePart?.position.clone();
+      const activeWorldBeforeSnap = activePart?.getWorldPosition(new THREE.Vector3());
       snapActivePart();
+      if (completedDragSession && activeLocalBeforeSnap && activeWorldBeforeSnap && activePart) {
+        const snapDelta = activePart
+          .getWorldPosition(new THREE.Vector3())
+          .sub(activeWorldBeforeSnap);
+        activePart.position.copy(activeLocalBeforeSnap);
+        activePart.updateMatrixWorld(true);
+        if (snapDelta.lengthSq() > 0) {
+          completedDragSession.initialPositions.forEach(({ obj }) => {
+            const currentWorld = obj.getWorldPosition(new THREE.Vector3());
+            setObjectWorldPosition(obj, currentWorld.add(snapDelta));
+          });
+        }
+      }
       refreshFloorAndGrid();
     }
 
@@ -6722,9 +6905,7 @@ export default function ThreeCanvas({
         isRotating3D = false;
         controls.enabled = true;
       }
-      dragGroupStartRef.current = null;
-      dragRootStartRef.current = null;
-      endDrag(e.pointerId);
+      cancelDragSession(e.pointerId);
     }
 
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
@@ -6733,14 +6914,14 @@ export default function ThreeCanvas({
     renderer.domElement.addEventListener('lostpointercapture', onPointerCancel);
 
     window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', () => {
-      isDragging = false;
-      controls.enabled = true;
-    });
-    window.addEventListener('blur', () => {
-      isDragging = false;
-      controls.enabled = true;
-    });
+    function onWindowPointerCancel(e) {
+      cancelDragSession(e.pointerId);
+    }
+    function onWindowBlur() {
+      cancelDragSession();
+    }
+    window.addEventListener('pointercancel', onWindowPointerCancel);
+    window.addEventListener('blur', onWindowBlur);
 
     // ====== Resize ======
     function onResize() {
@@ -8836,6 +9017,8 @@ export default function ThreeCanvas({
       renderer.domElement.removeEventListener('lostpointercapture', onPointerCancel);
 
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onWindowPointerCancel);
+      window.removeEventListener('blur', onWindowBlur);
 
       clearAdditionalSelectionHelpers();
 

@@ -739,11 +739,16 @@ export default function App() {
                 setSelectedIds([]);
                 return;
               }
+              if (part.selectionPreserve) return;
 
               const snapshot = threeApiRef.current?.getPartsSnapshot2D?.() || [];
               const groupId = String(part.groupId || '').trim();
-              const targetIds =
-                moveAsGroup && groupId
+              const resolvedTargetIds = Array.isArray(part.selectionTargetIds)
+                ? part.selectionTargetIds.filter(Boolean)
+                : [];
+              const targetIds = resolvedTargetIds.length
+                ? resolvedTargetIds
+                : moveAsGroup && groupId
                   ? snapshot
                       .filter(
                         (candidate) => String(candidate?.groupId || '').trim() === groupId
