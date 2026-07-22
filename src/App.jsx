@@ -862,6 +862,11 @@ export default function App() {
                 if (previousMoveAsGroup === true) api.setMoveAsGroup?.(true);
               }
             }}
+            onBeginMove2D={(ids, individualTargets) =>
+              threeApiRef.current?.beginMove2D?.({ ids, individualTargets })
+            }
+            onEndMove2D={() => threeApiRef.current?.endMove2D?.()}
+            onCancelMove2D={() => threeApiRef.current?.cancelMove2D?.()}
             isPartMovementLocked2D={(id) =>
               readOnly || threeApiRef.current?.isPartMovementLocked?.(id) === true
             }

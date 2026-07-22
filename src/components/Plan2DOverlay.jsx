@@ -125,6 +125,9 @@ export default function Plan2DOverlay({
   onPlan2DTransformChange,
   onMovePart2D,
   onMoveParts2D,
+  onBeginMove2D,
+  onEndMove2D,
+  onCancelMove2D,
   isPartMovementLocked2D,
   transformTool = 'move',
   onBeginRotation2D,
@@ -653,7 +656,8 @@ export default function Plan2DOverlay({
     if (canvas?.hasPointerCapture?.(pieceDrag.pointerId)) {
       canvas.releasePointerCapture(pieceDrag.pointerId);
     }
-  }, [onMovePart2D, onMoveParts2D]);
+    onCancelMove2D?.();
+  }, [onMovePart2D, onMoveParts2D, onCancelMove2D]);
 
   const handlePointerUp = useCallback((e) => {
     const canvas = canvasRef.current;
@@ -671,6 +675,7 @@ export default function Plan2DOverlay({
       suppressNextClickRef.current = pieceDrag.hasMoved;
       dragPieceRef.current = null;
       setDragPieceId(null);
+      onEndMove2D?.();
     }
 
     dragRef.current.isDown = false;
@@ -679,7 +684,7 @@ export default function Plan2DOverlay({
     if (canvas?.hasPointerCapture?.(e.pointerId)) {
       canvas.releasePointerCapture(e.pointerId);
     }
-  }, [onEndRotation2D]);
+  }, [onEndRotation2D, onEndMove2D]);
 
   const handlePointerCancel = useCallback(
     (e) => {
@@ -807,6 +812,11 @@ export default function Plan2DOverlay({
 
       onPickId?.(picked.id);
 
+      onBeginMove2D?.(
+        initialPositions.map(({ id }) => id),
+        initialPositions.length > 1
+      );
+
       setDragPieceId(picked.id);
       dragPieceRef.current = {
         id: picked.id,
@@ -837,6 +847,7 @@ export default function Plan2DOverlay({
       getSnapshot,
       getSelectionTargetIds,
       onPickId,
+      onBeginMove2D,
       isPartMovementLocked2D,
     ]
   );

@@ -269,6 +269,7 @@ export default function ThreeCanvas({
     let selectionHelper = null;
     let additionalSelectionHelpers = [];
     let rotationSession = null;
+    let moveSession2D = null;
     const historyManager = createHistoryManager({ replayAction: replayHistoryAction });
     let isRotating3D = false;
     let rotationPointerStartAngle = 0;
@@ -4232,6 +4233,10 @@ export default function ThreeCanvas({
       updateSelectedPartTransformPatch,
       movePartToXZ: (id, x, z) => movePartToXZInternal(id, x, z),
       isPartMovementLocked,
+      beginMove2D: ({ ids, individualTargets = false } = {}) =>
+        beginMove2D({ ids, individualTargets }),
+      endMove2D,
+      cancelMove2D,
       beginRotation: ({ sourceId } = {}) => beginRotation({ sourceId }),
       updateRotation: ({ deltaAngle, snapAngle = 0 } = {}) =>
         updateRotation({ deltaAngle, snapAngle }),
@@ -4395,7 +4400,109 @@ export default function ThreeCanvas({
       });
     }
 
-    const ROTATION_HISTORY_EPSILON = 1e-8;
+    const TRANSFORM_HISTORY_EPSILON = 1e-8;
+
+    function dedupeMovementTargets(targets) {
+      const uniqueTargets = Array.from(new Set(targets.filter(Boolean)));
+      const targetSet = new Set(uniqueTargets);
+      return uniqueTargets.filter((object) => {
+        let ancestor = object.parent;
+        while (ancestor) {
+          if (targetSet.has(ancestor)) return false;
+          ancestor = ancestor.parent;
+        }
+        return true;
+      });
+    }
+
+    function createMoveSnapshot(object, position = object.position) {
+      return {
+        id: object.userData?.instanceId || object.uuid,
+        object,
+        parent: object.parent || null,
+        position: position.toArray(),
+      };
+    }
+
+    function captureMoveState(targets) {
+      return targets.map((object) => createMoveSnapshot(object));
+    }
+
+    function moveStateChanged(before, after) {
+      if (before.length !== after.length) return true;
+      return before.some((previous, index) => {
+        const next = after[index];
+        return (
+          !next ||
+          previous.id !== next.id ||
+          previous.object !== next.object ||
+          previous.parent !== next.parent ||
+          previous.position.some(
+            (value, component) =>
+              Math.abs(value - next.position[component]) > TRANSFORM_HISTORY_EPSILON
+          )
+        );
+      });
+    }
+
+    function pushMoveHistory(before, after) {
+      if (historyManager.isReplaying || !moveStateChanged(before, after)) return false;
+      historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.MOVE,
+        targets: before.map(({ id }) => id),
+        before,
+        after,
+      });
+      return true;
+    }
+
+    function beginMove2D({ ids = [], individualTargets = false } = {}) {
+      const sourceTargets = Array.from(new Set(ids))
+        .map((id) => findPartById(id))
+        .filter(Boolean);
+      if (!sourceTargets.length) return false;
+
+      const actualTargets =
+        !individualTargets && sourceTargets.length === 1 && moveAsGroupRef.current
+          ? getGroupedObjects(sourceTargets[0])
+          : sourceTargets;
+      const targets = dedupeMovementTargets(actualTargets);
+      if (!targets.length) return false;
+
+      moveSession2D = {
+        targets,
+        before: captureMoveState(targets),
+      };
+      return true;
+    }
+
+    function endMove2D() {
+      if (!moveSession2D) return false;
+      const { targets, before } = moveSession2D;
+      const after = captureMoveState(targets);
+      moveSession2D = null;
+      pushMoveHistory(before, after);
+      return true;
+    }
+
+    function cancelMove2D() {
+      if (!moveSession2D) return false;
+      moveSession2D = null;
+      return true;
+    }
+
+    function applyMoveHistoryState(snapshots) {
+      snapshots.forEach(({ object, parent, position }) => {
+        if (!object || object.parent !== parent) return;
+        object.position.fromArray(position);
+        object.updateMatrixWorld(true);
+      });
+
+      if (selectionHelper) selectionHelper.update();
+      additionalSelectionHelpers.forEach((helper) => helper.update());
+      updateRotationHandle();
+      refreshFloorAndGrid();
+    }
 
     function createRotationSnapshot({ obj, parent, position, quaternion, scale }) {
       return {
@@ -4435,10 +4542,12 @@ export default function ThreeCanvas({
         }
 
         const positionChanged = previous.position.some(
-          (value, component) => Math.abs(value - next.position[component]) > ROTATION_HISTORY_EPSILON
+          (value, component) =>
+            Math.abs(value - next.position[component]) > TRANSFORM_HISTORY_EPSILON
         );
         const scaleChanged = previous.scale.some(
-          (value, component) => Math.abs(value - next.scale[component]) > ROTATION_HISTORY_EPSILON
+          (value, component) =>
+            Math.abs(value - next.scale[component]) > TRANSFORM_HISTORY_EPSILON
         );
         const quaternionDot = previous.quaternion.reduce(
           (sum, value, component) => sum + value * next.quaternion[component],
@@ -4448,7 +4557,7 @@ export default function ThreeCanvas({
         return (
           positionChanged ||
           scaleChanged ||
-          1 - Math.min(1, Math.abs(quaternionDot)) > ROTATION_HISTORY_EPSILON
+          1 - Math.min(1, Math.abs(quaternionDot)) > TRANSFORM_HISTORY_EPSILON
         );
       });
     }
@@ -4469,8 +4578,12 @@ export default function ThreeCanvas({
     }
 
     function replayHistoryAction(action, direction) {
-      if (action.type !== HISTORY_ACTION_TYPES.ROTATE) return;
-      applyRotationHistoryState(direction === 'undo' ? action.before : action.after);
+      const state = direction === 'undo' ? action.before : action.after;
+      if (action.type === HISTORY_ACTION_TYPES.ROTATE) {
+        applyRotationHistoryState(state);
+      } else if (action.type === HISTORY_ACTION_TYPES.MOVE) {
+        applyMoveHistoryState(state);
+      }
     }
 
     function beginRotation({ sourceId } = {}) {
@@ -7129,6 +7242,15 @@ export default function ThreeCanvas({
             setObjectWorldPosition(obj, currentWorld.add(snapDelta));
           });
         }
+      }
+      if (completedDragSession) {
+        const before = completedDragSession.initialPositions.map(({ obj, localPosition }) =>
+          createMoveSnapshot(obj, localPosition)
+        );
+        const after = captureMoveState(
+          completedDragSession.initialPositions.map(({ obj }) => obj)
+        );
+        pushMoveHistory(before, after);
       }
       refreshFloorAndGrid();
     }
