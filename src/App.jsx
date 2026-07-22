@@ -159,9 +159,11 @@ export default function App() {
       if (key === 'v' && !event.shiftKey) {
         if (!api) return;
         event.preventDefault();
-        pasteClipboard({ api }).catch((error) => {
-          console.error('No se pudo pegar el contenido copiado.', error);
-        });
+        pasteClipboard({ api })
+          .then((result) => api.recordCreateObjects?.(result))
+          .catch((error) => {
+            console.error('No se pudo pegar el contenido copiado.', error);
+          });
         return;
       }
 

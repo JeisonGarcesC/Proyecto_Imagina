@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { OrbitControls, GLTFLoader } from 'three-stdlib';
 import { createSurfaceMesh, createSurfaceMeta } from '../factories/surfaceFactory';
 import { createHistoryManager, HISTORY_ACTION_TYPES } from '../history/historyManager';
+import { CreateObjectsCommand } from '../history/CreateObjectsCommand';
 import { setClipboard } from '../clipboard/clipboardManager';
 
 import { MODEL_TYPES } from '../catalog/catalogData';
@@ -4250,6 +4251,7 @@ export default function ThreeCanvas({
       },
       getDeleteAsGroup: () => deleteAsGroupRef.current,
       copySelection,
+      recordCreateObjects,
       applyClipboardObjectState: (object, instruction) => {
         if (!object || !instruction?.transform) return false;
         const { position, quaternion, scale } = instruction.transform;
@@ -4262,16 +4264,7 @@ export default function ThreeCanvas({
         refreshFloorAndGrid();
         return true;
       },
-      selectCreatedObjects: (objects = []) => {
-        const created = Array.from(new Set(objects)).filter(Boolean);
-        const ids = created
-          .map((object) => object.userData?.instanceId || object.uuid)
-          .filter(Boolean);
-        if (!ids.length) return false;
-        syncSelectedIds3D(ids);
-        setActivePart(created[created.length - 1], { targetIds: ids });
-        return true;
-      },
+      selectCreatedObjects: selectCreatedHistoryObjects,
       mapPastedAssemblyIdentities: (instruction, assembly) => {
         if (!instruction || !assembly) return [];
         const available = [
@@ -4875,6 +4868,43 @@ export default function ThreeCanvas({
       return removedAny;
     }
 
+    function selectCreatedHistoryObjects(objects = []) {
+      const created = Array.from(new Set(objects)).filter(
+        (object) => object && isConnectedToScene(object)
+      );
+      const ids = created
+        .map((object) => object.userData?.instanceId || object.uuid)
+        .filter(Boolean);
+      if (!ids.length) return false;
+      syncSelectedIds3D(ids);
+      setActivePart(created[created.length - 1], { targetIds: ids });
+      return true;
+    }
+
+    function captureCreatedObjects(objects = []) {
+      const expanded = objects.flatMap((object) =>
+        object?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY'
+          ? [object, ...getFloatingChildrenOfAssembly(object)]
+          : [object]
+      );
+      const roots = Array.from(new Set(expanded.filter(Boolean))).filter(
+        (object, _index, all) =>
+          !all.some(
+            (candidate) => candidate !== object && isDescendantOf(object, candidate)
+          )
+      );
+      return roots.map(captureDeletedObject);
+    }
+
+    function recordCreateObjects({ objects = [], identityMap = new Map() } = {}) {
+      if (historyManager.isReplaying || !objects.length) return null;
+      const createdObjects = captureCreatedObjects(objects);
+      if (!createdObjects.length) return null;
+      return historyManager.pushAction(
+        new CreateObjectsCommand({ createdObjects, selectionObjects: objects, identityMap })
+      );
+    }
+
     function isConnectedToScene(object) {
       let current = object;
       while (current) {
@@ -4885,8 +4915,14 @@ export default function ThreeCanvas({
     }
 
     function discardHistoryAction(action) {
-      if (action.type !== HISTORY_ACTION_TYPES.DELETE) return;
-      action.deletedObjects?.forEach(({ object }) => {
+      const retainedObjects =
+        action.type === HISTORY_ACTION_TYPES.DELETE
+          ? action.deletedObjects
+          : action.type === HISTORY_ACTION_TYPES.CREATE_OBJECTS
+            ? action.createdObjects
+            : null;
+      if (!retainedObjects) return;
+      retainedObjects.forEach(({ object }) => {
         if (!object || isConnectedToScene(object)) return;
         const remainsRegistered = parts.some(
           ({ obj }) => obj === object || isDescendantOf(obj, object)
@@ -4977,6 +5013,13 @@ export default function ThreeCanvas({
       } else if (action.type === HISTORY_ACTION_TYPES.DELETE) {
         if (direction === 'undo') restoreDeletedObjects(action.deletedObjects || []);
         else disconnectDeletedObjects(action.deletedObjects || []);
+      } else if (action.type === HISTORY_ACTION_TYPES.CREATE_OBJECTS) {
+        if (direction === 'undo') {
+          disconnectDeletedObjects(action.createdObjects || []);
+        } else {
+          restoreDeletedObjects(action.createdObjects || []);
+          selectCreatedHistoryObjects(action.selectionObjects || []);
+        }
       }
     }
 

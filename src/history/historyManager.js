@@ -4,6 +4,7 @@ export const HISTORY_ACTION_TYPES = Object.freeze({
   MOVE: 'MOVE',
   ROTATE: 'ROTATE',
   DELETE: 'DELETE',
+  CREATE_OBJECTS: 'CREATE_OBJECTS',
 });
 
 let actionSequence = 0;
