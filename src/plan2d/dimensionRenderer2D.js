@@ -1,9 +1,5 @@
 import { resolveDimensionScreenGeometry } from './dimensionGeometry2D.js';
-
-function formatDimensionValue(value, unit) {
-  if (unit === 'm' && value < 1) return `${Math.round(value * 1000)} mm`;
-  return `${value.toFixed(2)} ${unit}`;
-}
+import { formatDimensionValue } from './dimensionFormat.js';
 function drawArrow(ctx, tipX, tipY, towardX, towardY) {
   const angle = Math.atan2(towardY - tipY, towardX - tipX);
   const length = 8;

@@ -1,3 +1,9 @@
+import {
+  pointToSegmentDistance,
+  resolveDimensionScreenGeometry,
+} from './dimensionGeometry2D.js';
+import { formatDimensionValue } from './dimensionFormat.js';
+
 export const DIMENSION_TYPES = Object.freeze({
   LINEAR_HORIZONTAL: 'LINEAR_HORIZONTAL',
   LINEAR_VERTICAL: 'LINEAR_VERTICAL',
@@ -58,6 +64,41 @@ export function createDimension2D({
   });
 }
 
+export function updateDimension2D(dimensions, id, changes = {}) {
+  if (!Array.isArray(dimensions) || !id || !changes || typeof changes !== 'object') {
+    return dimensions;
+  }
+
+  const editableFields = [
+    'type',
+    'startPoint',
+    'endPoint',
+    'unit',
+    'label',
+    'offset',
+    'references',
+  ];
+
+  return dimensions.map((dimension) => {
+    if (dimension?.id !== id) return dimension;
+
+    const nextValues = {};
+    editableFields.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(changes, field)) {
+        nextValues[field] = changes[field];
+      }
+    });
+
+    return (
+      createDimension2D({
+        ...dimension,
+        ...nextValues,
+        id: dimension.id,
+      }) || dimension
+    );
+  });
+}
+
 export function dimensionHitDistance({
   mouseWorldPoint,
   screenPoint,
@@ -84,7 +125,7 @@ export function dimensionHitDistance({
     Math.hypot(mouse.x - geometry.dimEnd[0], mouse.y - geometry.dimEnd[1]),
   ];
 
-  const label = dimension.label || `${Number(dimension.value || 0).toFixed(2)} ${dimension.unit}`;
+  const label = dimension.label || formatDimensionValue(dimension.value, dimension.unit);
   const textCenterX = (geometry.dimStart[0] + geometry.dimEnd[0]) / 2;
   const textCenterY = (geometry.dimStart[1] + geometry.dimEnd[1]) / 2;
   const halfTextWidth = Math.max(15, label.length * 3.6 + 5);
@@ -99,7 +140,3 @@ export function dimensionHitDistance({
 export function dimensionHitTest(options = {}) {
   return Number.isFinite(dimensionHitDistance(options));
 }
-import {
-  pointToSegmentDistance,
-  resolveDimensionScreenGeometry,
-} from './dimensionGeometry2D.js';

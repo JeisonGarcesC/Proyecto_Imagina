@@ -4,6 +4,7 @@ import {
   createDimension2D,
   dimensionHitDistance,
   DIMENSION_TYPES,
+  updateDimension2D,
 } from '../plan2d/dimension2D';
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 
@@ -154,6 +155,18 @@ export default function Plan2DOverlay({
   const [measureSnap, setMeasureSnap] = useState(null);
   const [dimensions, setDimensions] = useState([]);
   const [selectedDimensionId, setSelectedDimensionId] = useState(null);
+  const selectedDimension =
+    dimensions.find((dimension) => dimension.id === selectedDimensionId) || null;
+
+  const applyDimensionUpdate = useCallback(
+    (id, changes) => {
+      const targetId = id || selectedDimensionId;
+      if (!targetId) return false;
+      setDimensions((current) => updateDimension2D(current, targetId, changes));
+      return true;
+    },
+    [selectedDimensionId]
+  );
 
   const [scaleMode, setScaleMode] = useState(false);
   const [scaleStartPx, setScaleStartPx] = useState(null);
@@ -1128,6 +1141,14 @@ export default function Plan2DOverlay({
   // keys
   useEffect(() => {
     const onKey = (ev) => {
+      const target = ev.target;
+      const isEditableTarget =
+        target?.isContentEditable ||
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT';
+      if (isEditableTarget) return;
+
       const key = ev.key?.toLowerCase?.();
 
       if (ev.key === 'Escape') {
@@ -1795,6 +1816,85 @@ export default function Plan2DOverlay({
           Ocultar
         </button>
       </div>
+
+      {selectedDimension && (
+        <section
+          aria-label="Propiedades de la cota seleccionada"
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            zIndex: 31,
+            display: 'grid',
+            gridTemplateColumns: 'auto minmax(120px, 1fr)',
+            alignItems: 'center',
+            gap: '8px 10px',
+            width: 280,
+            padding: 12,
+            border: '1px solid rgba(0,0,0,0.14)',
+            borderRadius: 12,
+            background: 'rgba(255,255,255,0.96)',
+            boxShadow: '0 6px 18px rgba(0,0,0,0.14)',
+            color: '#243042',
+            fontSize: 12,
+          }}
+        >
+          <strong style={{ gridColumn: '1 / -1', fontSize: 13 }}>Propiedades de cota</strong>
+
+          <label htmlFor="dimension-type">Tipo</label>
+          <select
+            id="dimension-type"
+            value={selectedDimension.type}
+            onChange={(event) =>
+              applyDimensionUpdate(selectedDimension.id, { type: event.target.value })
+            }
+          >
+            <option value={DIMENSION_TYPES.LINEAR_HORIZONTAL}>LINEAR_HORIZONTAL</option>
+            <option value={DIMENSION_TYPES.LINEAR_VERTICAL}>LINEAR_VERTICAL</option>
+            <option value={DIMENSION_TYPES.ALIGNED}>ALIGNED</option>
+          </select>
+
+          <label htmlFor="dimension-unit">Unidad</label>
+          <select
+            id="dimension-unit"
+            value={selectedDimension.unit}
+            onChange={(event) =>
+              applyDimensionUpdate(selectedDimension.id, { unit: event.target.value })
+            }
+          >
+            <option value="m">m</option>
+            <option value="cm">cm</option>
+            <option value="mm">mm</option>
+          </select>
+
+          <label htmlFor="dimension-label">Label</label>
+          <input
+            id="dimension-label"
+            type="text"
+            value={selectedDimension.label || ''}
+            placeholder="Valor automático"
+            onChange={(event) =>
+              applyDimensionUpdate(selectedDimension.id, {
+                label: event.target.value || null,
+              })
+            }
+          />
+
+          <label htmlFor="dimension-offset">Offset</label>
+          <input
+            id="dimension-offset"
+            type="number"
+            step="1"
+            value={selectedDimension.offset}
+            onChange={(event) => {
+              const offset = Number(event.target.value);
+              if (Number.isFinite(offset)) {
+                applyDimensionUpdate(selectedDimension.id, { offset });
+              }
+            }}
+          />
+        </section>
+      )}
 
       <canvas
         id="plan2d-canvas"
