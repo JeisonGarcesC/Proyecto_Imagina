@@ -1,3 +1,4 @@
+// src/koncisaPlus/createKoncisaPlusInstance.js
 import { buildKoncisaPlus } from './KoncisaPlusBuilder';
 
 function defaultNotify(message) {
@@ -142,7 +143,9 @@ export async function createKoncisaPlusInstance({
       continue;
     }
 
-    const modelKind = String(costado?.model?.kind || 'glb').trim().toLowerCase();
+    const modelKind = String(costado?.model?.kind || 'glb')
+      .trim()
+      .toLowerCase();
     if (modelKind === 'koncisa-costado-assembly') {
       const assembly = costado?.meta?.costadoAssembly || null;
       if (!assembly?.leftLegSrc || !assembly?.rightLegSrc || !assembly?.centerBracketSrc) {
@@ -181,6 +184,40 @@ export async function createKoncisaPlusInstance({
       groupName: viga.groupName || groupName,
       parentGroup: puestoGroup,
     });
+  }
+
+  for (const skirt of parts.filter((part) => part.type === 'leaderSkirt')) {
+    if (!skirt?.code) {
+      notify(`No tenemos disponible esta falda: ${skirt?.logicalCode || 'sin código lógico'}`);
+      continue;
+    }
+
+    const modelKind = String(skirt?.model?.kind || '')
+      .trim()
+      .toLowerCase();
+
+    if (modelKind === 'koncisa-leader-skirt-assembly') {
+      const assembly = skirt?.meta?.skirtAssembly || null;
+
+      if (!assembly?.body) {
+        notify(`La falda ${skirt.logicalCode} no tiene configuración 3D.`);
+        continue;
+      }
+
+      await api.addKoncisaLeaderSkirtAssemblyPart?.({
+        ...skirt,
+
+        groupId: skirt.groupId || groupId,
+
+        groupName: skirt.groupName || groupName,
+
+        parentGroup: puestoGroup,
+      });
+
+      continue;
+    }
+
+    notify(`La falda ${skirt.logicalCode} no tiene un modelo 3D válido.`);
   }
 
   for (const ducto of parts.filter((part) => part.type === 'ducto')) {
@@ -275,4 +312,3 @@ export async function createKoncisaPlusInstance({
     layoutType,
   };
 }
-

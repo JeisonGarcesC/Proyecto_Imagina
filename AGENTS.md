@@ -2,11 +2,26 @@
 
 # Proyecto
 
-Este proyecto corresponde al configurador 3D Proyecto_Imagina desarrollado en React.
+Proyecto_Imagina es un configurador CAD 3D/2D desarrollado en React + Three.js.
 
-El objetivo es implementar nuevas funcionalidades sin romper la compatibilidad existente.
+El sistema combina:
 
-Antes de modificar código, entender siempre el flujo actual.
+- Editor 3D basado en Three.js.
+- Editor 2D tipo CAD basado en Canvas.
+- Assemblies complejos.
+- BOM.
+- Sistema de selección.
+- Historial Undo/Redo.
+- Clipboard interno.
+- Herramientas CAD (snap, cotas, medición).
+
+El objetivo principal es agregar funcionalidades nuevas sin romper comportamientos existentes.
+
+Antes de modificar código:
+
+- entender el flujo actual.
+- identificar dependencias.
+- respetar arquitecturas existentes.
 
 ---
 
@@ -15,119 +30,340 @@ Antes de modificar código, entender siempre el flujo actual.
 - React
 - Vite
 - Electron
-- JavaScript ES6
+- JavaScript ES6+
 - Three.js
 - Git
 - GitHub
 
 ---
 
-# Convenciones
+# Principios generales
 
-Siempre reutilizar componentes existentes antes de crear nuevos.
+## No duplicar lógica
 
-No duplicar lógica.
+Antes de crear una función nueva:
 
-No crear funciones innecesarias.
+- Buscar si ya existe una función equivalente.
+- Reutilizar APIs existentes.
+- Extender comportamiento actual.
 
-Mantener nombres consistentes con el proyecto.
+No crear:
 
-No cambiar nombres de archivos salvo que sea solicitado.
-
----
-
-# Estilo
-
-Preferir funciones pequeñas.
-
-Comentar únicamente cuando sea necesario.
-
-Mantener imports ordenados.
-
-No dejar código muerto.
+- estados paralelos.
+- motores alternativos.
+- sistemas duplicados.
 
 ---
 
-# Antes de modificar
+# Arquitectura general
 
-Siempre analizar:
+## Estado principal
 
-- No poner o usar nombres que ya se esten usando
-- quién usa esa función
-- qué archivos dependen de ella
-- efectos secundarios
-- La prioridad siempre es mantener compatibilidad con el comportamiento actual.
-- Si existe una solución que requiera menos cambios, preferir esa.
+La aplicación mantiene una separación:
 
-Explicar brevemente el impacto antes de modificar.
+## 3D
 
----
+Responsabilidad:
 
-# Cambios grandes
+- Objetos Three.js.
+- Assemblies.
+- Transformaciones.
+- Render.
+- Selección física.
+- BOM.
 
-Para cambios que afecten múltiples archivos:
+Principalmente:
 
-1. explicar el plan
-2. listar archivos
-3. realizar cambios
-4. si existe ambigüedad en el requerimiento:
+ThreeCanvas.jsx
 
-- NO asumir.
-- Preguntar primero.
+## 2D CAD
 
----
+Responsabilidad:
 
-# React
+- Visualización plana.
+- Herramientas CAD.
+- Cotas.
+- Snap.
+- Medición.
 
-Usar Hooks.
+Principalmente:
 
-No introducir librerías nuevas sin autorización.
+Plan2DOverlay.jsx
 
-Mantener la estructura existente.
+## Comunicación
 
-No mover componentes entre carpetas sin justificación.
+La comunicación entre sistemas debe pasar por APIs existentes.
 
----
-
-# ThreeJS
-
-Respetar la estructura actual.
-
-No modificar escalas ni offsets existentes salvo solicitud.
-
-Mantener compatibilidad con los modelos GLB actuales.
+No acceder directamente desde un módulo a estados internos de otro.
 
 ---
 
-# Git
+# Three.js
 
-Nunca hacer commit.
+## Reglas críticas
 
-Nunca hacer push.
+No modificar:
 
-Nunca cambiar ramas.
+- cámara.
+- OrbitControls.
+- renderer.
+- escalas existentes.
+- offsets de modelos.
+- jerarquías de assemblies.
 
-El usuario realiza todo el control de versiones mediante GitHub Desktop.
-
----
-
-# Cuando exista un bug
-
-Primero identificar la causa.
-
-Después proponer solución.
-
-Luego implementarla.
-
-No hacer cambios por prueba y error.
+salvo solicitud explícita.
 
 ---
 
-# Comunicación
+# Assemblies
 
-Explicar siempre:
+El proyecto utiliza assemblies complejos.
 
-- qué cambió
-- por qué cambió
-- archivos modificados
-- posibles riesgos
+Ejemplo:
+
+Koncisa Plus:
+
+KONCISA_PLUS_ASSEMBLY
+
+├── superficie
+├── costados
+├── vigas
+├── ductos
+└── accesorios
+
+Reglas:
+
+- No tratar assemblies como piezas individuales.
+- Mantener parentAssemblyId.
+- Mantener groupId.
+- Mantener instanceId.
+
+Cuando se agreguen funciones sobre selección, movimiento, rotación o eliminación:
+
+Resolver primero si corresponde:
+
+- pieza física.
+- grupo.
+- assembly completo.
+
+---
+
+# APIs expuestas por ThreeCanvas
+
+IMPORTANTE:
+
+Las APIs expuestas mediante onApiReady / threeApiRef son contratos internos.
+
+Nunca reemplazar una función existente.
+
+Selección
+
+El proyecto utiliza una selección compartida:
+
+selectedIds
+
+y:
+
+selectedIds3D
+
+Reglas:
+
+No crear otro sistema de selección.
+Mantener activePart como referencia del último objeto pulsado.
+La selección múltiple debe usar IDs físicos existentes.
+No crear IDs adicionales para selección.
+Transformaciones
+
+Las operaciones:
+
+MOVE
+ROTATE
+DELETE
+
+deben trabajar sobre objetivos resueltos.
+
+Antes de transformar:
+
+resolver:
+
+pieza individual.
+grupo.
+assembly.
+
+No aplicar transformaciones directamente sobre meshes internos.
+
+Historial Undo / Redo
+
+El historial es global.
+
+No crear historiales independientes.
+
+Acciones actuales:
+
+MOVE
+ROTATE
+DELETE
+CREATE_OBJECTS
+
+Futuras:
+
+CREATE_DIMENSION
+UPDATE_DIMENSION
+DELETE_DIMENSION
+
+Reglas:
+
+Una acción debe representar una operación completa.
+
+Incorrecto:
+
+Registrar durante cada pointermove.
+
+Correcto:
+
+Inicio operación:
+
+capturar before.
+
+Final operación:
+
+capturar after.
+
+Clipboard
+
+Ctrl+C / Ctrl+V utiliza datos serializables.
+
+Nunca almacenar:
+
+Object3D.
+Mesh.
+geometrías.
+materiales.
+
+El clipboard debe almacenar:
+
+configuración.
+transform.
+metadata.
+relaciones.
+
+La creación debe reutilizar constructores existentes.
+
+No duplicar lógica de creación.
+
+CAD 2D
+
+Plan2DOverlay no utiliza cámara ortográfica Three.js.
+
+Utiliza:
+
+Mundo (x,z)
+
+↓
+
+transformación manual
+
+↓
+
+Canvas
+Snap 2D
+
+No crear sistemas paralelos.
+
+Utilizar:
+
+geometrySnap2D.js
+
+Funciones principales:
+
+resolveSnapPoint()
+resolvePlacementSnap()
+Dimension2D
+
+Las cotas son entidades CAD independientes.
+
+Modelo:
+
+Dimension2D
+
+id
+type
+startPoint
+endPoint
+value
+unit
+label
+offset
+references
+
+Reglas:
+
+value es calculado.
+No modificar value directamente.
+Las entidades son inmutables.
+Editar mediante updateDimension2D().
+Cambios en archivos
+
+Antes de modificar:
+
+Analizar:
+
+quién usa la función.
+dependencias.
+efectos secundarios.
+compatibilidad.
+
+Para cambios grandes:
+
+explicar plan.
+listar archivos.
+modificar.
+validar.
+Validación obligatoria
+
+Después de cambios:
+
+Ejecutar:
+
+git diff --check
+npm run build
+
+Si no es posible ejecutar:
+
+indicar claramente el motivo.
+
+Git
+
+Nunca:
+
+commit.
+push.
+cambiar ramas.
+
+El control de versiones lo realiza el usuario.
+
+Bugs
+
+Nunca corregir por prueba y error.
+
+Proceso obligatorio:
+
+reproducir.
+encontrar causa.
+explicar impacto.
+modificar.
+validar.
+Comunicación
+
+Siempre informar:
+
+qué cambió.
+por qué cambió.
+archivos modificados.
+riesgos.
+validaciones realizadas.
+
+Si existe incertidumbre:
+
+no asumir.
+preguntar primero.

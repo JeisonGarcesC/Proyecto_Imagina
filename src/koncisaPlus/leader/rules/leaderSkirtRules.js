@@ -96,24 +96,25 @@ export function resolveKoncisaLeaderSkirt({
     materialType: normalizedMaterialType,
 
     realMainWidthMm: normalizedRealWidthMm,
+
     billingWidthMm,
 
     physicalLengthMm,
 
     heightMm: 300,
+
     thicknessMm: 15,
 
-    /*
-     * Formica y melamina llevan cuerpo y canto.
-     * Metálica es una pieza completa, sin canto adicional.
-     */
     hasEdge: normalizedMaterialType === 'FORMICA' || normalizedMaterialType === 'MELAMINA',
+
+    edgeThicknessMm:
+      normalizedMaterialType === 'FORMICA' || normalizedMaterialType === 'MELAMINA' ? 15 : 0,
 
     isSpecial,
 
     descriptionPrefix: isSpecial ? 'ESPECIAL -' : '',
 
-    descriptionSuffix: isSpecial ? `Medida real ${physicalLengthMm}x300x15 mm` : '',
+    descriptionSuffix: isSpecial ? `Medida real ${physicalLengthMm} x 300 x 15 mm` : '',
   };
 }
 

@@ -11,8 +11,9 @@ export function createLeaderMainSkirt({
   materialType = 'METALICA',
   finishCode = null,
 
+  //posicion de la falda pantalla puesto lider, original.
   x = 0,
-  y = 545,
+  y = 0,
   z = 0,
 
   rotationY = 0,
@@ -22,56 +23,45 @@ export function createLeaderMainSkirt({
     materialType,
   });
 
-  const baseName = `Falda puesto líder ${resolved.materialType} ` + `${resolved.billingWidthMm}`;
+  const baseName = `Falda puesto líder ${resolved.materialType} ${resolved.billingWidthMm}`;
 
   const name = resolved.isSpecial
-    ? `${resolved.descriptionPrefix} ${baseName} - ${resolved.descriptionSuffix}`
+    ? `${resolved.descriptionPrefix}${baseName} - ${resolved.descriptionSuffix}`
     : baseName;
 
   /*
-   * Los soportes se ubican aproximadamente a 500 mm
-   * de cada extremo de la falda.
-   *
-   * En las faldas más cortas se limita la distancia
-   * para impedir que ambos soportes se crucen.
+   * Ubicación soportes
+   * Aproximadamente 200 mm desde extremos
    */
-  const preferredSupportInsetMm = 500;
 
+  const preferredSupportInsetMm = 200;
   const maximumSupportInsetMm = Math.max(50, resolved.physicalLengthMm / 2 - 100);
-
   const supportInsetMm = Math.min(preferredSupportInsetMm, maximumSupportInsetMm);
 
   return {
     type: 'leaderSkirt',
     subtype: 'leader-main-skirt',
-
     line: 'KONCISA.PLUS',
-
     groupId,
     groupName,
-
     code: resolved.codigoPT,
     rawCodigoPT: resolved.codigoPT,
     logicalCode: resolved.logicalCode,
     existsInCatalog: resolved.exists,
-
     name,
-
     dimMm: {
       widthMm: resolved.physicalLengthMm,
       heightMm: resolved.heightMm,
       depthMm: resolved.thicknessMm,
-
       realMainWidthMm,
       billingWidthMm: resolved.billingWidthMm,
+      realLengthMm: resolved.physicalLengthMm,
     },
-
     position: {
       x,
       y,
       z,
     },
-
     rotation: {
       x: 0,
       y: rotationY,
@@ -83,49 +73,34 @@ export function createLeaderMainSkirt({
       src: null,
     },
 
+    useNativeModel: true,
+
     meta: {
       category: 'leader-skirts',
-
       layoutType: 'LEADER',
       leaderRole: 'MAIN_SKIRT',
-
       materialType: resolved.materialType,
       finishCode,
-
+      edgeFinishCode: resolved.hasEdge ? '22008522' : null,
       realMainWidthMm,
       billingWidthMm: resolved.billingWidthMm,
-
       physicalLengthMm: resolved.physicalLengthMm,
+      realLengthMm: resolved.physicalLengthMm,
       heightMm: resolved.heightMm,
       thicknessMm: resolved.thicknessMm,
-
-      /*
-       * La falda metálica no lleva un canto
-       * independiente.
-       */
       hasEdge: resolved.hasEdge,
       edgeThicknessMm: resolved.hasEdge ? resolved.thicknessMm : 0,
-
-      /*
-       * Un solo GLB se carga y se clona.
-       */
+      isSpecial: resolved.isSpecial,
+      descriptionPrefix: resolved.descriptionPrefix,
+      descriptionSuffix: resolved.descriptionSuffix,
       supportModelSrc: '/assets/models/koncisaPlus/PYM100070.glb',
-
       supportCount: 2,
       supportInsetMm,
-
-      isSpecial: resolved.isSpecial,
-
-      descriptionPrefix: resolved.descriptionPrefix,
-
-      descriptionSuffix: resolved.descriptionSuffix,
-
       skirtAssembly: {
         body: {
           lengthMm: resolved.physicalLengthMm,
           heightMm: resolved.heightMm,
           thicknessMm: resolved.thicknessMm,
-
           bottomCornerRadiusMm: 30,
         },
 
@@ -136,12 +111,11 @@ export function createLeaderMainSkirt({
 
         support: {
           src: '/assets/models/koncisaPlus/PYM100070.glb',
-
+          count: 2,
           insetMm: supportInsetMm,
-
           offsetMm: {
-            x: 0,
-            y: 145,
+            x: 50,
+            y: 20,
             z: 0,
           },
 

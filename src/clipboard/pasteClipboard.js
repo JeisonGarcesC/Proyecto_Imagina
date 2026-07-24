@@ -1,3 +1,4 @@
+// src/clipboard/pasteClipboard.js
 import { createKoncisaPlusInstance } from '../koncisaPlus/createKoncisaPlusInstance.js';
 import { getClipboard } from './clipboardManager.js';
 import {
@@ -11,13 +12,9 @@ const DEFAULT_PASTE_OFFSET = Object.freeze([0.25, 0, 0.25]);
 
 function withoutOldIdentity(metadata = {}) {
   const next = { ...metadata };
-  [
-    'instanceId',
-    'groupId',
-    'groupName',
-    'parentAssemblyId',
-    'parentCostadoInstanceId',
-  ].forEach((key) => delete next[key]);
+  ['instanceId', 'groupId', 'groupName', 'parentAssemblyId', 'parentCostadoInstanceId'].forEach(
+    (key) => delete next[key]
+  );
   return next;
 }
 
@@ -69,6 +66,8 @@ async function executeInstruction(api, instruction) {
       return api.addNativeKoncisaDuctPart?.(payload);
     case CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_COSTADO:
       return api.addKoncisaCostadoAssemblyPart?.(payload);
+    case CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_LEADER_SKIRT:
+      return api.addKoncisaLeaderSkirtAssemblyPart?.(payload);
     case CLIPBOARD_CONSTRUCTORS.ADD_SURFACE: {
       const procedural = payload.procedural || {};
       const dim = payload.dim || payload.dimMm || {};
@@ -90,7 +89,8 @@ async function executeInstruction(api, instruction) {
 }
 
 function registerIdentity(identityMap, instruction, object) {
-  const oldId = instruction.source?.relationships?.oldId || instruction.payload?.relationships?.oldId;
+  const oldId =
+    instruction.source?.relationships?.oldId || instruction.payload?.relationships?.oldId;
   const newId = object?.userData?.instanceId || object?.uuid || null;
   if (oldId && newId) identityMap.set(oldId, newId);
 }

@@ -59608,9 +59608,6 @@
       <NUMERO_PLANO>PYM100070</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
-          <Generico>22008555</Generico>
-        </Genericos>
-        <Genericos>
           <Generico>22015138</Generico>
         </Genericos>
         <Genericos>
@@ -79534,13 +79531,7 @@
       <NUMERO_PLANO>PYM100070</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
-          <Generico>22007604</Generico>
-        </Genericos>
-        <Genericos>
           <Generico>22008689</Generico>
-        </Genericos>
-        <Genericos>
-          <Generico>22008555</Generico>
         </Genericos>
         <Genericos>
           <Generico>22008522</Generico>
@@ -79765,13 +79756,7 @@
           <Generico>22008689</Generico>
         </Genericos>
         <Genericos>
-          <Generico>22007604</Generico>
-        </Genericos>
-        <Genericos>
           <Generico>22008522</Generico>
-        </Genericos>
-        <Genericos>
-          <Generico>22008555</Generico>
         </Genericos>
       </RecordsGenericos>
     </Records>
@@ -156418,13 +156403,10 @@
       <NUMERO_PLANO>PYM100070</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
-          <Generico>22008522</Generico>
-        </Genericos>
-        <Genericos>
-          <Generico>22008555</Generico>
-        </Genericos>
-        <Genericos>
           <Generico>22015138</Generico>
+        </Genericos>
+        <Genericos>
+          <Generico>22008522</Generico>
         </Genericos>
       </RecordsGenericos>
     </Records>

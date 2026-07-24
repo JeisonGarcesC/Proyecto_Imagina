@@ -134,6 +134,12 @@ export default function KoncisaPlusPanel({ onCreate }) {
         finishCode: leaderMaterialType === 'FORMICA' ? '22008689' : '22015137',
 
         leaderHasGrommetBox,
+        // Falda
+        leaderHasSkirt,
+
+        leaderSkirtMaterialType,
+
+        leaderSkirtFinishCode,
       });
 
       return;
@@ -267,6 +273,13 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderMaterialType, setLeaderMaterialType] = useState('FORMICA');
 
   const [leaderHasGrommetBox, setLeaderHasGrommetBox] = useState(false);
+  // Falda puesto líder
+  const [leaderHasSkirt, setLeaderHasSkirt] = useState(false);
+
+  const [leaderSkirtMaterialType, setLeaderSkirtMaterialType] = useState('METALICA');
+
+  const [leaderSkirtFinishCode, setLeaderSkirtFinishCode] = useState(null);
+  //---------------
 
   const [leaderModoEspecial, setLeaderModoEspecial] = useState(false);
 
@@ -517,6 +530,48 @@ export default function KoncisaPlusPanel({ onCreate }) {
               />{' '}
               Incluir caja de tomas en el costado junto al retorno
             </label>
+          </div>
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fff',
+              display: 'grid',
+              gap: 10,
+            }}
+          >
+            <div style={{ fontWeight: 700 }}>Falda puesto líder</div>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={leaderHasSkirt}
+                onChange={(e) => setLeaderHasSkirt(e.target.checked)}
+              />{' '}
+              Incluir falda frontal
+            </label>
+
+            {leaderHasSkirt && (
+              <>
+                <div>
+                  <label>Acabado</label>
+
+                  <select
+                    value={leaderSkirtMaterialType}
+                    onChange={(e) => setLeaderSkirtMaterialType(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    <option value="METALICA">Metálica</option>
+
+                    <option value="FORMICA">Fórmica</option>
+
+                    <option value="MELAMINA">Melamina</option>
+                  </select>
+                </div>
+              </>
+            )}
           </div>
 
           <div

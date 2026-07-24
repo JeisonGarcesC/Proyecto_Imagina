@@ -1,3 +1,4 @@
+// src/clipboard/clipboardPasteFactory.js
 import { CLIPBOARD_VERSION } from './clipboardManager.js';
 
 export const CLIPBOARD_CONSTRUCTORS = Object.freeze({
@@ -7,6 +8,7 @@ export const CLIPBOARD_CONSTRUCTORS = Object.freeze({
   ADD_NATIVE_DUCT: 'ADD_NATIVE_DUCT',
   ADD_SURFACE: 'ADD_SURFACE',
   ADD_KONCISA_COSTADO: 'ADD_KONCISA_COSTADO',
+  ADD_KONCISA_LEADER_SKIRT: 'ADD_KONCISA_LEADER_SKIRT',
   ADD_KONCISA_ASSEMBLY: 'ADD_KONCISA_ASSEMBLY',
 });
 
@@ -75,6 +77,14 @@ export function validateClipboard(clipboard) {
 }
 
 function createBaseInstruction(item, constructor) {
+  /*
+  console.log('CLIPBOARD CREATE INSTRUCTION', constructor, {
+    type: item.type,
+    model: item.metadata?.model,
+    meta: item.metadata?.meta,
+  });
+*/
+
   return {
     constructor,
     source: {
@@ -129,6 +139,12 @@ const instructionAdapters = [
   },
   {
     matches: (item) =>
+      item.configuration?.model?.kind === 'koncisa-leader-skirt-assembly' ||
+      item.metadata?.model?.kind === 'koncisa-leader-skirt-assembly',
+    build: (item) => createBaseInstruction(item, CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_LEADER_SKIRT),
+  },
+  {
+    matches: (item) =>
       item.configuration?.model?.kind === 'native-koncisa-duct' ||
       item.metadata?.model?.kind === 'native-koncisa-duct' ||
       item.metadata?.meta?.useNativeModel === true,
@@ -160,10 +176,7 @@ function buildInstruction(item) {
 }
 
 export function createAssemblyFromClipboardItem(item) {
-  const instruction = createBaseInstruction(
-    item,
-    CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_ASSEMBLY
-  );
+  const instruction = createBaseInstruction(item, CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_ASSEMBLY);
 
   instruction.factory = 'createKoncisaPlusInstance';
   instruction.components = {

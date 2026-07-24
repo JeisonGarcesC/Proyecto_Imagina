@@ -49,7 +49,10 @@ export function buildKoncisaLeader(config = {}) {
     leaderHasGrommetBox = false,
 
     // Falda principal
+    leaderHasSkirt = false,
+
     leaderSkirtMaterialType = 'METALICA',
+
     leaderSkirtFinishCode = null,
   } = config;
 
@@ -124,46 +127,27 @@ export function buildKoncisaLeader(config = {}) {
   // FALDA DE LA SUPERFICIE PRINCIPAL
   // =====================================================
 
-  const mainSkirt = createLeaderMainSkirt({
-    groupId,
-    groupName,
+  console.log('leaderMainDepthMm', leaderMainDepthMm);
+  if (leaderHasSkirt) {
+    const mainSkirt = createLeaderMainSkirt({
+      groupId,
+      groupName,
 
-    realMainWidthMm: leaderMainWidthMm,
+      realMainWidthMm: leaderMainWidthMm,
 
-    materialType: leaderSkirtMaterialType,
-    finishCode: leaderSkirtFinishCode,
+      materialType: leaderSkirtMaterialType,
 
-    x: 0,
+      finishCode: leaderSkirtFinishCode,
 
-    /*
-     * Superficie:
-     * centro Y = 710
-     * espesor = 30
-     *
-     * Falda:
-     * alto = 300
-     *
-     * Parte inferior de superficie:
-     * 710 - 15 = 695
-     *
-     * Centro de falda:
-     * 695 - 150 = 545
-     */
-    y: 545,
+      //posicion de la falda pantalla puesto lider, original.
+      x: 0,
+      y: 710 - thickMm - 30 - 60 - 30,
+      z: 300 - 20, //-leaderMainDepthMm / 2 + 30,
+      rotationY: 0,
+    });
 
-    /*
-     * La falda va debajo de la superficie principal,
-     * hacia su borde posterior.
-     *
-     * Este valor podrá ajustarse visualmente cuando
-     * tengamos el ensamble renderizado.
-     */
-    z: -leaderMainDepthMm / 2 + 30,
-
-    rotationY: 0,
-  });
-
-  parts.push(mainSkirt);
+    parts.push(mainSkirt);
+  }
 
   // =====================================================
   // COSTADOS DE LA SUPERFICIE PRINCIPAL
@@ -485,6 +469,8 @@ export function buildKoncisaLeader(config = {}) {
 
   parts.push(returnTerminalCostado);
 
+  //Viga puesto lider
+
   const mainBeam = createLeaderMainBeam({
     groupId,
     groupName,
@@ -493,9 +479,9 @@ export function buildKoncisaLeader(config = {}) {
     hasOutletBox: leaderJunctionHasOutletBox,
 
     x: 0,
-    y: 650,
+    y: 685,
 
-    z: sideKey === 'RIGHT' ? leaderMainDepthMm / 2 - 80 : -leaderMainDepthMm / 2 + 80,
+    z: 0, //sideKey === 'RIGHT' ? leaderMainDepthMm / 2 - 80 : -leaderMainDepthMm / 2 + 80,
   });
 
   parts.push(mainBeam);

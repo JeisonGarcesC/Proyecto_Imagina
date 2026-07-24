@@ -8879,7 +8879,30 @@ export default function ThreeCanvas({
       return shape;
     }
 
+    function getFinishMaterial({ materialType, finishCode }) {
+      if (materialType === 'METALICA') {
+        return new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0.72, 0.74, 0.76),
+          roughness: 0.45,
+          metalness: 0.65,
+        });
+      }
+
+      if (finishCode === '22008689') {
+        return new THREE.MeshStandardMaterial({
+          color: new THREE.Color(0.95, 0.92, 0.85),
+          roughness: 0.7,
+        });
+      }
+
+      return new THREE.MeshStandardMaterial({
+        color: new THREE.Color(0.78, 0.78, 0.78),
+      });
+    }
+
     async function addKoncisaLeaderSkirtAssemblyPart(part = {}) {
+      //console.log('ENTRO A CREAR FALDA LÍDER', part);
+
       if (readOnly) return null;
 
       const parentGroup = part?.parentGroup || null;
@@ -8967,6 +8990,14 @@ export default function ThreeCanvas({
         .trim()
         .toUpperCase();
 
+      const finishCode = part?.meta?.finishCode || null;
+
+      const bodyMaterial = getFinishMaterial({
+        materialType,
+        finishCode,
+      });
+
+      /*
       const bodyMaterial =
         materialType === 'METALICA'
           ? new THREE.MeshStandardMaterial({
@@ -8983,6 +9014,7 @@ export default function ThreeCanvas({
               metalness: 0.05,
               side: THREE.DoubleSide,
             });
+*/
 
       const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
 
@@ -9156,6 +9188,12 @@ export default function ThreeCanvas({
         Number(part?.position?.y || 0) / 1000,
         Number(part?.position?.z || 0) / 1000
       );
+
+      console.log('FALDA ROOT POSICION', {
+        x: root.position.x,
+        y: root.position.y,
+        z: root.position.z,
+      });
 
       root.rotation.set(
         Number(part?.rotation?.x || 0),
