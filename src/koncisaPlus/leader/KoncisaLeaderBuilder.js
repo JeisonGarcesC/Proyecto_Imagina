@@ -152,7 +152,7 @@ export function buildKoncisaLeader(config = {}) {
   // FALDA DE LA SUPERFICIE PRINCIPAL
   // =====================================================
 
-  console.log('leaderMainDepthMm', leaderMainDepthMm);
+  //console.log('leaderMainDepthMm', leaderMainDepthMm);
   if (leaderHasSkirt) {
     const mainSkirt = createLeaderMainSkirt({
       groupId,
@@ -521,6 +521,7 @@ export function buildKoncisaLeader(config = {}) {
         x: mainBeam.position.x,
         y: mainBeam.position.y,
         z: mainBeam.position.z,
+        leaderMainWidthMm: leaderMainWidthMm,
       })
     );
   }

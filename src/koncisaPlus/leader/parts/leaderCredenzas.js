@@ -11,6 +11,14 @@ export function createLeaderCredenza({
   const resolved = resolveLeaderCredenza({ side, lengthMm });
   const sideSign = resolved.side === 'RIGHT' ? 1 : -1;
 
+  const profundidad = resolved.side === 'RIGHT' ? -lengthMm + 300 : mainDepthMm / 2;
+
+  const credenzaX = 250 + (mainWidthMm - 1500) * 0.5;
+
+  const credenzaXPosition = resolved.side === 'RIGHT' ? credenzaX : -credenzaX;
+
+  //console.log('credenzaX ', credenzaX);
+
   return {
     type: 'leaderCredenza',
     subtype: `leader-credenza-${resolved.side.toLowerCase()}`,
@@ -28,10 +36,12 @@ export function createLeaderCredenza({
       heightMm: resolved.heightMm,
       billingLengthMm: resolved.billingLengthMm,
     },
+    //derecha x: 1500 : 250, para 1550: 275, para 1600: 300, para 1650 :  325 ,para 1700 : 350, para 1750: 375, para 1800 :400
+    //izquierda x: 1500: 250,  para
     position: {
-      x: sideSign * (mainWidthMm / 2 - resolved.depthMm / 2 + 260),
+      x: credenzaXPosition,
       y: 0,
-      z: -(mainDepthMm / 2 + resolved.requestedLengthMm / 2) + 1350,
+      z: profundidad, //-lengthMm + 300
     },
     rotation: {
       x: 0,

@@ -8178,6 +8178,7 @@ export default function ThreeCanvas({
       const worldPosition = new THREE.Vector3();
       group.getWorldPosition(worldPosition);
 
+      /*
       console.log('SUPERFICIE UBICADA', {
         subtype: incomingItem?.subtype || null,
 
@@ -8199,7 +8200,7 @@ export default function ThreeCanvas({
           z: group.rotation.z,
         },
       });
-
+*/
       parts.push({ code, obj: group });
       pickables.push(group);
 

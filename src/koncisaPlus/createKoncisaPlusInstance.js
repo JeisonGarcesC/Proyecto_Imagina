@@ -51,8 +51,8 @@ export async function createKoncisaPlusInstance({
     layoutType = config.layoutType || 'STANDARD',
   } = built || {};
 
-  console.log('Koncisa Plus config:', config);
-  console.log('Koncisa Plus result:', built);
+  //console.log('Koncisa Plus config:', config);
+  //console.log('Koncisa Plus result:', built);
   console.log('Koncisa Plus parts:', parts);
 
   const puestoGroup =
@@ -77,11 +77,13 @@ export async function createKoncisaPlusInstance({
     }
 
     const { widthMm, depthMm, thickMm } = surface.dimMm || {};
+    /*
     console.log('SUPERFICIE A CREAR', {
       subtype: surface.subtype,
       position: surface.position,
       rotation: surface.rotation,
     });
+    */
 
     api.addSurface?.(
       {
@@ -199,9 +201,7 @@ export async function createKoncisaPlusInstance({
     });
   }
 
-  for (const connector of parts.filter(
-    (part) => part.type === 'leaderCredenzaBeamDecoration'
-  )) {
+  for (const connector of parts.filter((part) => part.type === 'leaderCredenzaBeamDecoration')) {
     await api.addExternalGlbPart?.({
       ...connector,
       groupId: connector.groupId || groupId,
