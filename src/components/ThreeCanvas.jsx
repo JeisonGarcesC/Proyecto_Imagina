@@ -4196,6 +4196,8 @@ export default function ThreeCanvas({
         return parts.slice(previousLength).findLast(({ obj }) => obj)?.obj || null;
       },
       addExternalGlbPart,
+      addKoncisaLeaderCredenza: addExternalGlbPart,
+      addKoncisaLeaderCredenzaBeam: addExternalGlbPart,
       addNativeBlockPart,
       addKoncisaCostadoAssemblyPart,
       addKoncisaLeaderSkirtAssemblyPart,
@@ -9960,6 +9962,11 @@ export default function ThreeCanvas({
         );
 
         obj.rotation.set(part.rotation?.x || 0, part.rotation?.y || 0, part.rotation?.z || 0);
+        obj.scale.set(
+          Number(part.scale?.x ?? 1),
+          Number(part.scale?.y ?? 1),
+          Number(part.scale?.z ?? 1)
+        );
 
         const code = String(part.code || '').trim();
         const catalogItem = catalogByCodeRef.current?.get?.(code) || null;
@@ -9992,6 +9999,7 @@ export default function ThreeCanvas({
 
         obj.userData = {
           isPartRoot: true, //para usar las propiedades en los diferentes elementos
+          excludeFromBOM: part?.meta?.excludeFromBOM === true,
           code: code || null,
           codigoPT: code || null,
           kind: part.type || 'GLB_PART',

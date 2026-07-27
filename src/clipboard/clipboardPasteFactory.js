@@ -10,6 +10,8 @@ export const CLIPBOARD_CONSTRUCTORS = Object.freeze({
   ADD_KONCISA_COSTADO: 'ADD_KONCISA_COSTADO',
   ADD_KONCISA_LEADER_SKIRT: 'ADD_KONCISA_LEADER_SKIRT',
   ADD_KONCISA_ASSEMBLY: 'ADD_KONCISA_ASSEMBLY',
+  ADD_KONCISA_LEADER_CREDENZA: 'ADD_KONCISA_LEADER_CREDENZA',
+  ADD_KONCISA_LEADER_CREDENZA_BEAM: 'ADD_KONCISA_LEADER_CREDENZA_BEAM',
 });
 
 const KNOWN_CONSTRUCTORS = new Set(Object.values(CLIPBOARD_CONSTRUCTORS));
@@ -142,6 +144,20 @@ const instructionAdapters = [
       item.configuration?.model?.kind === 'koncisa-leader-skirt-assembly' ||
       item.metadata?.model?.kind === 'koncisa-leader-skirt-assembly',
     build: (item) => createBaseInstruction(item, CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_LEADER_SKIRT),
+  },
+  {
+    matches: (item) =>
+      item.configuration?.model?.kind === 'koncisa-leader-credenza-assembly' ||
+      item.metadata?.model?.kind === 'koncisa-leader-credenza-assembly',
+    build: (item) =>
+      createBaseInstruction(item, CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_LEADER_CREDENZA),
+  },
+  {
+    matches: (item) =>
+      item.configuration?.model?.kind === 'native-block' &&
+      item.metadata?.leaderRole === 'CREDENZA_BEAM',
+    build: (item) =>
+      createBaseInstruction(item, CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_LEADER_CREDENZA_BEAM),
   },
   {
     matches: (item) =>

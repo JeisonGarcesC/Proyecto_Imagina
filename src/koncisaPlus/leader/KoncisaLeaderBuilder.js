@@ -3,7 +3,8 @@
 import { createLeaderMainSurface, createLeaderReturnSurface } from './parts/leaderSurfaces';
 import { createCostado } from '../parts/costados';
 import { createViga } from '../parts/vigas';
-import { createLeaderMainBeam } from './parts/leaderBeams';
+import { createLeaderCredenzaBeamDecoration, createLeaderMainBeam } from './parts/leaderBeams';
+import { createLeaderCredenza } from './parts/leaderCredenzas';
 
 import { resolveLeaderCostadoWithOutlet } from './rules/leaderCostadoOutletRules';
 
@@ -38,6 +39,7 @@ export function buildKoncisaLeader(config = {}) {
     leaderReturnDepthMm = 600,
 
     leaderSide = 'RIGHT',
+    leaderCredenza = null,
 
     leaderMainCostadoForma = 'RECT',
     leaderJunctionHasOutletBox = false,
@@ -64,6 +66,14 @@ export function buildKoncisaLeader(config = {}) {
       .toUpperCase() === 'LEFT'
       ? 'LEFT'
       : 'RIGHT';
+  const leaderCredenzaEnabled = leaderCredenza?.enabled === true;
+  const credenzaSide =
+    String(leaderCredenza?.side || sideKey)
+      .trim()
+      .toUpperCase() === 'LEFT'
+      ? 'LEFT'
+      : 'RIGHT';
+  const credenzaLengthMm = Math.min(1800, Math.max(1500, Number(leaderCredenza?.lengthMm) || 1500));
 
   const mainSurface = createLeaderMainSurface({
     groupId,
@@ -82,6 +92,19 @@ export function buildKoncisaLeader(config = {}) {
   });
 
   parts.push(mainSurface);
+
+  if (leaderCredenzaEnabled) {
+    parts.push(
+      createLeaderCredenza({
+        groupId,
+        groupName,
+        side: credenzaSide,
+        lengthMm: credenzaLengthMm,
+        mainWidthMm: leaderMainWidthMm,
+        mainDepthMm: leaderMainDepthMm,
+      })
+    );
+  }
 
   const returnX =
     sideKey === 'RIGHT'
@@ -102,26 +125,28 @@ export function buildKoncisaLeader(config = {}) {
 
   const returnZ = -(leaderMainDepthMm / 2 + leaderReturnLengthMm / 2);
 
-  const returnSurface = createLeaderReturnSurface({
-    groupId,
-    groupName,
+  if (!leaderCredenzaEnabled) {
+    const returnSurface = createLeaderReturnSurface({
+      groupId,
+      groupName,
 
-    side: sideKey,
+      side: sideKey,
 
-    lengthMm: leaderReturnLengthMm,
-    depthMm: leaderReturnDepthMm,
-    thickMm,
+      lengthMm: leaderReturnLengthMm,
+      depthMm: leaderReturnDepthMm,
+      thickMm,
 
-    x: returnX,
-    y: 710,
-    z: returnZ,
+      x: returnX,
+      y: 710,
+      z: returnZ,
 
-    rotY: sideKey === 'RIGHT' ? Math.PI / 2 : -Math.PI / 2,
+      rotY: sideKey === 'RIGHT' ? Math.PI / 2 : -Math.PI / 2,
 
-    hasGrommetBox: leaderHasGrommetBox,
-  });
+      hasGrommetBox: leaderHasGrommetBox,
+    });
 
-  parts.push(returnSurface);
+    parts.push(returnSurface);
+  }
 
   // =====================================================
   // FALDA DE LA SUPERFICIE PRINCIPAL
@@ -303,21 +328,23 @@ export function buildKoncisaLeader(config = {}) {
 
   junctionCostado.replaceKey = `KONCISA_LEADER_MAIN_RETURN_${sideKey}`;
 
-  parts.push(junctionCostado);
+  if (!leaderCredenzaEnabled) {
+    parts.push(junctionCostado);
 
-  //Si está activada y existe la regla, sustituye solo los datos comerciales:
-  if (leaderJunctionHasOutletBox && outletResolved?.exists) {
-    junctionCostado.code = outletResolved.codigoPT;
+    // Si está activada y existe la regla, sustituye solo los datos comerciales.
+    if (leaderJunctionHasOutletBox && outletResolved?.exists) {
+      junctionCostado.code = outletResolved.codigoPT;
 
-    junctionCostado.rawCodigoPT = outletResolved.codigoPT;
+      junctionCostado.rawCodigoPT = outletResolved.codigoPT;
 
-    junctionCostado.logicalCode = outletResolved.logicalCode;
+      junctionCostado.logicalCode = outletResolved.logicalCode;
 
-    junctionCostado.existsInCatalog = true;
+      junctionCostado.existsInCatalog = true;
 
-    junctionCostado.name = outletResolved.isSpecial
-      ? `${outletResolved.descriptionPrefix} Costado ${leaderMainCostadoForma} con caja de tomas ${outletResolved.billingDepthMm} - ${outletResolved.descriptionSuffix}`
-      : `Costado ${leaderMainCostadoForma} con caja de tomas ${outletResolved.billingDepthMm}`;
+      junctionCostado.name = outletResolved.isSpecial
+        ? `${outletResolved.descriptionPrefix} Costado ${leaderMainCostadoForma} con caja de tomas ${outletResolved.billingDepthMm} - ${outletResolved.descriptionSuffix}`
+        : `Costado ${leaderMainCostadoForma} con caja de tomas ${outletResolved.billingDepthMm}`;
+    }
   }
 
   //const returnCostadoSide = sideKey === 'RIGHT' ? 'der' : 'izq';
@@ -412,62 +439,59 @@ export function buildKoncisaLeader(config = {}) {
   const returnCostadoSide = 'izq';
 
   //posicion de los costados de puesto lider, superficie extra.
-  const returnTerminalCostado = createCostado({
-    groupId,
-    groupName,
+  if (!leaderCredenzaEnabled) {
+    const returnTerminalCostado = createCostado({
+      groupId,
+      groupName,
 
-    tipo: 'terminal',
-    tipoPuesto: 'sencillo',
+      tipo: 'terminal',
+      tipoPuesto: 'sencillo',
 
-    depthMm: leaderReturnDepthMm,
+      depthMm: leaderReturnDepthMm,
 
-    forma: leaderMainCostadoForma,
-    lado: returnCostadoSide,
+      forma: leaderMainCostadoForma,
+      lado: returnCostadoSide,
 
-    x: returnX,
-    y: 0,
-    z: -leaderReturnLengthMm,
-  });
+      x: returnX,
+      y: 0,
+      z: -leaderReturnLengthMm,
+    });
 
-  returnTerminalCostado.rotation = {
-    ...(returnTerminalCostado.rotation || {}),
-    x: 0,
+    returnTerminalCostado.rotation = {
+      ...(returnTerminalCostado.rotation || {}),
+      x: 0,
 
-    y: sideKey === 'RIGHT' ? -Math.PI / 2 : -Math.PI / 2,
+      y: sideKey === 'RIGHT' ? -Math.PI / 2 : -Math.PI / 2,
 
-    z: 0,
-  };
+      z: 0,
+    };
 
-  returnTerminalCostado.meta = {
-    ...(returnTerminalCostado.meta || {}),
+    returnTerminalCostado.meta = {
+      ...(returnTerminalCostado.meta || {}),
 
-    layoutType: 'LEADER',
-    leaderRole: 'RETURN_END',
+      layoutType: 'LEADER',
+      leaderRole: 'RETURN_END',
 
-    moduleIndex: 0,
-    replaceZone: 'RETURN_END',
+      moduleIndex: 0,
+      replaceZone: 'RETURN_END',
 
-    pedestalTarget: true,
-    hasOutletBox: false,
+      pedestalTarget: true,
+      hasOutletBox: false,
 
-    /*
-     * Guardamos ambos conceptos:
-     * - lado local: orientación usada para construir el costado;
-     * - leaderSide: ubicación global del retorno.
-     */
-    localCostadoSide: returnCostadoSide,
-    leaderSide: sideKey,
-  };
+      localCostadoSide: returnCostadoSide,
+      leaderSide: sideKey,
+    };
 
-  enableBoundedDepthForLeaderRect(returnTerminalCostado, {
-    x: returnTerminalX,
-    y: 0,
-    z: returnTerminalZ,
-  });
+    enableBoundedDepthForLeaderRect(returnTerminalCostado, {
+      x: returnTerminalX,
+      y: 0,
+      z: returnTerminalZ,
+    });
 
-  returnTerminalCostado.replaceKey = 'KONCISA_LEADER_RETURN_END';
+    returnTerminalCostado.replaceKey = 'KONCISA_LEADER_RETURN_END';
 
-  parts.push(returnTerminalCostado);
+    parts.push(returnTerminalCostado);
+  }
 
   //Viga puesto lider
 
@@ -476,7 +500,8 @@ export function buildKoncisaLeader(config = {}) {
     groupName,
 
     realMainWidthMm: leaderMainWidthMm,
-    hasOutletBox: leaderJunctionHasOutletBox,
+    hasOutletBox: leaderCredenzaEnabled || leaderJunctionHasOutletBox,
+    hasCredenza: leaderCredenzaEnabled,
 
     x: 0,
     y: 685,
@@ -485,6 +510,20 @@ export function buildKoncisaLeader(config = {}) {
   });
 
   parts.push(mainBeam);
+
+  if (leaderCredenzaEnabled) {
+    parts.push(
+      createLeaderCredenzaBeamDecoration({
+        groupId,
+        groupName,
+        side: credenzaSide,
+        beamLengthMm: mainBeam.dimMm.widthMm,
+        x: mainBeam.position.x,
+        y: mainBeam.position.y,
+        z: mainBeam.position.z,
+      })
+    );
+  }
 
   /*
   parts.push({
@@ -538,77 +577,76 @@ export function buildKoncisaLeader(config = {}) {
   // Código: 22000109449
   // =====================================================
 
-  const unionCenterX =
-    sideKey === 'RIGHT'
-      ? leaderMainWidthMm / 2 - leaderReturnDepthMm / 2
-      : -leaderMainWidthMm / 2 + leaderReturnDepthMm / 2;
+  if (!leaderCredenzaEnabled) {
+    const unionCenterX =
+      sideKey === 'RIGHT'
+        ? leaderMainWidthMm / 2 - leaderReturnDepthMm / 2
+        : -leaderMainWidthMm / 2 + leaderReturnDepthMm / 2;
 
-  const unionCenterZ = -leaderMainDepthMm / 2 + 85;
+    const unionCenterZ = -leaderMainDepthMm / 2 + 85;
+    const unionPlateSeparationMm = 190;
+    const unionPlateOffsetsMm = [-unionPlateSeparationMm / 2, unionPlateSeparationMm / 2];
 
-  // Separación visual entre las dos láminas.
-  const unionPlateSeparationMm = 100;
+    unionPlateOffsetsMm.forEach((offsetMm, index) => {
+      parts.push({
+        type: 'leaderUnionSupport',
+        subtype: 'surface-junction',
+        line: 'KONCISA.PLUS',
 
-  const unionPlateOffsetsMm = [-unionPlateSeparationMm / 2, unionPlateSeparationMm / 2];
+        groupId,
+        groupName,
 
-  unionPlateOffsetsMm.forEach((offsetMm, index) => {
-    parts.push({
-      type: 'leaderUnionSupport',
-      subtype: 'surface-junction',
-      line: 'KONCISA.PLUS',
+        code: '22000109449',
+        rawCodigoPT: '22000109449',
 
-      groupId,
-      groupName,
+        logicalCode: `KONCISA_LEADER_UNION_SUPPORT_${index + 1}`,
 
-      code: '22000109449',
-      rawCodigoPT: '22000109449',
+        existsInCatalog: true,
 
-      logicalCode: `KONCISA_LEADER_UNION_SUPPORT_${index + 1}`,
+        name: 'LAMINA DE UNION SUPERFICIES ACCESORIO MULTIPLE MAC390020',
 
-      existsInCatalog: true,
+        // Según la tabla:
+        // largo 15 cm, alto 9 cm y profundidad 8.5 cm.
+        dimMm: {
+          widthMm: 150,
+          heightMm: 9,
+          depthMm: 85,
+        },
 
-      name: 'LAMINA DE UNION SUPERFICIES ACCESORIO MULTIPLE MAC390020',
+        position: {
+          x: sideKey === 'RIGHT' ? unionCenterX + offsetMm : unionCenterX - offsetMm,
 
-      // Según la tabla:
-      // largo 15 cm, alto 9 cm y profundidad 8.5 cm.
-      dimMm: {
-        widthMm: 150,
-        heightMm: 9,
-        depthMm: 85,
-      },
+          // Debe quedar debajo o contra la superficie.
+          // Ajusta este valor visualmente si es necesario.
+          y: 695 + 10,
 
-      position: {
-        x: sideKey === 'RIGHT' ? unionCenterX + offsetMm : unionCenterX - offsetMm,
+          z: unionCenterZ - 90,
+        },
 
-        // Debe quedar debajo o contra la superficie.
-        // Ajusta este valor visualmente si es necesario.
-        y: 695,
+        rotation: {
+          x: 0,
+          y: 0,
+          z: 0,
+        },
 
-        z: unionCenterZ,
-      },
+        model: {
+          kind: 'native-block',
+          src: null,
+        },
 
-      rotation: {
-        x: 0,
-        y: 0,
-        z: 0,
-      },
+        meta: {
+          category: 'leader-supports',
+          layoutType: 'LEADER',
+          leaderRole: 'SURFACE_JUNCTION',
 
-      model: {
-        kind: 'native-block',
-        src: null,
-      },
+          unionPlateIndex: index,
 
-      meta: {
-        category: 'leader-supports',
-        layoutType: 'LEADER',
-        leaderRole: 'SURFACE_JUNCTION',
-
-        unionPlateIndex: index,
-
-        // Debe entrar en el BOM.
-        excludeFromBOM: false,
-      },
+          // Debe entrar en el BOM.
+          excludeFromBOM: false,
+        },
+      });
     });
-  });
+  }
 
   return {
     groupId,

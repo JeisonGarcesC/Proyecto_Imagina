@@ -124,6 +124,11 @@ export default function KoncisaPlusPanel({ onCreate }) {
         leaderReturnDepthMm,
 
         leaderSide,
+        leaderCredenza: {
+          enabled: leaderCredenzaEnabled,
+          side: leaderSide,
+          lengthMm: leaderCredenzaLengthMm,
+        },
 
         leaderMainCostadoForma,
         leaderJunctionHasOutletBox,
@@ -270,6 +275,8 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderReturnDepthMm, setLeaderReturnDepthMm] = useState(600);
 
   const [leaderSide, setLeaderSide] = useState('RIGHT');
+  const [leaderCredenzaEnabled, setLeaderCredenzaEnabled] = useState(false);
+  const [leaderCredenzaLengthMm, setLeaderCredenzaLengthMm] = useState(1500);
   const [leaderMaterialType, setLeaderMaterialType] = useState('FORMICA');
 
   const [leaderHasGrommetBox, setLeaderHasGrommetBox] = useState(false);
@@ -437,10 +444,21 @@ export default function KoncisaPlusPanel({ onCreate }) {
               gap: 10,
             }}
           >
-            <div style={{ fontWeight: 700 }}>Superficie de retorno</div>
+            <div style={{ fontWeight: 700 }}>
+              {leaderCredenzaEnabled ? 'Credenza' : 'Superficie de retorno'}
+            </div>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={leaderCredenzaEnabled}
+                onChange={(e) => setLeaderCredenzaEnabled(e.target.checked)}
+              />{' '}
+              Sustituir retorno por credenza
+            </label>
 
             <div>
-              <label>Lado del retorno</label>
+              <label>{leaderCredenzaEnabled ? 'Lado de la credenza' : 'Lado del retorno'}</label>
 
               <select
                 value={leaderSide}
@@ -452,42 +470,58 @@ export default function KoncisaPlusPanel({ onCreate }) {
               </select>
             </div>
 
-            <div>
-              <label>Largo del retorno</label>
+            {leaderCredenzaEnabled ? (
+              <div>
+                <label>Largo de la credenza</label>
+                <select
+                  value={leaderCredenzaLengthMm}
+                  onChange={(e) => setLeaderCredenzaLengthMm(Number(e.target.value))}
+                  style={{ width: '100%' }}
+                >
+                  <option value={1500}>1500 mm</option>
+                  <option value={1800}>1800 mm</option>
+                </select>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label>Largo del retorno</label>
 
-              <select
-                value={leaderReturnLengthMm}
-                onChange={(e) => setLeaderReturnLengthMm(Number(e.target.value))}
-                style={{ width: '100%' }}
-              >
-                {leaderReturnLengthOptions.map((value) => (
-                  <option key={value} value={value}>
-                    {value} mm
-                  </option>
-                ))}
-              </select>
-            </div>
+                  <select
+                    value={leaderReturnLengthMm}
+                    onChange={(e) => setLeaderReturnLengthMm(Number(e.target.value))}
+                    style={{ width: '100%' }}
+                  >
+                    {leaderReturnLengthOptions.map((value) => (
+                      <option key={value} value={value}>
+                        {value} mm
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div>
-              <label>Profundidad del retorno</label>
+                <div>
+                  <label>Profundidad del retorno</label>
 
-              <select
-                value={leaderReturnDepthMm}
-                onChange={(e) => setLeaderReturnDepthMm(Number(e.target.value))}
-                style={{ width: '100%' }}
-              >
-                <option value={600}>600 mm</option>
-              </select>
-            </div>
+                  <select
+                    value={leaderReturnDepthMm}
+                    onChange={(e) => setLeaderReturnDepthMm(Number(e.target.value))}
+                    style={{ width: '100%' }}
+                  >
+                    <option value={600}>600 mm</option>
+                  </select>
+                </div>
 
-            <label>
-              <input
-                type="checkbox"
-                checked={leaderHasGrommetBox}
-                onChange={(e) => setLeaderHasGrommetBox(e.target.checked)}
-              />{' '}
-              Incluir caja para grommet
-            </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={leaderHasGrommetBox}
+                    onChange={(e) => setLeaderHasGrommetBox(e.target.checked)}
+                  />{' '}
+                  Incluir caja para grommet
+                </label>
+              </>
+            )}
           </div>
 
           <div
@@ -592,7 +626,9 @@ export default function KoncisaPlusPanel({ onCreate }) {
             </div>
 
             <div>
-              Retorno: {leaderReturnLengthMm} × {leaderReturnDepthMm} mm
+              {leaderCredenzaEnabled
+                ? `Credenza: ${leaderCredenzaLengthMm} × 500 × 640 mm`
+                : `Retorno: ${leaderReturnLengthMm} × ${leaderReturnDepthMm} mm`}
             </div>
 
             <div>Lado: {leaderSide === 'RIGHT' ? 'Derecho' : 'Izquierdo'}</div>
@@ -601,7 +637,9 @@ export default function KoncisaPlusPanel({ onCreate }) {
               Material: {leaderMaterialType === 'FORMICA' ? 'Fórmica 30 mm' : 'Melamina 25 mm'}
             </div>
 
-            <div>Caja para grommet: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
+            {!leaderCredenzaEnabled && (
+              <div>Caja para grommet: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
+            )}
           </div>
 
           <button type="button" onClick={handleCreate}>

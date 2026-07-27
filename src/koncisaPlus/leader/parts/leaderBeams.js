@@ -8,6 +8,7 @@ export function createLeaderMainBeam({
 
   realMainWidthMm = 1500,
   hasOutletBox = false,
+  hasCredenza = false,
 
   x = 0,
   y = 650,
@@ -16,11 +17,12 @@ export function createLeaderMainBeam({
   const resolved = resolveKoncisaLeaderMainBeam({
     realMainWidthMm,
     hasOutletBox,
+    hasCredenza,
   });
 
   const isSpecial = !!resolved?.isSpecial;
 
-  const outletBoxNote = hasOutletBox ? 'pag 19, nominal + 15' : '';
+  const outletBoxNote = hasOutletBox && !hasCredenza ? 'pag 19, nominal + 15' : '';
 
   const baseName = `Viga principal líder ${resolved?.billingWidthMm || realMainWidthMm}`;
 
@@ -35,7 +37,11 @@ export function createLeaderMainBeam({
   return {
     type: 'viga',
 
-    subtype: hasOutletBox ? 'leader-main-outlet' : 'leader-main',
+    subtype: hasCredenza
+      ? 'leader-main-credenza'
+      : hasOutletBox
+        ? 'leader-main-outlet'
+        : 'leader-main',
 
     line: 'KONCISA.PLUS',
 
@@ -82,6 +88,7 @@ export function createLeaderMainBeam({
       leaderRole: 'MAIN_BEAM',
 
       hasOutletBox,
+      hasCredenza,
 
       realWidthMm: realMainWidthMm,
       billingWidthMm: resolved?.billingWidthMm || realMainWidthMm,
@@ -93,6 +100,71 @@ export function createLeaderMainBeam({
       descriptionSuffix: resolved?.descriptionSuffix || '',
 
       descriptionNote: outletBoxNote,
+    },
+  };
+}
+
+export function createLeaderCredenzaBeamDecoration({
+  groupId,
+  groupName,
+  side = 'RIGHT',
+  beamLengthMm = 1260,
+  x = 0,
+  y = 685,
+  z = 0,
+} = {}) {
+  const normalizedSide = String(side || '').trim().toUpperCase() === 'LEFT' ? 'LEFT' : 'RIGHT';
+  const sideSign = normalizedSide === 'RIGHT' ? 1 : -1;
+  const rotationY = normalizedSide === 'RIGHT' ? -Math.PI / 2 : Math.PI / 2;
+  const modelCenterMm = {
+    x: 266.8028,
+    y: -1103.6225,
+    z: -1115.6536,
+  };
+  const rotatedCenterX =
+    modelCenterMm.x * Math.cos(rotationY) + modelCenterMm.z * Math.sin(rotationY);
+  const rotatedCenterZ =
+    -modelCenterMm.x * Math.sin(rotationY) + modelCenterMm.z * Math.cos(rotationY);
+  const targetX = x + sideSign * (beamLengthMm / 2 + 75);
+
+  return {
+    type: 'leaderCredenzaBeamDecoration',
+    subtype: 'leader-credenza-beam-decoration',
+    line: 'KONCISA.PLUS',
+    groupId,
+    groupName,
+    code: null,
+    logicalCode: null,
+    existsInCatalog: false,
+    name: 'Conector visual de viga a credenza',
+    dimMm: {
+      widthMm: 150,
+      heightMm: 50,
+      depthMm: 25.4,
+    },
+    position: {
+      x: targetX - rotatedCenterX,
+      y: y - modelCenterMm.y,
+      z: z - rotatedCenterZ,
+    },
+    rotation: {
+      x: 0,
+      y: rotationY,
+      z: 0,
+    },
+    model: {
+      kind: 'glb',
+      src: '/assets/models/koncisaPlus/2KSO382000_VigaConectora.glb',
+    },
+    meta: {
+      category: 'leader-beam-components',
+      layoutType: 'LEADER',
+      leaderRole: 'CREDENZA_BEAM',
+      side: normalizedSide,
+      decorative: true,
+      excludeFromBOM: true,
+      modelCenterMm,
+      targetPositionMm: { x: targetX, y, z },
     },
   };
 }

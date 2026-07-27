@@ -38,6 +38,23 @@ export const KONCISA_LEADER_MAIN_BEAM_RULES = {
       physicalLengthMm: 1560,
     },
   },
+  WITH_CREDENZA: {
+    1500: {
+      logicalCode: 'KONCISA_LEADER_CREDENZA_BEAM_1500',
+      codigoPT: '22000137107',
+      physicalLengthMm: 1260,
+    },
+    1650: {
+      logicalCode: 'KONCISA_LEADER_CREDENZA_BEAM_1650',
+      codigoPT: '22000137108',
+      physicalLengthMm: 1410,
+    },
+    1800: {
+      logicalCode: 'KONCISA_LEADER_CREDENZA_BEAM_1800',
+      codigoPT: '22000137109',
+      physicalLengthMm: 1560,
+    },
+  },
 };
 
 function ceilLeaderMainWidth(realWidthMm) {
@@ -51,10 +68,18 @@ function ceilLeaderMainWidth(realWidthMm) {
   return null;
 }
 
-export function resolveKoncisaLeaderMainBeam({ realMainWidthMm = 1500, hasOutletBox = false }) {
+export function resolveKoncisaLeaderMainBeam({
+  realMainWidthMm = 1500,
+  hasOutletBox = false,
+  hasCredenza = false,
+}) {
   const billingWidthMm = ceilLeaderMainWidth(realMainWidthMm);
 
-  const groupKey = hasOutletBox ? 'WITH_OUTLET_BOX' : 'WITHOUT_OUTLET_BOX';
+  const groupKey = hasCredenza
+    ? 'WITH_CREDENZA'
+    : hasOutletBox
+      ? 'WITH_OUTLET_BOX'
+      : 'WITHOUT_OUTLET_BOX';
 
   const found = billingWidthMm
     ? KONCISA_LEADER_MAIN_BEAM_RULES[groupKey]?.[billingWidthMm] || null
@@ -71,7 +96,6 @@ export function resolveKoncisaLeaderMainBeam({ realMainWidthMm = 1500, hasOutlet
     billingWidthMm,
 
     physicalLengthMm: found?.physicalLengthMm || null,
-
     isSpecial,
 
     descriptionPrefix: isSpecial ? 'ESPECIAL -' : '',

@@ -137,6 +137,19 @@ export async function createKoncisaPlusInstance({
     });
   }
 
+  for (const credenza of parts.filter((part) => part.type === 'leaderCredenza')) {
+    if (!credenza?.code || !credenza?.model?.src) {
+      notify(`No tenemos disponible esta credenza: ${credenza?.logicalCode || 'sin código'}`);
+      continue;
+    }
+    await api.addExternalGlbPart?.({
+      ...credenza,
+      groupId: credenza.groupId || groupId,
+      groupName: credenza.groupName || groupName,
+      parentGroup: puestoGroup,
+    });
+  }
+
   for (const costado of parts.filter((part) => part.type === 'costado')) {
     if (!costado?.code) {
       notify(`No tenemos disponible este costado: ${costado?.logicalCode || 'sin código lógico'}`);
@@ -182,6 +195,17 @@ export async function createKoncisaPlusInstance({
       ...viga,
       groupId: viga.groupId || groupId,
       groupName: viga.groupName || groupName,
+      parentGroup: puestoGroup,
+    });
+  }
+
+  for (const connector of parts.filter(
+    (part) => part.type === 'leaderCredenzaBeamDecoration'
+  )) {
+    await api.addExternalGlbPart?.({
+      ...connector,
+      groupId: connector.groupId || groupId,
+      groupName: connector.groupName || groupName,
       parentGroup: puestoGroup,
     });
   }

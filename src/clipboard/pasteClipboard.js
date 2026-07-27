@@ -68,6 +68,10 @@ async function executeInstruction(api, instruction) {
       return api.addKoncisaCostadoAssemblyPart?.(payload);
     case CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_LEADER_SKIRT:
       return api.addKoncisaLeaderSkirtAssemblyPart?.(payload);
+    case CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_LEADER_CREDENZA:
+      return api.addKoncisaLeaderCredenza?.(payload);
+    case CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_LEADER_CREDENZA_BEAM:
+      return api.addKoncisaLeaderCredenzaBeam?.(payload);
     case CLIPBOARD_CONSTRUCTORS.ADD_SURFACE: {
       const procedural = payload.procedural || {};
       const dim = payload.dim || payload.dimMm || {};
