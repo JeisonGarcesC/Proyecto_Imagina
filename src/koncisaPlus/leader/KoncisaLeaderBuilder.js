@@ -3,6 +3,7 @@
 import { createLeaderMainSurface, createLeaderReturnSurface } from './parts/leaderSurfaces';
 import { createCostado } from '../parts/costados';
 import { createViga } from '../parts/vigas';
+import { createGrommet } from '../parts/grommets';
 import { createLeaderCredenzaBeamDecoration, createLeaderMainBeam } from './parts/leaderBeams';
 import { createLeaderCredenza } from './parts/leaderCredenzas';
 
@@ -24,6 +25,51 @@ function enableBoundedDepthForLeaderRect(costado, rootPositionMm) {
   };
 
   return costado;
+}
+
+//posicion del grommet puesto lider
+function createLeaderSurfaceGrommet({
+  groupId,
+  groupName,
+  surfaceRole,
+  position = 'CENTER',
+  finish = 'ALUMINIUM',
+  widthMm,
+  depthMm,
+  centerX,
+  centerZ,
+  rotationY = 0,
+}) {
+  const positionKey = String(position || 'CENTER')
+    .trim()
+    .toUpperCase();
+  const localX = positionKey === 'LEFT' ? -widthMm / 4 : positionKey === 'RIGHT' ? widthMm / 4 : 0;
+  const localZ = depthMm <= 600 ? -190 : -255;
+  const cos = Math.cos(rotationY);
+  const sin = Math.sin(rotationY);
+  const x = centerX + localX * cos + localZ * sin;
+  const z = centerZ - localX * sin + localZ * cos;
+  const grommet = createGrommet({
+    groupId,
+    groupName,
+    finish,
+    diameterMm: 80,
+    x,
+    y: 740,
+    z,
+    rotY: rotationY,
+  });
+
+  grommet.meta = {
+    ...(grommet.meta || {}),
+    layoutType: 'LEADER',
+    leaderRole: `${surfaceRole}_GROMMET`,
+    targetSurfaceRole: surfaceRole,
+    position: positionKey,
+    localPositionMm: { x: localX, z: localZ },
+  };
+
+  return grommet;
 }
 
 export function buildKoncisaLeader(config = {}) {
@@ -49,6 +95,8 @@ export function buildKoncisaLeader(config = {}) {
     finishCode = '22008689',
 
     leaderHasGrommetBox = false,
+    leaderMainGrommet = null,
+    leaderReturnGrommet = null,
 
     // Falda principal
     leaderHasSkirt = false,
@@ -92,6 +140,23 @@ export function buildKoncisaLeader(config = {}) {
   });
 
   parts.push(mainSurface);
+
+  if (leaderMainGrommet?.enabled === true) {
+    parts.push(
+      createLeaderSurfaceGrommet({
+        groupId,
+        groupName,
+        surfaceRole: 'MAIN',
+        position: leaderMainGrommet.position,
+        finish: leaderMainGrommet.finish,
+        widthMm: leaderMainWidthMm,
+        depthMm: leaderMainDepthMm,
+        centerX: mainSurface.position.x,
+        centerZ: mainSurface.position.z,
+        rotationY: mainSurface.rotation.y,
+      })
+    );
+  }
 
   if (leaderCredenzaEnabled) {
     parts.push(
@@ -146,6 +211,26 @@ export function buildKoncisaLeader(config = {}) {
     });
 
     parts.push(returnSurface);
+
+    const returnGrommetEnabled =
+      leaderReturnGrommet?.enabled === true ||
+      (leaderReturnGrommet == null && leaderHasGrommetBox === true);
+    if (returnGrommetEnabled) {
+      parts.push(
+        createLeaderSurfaceGrommet({
+          groupId,
+          groupName,
+          surfaceRole: 'RETURN',
+          position: leaderReturnGrommet?.position,
+          finish: leaderReturnGrommet?.finish,
+          widthMm: leaderReturnLengthMm,
+          depthMm: leaderReturnDepthMm,
+          centerX: returnSurface.position.x,
+          centerZ: returnSurface.position.z,
+          rotationY: returnSurface.rotation.y,
+        })
+      );
+    }
   }
 
   // =====================================================

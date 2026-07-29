@@ -139,6 +139,16 @@ export default function KoncisaPlusPanel({ onCreate }) {
         finishCode: leaderMaterialType === 'FORMICA' ? '22008689' : '22015137',
 
         leaderHasGrommetBox,
+        leaderMainGrommet: {
+          enabled: leaderMainGrommetEnabled,
+          position: leaderMainGrommetPosition,
+          finish: grommetFinish,
+        },
+        leaderReturnGrommet: {
+          enabled: !leaderCredenzaEnabled && leaderHasGrommetBox,
+          position: leaderReturnGrommetPosition,
+          finish: grommetFinish,
+        },
         // Falda
         leaderHasSkirt,
 
@@ -280,6 +290,9 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderMaterialType, setLeaderMaterialType] = useState('FORMICA');
 
   const [leaderHasGrommetBox, setLeaderHasGrommetBox] = useState(false);
+  const [leaderMainGrommetEnabled, setLeaderMainGrommetEnabled] = useState(false);
+  const [leaderMainGrommetPosition, setLeaderMainGrommetPosition] = useState('CENTER');
+  const [leaderReturnGrommetPosition, setLeaderReturnGrommetPosition] = useState('CENTER');
   // Falda puesto líder
   const [leaderHasSkirt, setLeaderHasSkirt] = useState(false);
 
@@ -512,15 +525,88 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   </select>
                 </div>
 
+              </>
+            )}
+          </div>
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 8,
+              padding: 10,
+              background: '#fff',
+              display: 'grid',
+              gap: 10,
+            }}
+          >
+            <div style={{ fontWeight: 700 }}>Grommets</div>
+
+            <label>
+              <input
+                type="checkbox"
+                checked={leaderMainGrommetEnabled}
+                onChange={(e) => setLeaderMainGrommetEnabled(e.target.checked)}
+              />{' '}
+              Incluir en superficie principal
+            </label>
+
+            {leaderMainGrommetEnabled && (
+              <div>
+                <label>Posición en superficie principal</label>
+                <select
+                  value={leaderMainGrommetPosition}
+                  onChange={(e) => setLeaderMainGrommetPosition(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <option value="LEFT">Izquierda</option>
+                  <option value="CENTER">Centro</option>
+                  <option value="RIGHT">Derecha</option>
+                </select>
+              </div>
+            )}
+
+            {!leaderCredenzaEnabled && (
+              <>
                 <label>
                   <input
                     type="checkbox"
                     checked={leaderHasGrommetBox}
                     onChange={(e) => setLeaderHasGrommetBox(e.target.checked)}
                   />{' '}
-                  Incluir caja para grommet
+                  Incluir en superficie de retorno
                 </label>
+
+                {leaderHasGrommetBox && (
+                  <div>
+                    <label>Posición en superficie de retorno</label>
+                    <select
+                      value={leaderReturnGrommetPosition}
+                      onChange={(e) => setLeaderReturnGrommetPosition(e.target.value)}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="LEFT">Izquierda</option>
+                      <option value="CENTER">Centro</option>
+                      <option value="RIGHT">Derecha</option>
+                    </select>
+                  </div>
+                )}
               </>
+            )}
+
+            {(leaderMainGrommetEnabled || (!leaderCredenzaEnabled && leaderHasGrommetBox)) && (
+              <div>
+                <label>Acabado</label>
+                <select
+                  value={grommetFinish}
+                  onChange={(e) => setGrommetFinish(e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  <option value="ALUMINIUM">Aluminium</option>
+                  <option value="PAINTED">Painted</option>
+                  <option value="METALICO">Metálico</option>
+                  <option value="ALUMINIUM_PINTADO">Aluminium pintado</option>
+                </select>
+              </div>
             )}
           </div>
 
@@ -637,8 +723,9 @@ export default function KoncisaPlusPanel({ onCreate }) {
               Material: {leaderMaterialType === 'FORMICA' ? 'Fórmica 30 mm' : 'Melamina 25 mm'}
             </div>
 
+            <div>Grommet principal: {leaderMainGrommetEnabled ? 'Sí' : 'No'}</div>
             {!leaderCredenzaEnabled && (
-              <div>Caja para grommet: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
+              <div>Grommet retorno: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
             )}
           </div>
 
