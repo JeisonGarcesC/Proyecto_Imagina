@@ -126,6 +126,23 @@ export async function createKoncisaPlusInstance({
     });
   }
 
+  for (const outletBox of parts.filter(
+    (part) => part.type === 'GLB_PART' && part.subtype === 'return-surface-grommet-outlet-box'
+  )) {
+    if (!outletBox?.code || !outletBox?.model?.src) {
+      notify(
+        `No tenemos disponible esta caja de tomas: ${outletBox?.logicalCode || 'sin código lógico'}`
+      );
+      continue;
+    }
+    await api.addExternalGlbPart?.({
+      ...outletBox,
+      groupId: outletBox.groupId || groupId,
+      groupName: outletBox.groupName || groupName,
+      parentGroup: puestoGroup,
+    });
+  }
+
   for (const pasacable of parts.filter((part) => part.type === 'pasacable')) {
     if (!pasacable.code) {
       notify(`No tenemos disponible este pasacable: ${pasacable.logicalCode}`);

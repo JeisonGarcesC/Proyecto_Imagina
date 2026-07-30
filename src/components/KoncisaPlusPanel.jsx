@@ -149,6 +149,14 @@ export default function KoncisaPlusPanel({ onCreate }) {
           position: leaderReturnGrommetPosition,
           finish: grommetFinish,
         },
+        leaderMainFloorDuct: {
+          enabled: leaderMainFloorDuctEnabled,
+          position: leaderMainGrommetPosition,
+        },
+        leaderReturnFloorDuct: {
+          enabled: !leaderCredenzaEnabled && leaderReturnFloorDuctEnabled,
+          position: leaderReturnGrommetPosition,
+        },
         // Falda
         leaderHasSkirt,
 
@@ -293,6 +301,8 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderMainGrommetEnabled, setLeaderMainGrommetEnabled] = useState(false);
   const [leaderMainGrommetPosition, setLeaderMainGrommetPosition] = useState('CENTER');
   const [leaderReturnGrommetPosition, setLeaderReturnGrommetPosition] = useState('CENTER');
+  const [leaderMainFloorDuctEnabled, setLeaderMainFloorDuctEnabled] = useState(false);
+  const [leaderReturnFloorDuctEnabled, setLeaderReturnFloorDuctEnabled] = useState(false);
   // Falda puesto líder
   const [leaderHasSkirt, setLeaderHasSkirt] = useState(false);
 
@@ -550,7 +560,16 @@ export default function KoncisaPlusPanel({ onCreate }) {
               Incluir en superficie principal
             </label>
 
-            {leaderMainGrommetEnabled && (
+            <label>
+              <input
+                type="checkbox"
+                checked={leaderMainFloorDuctEnabled}
+                onChange={(e) => setLeaderMainFloorDuctEnabled(e.target.checked)}
+              />{' '}
+              Incluir ducto bajante bajo superficie principal
+            </label>
+
+            {(leaderMainGrommetEnabled || leaderMainFloorDuctEnabled) && (
               <div>
                 <label>Posición en superficie principal</label>
                 <select
@@ -576,7 +595,16 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   Incluir en superficie de retorno
                 </label>
 
-                {leaderHasGrommetBox && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={leaderReturnFloorDuctEnabled}
+                    onChange={(e) => setLeaderReturnFloorDuctEnabled(e.target.checked)}
+                  />{' '}
+                  Incluir ducto bajante bajo superficie de retorno
+                </label>
+
+                {(leaderHasGrommetBox || leaderReturnFloorDuctEnabled) && (
                   <div>
                     <label>Posición en superficie de retorno</label>
                     <select
@@ -724,8 +752,12 @@ export default function KoncisaPlusPanel({ onCreate }) {
             </div>
 
             <div>Grommet principal: {leaderMainGrommetEnabled ? 'Sí' : 'No'}</div>
+            <div>Ducto a piso principal: {leaderMainFloorDuctEnabled ? 'Sí' : 'No'}</div>
             {!leaderCredenzaEnabled && (
-              <div>Grommet retorno: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
+              <>
+                <div>Grommet retorno: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
+                <div>Ducto a piso retorno: {leaderReturnFloorDuctEnabled ? 'Sí' : 'No'}</div>
+              </>
             )}
           </div>
 

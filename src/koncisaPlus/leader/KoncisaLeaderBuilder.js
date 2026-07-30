@@ -27,13 +27,8 @@ function enableBoundedDepthForLeaderRect(costado, rootPositionMm) {
   return costado;
 }
 
-//posicion del grommet puesto lider
-function createLeaderSurfaceGrommet({
-  groupId,
-  groupName,
-  surfaceRole,
+function resolveLeaderSurfaceAccessPosition({
   position = 'CENTER',
-  finish = 'ALUMINIUM',
   widthMm,
   depthMm,
   centerX,
@@ -49,14 +44,46 @@ function createLeaderSurfaceGrommet({
   const sin = Math.sin(rotationY);
   const x = centerX + localX * cos + localZ * sin;
   const z = centerZ - localX * sin + localZ * cos;
+
+  return {
+    positionKey,
+    localX,
+    localZ,
+    x,
+    z,
+  };
+}
+
+// Posición del grommet del puesto líder.
+function createLeaderSurfaceGrommet({
+  groupId,
+  groupName,
+  surfaceRole,
+  position = 'CENTER',
+  finish = 'ALUMINIUM',
+  widthMm,
+  depthMm,
+  centerX,
+  centerZ,
+  rotationY = 0,
+  positionOffsetMm = null,
+}) {
+  const resolvedPosition = resolveLeaderSurfaceAccessPosition({
+    position,
+    widthMm,
+    depthMm,
+    centerX,
+    centerZ,
+    rotationY,
+  });
   const grommet = createGrommet({
     groupId,
     groupName,
     finish,
     diameterMm: 80,
-    x,
-    y: 740,
-    z,
+    x: resolvedPosition.x + (Number(positionOffsetMm?.x) || 0),
+    y: 740 + (Number(positionOffsetMm?.y) || 0),
+    z: resolvedPosition.z + (Number(positionOffsetMm?.z) || 0),
     rotY: rotationY,
   });
 
@@ -65,11 +92,153 @@ function createLeaderSurfaceGrommet({
     layoutType: 'LEADER',
     leaderRole: `${surfaceRole}_GROMMET`,
     targetSurfaceRole: surfaceRole,
-    position: positionKey,
-    localPositionMm: { x: localX, z: localZ },
+    position: resolvedPosition.positionKey,
+    localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
   };
 
   return grommet;
+}
+
+function createLeaderReturnGrommetOutletBox({
+  groupId,
+  groupName,
+  position = 'CENTER',
+  widthMm,
+  depthMm,
+  centerX,
+  centerZ,
+  rotationY = 0,
+  leaderSide = 'RIGHT',
+}) {
+  const resolvedPosition = resolveLeaderSurfaceAccessPosition({
+    position,
+    widthMm,
+    depthMm,
+    centerX,
+    centerZ,
+    rotationY,
+  });
+
+  console.log('leaderSide  ', leaderSide === 'RIGHT' ? 707 : -550);
+
+  return {
+    type: 'GLB_PART',
+    subtype: 'return-surface-grommet-outlet-box',
+    line: 'KONCISA.PLUS',
+
+    groupId,
+    groupName,
+
+    code: '22000135010',
+    rawCodigoPT: '22000135010',
+    logicalCode: 'LKAC842000',
+    existsInCatalog: true,
+    name: 'CAJA TOMAS PARA SUPERFICIES RETORNO CON GROMMET',
+
+    dimMm: {
+      widthMm: 80,
+      heightMm: 150,
+      depthMm: 60,
+    },
+    //posicion de la caja de tomas del grommet del puesto lider, superficie retorno.
+    position: {
+      x: leaderSide === 'RIGHT' ? 707 : -550, //resolvedPosition.x,
+      y: 550, //resolvedPosition.y,
+      z: -400 + 64, //resolvedPosition.z,
+    },
+
+    rotation: {
+      x: 0,
+      y: Math.PI / 2, //rotationY, //,
+      z: 0,
+    },
+
+    model: {
+      kind: 'glb',
+      src: '/assets/models/koncisaPlus/22000135010.glb',
+    },
+
+    meta: {
+      category: 'cajas-de-tomas',
+      layoutType: 'LEADER',
+      leaderRole: 'RETURN_GROMMET_OUTLET_BOX',
+      targetSurfaceRole: 'RETURN',
+      position: resolvedPosition.positionKey,
+      localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
+      modelCode: 'CAJA_TOMAS_COSTADO',
+      pairedWithGrommet: true,
+    },
+  };
+}
+
+function createLeaderFloorDuct({
+  groupId,
+  groupName,
+  surfaceRole,
+  position = 'CENTER',
+  widthMm,
+  depthMm,
+  centerX,
+  centerZ,
+  rotationY = 0,
+  placement = null,
+}) {
+  const resolvedPosition = resolveLeaderSurfaceAccessPosition({
+    position,
+    widthMm,
+    depthMm,
+    centerX,
+    centerZ,
+    rotationY,
+  });
+
+  return {
+    type: 'ductoPiso',
+    subtype: 'leader-floor-duct',
+    line: 'KONCISA.PLUS',
+
+    groupId,
+    groupName,
+
+    code: '22000104949',
+    rawCodigoPT: '22000104949',
+    logicalCode: 'TKAC120000',
+    existsInCatalog: true,
+    name: 'DUCTO BAJANTE DE PISO TKAC120000',
+
+    dimMm: {
+      widthMm: 100,
+      heightMm: 500,
+      depthMm: 100,
+    },
+    // La ubicación se define de forma independiente para MAIN y RETURN.
+    position: {
+      x: Number(placement?.position?.x) || 0,
+      y: Number(placement?.position?.y) || 0,
+      z: Number(placement?.position?.z) || 0,
+    },
+
+    rotation: {
+      x: Number(placement?.rotation?.x) || 0,
+      y: Number(placement?.rotation?.y) || 0,
+      z: Number(placement?.rotation?.z) || 0,
+    },
+
+    model: {
+      kind: 'glb',
+      src: '/assets/models/koncisaPlus/22000104949.glb',
+    },
+
+    meta: {
+      category: 'ductos-a-piso',
+      layoutType: 'LEADER',
+      leaderRole: `${surfaceRole}_FLOOR_DUCT`,
+      targetSurfaceRole: surfaceRole,
+      position: resolvedPosition.positionKey,
+      localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
+      modelCode: '22000104949',
+    },
+  };
 }
 
 export function buildKoncisaLeader(config = {}) {
@@ -97,6 +266,8 @@ export function buildKoncisaLeader(config = {}) {
     leaderHasGrommetBox = false,
     leaderMainGrommet = null,
     leaderReturnGrommet = null,
+    leaderMainFloorDuct = null,
+    leaderReturnFloorDuct = null,
 
     // Falda principal
     leaderHasSkirt = false,
@@ -154,6 +325,35 @@ export function buildKoncisaLeader(config = {}) {
         centerX: mainSurface.position.x,
         centerZ: mainSurface.position.z,
         rotationY: mainSurface.rotation.y,
+      })
+    );
+  }
+
+  if (leaderMainFloorDuct?.enabled === true) {
+    parts.push(
+      createLeaderFloorDuct({
+        groupId,
+        groupName,
+        surfaceRole: 'MAIN',
+        position: leaderMainFloorDuct.position ?? leaderMainGrommet?.position,
+        widthMm: leaderMainWidthMm,
+        depthMm: leaderMainDepthMm,
+        centerX: mainSurface.position.x,
+        centerZ: mainSurface.position.z,
+        rotationY: mainSurface.rotation.y,
+        placement: {
+          // Posición manual del ducto bajo la superficie principal.
+          position: {
+            x: 600 + 60,
+            y: 0,
+            z: 53,
+          },
+          rotation: {
+            x: 0,
+            y: 1.575,
+            z: 0,
+          },
+        },
       })
     );
   }
@@ -228,6 +428,55 @@ export function buildKoncisaLeader(config = {}) {
           centerX: returnSurface.position.x,
           centerZ: returnSurface.position.z,
           rotationY: returnSurface.rotation.y,
+          positionOffsetMm: {
+            // Offset manual exclusivo del grommet de la superficie de retorno.
+            x: sideKey === 'RIGHT' ? 370 : -370,
+            y: 0,
+            z: 158,
+          },
+        })
+      );
+
+      parts.push(
+        createLeaderReturnGrommetOutletBox({
+          groupId,
+          groupName,
+          position: leaderReturnGrommet?.position,
+          widthMm: leaderReturnLengthMm,
+          depthMm: leaderReturnDepthMm,
+          centerX: returnSurface.position.x,
+          centerZ: returnSurface.position.z,
+          rotationY: returnSurface.rotation.y,
+          leaderSide: sideKey,
+        })
+      );
+    }
+
+    if (leaderReturnFloorDuct?.enabled === true) {
+      parts.push(
+        createLeaderFloorDuct({
+          groupId,
+          groupName,
+          surfaceRole: 'RETURN',
+          position: leaderReturnFloorDuct.position ?? leaderReturnGrommet?.position,
+          widthMm: leaderReturnLengthMm,
+          depthMm: leaderReturnDepthMm,
+          centerX: returnSurface.position.x,
+          centerZ: returnSurface.position.z,
+          rotationY: returnSurface.rotation.y,
+          placement: {
+            // Posición manual del ducto bajo la superficie de retorno.
+            position: {
+              x: sideKey === 'RIGHT' ? 665 : -665, //, //sideKey === 'RIGHT' ? 0 : 750, //-665
+              y: 0,
+              z: -473, //-400
+            },
+            rotation: {
+              x: 0,
+              y: sideKey === 'RIGHT' ? Math.PI / 2 : -Math.PI / 2,
+              z: 0,
+            },
+          },
         })
       );
     }
