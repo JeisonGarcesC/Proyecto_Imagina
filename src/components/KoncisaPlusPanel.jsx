@@ -157,6 +157,18 @@ export default function KoncisaPlusPanel({ onCreate }) {
           enabled: !leaderCredenzaEnabled && leaderReturnFloorDuctEnabled,
           position: leaderReturnGrommetPosition,
         },
+        leaderMainOutletCoupling: {
+          enabled: leaderMainGrommetEnabled && leaderMainOutletCouplingEnabled,
+        },
+        leaderReturnOutletCoupling: {
+          enabled:
+            !leaderCredenzaEnabled &&
+            leaderHasGrommetBox &&
+            leaderReturnOutletCouplingEnabled,
+        },
+        leaderCostadoOutletCoupling: {
+          enabled: leaderJunctionHasOutletBox && leaderCostadoOutletCouplingEnabled,
+        },
         // Falda
         leaderHasSkirt,
 
@@ -303,6 +315,11 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderReturnGrommetPosition, setLeaderReturnGrommetPosition] = useState('CENTER');
   const [leaderMainFloorDuctEnabled, setLeaderMainFloorDuctEnabled] = useState(false);
   const [leaderReturnFloorDuctEnabled, setLeaderReturnFloorDuctEnabled] = useState(false);
+  const [leaderMainOutletCouplingEnabled, setLeaderMainOutletCouplingEnabled] = useState(false);
+  const [leaderReturnOutletCouplingEnabled, setLeaderReturnOutletCouplingEnabled] =
+    useState(false);
+  const [leaderCostadoOutletCouplingEnabled, setLeaderCostadoOutletCouplingEnabled] =
+    useState(false);
   // Falda puesto líder
   const [leaderHasSkirt, setLeaderHasSkirt] = useState(false);
 
@@ -555,10 +572,28 @@ export default function KoncisaPlusPanel({ onCreate }) {
               <input
                 type="checkbox"
                 checked={leaderMainGrommetEnabled}
-                onChange={(e) => setLeaderMainGrommetEnabled(e.target.checked)}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  setLeaderMainGrommetEnabled(enabled);
+                  if (enabled) {
+                    setLeaderHasGrommetBox(false);
+                    setLeaderReturnOutletCouplingEnabled(false);
+                  }
+                }}
               />{' '}
               Incluir en superficie principal
             </label>
+
+            {leaderMainGrommetEnabled && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={leaderMainOutletCouplingEnabled}
+                  onChange={(e) => setLeaderMainOutletCouplingEnabled(e.target.checked)}
+                />{' '}
+                Incluir acople a pared en superficie principal
+              </label>
+            )}
 
             <label>
               <input
@@ -590,10 +625,28 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   <input
                     type="checkbox"
                     checked={leaderHasGrommetBox}
-                    onChange={(e) => setLeaderHasGrommetBox(e.target.checked)}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setLeaderHasGrommetBox(enabled);
+                      if (enabled) {
+                        setLeaderMainGrommetEnabled(false);
+                        setLeaderMainOutletCouplingEnabled(false);
+                      }
+                    }}
                   />{' '}
                   Incluir en superficie de retorno
                 </label>
+
+                {leaderHasGrommetBox && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={leaderReturnOutletCouplingEnabled}
+                      onChange={(e) => setLeaderReturnOutletCouplingEnabled(e.target.checked)}
+                    />{' '}
+                    Incluir acople a pared en superficie de retorno
+                  </label>
+                )}
 
                 <label>
                   <input
@@ -678,6 +731,17 @@ export default function KoncisaPlusPanel({ onCreate }) {
               />{' '}
               Incluir caja de tomas en el costado junto al retorno
             </label>
+
+            {leaderJunctionHasOutletBox && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={leaderCostadoOutletCouplingEnabled}
+                  onChange={(e) => setLeaderCostadoOutletCouplingEnabled(e.target.checked)}
+                />{' '}
+                Incluir acople a pared para la caja del costado
+              </label>
+            )}
           </div>
 
           <div

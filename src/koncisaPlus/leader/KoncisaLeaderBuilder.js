@@ -99,16 +99,17 @@ function createLeaderSurfaceGrommet({
   return grommet;
 }
 
-function createLeaderReturnGrommetOutletBox({
+function createLeaderGrommetOutletBox({
   groupId,
   groupName,
+  surfaceRole,
   position = 'CENTER',
   widthMm,
   depthMm,
   centerX,
   centerZ,
   rotationY = 0,
-  leaderSide = 'RIGHT',
+  placement = null,
 }) {
   const resolvedPosition = resolveLeaderSurfaceAccessPosition({
     position,
@@ -119,11 +120,11 @@ function createLeaderReturnGrommetOutletBox({
     rotationY,
   });
 
-  console.log('leaderSide  ', leaderSide === 'RIGHT' ? 707 : -550);
+  //console.log('leaderSide  ', leaderSide === 'RIGHT' ? 707 : -550);
 
   return {
     type: 'GLB_PART',
-    subtype: 'return-surface-grommet-outlet-box',
+    subtype: `${String(surfaceRole || '').toLowerCase()}-surface-grommet-outlet-box`,
     line: 'KONCISA.PLUS',
 
     groupId,
@@ -140,17 +141,16 @@ function createLeaderReturnGrommetOutletBox({
       heightMm: 150,
       depthMm: 60,
     },
-    //posicion de la caja de tomas del grommet del puesto lider, superficie retorno.
     position: {
-      x: leaderSide === 'RIGHT' ? 707 : -550, //resolvedPosition.x,
-      y: 550, //resolvedPosition.y,
-      z: -400 + 64, //resolvedPosition.z,
+      x: Number(placement?.position?.x) || 0,
+      y: Number(placement?.position?.y) || 0,
+      z: Number(placement?.position?.z) || 0,
     },
 
     rotation: {
-      x: 0,
-      y: Math.PI / 2, //rotationY, //,
-      z: 0,
+      x: Number(placement?.rotation?.x) || 0,
+      y: Number(placement?.rotation?.y) || 0,
+      z: Number(placement?.rotation?.z) || 0,
     },
 
     model: {
@@ -161,12 +161,61 @@ function createLeaderReturnGrommetOutletBox({
     meta: {
       category: 'cajas-de-tomas',
       layoutType: 'LEADER',
-      leaderRole: 'RETURN_GROMMET_OUTLET_BOX',
-      targetSurfaceRole: 'RETURN',
+      leaderRole: `${surfaceRole}_GROMMET_OUTLET_BOX`,
+      targetSurfaceRole: surfaceRole,
       position: resolvedPosition.positionKey,
       localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
       modelCode: 'CAJA_TOMAS_COSTADO',
       pairedWithGrommet: true,
+    },
+  };
+}
+
+function createLeaderOutletWallCoupling({ groupId, groupName, targetRole, placement = null }) {
+  return {
+    type: 'GLB_PART',
+    subtype: 'leader-outlet-wall-coupling',
+    line: 'KONCISA.PLUS',
+
+    groupId,
+    groupName,
+
+    code: '22000137143',
+    rawCodigoPT: '22000137143',
+    logicalCode: '2KAC281000',
+    existsInCatalog: true,
+    name: 'ACOPLE CAJA TOMAS A PARED',
+
+    dimMm: {
+      widthMm: 230,
+      heightMm: 85,
+      depthMm: 45,
+    },
+
+    position: {
+      x: Number(placement?.position?.x) || 0,
+      y: Number(placement?.position?.y) || 0,
+      z: Number(placement?.position?.z) || 0,
+    },
+
+    rotation: {
+      x: Number(placement?.rotation?.x) || 0,
+      y: Number(placement?.rotation?.y) || 0,
+      z: Number(placement?.rotation?.z) || 0,
+    },
+
+    model: {
+      kind: 'glb',
+      src: '/assets/models/koncisaPlus/22000137143.glb',
+    },
+
+    meta: {
+      category: 'acoples-caja-tomas',
+      layoutType: 'LEADER',
+      leaderRole: `${targetRole}_OUTLET_WALL_COUPLING`,
+      targetRole,
+      pairedWithOutletBox: true,
+      modelCode: '2KAC281000',
     },
   };
 }
@@ -268,6 +317,9 @@ export function buildKoncisaLeader(config = {}) {
     leaderReturnGrommet = null,
     leaderMainFloorDuct = null,
     leaderReturnFloorDuct = null,
+    leaderMainOutletCoupling = null,
+    leaderReturnOutletCoupling = null,
+    leaderCostadoOutletCoupling = null,
 
     // Falda principal
     leaderHasSkirt = false,
@@ -327,6 +379,56 @@ export function buildKoncisaLeader(config = {}) {
         rotationY: mainSurface.rotation.y,
       })
     );
+
+    parts.push(
+      createLeaderGrommetOutletBox({
+        groupId,
+        groupName,
+        surfaceRole: 'MAIN',
+        position: leaderMainGrommet.position,
+        widthMm: leaderMainWidthMm,
+        depthMm: leaderMainDepthMm,
+        centerX: mainSurface.position.x,
+        centerZ: mainSurface.position.z,
+        rotationY: mainSurface.rotation.y,
+        placement: {
+          // Posición manual de la caja de tomas de la superficie principal.
+          position: {
+            x: 0,
+            y: 0,
+            z: 0,
+          },
+          rotation: {
+            x: 0,
+            y: 0,
+            z: 0,
+          },
+        },
+      })
+    );
+
+    if (leaderMainOutletCoupling?.enabled === true) {
+      parts.push(
+        createLeaderOutletWallCoupling({
+          groupId,
+          groupName,
+          targetRole: 'MAIN',
+          placement: {
+            // Posición manual del acople de la superficie principal.
+            position: {
+              x: 0,
+              y: 0,
+              z: 0,
+            },
+            rotation: {
+              x: 0,
+              y: 0,
+              z: 0,
+            },
+          },
+        })
+      );
+    }
   }
 
   if (leaderMainFloorDuct?.enabled === true) {
@@ -438,18 +540,54 @@ export function buildKoncisaLeader(config = {}) {
       );
 
       parts.push(
-        createLeaderReturnGrommetOutletBox({
+        createLeaderGrommetOutletBox({
           groupId,
           groupName,
+          surfaceRole: 'RETURN',
           position: leaderReturnGrommet?.position,
           widthMm: leaderReturnLengthMm,
           depthMm: leaderReturnDepthMm,
           centerX: returnSurface.position.x,
           centerZ: returnSurface.position.z,
           rotationY: returnSurface.rotation.y,
-          leaderSide: sideKey,
+          placement: {
+            // Posición manual de la caja de tomas de la superficie de retorno.
+            position: {
+              x: sideKey === 'RIGHT' ? 707 : -550,
+              y: 550,
+              z: -400 + 64,
+            },
+            rotation: {
+              x: 0,
+              y: Math.PI / 2,
+              z: 0,
+            },
+          },
         })
       );
+
+      if (leaderReturnOutletCoupling?.enabled === true) {
+        parts.push(
+          createLeaderOutletWallCoupling({
+            groupId,
+            groupName,
+            targetRole: 'RETURN',
+            placement: {
+              // Posición manual del acople de la superficie de retorno.
+              position: {
+                x: sideKey === 'RIGHT' ? 0 : -0,
+                y: 0,
+                z: 0,
+              },
+              rotation: {
+                x: 0,
+                y: sideKey === 'RIGHT' ? 0 : -0,
+                z: 0,
+              },
+            },
+          })
+        );
+      }
     }
 
     if (leaderReturnFloorDuct?.enabled === true) {
@@ -678,6 +816,29 @@ export function buildKoncisaLeader(config = {}) {
       junctionCostado.name = outletResolved.isSpecial
         ? `${outletResolved.descriptionPrefix} Costado ${leaderMainCostadoForma} con caja de tomas ${outletResolved.billingDepthMm} - ${outletResolved.descriptionSuffix}`
         : `Costado ${leaderMainCostadoForma} con caja de tomas ${outletResolved.billingDepthMm}`;
+    }
+
+    if (leaderJunctionHasOutletBox && leaderCostadoOutletCoupling?.enabled === true) {
+      parts.push(
+        createLeaderOutletWallCoupling({
+          groupId,
+          groupName,
+          targetRole: 'COSTADO',
+          placement: {
+            // Posición manual del acople asociado a la caja del costado.
+            position: {
+              x: sideKey === 'RIGHT' ? 0 : -0,
+              y: 0,
+              z: 0,
+            },
+            rotation: {
+              x: 0,
+              y: sideKey === 'RIGHT' ? 0 : -0,
+              z: 0,
+            },
+          },
+        })
+      );
     }
   }
 

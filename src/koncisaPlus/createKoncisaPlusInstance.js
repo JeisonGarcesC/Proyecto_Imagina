@@ -126,19 +126,25 @@ export async function createKoncisaPlusInstance({
     });
   }
 
-  for (const outletBox of parts.filter(
-    (part) => part.type === 'GLB_PART' && part.subtype === 'return-surface-grommet-outlet-box'
+  const leaderGlbAccessorySubtypes = new Set([
+    'main-surface-grommet-outlet-box',
+    'return-surface-grommet-outlet-box',
+    'leader-outlet-wall-coupling',
+  ]);
+
+  for (const accessory of parts.filter(
+    (part) => part.type === 'GLB_PART' && leaderGlbAccessorySubtypes.has(part.subtype)
   )) {
-    if (!outletBox?.code || !outletBox?.model?.src) {
+    if (!accessory?.code || !accessory?.model?.src) {
       notify(
-        `No tenemos disponible esta caja de tomas: ${outletBox?.logicalCode || 'sin código lógico'}`
+        `No tenemos disponible este accesorio: ${accessory?.logicalCode || 'sin código lógico'}`
       );
       continue;
     }
     await api.addExternalGlbPart?.({
-      ...outletBox,
-      groupId: outletBox.groupId || groupId,
-      groupName: outletBox.groupName || groupName,
+      ...accessory,
+      groupId: accessory.groupId || groupId,
+      groupName: accessory.groupName || groupName,
       parentGroup: puestoGroup,
     });
   }
