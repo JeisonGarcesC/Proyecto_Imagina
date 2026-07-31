@@ -19,6 +19,24 @@ function drawArrow(ctx, tipX, tipY, towardX, towardY) {
   ctx.fill();
 }
 
+function drawUnresolvedReferenceMarker(ctx, x, y) {
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#dc2626';
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.beginPath();
+  ctx.arc(x, y, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#b91c1c';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('!', x, y + 0.5);
+  ctx.restore();
+}
+
 export function drawDimension2D(ctx, dimension, view = {}) {
   if (!ctx || !dimension || typeof view.toCanvas !== 'function') return false;
   const geometry = resolveDimensionScreenGeometry(dimension, view.toCanvas);
@@ -63,6 +81,32 @@ export function drawDimension2D(ctx, dimension, view = {}) {
   ctx.fillRect(textX - textWidth / 2, textY - 10, textWidth, 20);
   ctx.fillStyle = selected ? 'rgba(154, 52, 18, 1)' : styleColor;
   ctx.fillText(label, textX, textY);
+
+  const unresolvedStart =
+    Boolean(dimension.references?.start) &&
+    dimension.referenceResolution?.startResolved === false;
+  const unresolvedEnd =
+    Boolean(dimension.references?.end) && dimension.referenceResolution?.endResolved === false;
+
+  if (unresolvedStart) drawUnresolvedReferenceMarker(ctx, startX, startY);
+  if (unresolvedEnd) drawUnresolvedReferenceMarker(ctx, endX, endY);
+
+  if (unresolvedStart || unresolvedEnd) {
+    const warning = 'Referencia no resuelta';
+    ctx.font = 'bold 11px sans-serif';
+    const warningWidth = ctx.measureText(warning).width + 10;
+    const warningX = textX - warningWidth / 2;
+    const warningY = textY - 28;
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.fillRect(warningX, warningY - 9, warningWidth, 18);
+    ctx.strokeStyle = '#dc2626';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(warningX, warningY - 9, warningWidth, 18);
+    ctx.fillStyle = '#b91c1c';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(warning, textX, warningY);
+  }
   ctx.restore();
   return true;
 }

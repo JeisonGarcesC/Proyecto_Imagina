@@ -160,6 +160,12 @@ export function getResolvedDimension2D({ dimension, snapGeometry } = {}) {
     startPoint: resolved.startPoint,
     endPoint: resolved.endPoint,
     value: calculateDimensionValue(dimension.type, resolved.startPoint, resolved.endPoint),
+    referenceResolution: {
+      startResolved: resolved.startResolved,
+      endResolved: resolved.endResolved,
+      startStatus: resolved.startStatus,
+      endStatus: resolved.endStatus,
+    },
   };
 }
 
