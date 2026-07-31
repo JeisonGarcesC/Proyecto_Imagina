@@ -850,6 +850,7 @@ export default function App() {
           />
 
           <Plan2DOverlay
+            historyApi={threeApi}
             getSnapshot={() => threeApiRef.current?.getPartsSnapshot2D?.() || []}
             selectedIds={selectedIds}
             moveAsGroup={moveAsGroup}

@@ -272,6 +272,12 @@ export default function ThreeCanvas({
     let additionalSelectionHelpers = [];
     let rotationSession = null;
     let moveSession2D = null;
+    let dimensionHistoryReplayHandler = null;
+    const dimensionHistoryActionTypes = new Set([
+      HISTORY_ACTION_TYPES.CREATE_DIMENSION,
+      HISTORY_ACTION_TYPES.UPDATE_DIMENSION,
+      HISTORY_ACTION_TYPES.DELETE_DIMENSION,
+    ]);
     const historyManager = createHistoryManager({
       replayAction: replayHistoryAction,
       onDiscard: discardHistoryAction,
@@ -4323,6 +4329,14 @@ export default function ThreeCanvas({
       redoHistory: () => historyManager.redo(),
       canUndoHistory: () => historyManager.canUndo(),
       canRedoHistory: () => historyManager.canRedo(),
+      recordDimensionHistoryAction: (action) => {
+        if (!dimensionHistoryActionTypes.has(action?.type)) return null;
+        return historyManager.pushAction(action);
+      },
+      setDimensionHistoryReplayHandler: (handler) => {
+        dimensionHistoryReplayHandler = typeof handler === 'function' ? handler : null;
+        return true;
+      },
       selectFloor,
       updateFloorVisualOptions,
       replaceSelectedCostadoWithPedestal,
@@ -5021,6 +5035,11 @@ export default function ThreeCanvas({
           restoreDeletedObjects(action.createdObjects || []);
           selectCreatedHistoryObjects(action.selectionObjects || []);
         }
+      } else if (dimensionHistoryActionTypes.has(action.type)) {
+        if (typeof dimensionHistoryReplayHandler !== 'function') {
+          throw new Error('Dimension2D history replay handler is not registered.');
+        }
+        return dimensionHistoryReplayHandler(action, direction);
       }
     }
 
@@ -10387,6 +10406,7 @@ export default function ThreeCanvas({
 
     // ====== Cleanup ======
     return () => {
+      dimensionHistoryReplayHandler = null;
       historyManager.clearHistory();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);

@@ -7,6 +7,7 @@ import {
   updateDimension2D,
 } from '../plan2d/dimension2D';
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
+import { HISTORY_ACTION_TYPES } from '../history/historyManager';
 
 const MIN_ZOOM = 20;
 const MAX_ZOOM = 50_000;
@@ -110,7 +111,24 @@ function drawMeasureLine(ctx, x1, y1, x2, y2, label, opts = {}) {
 
   ctx.restore();
 }
+
+function upsertDimension(dimensions, dimension) {
+  if (!dimension) return dimensions;
+  const index = dimensions.findIndex((candidate) => candidate.id === dimension.id);
+  if (index < 0) return [...dimensions, dimension];
+  return dimensions.map((candidate, candidateIndex) =>
+    candidateIndex === index ? dimension : candidate
+  );
+}
+
+function dimensionsAreEqual(before, after) {
+  if (before === after) return true;
+  if (!before || !after) return false;
+  return JSON.stringify(before) === JSON.stringify(after);
+}
+
 export default function Plan2DOverlay({
+  historyApi,
   getSnapshot,
   selectedIds = [],
   moveAsGroup = false,
@@ -158,14 +176,74 @@ export default function Plan2DOverlay({
   const selectedDimension =
     dimensions.find((dimension) => dimension.id === selectedDimensionId) || null;
 
+  const recordDimensionHistoryAction = useCallback(
+    (action) => historyApi?.recordDimensionHistoryAction?.(action) || null,
+    [historyApi]
+  );
+
+  const replayDimensionHistoryAction = useCallback((action, direction) => {
+    const snapshot = direction === 'undo' ? action.before : action.after;
+    const sourceDimension = snapshot?.dimension || null;
+    const dimension = sourceDimension ? createDimension2D(sourceDimension) : null;
+
+    if (action.type === HISTORY_ACTION_TYPES.CREATE_DIMENSION) {
+      if (direction === 'undo') {
+        const dimensionId = action.after?.dimension?.id;
+        setDimensions((current) => current.filter((item) => item.id !== dimensionId));
+        setSelectedDimensionId((current) => (current === dimensionId ? null : current));
+      } else if (dimension) {
+        setDimensions((current) => upsertDimension(current, dimension));
+        setSelectedDimensionId(dimension.id);
+      }
+      return true;
+    }
+
+    if (action.type === HISTORY_ACTION_TYPES.UPDATE_DIMENSION && dimension) {
+      setDimensions((current) => upsertDimension(current, dimension));
+      return true;
+    }
+
+    if (action.type === HISTORY_ACTION_TYPES.DELETE_DIMENSION) {
+      if (direction === 'undo' && dimension) {
+        setDimensions((current) => upsertDimension(current, dimension));
+        setSelectedDimensionId(dimension.id);
+      } else {
+        const dimensionId = action.before?.dimension?.id;
+        setDimensions((current) => current.filter((item) => item.id !== dimensionId));
+        setSelectedDimensionId((current) => (current === dimensionId ? null : current));
+      }
+      return true;
+    }
+
+    return false;
+  }, []);
+
+  useEffect(() => {
+    if (!historyApi?.setDimensionHistoryReplayHandler) return undefined;
+    historyApi.setDimensionHistoryReplayHandler(replayDimensionHistoryAction);
+    return () => historyApi.setDimensionHistoryReplayHandler(null);
+  }, [historyApi, replayDimensionHistoryAction]);
+
   const applyDimensionUpdate = useCallback(
     (id, changes) => {
       const targetId = id || selectedDimensionId;
       if (!targetId) return false;
-      setDimensions((current) => updateDimension2D(current, targetId, changes));
+      const before = dimensions.find((dimension) => dimension.id === targetId);
+      if (!before) return false;
+      const nextDimensions = updateDimension2D(dimensions, targetId, changes);
+      const after = nextDimensions.find((dimension) => dimension.id === targetId);
+      if (!after || dimensionsAreEqual(before, after)) return false;
+
+      setDimensions(nextDimensions);
+      recordDimensionHistoryAction({
+        type: HISTORY_ACTION_TYPES.UPDATE_DIMENSION,
+        dimensionId: targetId,
+        before: { dimension: before },
+        after: { dimension: after },
+      });
       return true;
     },
-    [selectedDimensionId]
+    [dimensions, selectedDimensionId, recordDimensionHistoryAction]
   );
 
   const [scaleMode, setScaleMode] = useState(false);
@@ -1049,7 +1127,16 @@ export default function Plan2DOverlay({
                 : null,
             },
           });
-          if (dimension) setDimensions((prev) => [...prev, dimension]);
+          if (dimension) {
+            setDimensions((prev) => [...prev, dimension]);
+            setSelectedDimensionId(dimension.id);
+            recordDimensionHistoryAction({
+              type: HISTORY_ACTION_TYPES.CREATE_DIMENSION,
+              dimensionId: dimension.id,
+              before: null,
+              after: { dimension },
+            });
+          }
         }
 
         setMeasureStart(null);
@@ -1135,6 +1222,7 @@ export default function Plan2DOverlay({
       canvasToPlanPixel,
       onPlan2DTransformChange,
       pickDimensionAtCanvasPoint,
+      recordDimensionHistoryAction,
     ]
   );
 
@@ -1181,8 +1269,19 @@ export default function Plan2DOverlay({
       if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedDimensionId) {
         ev.preventDefault();
         ev.stopPropagation();
+        const deletedDimension = dimensions.find(
+          (dimension) => dimension.id === selectedDimensionId
+        );
         setDimensions((prev) => prev.filter((dimension) => dimension.id !== selectedDimensionId));
         setSelectedDimensionId(null);
+        if (deletedDimension) {
+          recordDimensionHistoryAction({
+            type: HISTORY_ACTION_TYPES.DELETE_DIMENSION,
+            dimensionId: deletedDimension.id,
+            before: { dimension: deletedDimension },
+            after: null,
+          });
+        }
         return;
       }
 
@@ -1204,6 +1303,8 @@ export default function Plan2DOverlay({
     clearMeasureDraft,
     fitView,
     selectedDimensionId,
+    dimensions,
+    recordDimensionHistoryAction,
   ]);
 
   useEffect(() => {
