@@ -2103,6 +2103,41 @@ export default function Plan2DOverlay({
               }
             }}
           />
+
+          <label htmlFor="dimension-color">Color</label>
+          <input
+            id="dimension-color"
+            type="color"
+            value={selectedDimension.style?.color || '#000000'}
+            onChange={(event) =>
+              applyDimensionUpdate(selectedDimension.id, {
+                style: {
+                  ...(selectedDimension.style || {}),
+                  color: event.target.value,
+                },
+              })
+            }
+          />
+
+          <label htmlFor="dimension-line-width">Espesor</label>
+          <input
+            id="dimension-line-width"
+            type="number"
+            min="0.1"
+            step="0.1"
+            value={selectedDimension.style?.lineWidth ?? 1}
+            onChange={(event) => {
+              const lineWidth = Number(event.target.value);
+              if (Number.isFinite(lineWidth) && lineWidth > 0) {
+                applyDimensionUpdate(selectedDimension.id, {
+                  style: {
+                    ...(selectedDimension.style || {}),
+                    lineWidth,
+                  },
+                });
+              }
+            }}
+          />
         </section>
       )}
 

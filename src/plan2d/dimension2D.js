@@ -31,6 +31,37 @@ function normalizeTextOffset(textOffset) {
     normalPx: Number.isFinite(normalPx) ? normalPx : 0,
   });
 }
+
+function normalizeFeature(feature) {
+  return feature && typeof feature === 'object' ? Object.freeze({ ...feature }) : null;
+}
+
+function normalizeReference(reference) {
+  if (!reference || typeof reference !== 'object') return null;
+  return Object.freeze({
+    ...reference,
+    ...(reference.feature ? { feature: normalizeFeature(reference.feature) } : {}),
+  });
+}
+
+function normalizeReferences(references) {
+  if (!references || typeof references !== 'object') return null;
+  return Object.freeze({
+    ...references,
+    start: normalizeReference(references.start),
+    end: normalizeReference(references.end),
+  });
+}
+
+function normalizeStyle(style) {
+  const color = String(style?.color || '#000000').trim() || '#000000';
+  const lineWidth = Number(style?.lineWidth);
+  return Object.freeze({
+    color,
+    lineWidth: Number.isFinite(lineWidth) && lineWidth > 0 ? lineWidth : 1,
+  });
+}
+
 export function calculateDimensionValue(type, startPoint, endPoint) {
   if (type === DIMENSION_TYPES.LINEAR_HORIZONTAL) {
     return Math.abs(endPoint.x - startPoint.x);
@@ -50,6 +81,7 @@ export function createDimension2D({
   label = null,
   offset = 18,
   textOffset = null,
+  style = null,
   references = null,
 } = {}) {
   if (!DIMENSION_TYPE_VALUES.has(type)) {
@@ -72,7 +104,8 @@ export function createDimension2D({
     label: label == null ? null : String(label),
     offset: Number.isFinite(Number(offset)) ? Number(offset) : 18,
     textOffset: normalizeTextOffset(textOffset),
-    references: references ? Object.freeze({ ...references }) : null,
+    style: normalizeStyle(style),
+    references: normalizeReferences(references),
   });
 }
 
@@ -89,6 +122,7 @@ export function updateDimension2D(dimensions, id, changes = {}) {
     'label',
     'offset',
     'textOffset',
+    'style',
     'references',
   ];
 

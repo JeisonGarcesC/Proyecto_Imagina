@@ -30,9 +30,13 @@ export function drawDimension2D(ctx, dimension, view = {}) {
 
   ctx.save();
   const selected = view.selected === true;
-  ctx.strokeStyle = selected ? 'rgba(234, 88, 12, 1)' : 'rgba(37, 99, 235, 0.95)';
-  ctx.fillStyle = selected ? 'rgba(234, 88, 12, 1)' : 'rgba(37, 99, 235, 0.95)';
-  ctx.lineWidth = selected ? 2.5 : 1.5;
+  const styleColor = dimension.style?.color || '#000000';
+  const configuredLineWidth = Number(dimension.style?.lineWidth);
+  const lineWidth =
+    Number.isFinite(configuredLineWidth) && configuredLineWidth > 0 ? configuredLineWidth : 1;
+  ctx.strokeStyle = selected ? 'rgba(234, 88, 12, 1)' : styleColor;
+  ctx.fillStyle = selected ? 'rgba(234, 88, 12, 1)' : styleColor;
+  ctx.lineWidth = selected ? Math.max(2.5, lineWidth + 1) : lineWidth;
 
   ctx.beginPath();
   ctx.moveTo(startX, startY);
@@ -57,7 +61,7 @@ export function drawDimension2D(ctx, dimension, view = {}) {
   const textWidth = ctx.measureText(label).width + 10;
   ctx.fillStyle = 'rgba(255,255,255,0.96)';
   ctx.fillRect(textX - textWidth / 2, textY - 10, textWidth, 20);
-  ctx.fillStyle = selected ? 'rgba(154, 52, 18, 1)' : 'rgba(30, 64, 175, 1)';
+  ctx.fillStyle = selected ? 'rgba(154, 52, 18, 1)' : styleColor;
   ctx.fillText(label, textX, textY);
   ctx.restore();
   return true;
