@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { buildSnapGeometry, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
 import {
+  calculateDimensionValue,
   createDimension2D,
   dimensionHitDistance,
   dimensionTextHitDistance,
@@ -9,6 +10,7 @@ import {
 } from '../plan2d/dimension2D';
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
+import { resolveDimensionReferences } from '../plan2d/dimensionReferenceResolver';
 import { HISTORY_ACTION_TYPES } from '../history/historyManager';
 
 const MIN_ZOOM = 20;
@@ -1451,6 +1453,7 @@ export default function Plan2DOverlay({
       if (!viewRef.current.initialized) ensureInitializedView();
 
       const snap = (getSnapshot?.() || []).filter(Boolean);
+      const snapGeometry = buildSnapGeometry(snap);
       const { s, cx, cz } = viewRef.current;
 
       const sign = invertZ ? -1 : 1;
@@ -1701,7 +1704,21 @@ export default function Plan2DOverlay({
 
       // Cotas permanentes
       for (const dimension of dimensions) {
-        drawDimension2D(ctx, dimension, {
+        const resolvedReferences = resolveDimensionReferences({
+          dimension,
+          snapGeometry,
+        });
+        const renderDimension = {
+          ...dimension,
+          startPoint: resolvedReferences.startPoint,
+          endPoint: resolvedReferences.endPoint,
+          value: calculateDimensionValue(
+            dimension.type,
+            resolvedReferences.startPoint,
+            resolvedReferences.endPoint
+          ),
+        };
+        drawDimension2D(ctx, renderDimension, {
           toCanvas: toCanvasLocal,
           selected: dimension.id === selectedDimensionId,
         });
