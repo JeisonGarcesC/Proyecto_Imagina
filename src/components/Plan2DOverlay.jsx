@@ -129,6 +129,15 @@ function dimensionsAreEqual(before, after) {
   return JSON.stringify(before) === JSON.stringify(after);
 }
 
+function createDimensionSnapReference(resolved) {
+  if (!resolved?.snapped) return null;
+  return {
+    type: resolved.type,
+    sourceId: resolved.sourceId,
+    ...(resolved.feature ? { feature: { ...resolved.feature } } : {}),
+  };
+}
+
 export default function Plan2DOverlay({
   historyApi,
   getSnapshot,
@@ -1203,9 +1212,7 @@ export default function Plan2DOverlay({
           setMeasureStart({
             x: wpt.x,
             z: wpt.z,
-            reference: resolved.snapped
-              ? { type: resolved.type, sourceId: resolved.sourceId }
-              : null,
+            reference: createDimensionSnapReference(resolved),
           });
           setMeasureHover({ x: wpt.x, z: wpt.z });
           return;
@@ -1220,9 +1227,7 @@ export default function Plan2DOverlay({
             endPoint: wpt,
             references: {
               start: measureStart.reference || null,
-              end: resolved.snapped
-                ? { type: resolved.type, sourceId: resolved.sourceId }
-                : null,
+              end: createDimensionSnapReference(resolved),
             },
           });
           if (dimension) {

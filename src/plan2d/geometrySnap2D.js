@@ -106,20 +106,31 @@ export function buildSnapGeometry(snapshot = []) {
       rotateLocalPoint(-halfWidth, halfDepth, centerX, centerZ, angle),
     ];
 
-    vertices.forEach((point) => {
-      points.push({ type: SNAP_TYPES.VERTEX, point, sourceId });
+    vertices.forEach((point, index) => {
+      points.push({
+        type: SNAP_TYPES.VERTEX,
+        point,
+        sourceId,
+        feature: { kind: SNAP_TYPES.VERTEX, index },
+      });
     });
 
     for (let index = 0; index < vertices.length; index += 1) {
       const a = vertices[index];
       const b = vertices[(index + 1) % vertices.length];
       const midpoint = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
-      points.push({ type: SNAP_TYPES.MIDPOINT, point: midpoint, sourceId });
+      points.push({
+        type: SNAP_TYPES.MIDPOINT,
+        point: midpoint,
+        sourceId,
+        feature: { kind: SNAP_TYPES.MIDPOINT, edgeIndex: index },
+      });
       segments.push({
         type: SNAP_TYPES.SEGMENT,
         a,
         b,
         sourceId,
+        feature: { kind: SNAP_TYPES.SEGMENT, edgeIndex: index },
         endpointType: SNAP_TYPES.ENDPOINT,
       });
     }
@@ -128,6 +139,7 @@ export function buildSnapGeometry(snapshot = []) {
       type: SNAP_TYPES.CENTER,
       point: { x: centerX, z: centerZ },
       sourceId,
+      feature: { kind: SNAP_TYPES.CENTER },
     });
   });
 
@@ -164,7 +176,7 @@ export function resolveSnapPoint({
   const config = normalizeSnapConfig(requestedConfig);
   let best = null;
 
-  const consider = (type, point, sourceId) => {
+  const consider = (type, point, sourceId, feature = null) => {
     if (!isSnapTypeEnabled(type, config)) return;
     if (!isFinitePoint(point)) return;
     const worldDistance = Math.hypot(point.x - worldPoint.x, point.z - worldPoint.z);
@@ -176,20 +188,37 @@ export function resolveSnapPoint({
       priority < best.priority ||
       (priority === best.priority && distancePx < best.distancePx)
     ) {
-      best = { type, point: { x: point.x, z: point.z }, sourceId, distancePx, priority };
+      best = {
+        type,
+        point: { x: point.x, z: point.z },
+        sourceId,
+        feature: feature ? { ...feature } : null,
+        distancePx,
+        priority,
+      };
     }
   };
 
   (geometry?.points || []).forEach((candidate) => {
-    consider(candidate.type, candidate.point, candidate.sourceId);
+    consider(candidate.type, candidate.point, candidate.sourceId, candidate.feature);
   });
   (geometry?.segments || []).forEach((segment) => {
-    consider(segment.endpointType || SNAP_TYPES.ENDPOINT, segment.a, segment.sourceId);
-    consider(segment.endpointType || SNAP_TYPES.ENDPOINT, segment.b, segment.sourceId);
+    const edgeIndex = segment.feature?.edgeIndex;
+    consider(segment.endpointType || SNAP_TYPES.ENDPOINT, segment.a, segment.sourceId, {
+      kind: SNAP_TYPES.ENDPOINT,
+      edgeIndex,
+      endpointIndex: 0,
+    });
+    consider(segment.endpointType || SNAP_TYPES.ENDPOINT, segment.b, segment.sourceId, {
+      kind: SNAP_TYPES.ENDPOINT,
+      edgeIndex,
+      endpointIndex: 1,
+    });
     consider(
       segment.type || SNAP_TYPES.SEGMENT,
       projectPointToSegment(worldPoint, segment.a, segment.b),
-      segment.sourceId
+      segment.sourceId,
+      segment.feature
     );
   });
 
@@ -199,6 +228,7 @@ export function resolveSnapPoint({
       type: null,
       point: { x: worldPoint.x, z: worldPoint.z },
       sourceId: null,
+      feature: null,
       distancePx: null,
       screenPoint: screenPoint || null,
     };
