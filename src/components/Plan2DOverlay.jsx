@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { buildSnapGeometry, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
 import {
-  calculateDimensionValue,
   createDimension2D,
   dimensionHitDistance,
   dimensionTextHitDistance,
@@ -10,7 +9,7 @@ import {
 } from '../plan2d/dimension2D';
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
-import { resolveDimensionReferences } from '../plan2d/dimensionReferenceResolver';
+import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
 import { HISTORY_ACTION_TYPES } from '../history/historyManager';
 
 const MIN_ZOOM = 20;
@@ -525,24 +524,26 @@ export default function Plan2DOverlay({
     (mx, my) => {
       const mouseWorldPoint = canvasToWorld(mx, my);
       if (!mouseWorldPoint) return null;
+      const snapGeometry = buildSnapGeometry(getSnapshot?.() || []);
       let closest = null;
       let closestDistance = Infinity;
       dimensions.forEach((dimension) => {
+        const resolvedDimension = getResolvedDimension2D({ dimension, snapGeometry });
         const distance = dimensionHitDistance({
           mouseWorldPoint,
           screenPoint: { x: mx, y: my },
-          dimension,
+          dimension: resolvedDimension,
           tolerance: 8,
           view: { toCanvas },
         });
         if (distance < closestDistance) {
-          closest = dimension;
+          closest = { dimension, resolvedDimension };
           closestDistance = distance;
         }
       });
       return closest;
     },
-    [canvasToWorld, dimensions, toCanvas]
+    [canvasToWorld, dimensions, getSnapshot, toCanvas]
   );
 
   const commitWall = useCallback(() => {
@@ -991,16 +992,17 @@ export default function Plan2DOverlay({
       // drag de pieza con botón izquierdo
       if (e.button !== 0) return;
       if (!measureMode && !scaleMode && !isWallDrawMode) {
-        const dimension = pickDimensionAtCanvasPoint(mx, my);
-        if (dimension) {
+        const pickedDimension = pickDimensionAtCanvasPoint(mx, my);
+        if (pickedDimension) {
+          const { dimension, resolvedDimension } = pickedDimension;
           setSelectedDimensionId(dimension.id);
           const textDistance = dimensionTextHitDistance({
             screenPoint: { x: mx, y: my },
-            dimension,
+            dimension: resolvedDimension,
             view: { toCanvas },
           });
           if (dimension.id === selectedDimensionId && textDistance <= 4) {
-            const textPosition = resolveDimensionTextPosition(dimension, toCanvas);
+            const textPosition = resolveDimensionTextPosition(resolvedDimension, toCanvas);
             dimensionTextDragRef.current = {
               pointerId: e.pointerId,
               startClientX: e.clientX,
@@ -1250,9 +1252,9 @@ export default function Plan2DOverlay({
       }
 
       if (!isWallDrawMode) {
-        const dimension = pickDimensionAtCanvasPoint(mx, my);
-        if (dimension) {
-          setSelectedDimensionId(dimension.id);
+        const pickedDimension = pickDimensionAtCanvasPoint(mx, my);
+        if (pickedDimension) {
+          setSelectedDimensionId(pickedDimension.dimension.id);
           return;
         }
         setSelectedDimensionId(null);
@@ -1704,20 +1706,7 @@ export default function Plan2DOverlay({
 
       // Cotas permanentes
       for (const dimension of dimensions) {
-        const resolvedReferences = resolveDimensionReferences({
-          dimension,
-          snapGeometry,
-        });
-        const renderDimension = {
-          ...dimension,
-          startPoint: resolvedReferences.startPoint,
-          endPoint: resolvedReferences.endPoint,
-          value: calculateDimensionValue(
-            dimension.type,
-            resolvedReferences.startPoint,
-            resolvedReferences.endPoint
-          ),
-        };
+        const renderDimension = getResolvedDimension2D({ dimension, snapGeometry });
         drawDimension2D(ctx, renderDimension, {
           toCanvas: toCanvasLocal,
           selected: dimension.id === selectedDimensionId,

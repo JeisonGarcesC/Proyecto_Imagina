@@ -151,11 +151,19 @@ function projectPointToSegment(point, a, b) {
   const dz = b.z - a.z;
   const lengthSquared = dx * dx + dz * dz;
   if (lengthSquared <= Number.EPSILON) return { ...a };
-  const t = Math.max(
+  const t = resolveSegmentParameter(point, a, b);
+  return { x: a.x + dx * t, z: a.z + dz * t };
+}
+
+function resolveSegmentParameter(point, a, b) {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const lengthSquared = dx * dx + dz * dz;
+  if (lengthSquared <= Number.EPSILON) return 0;
+  return Math.max(
     0,
     Math.min(1, ((point.x - a.x) * dx + (point.z - a.z) * dz) / lengthSquared)
   );
-  return { x: a.x + dx * t, z: a.z + dz * t };
 }
 
 export function resolveSnapPoint({
@@ -214,12 +222,12 @@ export function resolveSnapPoint({
       edgeIndex,
       endpointIndex: 1,
     });
-    consider(
-      segment.type || SNAP_TYPES.SEGMENT,
-      projectPointToSegment(worldPoint, segment.a, segment.b),
-      segment.sourceId,
-      segment.feature
-    );
+    const segmentPoint = projectPointToSegment(worldPoint, segment.a, segment.b);
+    consider(segment.type || SNAP_TYPES.SEGMENT, segmentPoint, segment.sourceId, {
+      ...(segment.feature || {}),
+      kind: SNAP_TYPES.SEGMENT,
+      t: resolveSegmentParameter(segmentPoint, segment.a, segment.b),
+    });
   });
 
   if (!best) {

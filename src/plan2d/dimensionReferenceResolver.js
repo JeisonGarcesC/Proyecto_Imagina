@@ -1,3 +1,5 @@
+import { calculateDimensionValue } from './dimension2D.js';
+
 const REFERENCE_STATUS = Object.freeze({
   RESOLVED: 'RESOLVED',
   NO_REFERENCE: 'NO_REFERENCE',
@@ -102,9 +104,15 @@ function resolveReference(reference, fallbackPoint, snapGeometry) {
   } else if (feature.kind === 'SEGMENT') {
     const segment = findSegment(segments, sourceId, feature.edgeIndex);
     if (segment) {
-      // Temporal: proyectar el punto persistido. La referencia asociativa completa
-      // conservará feature.t para reconstruir exactamente su posición sobre el borde.
-      resolvedPoint = projectPointToSegment(fallback, segment);
+      if (Number.isFinite(feature.t)) {
+        const t = Math.max(0, Math.min(1, feature.t));
+        resolvedPoint = {
+          x: segment.a.x + (segment.b.x - segment.a.x) * t,
+          z: segment.a.z + (segment.b.z - segment.a.z) * t,
+        };
+      } else {
+        resolvedPoint = projectPointToSegment(fallback, segment);
+      }
     }
   }
 
@@ -142,6 +150,16 @@ export function resolveDimensionReferences({ dimension, snapGeometry } = {}) {
     endResolved: end.resolved,
     startStatus: start.status,
     endStatus: end.status,
+  };
+}
+
+export function getResolvedDimension2D({ dimension, snapGeometry } = {}) {
+  const resolved = resolveDimensionReferences({ dimension, snapGeometry });
+  return {
+    ...dimension,
+    startPoint: resolved.startPoint,
+    endPoint: resolved.endPoint,
+    value: calculateDimensionValue(dimension.type, resolved.startPoint, resolved.endPoint),
   };
 }
 
