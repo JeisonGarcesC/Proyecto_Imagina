@@ -3,10 +3,12 @@ import { buildSnapGeometry, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geom
 import {
   createDimension2D,
   dimensionHitDistance,
+  dimensionTextHitDistance,
   DIMENSION_TYPES,
   updateDimension2D,
 } from '../plan2d/dimension2D';
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
+import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { HISTORY_ACTION_TYPES } from '../history/historyManager';
 
 const MIN_ZOOM = 20;
@@ -253,6 +255,7 @@ export default function Plan2DOverlay({
   const [dragPieceId, setDragPieceId] = useState(null);
   const [hoveredMovablePieceId, setHoveredMovablePieceId] = useState(null);
   const dragPieceRef = useRef(null);
+  const dimensionTextDragRef = useRef(null);
   const suppressNextClickRef = useRef(false);
   const rotationDragRef = useRef(null);
   const [isRotatingPiece, setIsRotatingPiece] = useState(false);
@@ -694,6 +697,35 @@ export default function Plan2DOverlay({
         return;
       }
 
+      const dimensionTextDrag = dimensionTextDragRef.current;
+      if (dimensionTextDrag?.pointerId === e.pointerId) {
+        const deltaX = e.clientX - dimensionTextDrag.startClientX;
+        const deltaY = e.clientY - dimensionTextDrag.startClientY;
+        const movedPx = Math.hypot(deltaX, deltaY);
+        if (!dimensionTextDrag.hasMoved && movedPx < 2) return;
+
+        const textOffset = {
+          alongPx:
+            dimensionTextDrag.initialTextOffset.alongPx +
+            deltaX * dimensionTextDrag.along.x +
+            deltaY * dimensionTextDrag.along.y,
+          normalPx:
+            dimensionTextDrag.initialTextOffset.normalPx +
+            deltaX * dimensionTextDrag.normal.x +
+            deltaY * dimensionTextDrag.normal.y,
+        };
+        const nextDimension = createDimension2D({
+          ...dimensionTextDrag.before,
+          textOffset,
+        });
+        if (!nextDimension) return;
+
+        dimensionTextDrag.hasMoved = true;
+        dimensionTextDrag.after = nextDimension;
+        setDimensions((current) => upsertDimension(current, nextDimension));
+        return;
+      }
+
       const pieceDrag = dragPieceRef.current;
 
       const rotationDrag = rotationDragRef.current;
@@ -806,39 +838,78 @@ export default function Plan2DOverlay({
     onCancelMove2D?.();
   }, [onMovePart2D, onMoveParts2D, onCancelMove2D]);
 
-  const handlePointerUp = useCallback((e) => {
-    const canvas = canvasRef.current;
-    const pieceDrag = dragPieceRef.current;
-    const rotationDrag = rotationDragRef.current;
+  const cancelDimensionTextDrag = useCallback((pointerId) => {
+    const session = dimensionTextDragRef.current;
+    if (!session || (pointerId != null && session.pointerId !== pointerId)) return false;
 
-    if (rotationDrag?.pointerId === e.pointerId) {
-      rotationDragRef.current = null;
-      setIsRotatingPiece(false);
+    dimensionTextDragRef.current = null;
+    if (session.hasMoved) {
+      setDimensions((current) => upsertDimension(current, session.before));
       suppressNextClickRef.current = true;
-      onEndRotation2D?.();
     }
 
-    if (pieceDrag?.pointerId === e.pointerId) {
-      suppressNextClickRef.current = pieceDrag.hasMoved;
-      dragPieceRef.current = null;
-      setDragPieceId(null);
-      onEndMove2D?.();
+    const canvas = canvasRef.current;
+    if (canvas?.hasPointerCapture?.(session.pointerId)) {
+      canvas.releasePointerCapture(session.pointerId);
     }
+    return true;
+  }, []);
 
-    dragRef.current.isDown = false;
-    dragRef.current.mode = null;
+  const handlePointerUp = useCallback(
+    (e) => {
+      const canvas = canvasRef.current;
+      const dimensionTextDrag = dimensionTextDragRef.current;
+      const pieceDrag = dragPieceRef.current;
+      const rotationDrag = rotationDragRef.current;
 
-    if (canvas?.hasPointerCapture?.(e.pointerId)) {
-      canvas.releasePointerCapture(e.pointerId);
-    }
-  }, [onEndRotation2D, onEndMove2D]);
+      if (dimensionTextDrag?.pointerId === e.pointerId) {
+        dimensionTextDragRef.current = null;
+        suppressNextClickRef.current = dimensionTextDrag.hasMoved;
+        if (
+          dimensionTextDrag.hasMoved &&
+          dimensionTextDrag.after &&
+          !dimensionsAreEqual(dimensionTextDrag.before, dimensionTextDrag.after)
+        ) {
+          recordDimensionHistoryAction({
+            type: HISTORY_ACTION_TYPES.UPDATE_DIMENSION,
+            dimensionId: dimensionTextDrag.before.id,
+            before: { dimension: dimensionTextDrag.before },
+            after: { dimension: dimensionTextDrag.after },
+          });
+        }
+      }
+
+      if (rotationDrag?.pointerId === e.pointerId) {
+        rotationDragRef.current = null;
+        setIsRotatingPiece(false);
+        suppressNextClickRef.current = true;
+        onEndRotation2D?.();
+      }
+
+      if (pieceDrag?.pointerId === e.pointerId) {
+        suppressNextClickRef.current = pieceDrag.hasMoved;
+        dragPieceRef.current = null;
+        setDragPieceId(null);
+        onEndMove2D?.();
+      }
+
+      dragRef.current.isDown = false;
+      dragRef.current.mode = null;
+
+      if (canvas?.hasPointerCapture?.(e.pointerId)) {
+        canvas.releasePointerCapture(e.pointerId);
+      }
+    },
+    [onEndRotation2D, onEndMove2D, recordDimensionHistoryAction]
+  );
 
   const handlePointerCancel = useCallback(
     (e) => {
+      cancelDimensionTextDrag(e.pointerId);
       cancelPieceDrag();
       handlePointerUp(e);
     },
-    [cancelPieceDrag, handlePointerUp]
+    [cancelDimensionTextDrag, cancelPieceDrag, handlePointerUp]
   );
 
   // zoom wheel
@@ -912,6 +983,26 @@ export default function Plan2DOverlay({
         const dimension = pickDimensionAtCanvasPoint(mx, my);
         if (dimension) {
           setSelectedDimensionId(dimension.id);
+          const textDistance = dimensionTextHitDistance({
+            screenPoint: { x: mx, y: my },
+            dimension,
+            view: { toCanvas },
+          });
+          if (dimension.id === selectedDimensionId && textDistance <= 4) {
+            const textPosition = resolveDimensionTextPosition(dimension, toCanvas);
+            dimensionTextDragRef.current = {
+              pointerId: e.pointerId,
+              startClientX: e.clientX,
+              startClientY: e.clientY,
+              initialTextOffset: dimension.textOffset || { alongPx: 0, normalPx: 0 },
+              along: textPosition.along,
+              normal: textPosition.normal,
+              before: dimension,
+              after: dimension,
+              hasMoved: false,
+            };
+            canvas.setPointerCapture?.(e.pointerId);
+          }
           e.preventDefault();
           return;
         }
@@ -1012,6 +1103,8 @@ export default function Plan2DOverlay({
       onBeginMove2D,
       isPartMovementLocked2D,
       pickDimensionAtCanvasPoint,
+      selectedDimensionId,
+      toCanvas,
     ]
   );
 
@@ -1023,16 +1116,21 @@ export default function Plan2DOverlay({
         setIsRotatingPiece(false);
         onCancelRotation2D?.();
       }
+      cancelDimensionTextDrag();
       cancelPieceDrag();
     };
     window.addEventListener('keydown', onEscape);
     return () => window.removeEventListener('keydown', onEscape);
-  }, [onCancelRotation2D, cancelPieceDrag]);
+  }, [onCancelRotation2D, cancelDimensionTextDrag, cancelPieceDrag]);
 
   useEffect(() => {
-    window.addEventListener('blur', cancelPieceDrag);
-    return () => window.removeEventListener('blur', cancelPieceDrag);
-  }, [cancelPieceDrag]);
+    const cancelActiveDrag = () => {
+      cancelDimensionTextDrag();
+      cancelPieceDrag();
+    };
+    window.addEventListener('blur', cancelActiveDrag);
+    return () => window.removeEventListener('blur', cancelActiveDrag);
+  }, [cancelDimensionTextDrag, cancelPieceDrag]);
 
   useEffect(() => {
     if (transformTool === 'rotate' || !rotationDragRef.current) return;
@@ -2024,9 +2122,17 @@ export default function Plan2DOverlay({
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
-        onLostPointerCapture={cancelPieceDrag}
+        onLostPointerCapture={(event) => {
+          cancelDimensionTextDrag(event.pointerId);
+          cancelPieceDrag();
+        }}
         onPointerLeave={() => {
-          if (!dragPieceRef.current && !rotationDragRef.current && !dragRef.current.isDown) {
+          if (
+            !dimensionTextDragRef.current &&
+            !dragPieceRef.current &&
+            !rotationDragRef.current &&
+            !dragRef.current.isDown
+          ) {
             setHoveredMovablePieceId(null);
           }
         }}

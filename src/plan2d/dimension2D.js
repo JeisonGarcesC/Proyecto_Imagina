@@ -1,6 +1,7 @@
 import {
   pointToSegmentDistance,
   resolveDimensionScreenGeometry,
+  resolveDimensionTextPosition,
 } from './dimensionGeometry2D.js';
 import { formatDimensionValue } from './dimensionFormat.js';
 
@@ -21,6 +22,15 @@ function normalizePoint(point, name) {
   }
   return Object.freeze({ x, z });
 }
+
+function normalizeTextOffset(textOffset) {
+  const alongPx = Number(textOffset?.alongPx);
+  const normalPx = Number(textOffset?.normalPx);
+  return Object.freeze({
+    alongPx: Number.isFinite(alongPx) ? alongPx : 0,
+    normalPx: Number.isFinite(normalPx) ? normalPx : 0,
+  });
+}
 export function calculateDimensionValue(type, startPoint, endPoint) {
   if (type === DIMENSION_TYPES.LINEAR_HORIZONTAL) {
     return Math.abs(endPoint.x - startPoint.x);
@@ -39,6 +49,7 @@ export function createDimension2D({
   unit = 'm',
   label = null,
   offset = 18,
+  textOffset = null,
   references = null,
 } = {}) {
   if (!DIMENSION_TYPE_VALUES.has(type)) {
@@ -60,6 +71,7 @@ export function createDimension2D({
     unit: String(unit || 'm'),
     label: label == null ? null : String(label),
     offset: Number.isFinite(Number(offset)) ? Number(offset) : 18,
+    textOffset: normalizeTextOffset(textOffset),
     references: references ? Object.freeze({ ...references }) : null,
   });
 }
@@ -76,6 +88,7 @@ export function updateDimension2D(dimensions, id, changes = {}) {
     'unit',
     'label',
     'offset',
+    'textOffset',
     'references',
   ];
 
@@ -125,16 +138,20 @@ export function dimensionHitDistance({
     Math.hypot(mouse.x - geometry.dimEnd[0], mouse.y - geometry.dimEnd[1]),
   ];
 
-  const label = dimension.label || formatDimensionValue(dimension.value, dimension.unit);
-  const textCenterX = (geometry.dimStart[0] + geometry.dimEnd[0]) / 2;
-  const textCenterY = (geometry.dimStart[1] + geometry.dimEnd[1]) / 2;
-  const halfTextWidth = Math.max(15, label.length * 3.6 + 5);
-  const textDistanceX = Math.max(0, Math.abs(mouse.x - textCenterX) - halfTextWidth);
-  const textDistanceY = Math.max(0, Math.abs(mouse.y - textCenterY) - 10);
-  distances.push(Math.hypot(textDistanceX, textDistanceY));
+  distances.push(dimensionTextHitDistance({ screenPoint: mouse, dimension, view }));
 
   const distance = Math.min(...distances);
   return distance <= Math.max(0, Number(tolerance) || 0) ? distance : Infinity;
+}
+
+export function dimensionTextHitDistance({ screenPoint, dimension, view = {} } = {}) {
+  if (!dimension || !screenPoint || typeof view.toCanvas !== 'function') return Infinity;
+  const textPosition = resolveDimensionTextPosition(dimension, view.toCanvas);
+  const label = dimension.label || formatDimensionValue(dimension.value, dimension.unit);
+  const halfTextWidth = Math.max(15, label.length * 3.6 + 5);
+  const distanceX = Math.max(0, Math.abs(screenPoint.x - textPosition.x) - halfTextWidth);
+  const distanceY = Math.max(0, Math.abs(screenPoint.y - textPosition.y) - 10);
+  return Math.hypot(distanceX, distanceY);
 }
 
 export function dimensionHitTest(options = {}) {

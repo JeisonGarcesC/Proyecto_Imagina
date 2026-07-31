@@ -1,4 +1,7 @@
-import { resolveDimensionScreenGeometry } from './dimensionGeometry2D.js';
+import {
+  resolveDimensionScreenGeometry,
+  resolveDimensionTextPosition,
+} from './dimensionGeometry2D.js';
 import { formatDimensionValue } from './dimensionFormat.js';
 function drawArrow(ctx, tipX, tipY, towardX, towardY) {
   const angle = Math.atan2(towardY - tipY, towardX - tipX);
@@ -45,8 +48,9 @@ export function drawDimension2D(ctx, dimension, view = {}) {
   drawArrow(ctx, dimStartX, dimStartY, dimEndX, dimEndY);
   drawArrow(ctx, dimEndX, dimEndY, dimStartX, dimStartY);
 
-  const textX = (dimStartX + dimEndX) / 2;
-  const textY = (dimStartY + dimEndY) / 2;
+  const textPosition = resolveDimensionTextPosition(dimension, view.toCanvas);
+  const textX = textPosition.x;
+  const textY = textPosition.y;
   ctx.font = '12px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';

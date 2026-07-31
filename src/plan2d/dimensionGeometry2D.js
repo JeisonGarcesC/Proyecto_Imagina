@@ -33,6 +33,25 @@ export function resolveDimensionScreenGeometry(dimension, toCanvas) {
   };
 }
 
+export function resolveDimensionTextPosition(dimension, toCanvas) {
+  const geometry = resolveDimensionScreenGeometry(dimension, toCanvas);
+  const dx = geometry.dimEnd[0] - geometry.dimStart[0];
+  const dy = geometry.dimEnd[1] - geometry.dimStart[1];
+  const length = Math.hypot(dx, dy) || 1;
+  const along = { x: dx / length, y: dy / length };
+  const normal = { x: -along.y, y: along.x };
+  const alongPx = Number(dimension?.textOffset?.alongPx) || 0;
+  const normalPx = Number(dimension?.textOffset?.normalPx) || 0;
+
+  return {
+    x: (geometry.dimStart[0] + geometry.dimEnd[0]) / 2 + along.x * alongPx + normal.x * normalPx,
+    y: (geometry.dimStart[1] + geometry.dimEnd[1]) / 2 + along.y * alongPx + normal.y * normalPx,
+    along,
+    normal,
+    geometry,
+  };
+}
+
 export function pointToSegmentDistance(point, start, end) {
   const dx = end[0] - start[0];
   const dy = end[1] - start[1];
