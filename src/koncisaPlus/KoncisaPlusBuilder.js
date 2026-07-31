@@ -235,6 +235,7 @@ export function buildKoncisaPlus(config = {}) {
     const surfacePart = createSuperficie({
       groupId,
       groupName,
+      tipoPuesto,
 
       // medidas reales
       widthMm: s.widthMm,
