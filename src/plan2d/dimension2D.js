@@ -56,9 +56,13 @@ function normalizeReferences(references) {
 function normalizeStyle(style) {
   const color = String(style?.color || '#000000').trim() || '#000000';
   const lineWidth = Number(style?.lineWidth);
+  const textSize = Number(style?.text?.size);
   return Object.freeze({
     color,
     lineWidth: Number.isFinite(lineWidth) && lineWidth > 0 ? lineWidth : 1,
+    text: Object.freeze({
+      size: Number.isFinite(textSize) && textSize > 0 ? textSize : 14,
+    }),
   });
 }
 
@@ -182,9 +186,14 @@ export function dimensionTextHitDistance({ screenPoint, dimension, view = {} } =
   if (!dimension || !screenPoint || typeof view.toCanvas !== 'function') return Infinity;
   const textPosition = resolveDimensionTextPosition(dimension, view.toCanvas);
   const label = dimension.label || formatDimensionValue(dimension.value, dimension.unit);
-  const halfTextWidth = Math.max(15, label.length * 3.6 + 5);
+  const configuredTextSize = Number(dimension.style?.text?.size);
+  const textSize = Number.isFinite(configuredTextSize) && configuredTextSize > 0
+    ? configuredTextSize
+    : 14;
+  const halfTextWidth = Math.max(15, label.length * textSize * 0.3 + 5);
+  const halfTextHeight = Math.max(10, textSize / 2 + 4);
   const distanceX = Math.max(0, Math.abs(screenPoint.x - textPosition.x) - halfTextWidth);
-  const distanceY = Math.max(0, Math.abs(screenPoint.y - textPosition.y) - 10);
+  const distanceY = Math.max(0, Math.abs(screenPoint.y - textPosition.y) - halfTextHeight);
   return Math.hypot(distanceX, distanceY);
 }
 

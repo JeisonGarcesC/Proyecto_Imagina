@@ -50,8 +50,11 @@ export function drawDimension2D(ctx, dimension, view = {}) {
   const selected = view.selected === true;
   const styleColor = dimension.style?.color || '#000000';
   const configuredLineWidth = Number(dimension.style?.lineWidth);
+  const configuredTextSize = Number(dimension.style?.text?.size);
   const lineWidth =
     Number.isFinite(configuredLineWidth) && configuredLineWidth > 0 ? configuredLineWidth : 1;
+  const textSize =
+    Number.isFinite(configuredTextSize) && configuredTextSize > 0 ? configuredTextSize : 14;
   ctx.strokeStyle = selected ? 'rgba(234, 88, 12, 1)' : styleColor;
   ctx.fillStyle = selected ? 'rgba(234, 88, 12, 1)' : styleColor;
   ctx.lineWidth = selected ? Math.max(2.5, lineWidth + 1) : lineWidth;
@@ -73,12 +76,13 @@ export function drawDimension2D(ctx, dimension, view = {}) {
   const textPosition = resolveDimensionTextPosition(dimension, view.toCanvas);
   const textX = textPosition.x;
   const textY = textPosition.y;
-  ctx.font = '12px sans-serif';
+  ctx.font = `${textSize}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const textWidth = ctx.measureText(label).width + 10;
+  const textHeight = textSize + 8;
   ctx.fillStyle = 'rgba(255,255,255,0.96)';
-  ctx.fillRect(textX - textWidth / 2, textY - 10, textWidth, 20);
+  ctx.fillRect(textX - textWidth / 2, textY - textHeight / 2, textWidth, textHeight);
   ctx.fillStyle = selected ? 'rgba(154, 52, 18, 1)' : styleColor;
   ctx.fillText(label, textX, textY);
 

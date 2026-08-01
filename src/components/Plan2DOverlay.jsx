@@ -2138,6 +2138,29 @@ export default function Plan2DOverlay({
               }
             }}
           />
+
+          <label htmlFor="dimension-text-size">Tamaño de texto</label>
+          <input
+            id="dimension-text-size"
+            type="number"
+            min="1"
+            step="1"
+            value={selectedDimension.style?.text?.size ?? 14}
+            onChange={(event) => {
+              const size = Number(event.target.value);
+              if (Number.isFinite(size) && size > 0) {
+                applyDimensionUpdate(selectedDimension.id, {
+                  style: {
+                    ...(selectedDimension.style || {}),
+                    text: {
+                      ...(selectedDimension.style?.text || {}),
+                      size,
+                    },
+                  },
+                });
+              }
+            }}
+          />
         </section>
       )}
 
