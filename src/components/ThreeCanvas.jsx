@@ -28,9 +28,9 @@ import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
 import { getMepalSaludDetail } from '../services/mepalSaludLoader';
 import { getMepalTekSocialDetail } from '../services/mepalTekSocialLoader';
 import { getClakDetail } from '../services/clakLoader';
-import { getEdukDetail } from '../services/edukLoader';
 import { createAresInstance } from '../mepal/ares/factories/createAresInstance';
 import { getAresProductDefinition } from '../mepal/ares/products/aresProductDefinition';
+import { createEdukInstance } from '../mepal/eduk/factories/createEdukInstance';
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 
@@ -2744,68 +2744,19 @@ export default function ThreeCanvas({
       const parentGroup = options?.parentGroup || null;
       const codigo = String(codigoEduk);
 
-      // 1) trae detalle del producto Eduk desde el XML
-      const [detCO, detEUC, detUSD] = await Promise.all([
-        getEdukDetail(codigo, 'CO'),
-        getEdukDetail(codigo, 'EUC'),
-        getEdukDetail(codigo, 'USD'),
-      ]);
-
-      const det =
-        (countryRef.current === 'EUC' && detEUC) ||
-        (countryRef.current === 'USD' && detUSD) ||
-        detCO ||
-        detEUC ||
-        detUSD;
-
-      if (!det) {
-        console.warn(`Eduk: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`);
-      }
-
-      // 2) cargar GLB desde carpeta Eduk
-      const possibleSrcs = [`/assets/models/Eduk/${codigo}.glb`, `/assets/models/${codigo}.glb`];
-
-      const gltf = await loadExistingGlb(possibleSrcs);
-
-      if (!gltf) {
-        console.error(`No se encontró un GLB válido para Eduk ${codigo}`);
+      let result;
+      try {
+        result = await createEdukInstance({
+          codigoPT: codigoEduk,
+          country: countryRef.current,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(`No se pudo crear el producto Eduk ${codigo}`, error);
         return;
       }
 
-      const obj = gltf.scene;
-
-      // 3) userData
-      const edukPartPrices = {
-        CO: Number(detCO?.precio || 0),
-        EUC: Number(detEUC?.precio || 0),
-        USD: Number(detUSD?.precio || 0),
-      };
-      const edukParts = [
-        {
-          code: codigo,
-          description: det?.descripcion || codigo,
-          qty: 1,
-          unitPrice: Number(edukPartPrices[countryRef.current] || 0),
-          prices: edukPartPrices,
-        },
-      ];
-
-      obj.userData = {
-        ...(obj.userData || {}),
-        kind: 'EDUK',
-        codigoPT: codigo,
-        code: codigo,
-        name: det?.descripcion || codigo,
-        instanceId: obj.uuid,
-        edukParts,
-        edukMeta: {
-          descripcion: det?.descripcion || codigo,
-          precio: det?.precio || 0,
-          udm: det?.udm || 'und',
-        },
-      };
-
-      obj.name = `EDUK_${codigo}`;
+      const { object: obj, partRecord } = result;
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -2816,7 +2767,7 @@ export default function ThreeCanvas({
       } else {
         scene.add(obj);
       }
-      parts.push({ code: codigo, obj });
+      parts.push(partRecord);
       pickables.push(obj);
 
       setActivePart(obj);
