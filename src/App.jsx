@@ -855,6 +855,9 @@ export default function App() {
             selectedIds={selectedIds}
             moveAsGroup={moveAsGroup}
             onPickIds={(ids) => setSelectedIds(Array.from(new Set(ids || [])))}
+            resolveSelectionTargetIds={(ids, options) =>
+              threeApiRef.current?.resolveSelectionTargetIds?.(ids, options) || ids
+            }
             onPickId={(id) => {
               isSelectingFromPlan2DRef.current = true;
               try {

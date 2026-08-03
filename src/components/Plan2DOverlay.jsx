@@ -10,6 +10,11 @@ import {
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
+import {
+  classifySelectionWindow,
+  collectSelectionCandidates,
+  SELECTION_WINDOW_TYPES,
+} from '../plan2d/selectionGeometry2D';
 import { HISTORY_ACTION_TYPES } from '../history/historyManager';
 
 const MIN_ZOOM = 20;
@@ -130,6 +135,19 @@ function dimensionsAreEqual(before, after) {
   return JSON.stringify(before) === JSON.stringify(after);
 }
 
+function applySelectionOperation(selectedIds, candidateIds, operation) {
+  const current = new Set(selectedIds || []);
+  if (operation === 'ADD') {
+    candidateIds.forEach((id) => current.add(id));
+    return Array.from(current);
+  }
+  if (operation === 'REMOVE') {
+    candidateIds.forEach((id) => current.delete(id));
+    return Array.from(current);
+  }
+  return Array.from(new Set(candidateIds));
+}
+
 function createDimensionSnapReference(resolved) {
   if (!resolved?.snapped) return null;
   return {
@@ -145,6 +163,7 @@ export default function Plan2DOverlay({
   selectedIds = [],
   moveAsGroup = false,
   onPickIds,
+  resolveSelectionTargetIds,
   onPickId,
   walls = [],
   wallMode = false,
@@ -265,6 +284,8 @@ export default function Plan2DOverlay({
   const [dragPieceId, setDragPieceId] = useState(null);
   const [hoveredMovablePieceId, setHoveredMovablePieceId] = useState(null);
   const dragPieceRef = useRef(null);
+  const [selectionDrag, setSelectionDrag] = useState(null);
+  const selectionDragRef = useRef(null);
   const dimensionTextDragRef = useRef(null);
   const suppressNextClickRef = useRef(false);
   const rotationDragRef = useRef(null);
@@ -709,6 +730,22 @@ export default function Plan2DOverlay({
         return;
       }
 
+      const activeSelectionDrag = selectionDragRef.current;
+      if (activeSelectionDrag?.pointerId === e.pointerId) {
+        const currentWorld = canvasToWorld(mx, my);
+        if (!currentWorld) return;
+        const currentScreen = { x: mx, y: my };
+        const nextSelectionDrag = {
+          ...activeSelectionDrag,
+          currentScreen,
+          currentWorld,
+          direction: classifySelectionWindow(activeSelectionDrag.startScreen, currentScreen),
+        };
+        selectionDragRef.current = nextSelectionDrag;
+        setSelectionDrag(nextSelectionDrag);
+        return;
+      }
+
       const dimensionTextDrag = dimensionTextDragRef.current;
       if (dimensionTextDrag?.pointerId === e.pointerId) {
         const deltaX = e.clientX - dimensionTextDrag.startClientX;
@@ -867,12 +904,47 @@ export default function Plan2DOverlay({
     return true;
   }, []);
 
+  const cancelSelectionDrag = useCallback((pointerId) => {
+    const session = selectionDragRef.current;
+    if (!session || (pointerId != null && session.pointerId !== pointerId)) return false;
+    selectionDragRef.current = null;
+    setSelectionDrag(null);
+    return true;
+  }, []);
+
   const handlePointerUp = useCallback(
     (e) => {
       const canvas = canvasRef.current;
+      const activeSelectionDrag = selectionDragRef.current;
       const dimensionTextDrag = dimensionTextDragRef.current;
       const pieceDrag = dragPieceRef.current;
       const rotationDrag = rotationDragRef.current;
+
+      if (activeSelectionDrag?.pointerId === e.pointerId) {
+        const rect = canvas?.getBoundingClientRect?.();
+        const currentScreen = rect
+          ? { x: e.clientX - rect.left, y: e.clientY - rect.top }
+          : activeSelectionDrag.currentScreen;
+        const currentWorld = currentScreen
+          ? canvasToWorld(currentScreen.x, currentScreen.y)
+          : activeSelectionDrag.currentWorld;
+        const completedSelection = {
+          ...activeSelectionDrag,
+          currentScreen,
+          currentWorld: currentWorld || activeSelectionDrag.currentWorld,
+          direction: classifySelectionWindow(activeSelectionDrag.startScreen, currentScreen),
+        };
+        const candidates = collectSelectionCandidates(getSnapshot?.() || [], completedSelection);
+        const resolvedCandidates = resolveSelectionTargetIds?.(candidates, {
+          asGroup: moveAsGroup,
+        }) || candidates;
+        onPickIds?.(
+          applySelectionOperation(selectedIds, resolvedCandidates, completedSelection.operation)
+        );
+        selectionDragRef.current = null;
+        setSelectionDrag(null);
+        suppressNextClickRef.current = true;
+      }
 
       if (dimensionTextDrag?.pointerId === e.pointerId) {
         dimensionTextDragRef.current = null;
@@ -912,16 +984,27 @@ export default function Plan2DOverlay({
         canvas.releasePointerCapture(e.pointerId);
       }
     },
-    [onEndRotation2D, onEndMove2D, recordDimensionHistoryAction]
+    [
+      canvasToWorld,
+      getSnapshot,
+      moveAsGroup,
+      resolveSelectionTargetIds,
+      selectedIds,
+      onPickIds,
+      onEndRotation2D,
+      onEndMove2D,
+      recordDimensionHistoryAction,
+    ]
   );
 
   const handlePointerCancel = useCallback(
     (e) => {
+      cancelSelectionDrag(e.pointerId);
       cancelDimensionTextDrag(e.pointerId);
       cancelPieceDrag();
       handlePointerUp(e);
     },
-    [cancelDimensionTextDrag, cancelPieceDrag, handlePointerUp]
+    [cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag, handlePointerUp]
   );
 
   // zoom wheel
@@ -977,7 +1060,7 @@ export default function Plan2DOverlay({
       const my = e.clientY - rect.top;
 
       // pan
-      if (e.button === 1 || e.button === 2 || e.shiftKey) {
+      if (e.button === 1 || e.button === 2) {
         dragRef.current.isDown = true;
         dragRef.current.mode = 'PAN';
         dragRef.current.startMx = mx;
@@ -1049,7 +1132,26 @@ export default function Plan2DOverlay({
       }
 
       const picked = pickPartAtCanvasPoint(mx, my);
-      if (!picked?.id) return;
+      if (!picked?.id) {
+        const startWorld = canvasToWorld(mx, my);
+        if (!startWorld) return;
+        const startScreen = { x: mx, y: my };
+        const nextSelectionDrag = {
+          pointerId: e.pointerId,
+          startScreen,
+          currentScreen: startScreen,
+          startWorld,
+          currentWorld: startWorld,
+          direction: SELECTION_WINDOW_TYPES.WINDOW,
+          operation: e.ctrlKey || e.metaKey ? 'REMOVE' : e.shiftKey ? 'ADD' : 'REPLACE',
+        };
+        selectionDragRef.current = nextSelectionDrag;
+        setSelectionDrag(nextSelectionDrag);
+        setHoveredMovablePieceId(null);
+        canvas.setPointerCapture?.(e.pointerId);
+        e.preventDefault();
+        return;
+      }
 
       const world = canvasToWorld(mx, my);
       if (!world) return;
@@ -1129,21 +1231,23 @@ export default function Plan2DOverlay({
         setIsRotatingPiece(false);
         onCancelRotation2D?.();
       }
+      cancelSelectionDrag();
       cancelDimensionTextDrag();
       cancelPieceDrag();
     };
     window.addEventListener('keydown', onEscape);
     return () => window.removeEventListener('keydown', onEscape);
-  }, [onCancelRotation2D, cancelDimensionTextDrag, cancelPieceDrag]);
+  }, [onCancelRotation2D, cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag]);
 
   useEffect(() => {
     const cancelActiveDrag = () => {
+      cancelSelectionDrag();
       cancelDimensionTextDrag();
       cancelPieceDrag();
     };
     window.addEventListener('blur', cancelActiveDrag);
     return () => window.removeEventListener('blur', cancelActiveDrag);
-  }, [cancelDimensionTextDrag, cancelPieceDrag]);
+  }, [cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag]);
 
   useEffect(() => {
     if (transformTool === 'rotate' || !rotationDragRef.current) return;
@@ -1760,6 +1864,27 @@ export default function Plan2DOverlay({
         ctx.restore();
       }
 
+      if (selectionDrag) {
+        const startX = selectionDrag.startScreen.x;
+        const startY = selectionDrag.startScreen.y;
+        const currentX = selectionDrag.currentScreen.x;
+        const currentY = selectionDrag.currentScreen.y;
+        const left = Math.min(startX, currentX);
+        const top = Math.min(startY, currentY);
+        const width = Math.abs(currentX - startX);
+        const height = Math.abs(currentY - startY);
+        const crossing = selectionDrag.direction === SELECTION_WINDOW_TYPES.CROSSING;
+
+        ctx.save();
+        ctx.fillStyle = crossing ? 'rgba(34, 197, 94, 0.10)' : 'rgba(37, 99, 235, 0.10)';
+        ctx.strokeStyle = crossing ? 'rgba(22, 163, 74, 0.95)' : 'rgba(37, 99, 235, 0.95)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash(crossing ? [7, 5] : []);
+        ctx.fillRect(left, top, width, height);
+        ctx.strokeRect(left, top, width, height);
+        ctx.restore();
+      }
+
       // Header
       ctx.fillStyle = 'rgba(0,0,0,0.62)';
       ctx.font = '13px sans-serif';
@@ -1786,6 +1911,7 @@ export default function Plan2DOverlay({
     measureSnap,
     dimensions,
     selectedDimensionId,
+    selectionDrag,
     plan2DTransform,
     scaleMode,
     scaleStartPx,
@@ -2173,7 +2299,7 @@ export default function Plan2DOverlay({
           display: 'block',
           touchAction: 'none',
           cursor:
-            measureMode || isWallDrawMode || scaleMode
+            measureMode || isWallDrawMode || scaleMode || selectionDrag
               ? 'crosshair'
               : isRotatingPiece
                 ? 'grabbing'
@@ -2192,12 +2318,14 @@ export default function Plan2DOverlay({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={(event) => {
+          cancelSelectionDrag(event.pointerId);
           cancelDimensionTextDrag(event.pointerId);
           cancelPieceDrag();
         }}
         onPointerLeave={() => {
           if (
             !dimensionTextDragRef.current &&
+            !selectionDragRef.current &&
             !dragPieceRef.current &&
             !rotationDragRef.current &&
             !dragRef.current.isDown

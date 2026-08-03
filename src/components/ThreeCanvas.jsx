@@ -1635,11 +1635,14 @@ export default function ThreeCanvas({
       return matchedAssembly;
     }
 
-    function resolveSelectionTargets(object) {
+    function resolveSelectionTargets(
+      object,
+      { asGroup = moveAsGroupRef.current } = {}
+    ) {
       const physicalRoot = getRootPartObject(object);
       const physicalId = physicalRoot?.userData?.instanceId || physicalRoot?.uuid;
 
-      if (!physicalRoot || !physicalId || !moveAsGroupRef.current) {
+      if (!physicalRoot || !physicalId || !asGroup) {
         return physicalId ? [physicalId] : [];
       }
 
@@ -1669,6 +1672,18 @@ export default function ThreeCanvas({
         .filter(Boolean);
 
       return Array.from(new Set(resolvedIds.length ? resolvedIds : [physicalId]));
+    }
+
+    function resolveSelectionTargetIds(ids = [], options = {}) {
+      return Array.from(
+        new Set(
+          Array.from(new Set(ids || []))
+            .map((id) => findPartById(id))
+            .filter(Boolean)
+            .flatMap((object) => resolveSelectionTargets(object, options))
+            .filter(Boolean)
+        )
+      );
     }
 
     function updateMouseFromEvent(e) {
@@ -4216,6 +4231,7 @@ export default function ThreeCanvas({
       removePartById,
       applyFinishToActivePart,
       getPartsSnapshot2D,
+      resolveSelectionTargetIds,
       setSelectedIds3D: syncSelectedIds3D,
       selectPartById,
       addTypology,
