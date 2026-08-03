@@ -11,7 +11,7 @@ import { loadOfficeAccessoriesItems } from '../services/officeAccessoriesLoader'
 import { loadMepalSaludItems } from '../services/mepalSaludLoader';
 import { loadMepalTekSocialItems } from '../services/mepalTekSocialLoader';
 import { loadClakItems } from '../services/clakLoader';
-import { loadEdukItems } from '../services/edukLoader';
+import { loadEdukItems } from '../mepal/eduk/catalog/edukLoader';
 import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
