@@ -23,13 +23,14 @@ import { exportPlanToDXF } from '../utils/exportDXF';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
-import { getAresDetail } from '../services/aresLoader';
 import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
 import { getMepalSaludDetail } from '../services/mepalSaludLoader';
 import { getMepalTekSocialDetail } from '../services/mepalTekSocialLoader';
 import { getClakDetail } from '../services/clakLoader';
 import { getEdukDetail } from '../services/edukLoader';
+import { createAresInstance } from '../mepal/ares/factories/createAresInstance';
+import { getAresProductDefinition } from '../mepal/ares/products/aresProductDefinition';
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 
@@ -2205,66 +2206,20 @@ export default function ThreeCanvas({
       const parentGroup = options?.parentGroup || null;
       const codigo = String(codigoAres);
 
-      // 1) trae detalle del producto Ares desde el XML
-      const [detCO, detEUC, detUSD] = await Promise.all([
-        getAresDetail(codigo, 'CO'),
-        getAresDetail(codigo, 'EUC'),
-        getAresDetail(codigo, 'USD'),
-      ]);
-
-      const det =
-        (countryRef.current === 'EUC' && detEUC) ||
-        (countryRef.current === 'USD' && detUSD) ||
-        detCO ||
-        detEUC ||
-        detUSD;
-
-      if (!det) {
-        console.warn(`Ares: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`);
-      }
-
-      // 2) cargar GLB desde carpeta Ares
-      const possibleSrcs = [`/assets/models/Ares/${codigo}.glb`, `/assets/models/${codigo}.glb`];
-
-      const gltf = await loadExistingGlb(possibleSrcs);
-
-      if (!gltf) {
-        console.error(`No se encontró un GLB válido para Ares ${codigo}`);
+      let result;
+      try {
+        result = await createAresInstance({
+          codigoPT: codigoAres,
+          country: countryRef.current,
+          getProductDefinition: getAresProductDefinition,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(`No se pudo crear el producto Ares ${codigo}`, error);
         return;
       }
 
-      const obj = gltf.scene;
-
-      // 3) userData
-      const aresParts = [
-        {
-          code: codigo,
-          description: det?.descripcion || codigo,
-          qty: 1,
-          unitPrice: Number(det?.precio || 0),
-          prices: {
-            CO: detCO?.precio || 0,
-            EUC: detEUC?.precio || 0,
-            USD: detUSD?.precio || 0,
-          },
-        },
-      ];
-
-      obj.userData = {
-        ...(obj.userData || {}),
-        kind: 'ARES',
-        codigoPT: codigo,
-        code: codigo,
-        name: det?.descripcion || codigo,
-        aresParts,
-        aresMeta: {
-          descripcion: det?.descripcion || codigo,
-          precio: det?.precio || 0,
-          udm: det?.udm || 'und',
-        },
-      };
-
-      obj.name = `ARES_${codigo}`;
+      const { object: obj, partRecord } = result;
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -2276,7 +2231,7 @@ export default function ThreeCanvas({
       } else {
         scene.add(obj);
       }
-      parts.push({ code: codigo, obj });
+      parts.push(partRecord);
       pickables.push(obj);
 
       setActivePart(obj);
