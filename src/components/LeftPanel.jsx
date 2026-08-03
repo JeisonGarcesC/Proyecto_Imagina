@@ -15,7 +15,7 @@ import { loadEdukItems } from '../services/edukLoader';
 import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
-import { createKoncisaPlusInstance } from '../koncisaPlus/createKoncisaPlusInstance';
+import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,

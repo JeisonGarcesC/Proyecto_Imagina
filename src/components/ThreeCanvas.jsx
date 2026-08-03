@@ -31,19 +31,19 @@ import { getMepalTekSocialDetail } from '../services/mepalTekSocialLoader';
 import { getClakDetail } from '../services/clakLoader';
 import { getEdukDetail } from '../services/edukLoader';
 
-import { resolveKoncisaDucto } from '../koncisaPlus/rules/koncisaDuctoRules';
+import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 
-import { createKoncisaPrivacyPanelProcedural, panelHasCanto } from '../koncisaPlus/parts/pantallas';
+import { createKoncisaPrivacyPanelProcedural, panelHasCanto } from '../mepal/koncisaPlus/parts/pantallas';
 
 import {
   resolvePedestalFromCostado,
   getPedestalSidesForCostado,
-} from '../koncisaPlus/rules/koncisaPedestalRules';
+} from '../mepal/koncisaPlus/rules/koncisaPedestalRules';
 
-import { resolveKoncisaPedestalReinforcement } from '../koncisaPlus/rules/koncisaPedestalReinforcementRules';
-import { resolveKoncisaDuctSupport } from '../koncisaPlus/rules/koncisaDuctSupportRules';
+import { resolveKoncisaPedestalReinforcement } from '../mepal/koncisaPlus/rules/koncisaPedestalReinforcementRules';
+import { resolveKoncisaDuctSupport } from '../mepal/koncisaPlus/rules/koncisaDuctSupportRules';
 
-import { resolveKoncisaSurfaceCodigoPT } from '../koncisaPlus/rules/koncisaSurfaceRules';
+import { resolveKoncisaSurfaceCodigoPT } from '../mepal/koncisaPlus/rules/koncisaSurfaceRules';
 
 import {
   canAttachKoncisaIntegrationToPart,
@@ -51,7 +51,7 @@ import {
   normalizeIntegrationSide,
   normalizeIntegrationWidthMm,
   resolveKoncisaIntegrationPackage,
-} from '../koncisaPlus/rules/koncisaIntegrationRules';
+} from '../mepal/koncisaPlus/rules/koncisaIntegrationRules';
 
 import {
   resolveDuctCoverAsset,
@@ -60,7 +60,7 @@ import {
   getDuctCoverSides,
   normalizeDuctModuleType,
   inferDuctChannelType,
-} from '../koncisaPlus/rules/koncisaDuctCoverRules';
+} from '../mepal/koncisaPlus/rules/koncisaDuctCoverRules';
 import {
   CLAK_SWAP_ALLOWED_CODES,
   getClakVariantOptionsByCode,

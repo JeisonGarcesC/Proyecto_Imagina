@@ -5,7 +5,7 @@ import './PropertiesPanel.css';
 import {
   KONCISA_PRIVACY_PANEL_FINISH_OPTIONS,
   getKoncisaPrivacyPanelFinishById,
-} from '../koncisaPlus/rules/koncisaPrivacyPanelFinishOptions';
+} from '../mepal/koncisaPlus/rules/koncisaPrivacyPanelFinishOptions';
 
 export default function PropertiesPanel({
   part,

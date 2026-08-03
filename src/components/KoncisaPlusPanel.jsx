@@ -9,13 +9,13 @@ function redondearLargoSencillo(mm) {
 }
 */
 import { useMemo, useState, useEffect } from 'react';
-import { KONCISA_SURFACE_FINISH_OPTIONS } from '../koncisaPlus/rules/koncisaSurfaceFinishOptions';
+import { KONCISA_SURFACE_FINISH_OPTIONS } from '../mepal/koncisaPlus/rules/koncisaSurfaceFinishOptions';
 import DuctConfigModal from './DuctConfigModal';
 
 import {
   KONCISA_PRIVACY_PANEL_FINISH_OPTIONS,
   getKoncisaPrivacyPanelFinishById,
-} from '../koncisaPlus/rules/koncisaPrivacyPanelFinishOptions';
+} from '../mepal/koncisaPlus/rules/koncisaPrivacyPanelFinishOptions';
 
 function redondearLargo(mm) {
   if (mm <= 1000) return 1000;

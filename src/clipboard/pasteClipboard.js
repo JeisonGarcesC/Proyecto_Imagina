@@ -1,5 +1,5 @@
 // src/clipboard/pasteClipboard.js
-import { createKoncisaPlusInstance } from '../koncisaPlus/createKoncisaPlusInstance.js';
+import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance.js';
 import { getClipboard } from './clipboardManager.js';
 import {
   applyClipboardFinishes,
