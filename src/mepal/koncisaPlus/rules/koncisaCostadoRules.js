@@ -354,9 +354,60 @@ export const KONCISA_COSTADO_RULES = {
     modelSrc: '/assets/models/koncisaPlus/2KSO328000_120.glb',
 
     assembly: createCostadoAssembly({
+      positioningMode: 'bounded-depth-v1',
+
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO330000_60.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO330000_60.glb',
+
+      centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET.glb',
+
+      leftMinZFromPivotMm: -50.869405,
+      leftMaxZFromPivotMm: 0,
+      rightMinZFromPivotMm: -50.800003,
+      rightMaxZFromPivotMm: 0,
+      centerBracketMinZFromPivotMm: -126,
+      centerBracketMaxZFromPivotMm: 0,
+      crossbarInsetXMm: 12.7 + 13.0, //posicion del travesaño
+
+      rootOffsetMm: {
+        x: 0,
+        y: 0,
+        z: -300,
+      },
+
+      // Correcciones independientes de cada pieza.
+      leftOffsetMm: {
+        x: 0,
+        y: 0,
+        z: 0,
+      },
+
+      rightOffsetMm: {
+        x: 0,
+        y: 0,
+        z: 51,
+      },
+
+      centerBracketOffsetMm: {
+        x: 40,
+        y: 0,
+        z: 0,
+      },
+
+      crossbar: {
+        heightMm: 25.4,
+        depthMm: 50.8,
+
+        // Se resta a la profundidad real para no invadir las patas.
+        endClearanceMm: 51,
+
+        offsetMm: {
+          x: 0,
+          y: 685,
+          z: -25.5,
+        },
+      },
     }),
   },
 
