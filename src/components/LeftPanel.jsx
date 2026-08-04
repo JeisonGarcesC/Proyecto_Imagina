@@ -10,6 +10,7 @@ import { loadPlantsItems } from '../services/plantsLoader';
 import { loadOfficeAccessoriesItems } from '../services/officeAccessoriesLoader';
 import { loadMepalSaludItems } from '../services/mepalSaludLoader';
 import { loadMepalTekSocialItems } from '../mepal/tekSocial/catalog/tekSocialLoader';
+import { loadZenCatalog } from '../mepal/zen/catalog/zenCatalogLoader';
 import { loadClakItems } from '../services/clakLoader';
 import { loadEdukItems } from '../mepal/eduk/catalog/edukLoader';
 import './LeftPanel.css';
@@ -1188,61 +1189,10 @@ export default function LeftPanel({
     let alive = true;
     (async () => {
       try {
-        const res = await fetch('/assets/models/Almacenamiento/manifest.json');
-        if (!res.ok) {
-          if (alive) setAlmacenReady(true);
-          return;
-        }
-        const arr = await res.json();
+        const { items, variantsMap } = await loadZenCatalog(country);
         if (!alive) return;
-
-        // Cargar mapa de precios (reutiliza loader existente)
-        let priceMap = null;
-        try {
-          priceMap = await loadChairsPriceList(country);
-        } catch {
-          priceMap = null;
-        }
-
-        const mapped = (arr || []).map((it) => {
-          const codeBase = String(it.codeBase || it.filename || '').replace(/\.glb$/i, '');
-          const priceEntry = priceMap ? priceMap.get(String(codeBase)) : null;
-
-          return {
-            codigoPT: codeBase,
-            ui: {
-              title:
-                (priceEntry?.descripcion || it.codeBase || it.filename) +
-                (it.variant ? ` - ${it.variant}` : ''),
-              subtitle: 'Zen Almacenamiento',
-            },
-            prices: {
-              [country]: priceEntry?.precio || 0,
-            },
-            model: { kind: 'glb', src: it.url, category: it.category, variant: it.variant },
-            raw: Object.assign({}, it, { found: !!priceEntry }),
-          };
-        });
-
-        const activeItems = mapped.filter((it) => !it?.raw?.disabled);
-        const displayItems = activeItems.filter((it) => !it?.raw?.variant);
-
-        // construir mapa de variantes por codeBase
-        const vmap = new Map();
-        for (const it of activeItems) {
-          const key = it.codigoPT;
-          const entry = {
-            variant: it.raw?.variant || null,
-            src: it.model?.src,
-            category: it.model?.category || it.raw?.category,
-          };
-          if (!vmap.has(key)) vmap.set(key, []);
-          vmap.get(key).push(entry);
-        }
-
-        setAlmacenVariantsMap(vmap);
-
-        setAlmacenItems(displayItems);
+        setAlmacenVariantsMap(variantsMap);
+        setAlmacenItems(items);
         setAlmacenReady(true);
       } catch (err) {
         console.error('Error cargando manifest Almacenamiento:', err);
