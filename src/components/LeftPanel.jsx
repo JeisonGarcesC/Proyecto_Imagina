@@ -9,7 +9,7 @@ import { loadAresItems } from '../services/aresLoader';
 import { loadPlantsItems } from '../services/plantsLoader';
 import { loadOfficeAccessoriesItems } from '../services/officeAccessoriesLoader';
 import { loadMepalSaludItems } from '../services/mepalSaludLoader';
-import { loadMepalTekSocialItems } from '../services/mepalTekSocialLoader';
+import { loadMepalTekSocialItems } from '../mepal/tekSocial/catalog/tekSocialLoader';
 import { loadClakItems } from '../services/clakLoader';
 import { loadEdukItems } from '../mepal/eduk/catalog/edukLoader';
 import './LeftPanel.css';

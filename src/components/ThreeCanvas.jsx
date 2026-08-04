@@ -25,7 +25,6 @@ import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
 import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
-import { getMepalTekSocialDetail } from '../services/mepalTekSocialLoader';
 import { createAresInstance } from '../mepal/ares/factories/createAresInstance';
 import { getAresProductDefinition } from '../mepal/ares/products/aresProductDefinition';
 import { createClakInstance } from '../mepal/clak/factories/createClakInstance';
@@ -35,6 +34,7 @@ import {
   getSaludVariantOptionsByCode,
   normalizeSaludVariantCode,
 } from '../mepal/salud/products/saludVariantDefinition';
+import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekSocialInstance';
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 
@@ -2514,73 +2514,19 @@ export default function ThreeCanvas({
       const parentGroup = options?.parentGroup || null;
       const codigo = String(codigoMepalTekSocial);
 
-      // 1) trae detalle del producto Mepal TekSocial desde el XML
-      const [detCO, detEUC, detUSD] = await Promise.all([
-        getMepalTekSocialDetail(codigo, 'CO'),
-        getMepalTekSocialDetail(codigo, 'EUC'),
-        getMepalTekSocialDetail(codigo, 'USD'),
-      ]);
-
-      const det =
-        (countryRef.current === 'EUC' && detEUC) ||
-        (countryRef.current === 'USD' && detUSD) ||
-        detCO ||
-        detEUC ||
-        detUSD;
-
-      if (!det) {
-        console.warn(
-          `Mepal TekSocial: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
-        );
-      }
-
-      // 2) cargar GLB desde carpeta Mepal TekSocial
-      const possibleSrcs = [
-        `/assets/models/Mepal TekSocial/${codigo}.glb`,
-        `/assets/models/${codigo}.glb`,
-      ];
-
-      const gltf = await loadExistingGlb(possibleSrcs);
-
-      if (!gltf) {
-        console.error(`No se encontró un GLB válido para Mepal TekSocial ${codigo}`);
+      let result;
+      try {
+        result = await createTekSocialInstance({
+          codigoPT: codigoMepalTekSocial,
+          country: countryRef.current,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(`No se pudo crear el producto Mepal TekSocial ${codigo}`, error);
         return;
       }
 
-      const obj = gltf.scene;
-
-      // 3) userData
-      const mepalTekSocialPartPrices = {
-        CO: Number(detCO?.precio || 0),
-        EUC: Number(detEUC?.precio || 0),
-        USD: Number(detUSD?.precio || 0),
-      };
-      const mepalTekSocialParts = [
-        {
-          code: codigo,
-          description: det?.descripcion || codigo,
-          qty: 1,
-          unitPrice: Number(mepalTekSocialPartPrices[countryRef.current] || 0),
-          prices: mepalTekSocialPartPrices,
-        },
-      ];
-
-      obj.userData = {
-        ...(obj.userData || {}),
-        kind: 'MEPAL_TEK_SOCIAL',
-        codigoPT: codigo,
-        code: codigo,
-        name: det?.descripcion || codigo,
-        instanceId: obj.uuid,
-        mepalTekSocialParts,
-        mepalTekSocialMeta: {
-          descripcion: det?.descripcion || codigo,
-          precio: det?.precio || 0,
-          udm: det?.udm || 'und',
-        },
-      };
-
-      obj.name = `MEPAL_TEK_SOCIAL_${codigo}`;
+      const { object: obj, partRecord } = result;
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -2591,7 +2537,7 @@ export default function ThreeCanvas({
       } else {
         scene.add(obj);
       }
-      parts.push({ code: codigo, obj });
+      parts.push(partRecord);
       pickables.push(obj);
 
       setActivePart(obj);
