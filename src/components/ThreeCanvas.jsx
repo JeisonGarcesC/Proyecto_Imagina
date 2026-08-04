@@ -27,9 +27,9 @@ import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
 import { getMepalSaludDetail } from '../services/mepalSaludLoader';
 import { getMepalTekSocialDetail } from '../services/mepalTekSocialLoader';
-import { getClakDetail } from '../services/clakLoader';
 import { createAresInstance } from '../mepal/ares/factories/createAresInstance';
 import { getAresProductDefinition } from '../mepal/ares/products/aresProductDefinition';
+import { createClakInstance } from '../mepal/clak/factories/createClakInstance';
 import { createEdukInstance } from '../mepal/eduk/factories/createEdukInstance';
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
@@ -2657,68 +2657,19 @@ export default function ThreeCanvas({
       const parentGroup = options?.parentGroup || null;
       const codigo = String(codigoClak);
 
-      // 1) trae detalle del producto Clak desde el XML
-      const [detCO, detEUC, detUSD] = await Promise.all([
-        getClakDetail(codigo, 'CO'),
-        getClakDetail(codigo, 'EUC'),
-        getClakDetail(codigo, 'USD'),
-      ]);
-
-      const det =
-        (countryRef.current === 'EUC' && detEUC) ||
-        (countryRef.current === 'USD' && detUSD) ||
-        detCO ||
-        detEUC ||
-        detUSD;
-
-      if (!det) {
-        console.warn(`Clak: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`);
-      }
-
-      // 2) cargar GLB desde carpeta Clak
-      const possibleSrcs = [`/assets/models/Clak/${codigo}.glb`, `/assets/models/${codigo}.glb`];
-
-      const gltf = await loadExistingGlb(possibleSrcs);
-
-      if (!gltf) {
-        console.error(`No se encontró un GLB válido para Clak ${codigo}`);
+      let result;
+      try {
+        result = await createClakInstance({
+          codigoPT: codigoClak,
+          country: countryRef.current,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(`No se pudo crear el producto Clak ${codigo}`, error);
         return;
       }
 
-      const obj = gltf.scene;
-
-      // 3) userData
-      const clakPartPrices = {
-        CO: Number(detCO?.precio || 0),
-        EUC: Number(detEUC?.precio || 0),
-        USD: Number(detUSD?.precio || 0),
-      };
-      const clakParts = [
-        {
-          code: codigo,
-          description: det?.descripcion || codigo,
-          qty: 1,
-          unitPrice: Number(clakPartPrices[countryRef.current] || 0),
-          prices: clakPartPrices,
-        },
-      ];
-
-      obj.userData = {
-        ...(obj.userData || {}),
-        kind: 'CLAK',
-        codigoPT: codigo,
-        code: codigo,
-        name: det?.descripcion || codigo,
-        instanceId: obj.uuid,
-        clakParts,
-        clakMeta: {
-          descripcion: det?.descripcion || codigo,
-          precio: det?.precio || 0,
-          udm: det?.udm || 'und',
-        },
-      };
-
-      obj.name = `CLAK_${codigo}`;
+      const { object: obj, partRecord } = result;
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -2729,7 +2680,7 @@ export default function ThreeCanvas({
       } else {
         scene.add(obj);
       }
-      parts.push({ code: codigo, obj });
+      parts.push(partRecord);
       pickables.push(obj);
 
       setActivePart(obj);
@@ -2914,73 +2865,25 @@ export default function ThreeCanvas({
       const savedUserData = { ...oldObj.userData };
       const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
 
-      const [detCO, detEUC, detUSD] = await Promise.all([
-        getClakDetail(nextCode, 'CO'),
-        getClakDetail(nextCode, 'EUC'),
-        getClakDetail(nextCode, 'USD'),
-      ]);
-
-      const det =
-        (countryRef.current === 'EUC' && detEUC) ||
-        (countryRef.current === 'USD' && detUSD) ||
-        detCO ||
-        detEUC ||
-        detUSD;
-
-      if (!det) {
-        console.warn(
-          `[swapClakVariant] Producto ${nextCode} no encontrado en PriceList, se cargará sin precio.`
-        );
-      }
-
-      const glbSrc = `/assets/models/Clak/${nextCode}.glb`;
-      const gltf = await loadExistingGlb([glbSrc, `/assets/models/${nextCode}.glb`]);
-
-      if (!gltf) {
-        console.error('[swapClakVariant] No se encontró el GLB:', glbSrc);
-        // fallback: intentar crear el Clak con el addClak normal
-        // restaurar posición/rotación en la creación no es trivial aquí,
-        // pero al menos añadimos el modelo para que el usuario lo vea.
-        await addClak(nextCode, { parentGroup });
+      let result;
+      try {
+        result = await createClakInstance({
+          codigoPT: nextCode,
+          country: countryRef.current,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(`[swapClakVariant] No se pudo crear la variante ${nextCode}`, error);
         return;
       }
 
-      removePartObject(oldObj);
-
-      const clakPartPrices = {
-        CO: Number(detCO?.precio || 0),
-        EUC: Number(detEUC?.precio || 0),
-        USD: Number(detUSD?.precio || 0),
-      };
-
-      const newObj = gltf.scene;
+      const { object: newObj, partRecord } = result;
       newObj.userData = {
         ...savedUserData,
-        kind: 'CLAK',
-        codigoPT: nextCode,
-        code: nextCode,
-        name: det?.descripcion || nextCode,
-        instanceId: newObj.uuid,
-        clakParts: [
-          {
-            code: nextCode,
-            description: det?.descripcion || nextCode,
-            qty: 1,
-            unitPrice: Number(clakPartPrices[countryRef.current] || 0),
-            prices: clakPartPrices,
-          },
-        ],
-        clakMeta: {
-          descripcion: det?.descripcion || nextCode,
-          precio: det?.precio || 0,
-          udm: det?.udm || 'und',
-        },
+        ...newObj.userData,
       };
 
-      newObj.name = `CLAK_${nextCode}`;
-      newObj.position.copy(savedPos);
-      newObj.rotation.copy(savedRot);
-      newObj.updateMatrixWorld(true);
+      removePartObject(oldObj);
 
       if (parentGroup) {
         parentGroup.add(newObj);
@@ -2988,8 +2891,12 @@ export default function ThreeCanvas({
         scene.add(newObj);
       }
 
-      parts.push({ code: nextCode, obj: newObj });
+      parts.push(partRecord);
       pickables.push(newObj);
+
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.updateMatrixWorld(true);
 
       setActivePart(newObj);
       emitBOM();
