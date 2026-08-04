@@ -25,12 +25,16 @@ import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
 import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
-import { getMepalSaludDetail } from '../services/mepalSaludLoader';
 import { getMepalTekSocialDetail } from '../services/mepalTekSocialLoader';
 import { createAresInstance } from '../mepal/ares/factories/createAresInstance';
 import { getAresProductDefinition } from '../mepal/ares/products/aresProductDefinition';
 import { createClakInstance } from '../mepal/clak/factories/createClakInstance';
 import { createEdukInstance } from '../mepal/eduk/factories/createEdukInstance';
+import { createSaludInstance } from '../mepal/salud/factories/createSaludInstance';
+import {
+  getSaludVariantOptionsByCode,
+  normalizeSaludVariantCode,
+} from '../mepal/salud/products/saludVariantDefinition';
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 
@@ -2472,74 +2476,19 @@ export default function ThreeCanvas({
       const parentGroup = options?.parentGroup || null;
       const codigo = String(codigoMepal);
 
-      // 1) trae detalle del producto MepalSalud desde el XML
-      const [detCO, detEUC, detUSD] = await Promise.all([
-        getMepalSaludDetail(codigo, 'CO'),
-        getMepalSaludDetail(codigo, 'EUC'),
-        getMepalSaludDetail(codigo, 'USD'),
-      ]);
-
-      const det =
-        (countryRef.current === 'EUC' && detEUC) ||
-        (countryRef.current === 'USD' && detUSD) ||
-        detCO ||
-        detEUC ||
-        detUSD;
-
-      if (!det) {
-        console.warn(
-          `MepalSalud: producto ${codigo} no encontrado en PriceList, se cargará sin precio.`
-        );
-      }
-
-      // 2) cargar GLB desde carpeta MepalSalud
-      const possibleSrcs = [
-        `/assets/models/MepalSalud/${codigo}.glb`,
-        `/assets/models/${codigo}.glb`,
-      ];
-
-      const gltf = await loadExistingGlb(possibleSrcs);
-
-      if (!gltf) {
-        console.error(`No se encontró un GLB válido para MepalSalud ${codigo}`);
+      let result;
+      try {
+        result = await createSaludInstance({
+          codigoPT: codigo,
+          country: countryRef.current,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(`No se pudo crear el producto MepalSalud ${codigo}`, error);
         return;
       }
 
-      const obj = gltf.scene;
-
-      // 3) userData
-      const mepalPartPrices = {
-        CO: Number(detCO?.precio || 0),
-        EUC: Number(detEUC?.precio || 0),
-        USD: Number(detUSD?.precio || 0),
-      };
-      const mepalParts = [
-        {
-          code: codigo,
-          description: det?.descripcion || codigo,
-          qty: 1,
-          unitPrice: Number(mepalPartPrices[countryRef.current] || 0),
-          prices: mepalPartPrices,
-        },
-      ];
-
-      obj.userData = {
-        ...(obj.userData || {}),
-        kind: 'MEPAL_SALUD',
-        codigoPT: codigo,
-        code: codigo,
-        name: det?.descripcion || codigo,
-        instanceId: obj.uuid,
-        mepalVariant: 'normal',
-        mepalParts,
-        mepalMeta: {
-          descripcion: det?.descripcion || codigo,
-          precio: det?.precio || 0,
-          udm: det?.udm || 'und',
-        },
-      };
-
-      obj.name = `MEPAL_SALUD_${codigo}`;
+      const { object: obj, partRecord } = result;
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -2550,7 +2499,7 @@ export default function ThreeCanvas({
       } else {
         scene.add(obj);
       }
-      parts.push({ code: codigo, obj });
+      parts.push(partRecord);
       pickables.push(obj);
 
       setActivePart(obj);
@@ -2731,10 +2680,16 @@ export default function ThreeCanvas({
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
       if (readOnly) return;
 
-      const codigoBase = String(codigo).replace(/_2$/, '');
-      const canUseDesplegado = codigoBase === '22000129632' || codigoBase === '22000127958';
-      if (targetVariant === 'desplegado' && !canUseDesplegado) {
-        console.warn('[swapMepalSaludVariant] Variante desplegado no permitida para:', codigoBase);
+      const codigoBase = normalizeSaludVariantCode(codigo);
+      const normalizedVariant = String(targetVariant || '')
+        .trim()
+        .toLowerCase();
+      const variantOptions = getSaludVariantOptionsByCode(codigoBase) || [];
+      const targetDefinition = variantOptions.find(
+        (option) => option.variant === normalizedVariant
+      );
+      if (!targetDefinition) {
+        console.warn('[swapMepalSaludVariant] Variante no permitida para:', codigoBase);
         return;
       }
 
@@ -2749,50 +2704,53 @@ export default function ThreeCanvas({
       }
 
       const oldObj = found.obj;
-
-      // 2) Guardar posición y rotación
       const savedPos = oldObj.position.clone();
-      const savedRot = oldObj.rotation.clone();
-
-      // 3) Guardar userData relevante
+      const savedQuaternion = oldObj.quaternion.clone();
+      const savedScale = oldObj.scale.clone();
+      const savedParent = oldObj.parent || scene;
       const savedUserData = { ...oldObj.userData };
+      const oldIds = new Set(
+        [instanceId, oldObj.userData?.instanceId, oldObj.uuid].filter(Boolean).map(String)
+      );
 
-      // 4) Eliminar objeto actual
-      removePartObject(oldObj);
-
-      // 5) Determinar qué GLB cargar según variante
-      const glbSrc =
-        targetVariant === 'normal'
-          ? `/assets/models/MepalSalud/${codigoBase}.glb`
-          : `/assets/models/MepalSalud/${codigoBase}_2.glb`;
-
-      const gltf = await loadExistingGlb([glbSrc]);
-
-      if (!gltf) {
-        console.error('[swapMepalSaludVariant] No se encontró el GLB:', glbSrc);
-        await addMepalSalud(codigoBase);
+      let result;
+      try {
+        result = await createSaludInstance({
+          codigoPT: codigoBase,
+          country: countryRef.current,
+          variant: normalizedVariant,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(
+          `[swapMepalSaludVariant] No se pudo crear la variante ${normalizedVariant}:`,
+          error
+        );
         return;
       }
 
-      const newObj = gltf.scene;
-
-      // 6) Restaurar userData y posición
+      const { object: newObj, partRecord } = result;
       newObj.userData = {
         ...savedUserData,
-        instanceId: newObj.uuid,
-        mepalVariant: targetVariant,
+        ...newObj.userData,
       };
-      newObj.name =
-        targetVariant === 'normal' ? `MEPAL_SALUD_${codigoBase}` : `MEPAL_SALUD_${codigoBase}_2`;
       newObj.position.copy(savedPos);
-      newObj.rotation.copy(savedRot);
-      newObj.updateMatrixWorld(true);
+      newObj.quaternion.copy(savedQuaternion);
+      newObj.scale.copy(savedScale);
 
-      scene.add(newObj);
-      parts.push({ code: codigoBase, obj: newObj });
+      removePartObject(oldObj);
+      savedParent.add(newObj);
+      newObj.updateMatrixWorld(true);
+      parts.push(partRecord);
       pickables.push(newObj);
 
-      setActivePart(newObj);
+      const newId = newObj.userData?.instanceId || newObj.uuid;
+      const nextSelectedIds = selectedIds3D
+        .map((id) => (oldIds.has(String(id)) ? newId : id))
+        .filter(Boolean);
+      if (!nextSelectedIds.includes(newId)) nextSelectedIds.push(newId);
+      syncSelectedIds3D(Array.from(new Set(nextSelectedIds)));
+      setActivePart(newObj, { targetIds: nextSelectedIds });
       emitBOM();
       refreshFloorAndGrid();
     }
