@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
 
 function moneyByCountry(v, country = 'CO') {
   const n = Number(v || 0);
@@ -291,12 +292,9 @@ export default function BOMView({
         : 0;
 
       if (typologyCode) {
-        const typologyImage = await fetchImageAsset([
-          `/assets/imagen/${typologyCode}.png`,
-          `/assets/imagen/${typologyCode}.jpeg`,
-          `/assets/imagen/${typologyCode}.jpg`,
-          `/assets/imagen/${typologyCode}.webp`,
-        ]);
+        const typologyImage = await fetchImageAsset(
+          buildImageAssetCandidates(typologyCode, ['tipologias'])
+        );
 
         if (typologyImage) {
           const imageRow = ws.addRow(['', '', '', '', '', '', '', '']);

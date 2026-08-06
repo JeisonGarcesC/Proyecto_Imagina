@@ -23,26 +23,37 @@ import {
   getSeatVariantByCode,
   getModuleVariantByCode,
 } from './properties/clakPuffVariants';
+import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
 
-const TYPOLOGY_IMAGE_EXTENSIONS = ['png', 'jpeg', 'jpg', 'webp'];
 const typologyImageCache = new Map();
-
-function buildCardImageCandidates(assetName) {
-  const code = String(assetName || '').trim();
-  if (!code) return [];
-  return TYPOLOGY_IMAGE_EXTENSIONS.map((ext) => `/assets/imagen/${code}.${ext}`);
-}
+const IMAGE_FOLDER_SETS = {
+  general: ['general'],
+  tipologias: ['tipologias'],
+  sillas: ['Sillas'],
+  plantas: ['Plants and Flowers'],
+  accesoriosOficina: ['Office Accesories'],
+  almacenamiento: ['Almacenamiento'],
+  ares: ['Ares'],
+  clak: ['Clak'],
+  eduk: ['Eduk'],
+  mepalSalud: ['MepalSalud'],
+  tekSocial: ['Mepal TekSocial'],
+};
 
 function CardImage({
   assetName,
   title,
+  imageFolders = [],
   imageFit = 'cover',
   imageHeight = 96,
   imagePadding = 0,
   imageBackground = '#ffffff',
 }) {
-  const cacheKey = String(assetName || '').trim();
-  const candidates = useMemo(() => buildCardImageCandidates(assetName), [assetName]);
+  const candidates = useMemo(
+    () => buildImageAssetCandidates(assetName, imageFolders),
+    [assetName, imageFolders]
+  );
+  const cacheKey = useMemo(() => candidates.join('|'), [candidates]);
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [resolvedImage, setResolvedImage] = useState(() => {
     if (!cacheKey) return null;
@@ -104,7 +115,7 @@ function CardImage({
 }
 
 function TypologyCardImage({ codigoPT, title }) {
-  return <CardImage assetName={codigoPT} title={title} />;
+  return <CardImage assetName={codigoPT} title={title} imageFolders={IMAGE_FOLDER_SETS.tipologias} />;
 }
 
 function ChairCardImage({ codigoPT, title }) {
@@ -112,6 +123,7 @@ function ChairCardImage({ codigoPT, title }) {
     <CardImage
       assetName={codigoPT}
       title={title}
+      imageFolders={IMAGE_FOLDER_SETS.sillas}
       imageFit="contain"
       imageHeight={120}
       imagePadding={8}
@@ -125,6 +137,7 @@ function PlantCardImage({ plantName, title }) {
     <CardImage
       assetName={plantName}
       title={title}
+      imageFolders={IMAGE_FOLDER_SETS.plantas}
       imageFit="contain"
       imageHeight={120}
       imagePadding={8}
@@ -138,6 +151,7 @@ function OfficeAccessoryCardImage({ accessoryName, title }) {
     <CardImage
       assetName={accessoryName}
       title={title}
+      imageFolders={IMAGE_FOLDER_SETS.accesoriosOficina}
       imageFit="contain"
       imageHeight={120}
       imagePadding={8}
@@ -151,6 +165,7 @@ function MepalSaludCardImage({ codigo, title }) {
     <CardImage
       assetName={codigo}
       title={title}
+      imageFolders={IMAGE_FOLDER_SETS.mepalSalud}
       imageFit="contain"
       imageHeight={120}
       imagePadding={8}
@@ -164,6 +179,7 @@ function MepalTekSocialCardImage({ codigo, title }) {
     <CardImage
       assetName={codigo}
       title={title}
+      imageFolders={IMAGE_FOLDER_SETS.tekSocial}
       imageFit="contain"
       imageHeight={120}
       imagePadding={8}
@@ -177,6 +193,7 @@ function ClakCardImage({ codigo, title }) {
     <CardImage
       assetName={codigo}
       title={title}
+      imageFolders={IMAGE_FOLDER_SETS.clak}
       imageFit="contain"
       imageHeight={120}
       imagePadding={8}
@@ -190,6 +207,7 @@ function StorageCardImage({ codeBase, title }) {
     <CardImage
       assetName={codeBase}
       title={title}
+      imageFolders={IMAGE_FOLDER_SETS.almacenamiento}
       imageFit="contain"
       imageHeight={120}
       imagePadding={8}
@@ -203,6 +221,7 @@ function EdukCardImage({ codigo, title }) {
     <CardImage
       assetName={codigo}
       title={title}
+      imageFolders={IMAGE_FOLDER_SETS.eduk}
       imageFit="contain"
       imageHeight={120}
       imagePadding={8}
@@ -1869,6 +1888,7 @@ export default function LeftPanel({
                 <CardImage
                   assetName={it.codigoPT}
                   title={it.ui?.title || it.codigoPT}
+                  imageFolders={IMAGE_FOLDER_SETS.ares}
                   imageFit="contain"
                   imageHeight={110}
                   imagePadding={6}

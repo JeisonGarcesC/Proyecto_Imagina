@@ -73,6 +73,7 @@ import {
 import {
   isSeatCode as isClakSeatCode,
   isModuleCode as isClakModuleCode,
+  normalizeClakPuffCode,
 } from './properties/clakPuffVariants';
 
 const MM_TO_M = 1 / 1000;
@@ -2704,12 +2705,8 @@ export default function ThreeCanvas({
     async function swapClakVariant(instanceId, codigo, targetCode) {
       if (readOnly) return;
 
-      const currentCode = String(codigo || '')
-        .trim()
-        .replace(/_2$/, '');
-      const nextCode = String(targetCode || '')
-        .trim()
-        .replace(/_2$/, '');
+      const currentCode = normalizeClakPuffCode(codigo);
+      const nextCode = normalizeClakPuffCode(targetCode);
 
       // allow swaps for regular puff variant groups, or for seat/module combos
       const currentIsSeat = isClakSeatCode(currentCode);
@@ -2741,7 +2738,9 @@ export default function ThreeCanvas({
         }
 
         const currentOptions = getClakVariantOptionsByCode(currentCode) || [];
-        const sameFamily = currentOptions.some((it) => it.code === nextCode);
+        const sameFamily = currentOptions.some(
+          (it) => normalizeClakPuffCode(it.code) === nextCode
+        );
         if (!sameFamily) {
           console.warn(
             '[swapClakVariant] Cambio entre familias no permitido:',
