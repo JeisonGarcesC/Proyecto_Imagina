@@ -94,6 +94,20 @@ export function createPlanDefinition(options = {}) {
       sourceDistance: calibration.sourceDistance ?? null,
       realDistanceMeters: calibration.realDistanceMeters ?? null,
       units: String(calibration.units || 'px'),
+      inputUnit: String(calibration.inputUnit || 'm'),
+      points:
+        calibration.points?.a && calibration.points?.b
+          ? {
+              a: {
+                x: finiteNumber(calibration.points.a.x, 0),
+                y: finiteNumber(calibration.points.a.y, 0),
+              },
+              b: {
+                x: finiteNumber(calibration.points.b.x, 0),
+                y: finiteNumber(calibration.points.b.y, 0),
+              },
+            }
+          : null,
     },
     opacity: finiteNumber(options.opacity, 0.35),
     locked: options.locked !== false,
@@ -113,6 +127,9 @@ export function legacyPlanStateToDefinition({
   name = '',
   mimeType = '',
   assetId = null,
+  raster = null,
+  calibration = null,
+  locked = true,
   visible = true,
   transform = DEFAULT_LEGACY_TRANSFORM,
 } = {}) {
@@ -124,6 +141,7 @@ export function legacyPlanStateToDefinition({
     originalFileName: name,
     mimeType,
     assetId,
+    raster,
     source: {
       url: isDataUrl ? null : src,
       dataUrl: isDataUrl ? src : null,
@@ -136,14 +154,16 @@ export function legacyPlanStateToDefinition({
       rotation: transform.rotation,
       scale: transform.scale,
     },
-    calibration: {
+    calibration: calibration || {
       metersPerDocumentUnit: transform.metersPerPixel,
       sourceDistance: null,
       realDistanceMeters: null,
       units: 'px',
+      inputUnit: 'm',
+      points: null,
     },
     opacity: transform.opacity,
-    locked: true,
+    locked,
     visible,
   });
 }
@@ -155,6 +175,7 @@ export function planDefinitionToLegacyState(plan) {
     src: normalized.source.dataUrl || normalized.source.url,
     kind: normalized.sourceType.toLowerCase(),
     name: normalized.originalFileName,
+    locked: normalized.locked,
     visible: normalized.visible,
     transform: {
       metersPerPixel: normalized.calibration.metersPerDocumentUnit,

@@ -52,6 +52,26 @@ import PropertiesPopup from './components/properties/PropertiesPopup';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
+const DEFAULT_PLAN_CALIBRATION = Object.freeze({
+  metersPerDocumentUnit: 0.01,
+  sourceDistance: null,
+  realDistanceMeters: null,
+  units: 'px',
+  inputUnit: 'm',
+  points: null,
+});
+
+function createDefaultPlanTransform() {
+  return {
+    metersPerPixel: 0.01,
+    offsetX: 0,
+    offsetZ: 0,
+    opacity: 0.35,
+    rotation: 0,
+    scale: 1,
+  };
+}
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 async function pdfFileToDataUrl(file) {
@@ -317,13 +337,13 @@ export default function App() {
   const [plan2DName, setPlan2DName] = useState('');
   const [plan2DMimeType, setPlan2DMimeType] = useState('');
   const [plan2DAssetId, setPlan2DAssetId] = useState(null);
+  const [plan2DRaster, setPlan2DRaster] = useState({ widthPx: null, heightPx: null });
+  const [plan2DLocked, setPlan2DLocked] = useState(true);
+  const [planEditMode, setPlanEditMode] = useState(false);
+  const [planCalibrationRequestId, setPlanCalibrationRequestId] = useState(0);
+  const [plan2DCalibration, setPlan2DCalibration] = useState(DEFAULT_PLAN_CALIBRATION);
   const [plan2DId, setPlan2DId] = useState(() => createPlanDefinition().id);
-  const [plan2DTransform, setPlan2DTransform] = useState({
-    metersPerPixel: 0.01, // temporal, luego se calibra
-    offsetX: 0,
-    offsetZ: 0,
-    opacity: 0.35,
-  });
+  const [plan2DTransform, setPlan2DTransform] = useState(createDefaultPlanTransform);
   const plan2DUrlRef = useRef(null);
   useEffect(
     () => () => {
@@ -340,6 +360,9 @@ export default function App() {
         name: plan2DName,
         mimeType: plan2DMimeType,
         assetId: plan2DAssetId,
+        raster: plan2DRaster,
+        calibration: plan2DCalibration,
+        locked: plan2DLocked,
         visible: plan2DVisible,
         transform: plan2DTransform,
       }),
@@ -350,6 +373,9 @@ export default function App() {
       plan2DName,
       plan2DMimeType,
       plan2DAssetId,
+      plan2DRaster,
+      plan2DCalibration,
+      plan2DLocked,
       plan2DVisible,
       plan2DTransform,
     ]
@@ -358,18 +384,42 @@ export default function App() {
     () => planDefinitionToLegacyState(planDefinition),
     [planDefinition]
   );
+  const hasPlan2D = Boolean(plan2DSrc || plan2DAssetId);
+  const activePlanDefinition = hasPlan2D ? planDefinition : null;
 
-  const handleLoadPlan2D = async (file, meta) => {
+  useEffect(() => {
+    if (!hasPlan2D || plan2DLocked) setPlanEditMode(false);
+  }, [hasPlan2D, plan2DLocked]);
+
+  const handleLoadPlan2D = async (file, meta, options = {}) => {
     if (!file) return;
-
-    if (plan2DUrlRef.current) {
-      URL.revokeObjectURL(plan2DUrlRef.current);
-      plan2DUrlRef.current = null;
-    }
-
+    const replacing = options.replace === true && Boolean(activePlanDefinition);
     const type = meta?.type || 'unknown';
     const supportsDurableAsset = ['image', 'svg', 'pdf'].includes(type);
+    let nextSource = null;
+    let nextObjectUrl = null;
     let assetId = null;
+
+    if (type === 'image' || type === 'svg') {
+      nextObjectUrl = URL.createObjectURL(file);
+      nextSource = nextObjectUrl;
+    } else if (type === 'pdf') {
+      try {
+        nextSource = await pdfFileToDataUrl(file);
+      } catch (error) {
+        console.error('Error renderizando PDF:', error);
+        alert('No se pudo convertir el PDF a imagen para mostrarlo en 2D.');
+        return;
+      }
+    } else if (type === 'dwg') {
+      alert('El DWG no se puede renderizar directo en este visor. Convierte el archivo a DXF o SVG para visualizarlo en 2D.');
+      return;
+    } else if (type === 'dxf') {
+      alert('El DXF ya fue detectado, pero todavía falta integrar su renderer/parser. Por ahora usa SVG, imagen o PDF.');
+      return;
+    } else {
+      return;
+    }
 
     if (supportsDurableAsset) {
       try {
@@ -379,57 +429,57 @@ export default function App() {
         });
       } catch (error) {
         console.error('No se pudo guardar el asset durable del plano:', error);
+        if (replacing) {
+          if (nextObjectUrl) URL.revokeObjectURL(nextObjectUrl);
+          return;
+        }
       }
     }
 
-    setPlan2DId(createPlanDefinition().id);
+    if (plan2DUrlRef.current) URL.revokeObjectURL(plan2DUrlRef.current);
+    plan2DUrlRef.current = nextObjectUrl;
+
+    if (!replacing) setPlan2DId(createPlanDefinition().id);
     setPlan2DAssetId(assetId);
+    setPlan2DRaster({ widthPx: null, heightPx: null });
+    setPlanEditMode(false);
+    setPlan2DCalibration(DEFAULT_PLAN_CALIBRATION);
+    setPlanCalibrationRequestId(0);
+    setPlan2DTransform((current) =>
+      replacing
+        ? { ...current, metersPerPixel: DEFAULT_PLAN_CALIBRATION.metersPerDocumentUnit, scale: 1 }
+        : createDefaultPlanTransform()
+    );
+    if (!replacing) setPlan2DLocked(true);
     setPlan2DKind(type);
     setPlan2DName(meta?.name || file.name || '');
     setPlan2DMimeType(meta?.mime || file.type || '');
+    setPlan2DSrc(nextSource);
+    if (!replacing) setPlan2DVisible(true);
+  };
 
-    if (type === 'image' || type === 'svg') {
-      const url = URL.createObjectURL(file);
-      plan2DUrlRef.current = url;
-      setPlan2DSrc(url);
-      setPlan2DVisible(true);
-      return;
-    }
+  const handleDeletePlan2D = () => {
+    if (!activePlanDefinition) return;
+    const confirmed = window.confirm(
+      '¿Deseas eliminar el plano del proyecto?\n\nEsto elimina la referencia del proyecto actual, pero no el archivo almacenado.'
+    );
+    if (!confirmed) return;
 
-    if (type === 'pdf') {
-      try {
-        const dataUrl = await pdfFileToDataUrl(file);
-        setPlan2DSrc(dataUrl);
-        setPlan2DKind('image');
-        setPlan2DVisible(true);
-        return;
-      } catch (err) {
-        console.error('Error renderizando PDF:', err);
-        alert('No se pudo convertir el PDF a imagen para mostrarlo en 2D.');
-        setPlan2DSrc(null);
-        return;
-      }
-    }
-
-    if (type === 'dwg') {
-      alert(
-        'El DWG no se puede renderizar directo en este visor. Convierte el archivo a DXF o SVG para visualizarlo en 2D.'
-      );
-      setPlan2DSrc(null);
-      setPlan2DVisible(true);
-      return;
-    }
-
-    if (type === 'dxf') {
-      alert(
-        'El DXF ya fue detectado, pero todavía falta integrar su renderer/parser. Por ahora usa SVG, imagen o PDF.'
-      );
-      setPlan2DSrc(null);
-      setPlan2DVisible(true);
-      return;
-    }
-
+    setPlanEditMode(false);
+    setPlanCalibrationRequestId(0);
+    if (plan2DUrlRef.current) URL.revokeObjectURL(plan2DUrlRef.current);
+    plan2DUrlRef.current = null;
+    setPlan2DId(createPlanDefinition().id);
     setPlan2DSrc(null);
+    setPlan2DKind(null);
+    setPlan2DName('');
+    setPlan2DMimeType('');
+    setPlan2DAssetId(null);
+    setPlan2DRaster({ widthPx: null, heightPx: null });
+    setPlan2DCalibration(DEFAULT_PLAN_CALIBRATION);
+    setPlan2DLocked(true);
+    setPlan2DVisible(true);
+    setPlan2DTransform(createDefaultPlanTransform());
   };
 
   const buildProjectData = () => {
@@ -438,11 +488,13 @@ export default function App() {
 
     return {
       ...project,
-      plan2D: plan2DSrc ? serializePlan(planDefinition) : null,
+      plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
     };
   };
 
   const restorePlan2DFromProject = async (project) => {
+    setPlanEditMode(false);
+    setPlanCalibrationRequestId(0);
     const restoredPlan = deserializePlan(project?.plan2D);
 
     if (!restoredPlan) {
@@ -454,15 +506,11 @@ export default function App() {
       setPlan2DName('');
       setPlan2DMimeType('');
       setPlan2DAssetId(null);
+      setPlan2DRaster({ widthPx: null, heightPx: null });
+      setPlan2DCalibration(DEFAULT_PLAN_CALIBRATION);
+      setPlan2DLocked(true);
       setPlan2DVisible(true);
-      setPlan2DTransform({
-        metersPerPixel: 0.01,
-        offsetX: 0,
-        offsetZ: 0,
-        opacity: 0.35,
-        rotation: 0,
-        scale: 1,
-      });
+      setPlan2DTransform(createDefaultPlanTransform());
       return;
     }
 
@@ -518,6 +566,9 @@ export default function App() {
     setPlan2DName(legacy.name);
     setPlan2DMimeType(restoredPlan.mimeType);
     setPlan2DAssetId(restoredPlan.assetId);
+    setPlan2DRaster(restoredPlan.raster);
+    setPlan2DCalibration(restoredPlan.calibration);
+    setPlan2DLocked(legacy.locked);
     setPlan2DVisible(legacy.visible);
     setPlan2DTransform(legacy.transform);
   };
@@ -525,6 +576,64 @@ export default function App() {
   const loadProjectData = async (project) => {
     await restorePlan2DFromProject(project);
     return threeApiRef.current?.loadProject?.(project);
+  };
+
+  const handlePlanEditModeChange = (nextValue) => {
+    setPlanEditMode(Boolean(nextValue) && Boolean(activePlanDefinition) && !plan2DLocked);
+  };
+
+  const handlePlanLockedChange = (nextValue) => {
+    const nextLocked = Boolean(nextValue);
+    setPlan2DLocked(nextLocked);
+    if (nextLocked) setPlanEditMode(false);
+  };
+
+  const handlePlanOpacityChange = (nextValue) => {
+    const opacity = Math.max(0, Math.min(1, Number(nextValue)));
+    if (!Number.isFinite(opacity)) return;
+    setPlan2DTransform((current) => ({ ...current, opacity }));
+  };
+
+  const handlePlanPositionChange = ({ x, z }) => {
+    const nextX = Number(x);
+    const nextZ = Number(z);
+    if (!Number.isFinite(nextX) || !Number.isFinite(nextZ)) return;
+
+    setPlan2DTransform((current) => ({
+      ...current,
+      offsetX: nextX,
+      offsetZ: nextZ,
+    }));
+  };
+
+  const handlePlanRotationChange = (rotation) => {
+    const nextRotation = Number(rotation);
+    if (!Number.isFinite(nextRotation)) return;
+    setPlan2DTransform((current) => ({ ...current, rotation: nextRotation }));
+  };
+
+  const handlePlanRasterChange = ({ widthPx, heightPx }) => {
+    const nextWidth = Number(widthPx);
+    const nextHeight = Number(heightPx);
+    if (!Number.isFinite(nextWidth) || !Number.isFinite(nextHeight)) return;
+    if (nextWidth <= 0 || nextHeight <= 0) return;
+
+    setPlan2DRaster((current) =>
+      current.widthPx === nextWidth && current.heightPx === nextHeight
+        ? current
+        : { widthPx: nextWidth, heightPx: nextHeight }
+    );
+  };
+
+  const handlePlanCalibrationChange = (calibration) => {
+    const metersPerDocumentUnit = Number(calibration?.metersPerDocumentUnit);
+    if (!Number.isFinite(metersPerDocumentUnit) || metersPerDocumentUnit <= 0) return;
+    setPlan2DCalibration(calibration);
+    setPlan2DTransform((current) => ({
+      ...current,
+      metersPerPixel: metersPerDocumentUnit,
+      scale: 1,
+    }));
   };
 
   /* =====================================================
@@ -894,8 +1003,18 @@ export default function App() {
               setSurfaceOpen={setSurfaceOpen}
               Plan2DUploader={Plan2DUploader}
               handleLoadPlan2D={handleLoadPlan2D}
-              plan2DVisible={plan2DVisible}
-              setPlan2DVisible={setPlan2DVisible}
+              planDefinition={activePlanDefinition}
+              planEditMode={planEditMode}
+              onPlanEditModeChange={handlePlanEditModeChange}
+              onPlanVisibleChange={setPlan2DVisible}
+              onPlanLockedChange={handlePlanLockedChange}
+              onPlanOpacityChange={handlePlanOpacityChange}
+              onPlanPositionChange={handlePlanPositionChange}
+              onPlanRotationChange={handlePlanRotationChange}
+              onPlanRecalibrate={() =>
+                setPlanCalibrationRequestId((current) => current + 1)
+              }
+              onDeletePlan={handleDeletePlan2D}
               wallMode={wallMode}
               setWallMode={setWallMode}
               wallHeight={wallHeight}
@@ -1071,6 +1190,12 @@ export default function App() {
             plan2DSrc={legacyPlan2D.src}
             plan2DVisible={legacyPlan2D.visible}
             plan2DTransform={legacyPlan2D.transform}
+            plan2DDefinition={activePlanDefinition}
+            planEditMode={planEditMode}
+            onPlanPositionChange={handlePlanPositionChange}
+            onPlan2DRasterChange={handlePlanRasterChange}
+            calibrationRequestId={planCalibrationRequestId}
+            onPlanCalibrationChange={handlePlanCalibrationChange}
             onPlan2DTransformChange={setPlan2DTransform}
           />
 
