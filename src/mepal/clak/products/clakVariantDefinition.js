@@ -17,7 +17,76 @@ const CLAK_VARIANT_GROUPS = [
     { code: '22000035996', label: '120cm' },
     { code: '22000035997', label: '180cm' },
   ],
+  [
+    { code: 'BP', label: 'Modulo Clak 1.50 x 0.71 m' },
+    { code: 'BP_grommet', label: 'Modulo Clak 1.50 x 0.71 m con grommet' },
+    { code: 'BA', label: 'Modulo Clak 1.80 x 0.71 m' },
+    { code: 'BA_grommet', label: 'Modulo Clak 1.80 x 0.71 m con grommet' },
+    { code: 'AP', label: 'Modulo Clak 1.50 x 0.97 m' },
+    { code: 'AP_grommet', label: 'Modulo Clak 1.50 x 0.97 m con grommet' },
+    { code: 'AA', label: 'Modulo Clak 1.80 x 0.97 m' },
+    { code: 'AA_grommet', label: 'Modulo Clak 1.80 x 0.97 m con grommet' },
+  ],
 ];
+
+const MATRIX_VARIANTS = {
+  BP: {
+    code: 'BP',
+    height: '0.71',
+    width: '1.5',
+    grommet: false,
+    label: 'Modulo Clak 1.50 x 0.71 m',
+  },
+  BP_grommet: {
+    code: 'BP_grommet',
+    height: '0.71',
+    width: '1.5',
+    grommet: true,
+    label: 'Modulo Clak 1.50 x 0.71 m con grommet',
+  },
+  BA: {
+    code: 'BA',
+    height: '0.71',
+    width: '1.8',
+    grommet: false,
+    label: 'Modulo Clak 1.80 x 0.71 m',
+  },
+  BA_grommet: {
+    code: 'BA_grommet',
+    height: '0.71',
+    width: '1.8',
+    grommet: true,
+    label: 'Modulo Clak 1.80 x 0.71 m con grommet',
+  },
+  AP: {
+    code: 'AP',
+    height: '0.97',
+    width: '1.5',
+    grommet: false,
+    label: 'Modulo Clak 1.50 x 0.97 m',
+  },
+  AP_grommet: {
+    code: 'AP_grommet',
+    height: '0.97',
+    width: '1.5',
+    grommet: true,
+    label: 'Modulo Clak 1.50 x 0.97 m con grommet',
+  },
+  AA: {
+    code: 'AA',
+    height: '0.97',
+    width: '1.8',
+    grommet: false,
+    label: 'Modulo Clak 1.80 x 0.97 m',
+  },
+  AA_grommet: {
+    code: 'AA_grommet',
+    height: '0.97',
+    width: '1.8',
+    grommet: true,
+    label: 'Modulo Clak 1.80 x 0.97 m con grommet',
+  },
+};
 
 const CODE_TO_GROUP = new Map();
 for (const group of CLAK_VARIANT_GROUPS) {
@@ -101,10 +170,43 @@ export function getModuleGroupCodesByCode(code) {
   return res;
 }
 
+export function isMatrixCode(code) {
+  return !!MATRIX_VARIANTS[normalizeClakPuffCode(code)];
+}
+
+export function getMatrixVariantByCode(code) {
+  return MATRIX_VARIANTS[normalizeClakPuffCode(code)] || null;
+}
+
+export function getMatrixCodeFor(height, width, grommet) {
+  const heightKey = String(height || '').trim();
+  const widthKey = String(width || '').trim();
+  const grommetKey = !!grommet;
+
+  for (const variantCode of Object.keys(MATRIX_VARIANTS)) {
+    const variant = MATRIX_VARIANTS[variantCode];
+    if (
+      String(variant.height) === heightKey &&
+      String(variant.width) === widthKey &&
+      variant.grommet === grommetKey
+    ) {
+      return variant.code;
+    }
+  }
+
+  return null;
+}
+
 export function normalizeClakPuffCode(code) {
-  return String(code || '')
+  const normalized = String(code || '')
     .trim()
     .replace(/_2$/, '');
+
+  if (/_grommet$/i.test(normalized)) {
+    return `${normalized.replace(/_grommet$/i, '').toUpperCase()}_grommet`;
+  }
+
+  return normalized.toUpperCase();
 }
 
 export function getClakVariantOptionsByCode(code) {
@@ -113,12 +215,18 @@ export function getClakVariantOptionsByCode(code) {
 
 export function isClakPuffVariantPart(part) {
   if (part?.kind !== 'CLAK') return false;
-  // either part of the grouped variants OR one of the seat codes
+  // grouped variants, matrix variants, seat variants or module variants
   const code = normalizeClakPuffCode(part?.code);
-  return !!getClakVariantOptionsByCode(code) || !!SEAT_VARIANTS[code] || !!MODULE_VARIANTS[code];
+  return (
+    !!getClakVariantOptionsByCode(code) ||
+    !!MATRIX_VARIANTS[code] ||
+    !!SEAT_VARIANTS[code] ||
+    !!MODULE_VARIANTS[code]
+  );
 }
 export const CLAK_SWAP_ALLOWED_CODES = new Set([
   ...CODE_TO_GROUP.keys(),
+  ...Object.keys(MATRIX_VARIANTS),
   ...Object.keys(SEAT_VARIANTS),
   ...Object.keys(MODULE_VARIANTS),
 ]);

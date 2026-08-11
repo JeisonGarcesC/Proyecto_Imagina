@@ -3,6 +3,9 @@ import {
   getClakVariantOptionsByCode,
   isClakPuffVariantPart,
   normalizeClakPuffCode,
+  isMatrixCode,
+  getMatrixVariantByCode,
+  getMatrixCodeFor,
   isSeatCode,
   getSeatVariantByCode,
   getSeatCodeFor,
@@ -15,10 +18,11 @@ export default function ClakProperties({ part, api, onClose }) {
   if (!isClakPuffVariantPart(part)) return null;
 
   const currentCode = normalizeClakPuffCode(part?.code);
+  const matrixInfo = isMatrixCode(currentCode) ? getMatrixVariantByCode(currentCode) : null;
   const seatInfo = isSeatCode(currentCode) ? getSeatVariantByCode(currentCode) : null;
   const moduleInfo = isModuleCode(currentCode) ? getModuleVariantByCode(currentCode) : null;
-  const options = seatInfo || moduleInfo ? null : getClakVariantOptionsByCode(currentCode) || [];
-  if (!seatInfo && !moduleInfo && !options.length) return null;
+  const options = matrixInfo || seatInfo || moduleInfo ? null : getClakVariantOptionsByCode(currentCode) || [];
+  if (!matrixInfo && !seatInfo && !moduleInfo && !options.length) return null;
 
   async function handleChange(e) {
     const targetCode = e.target.value;
@@ -26,6 +30,29 @@ export default function ClakProperties({ part, api, onClose }) {
     if (!api?.swapClakVariant) return;
     await api.swapClakVariant(part.instanceId, currentCode, targetCode);
     onClose?.();
+  }
+
+  async function swapMatrixVariant(nextHeight, nextWidth, nextGrommet) {
+    const target = getMatrixCodeFor(nextHeight, nextWidth, nextGrommet);
+    if (!target || target === currentCode) return;
+    if (!api?.swapClakVariant) return;
+    await api.swapClakVariant(part.instanceId, currentCode, target);
+    onClose?.();
+  }
+
+  async function handleMatrixHeightChange(e) {
+    const nextHeight = String(e.target.value || '').trim();
+    await swapMatrixVariant(nextHeight, matrixInfo.width, matrixInfo.grommet);
+  }
+
+  async function handleMatrixWidthChange(e) {
+    const nextWidth = String(e.target.value || '').trim();
+    await swapMatrixVariant(matrixInfo.height, nextWidth, matrixInfo.grommet);
+  }
+
+  async function handleMatrixGrommetChange(e) {
+    const nextGrommet = e.target.value === 'true';
+    await swapMatrixVariant(matrixInfo.height, matrixInfo.width, nextGrommet);
   }
 
   // Seat-specific handlers
@@ -72,7 +99,43 @@ export default function ClakProperties({ part, api, onClose }) {
 
   return (
     <div style={sectionStyle}>
-      {seatInfo ? (
+      {matrixInfo ? (
+        <>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8 }}>Alto</div>
+          <select
+            value={String(matrixInfo.height)}
+            onChange={handleMatrixHeightChange}
+            style={{ width: '100%', padding: '7px 8px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', fontSize: 12, cursor: 'pointer' }}
+          >
+            <option value="0.71">0.71 m</option>
+            <option value="0.97">0.97 m</option>
+          </select>
+
+          <div style={{ height: 8 }} />
+
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8 }}>Ancho</div>
+          <select
+            value={String(matrixInfo.width)}
+            onChange={handleMatrixWidthChange}
+            style={{ width: '100%', padding: '7px 8px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', fontSize: 12, cursor: 'pointer' }}
+          >
+            <option value="1.5">1.5 m</option>
+            <option value="1.8">1.8 m</option>
+          </select>
+
+          <div style={{ height: 8 }} />
+
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8 }}>Grommet</div>
+          <select
+            value={String(!!matrixInfo.grommet)}
+            onChange={handleMatrixGrommetChange}
+            style={{ width: '100%', padding: '7px 8px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', fontSize: 12, cursor: 'pointer' }}
+          >
+            <option value="true">Activo</option>
+            <option value="false">Inactivo</option>
+          </select>
+        </>
+      ) : seatInfo ? (
         <>
           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8 }}>Grommet</div>
           <select
