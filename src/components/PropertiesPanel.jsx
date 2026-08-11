@@ -128,6 +128,19 @@ export default function PropertiesPanel({
             <span style={{ opacity: partAcabadoGenericos.length ? 1 : 0.5 }}>{partAcabadoGenericoText}</span>
           </div>
 
+          {part?.kind === 'EDUK' && part?.edukWidth && (
+            <div className="pp-field">
+              <span className="pp-field-label">Ancho:</span> {part.edukWidth}
+            </div>
+          )}
+
+          {part?.kind === 'EDUK' && (
+            <div className="pp-field">
+              <span className="pp-field-label">Toma:</span>{' '}
+              {part.edukToma === 'si' ? 'Si' : part.edukToma === 'no' ? 'No' : '—'}
+            </div>
+          )}
+
           {/* Dimensiones */}
           {(part.dimMm || part.dimM) && (
             <div className="pp-field" style={{ marginTop: 8, lineHeight: 1.7 }}>

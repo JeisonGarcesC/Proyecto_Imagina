@@ -16,11 +16,17 @@ import {
   SELECTION_WINDOW_TYPES,
 } from '../plan2d/selectionGeometry2D';
 import { HISTORY_ACTION_TYPES } from '../history/historyManager';
+import {
+  getEdukWidthInfoByCode,
+} from '../mepal/eduk/products/edukShelfHeightDefinition';
 
 const MIN_ZOOM = 20;
 const MAX_ZOOM = 50_000;
 const ZOOM_FACTOR = 0.0015;
 const MEASURE_SNAP_TOLERANCE_PX = 10;
+const VARIANT_HANDLE_HIT_RADIUS_PX = 14;
+const VARIANT_HANDLE_STEP_PX = 26;
+const VARIANT_HANDLE_DEADZONE_PX = 8;
 
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
@@ -283,7 +289,10 @@ export default function Plan2DOverlay({
 
   const [dragPieceId, setDragPieceId] = useState(null);
   const [hoveredMovablePieceId, setHoveredMovablePieceId] = useState(null);
+  const [hoveredVariantHandleDir, setHoveredVariantHandleDir] = useState(0);
+  const [isVariantHandleDragging, setIsVariantHandleDragging] = useState(false);
   const dragPieceRef = useRef(null);
+  const variantHandleDragRef = useRef(null);
   const [selectionDrag, setSelectionDrag] = useState(null);
   const selectionDragRef = useRef(null);
   const dimensionTextDragRef = useRef(null);
@@ -693,6 +702,144 @@ export default function Plan2DOverlay({
     };
   }, [transformTool, selectedIds, getAllBounds, getRotationState2D, toCanvas]);
 
+  const resolveActiveVariantControl2D = useCallback(
+    (snapList = null) => {
+      if (transformTool !== 'move') return null;
+      if (measureMode || scaleMode || isWallDrawMode) return null;
+
+      const sourceId = selectedIds?.[selectedIds.length - 1];
+      if (!sourceId) return null;
+
+      const snap = snapList || getAllBounds()?.snap || [];
+      const source = snap.find((part) => part.id === sourceId);
+      if (!source || source.kind !== 'EDUK') return null;
+
+      const widthInfo = getEdukWidthInfoByCode(source.codigoPT);
+      if (!widthInfo) return null;
+
+      const [cx, cy] = toCanvas(source.x, source.z);
+      const { s } = viewRef.current;
+      const halfWidthPx = Math.max(8, (source.w * s) / 2);
+      const spanPx = halfWidthPx + 16;
+
+      const angle = -(source.rotY || 0);
+      const axisX = Math.cos(angle);
+      const axisY = Math.sin(angle);
+
+      const left = {
+        x: cx - axisX * spanPx,
+        y: cy - axisY * spanPx,
+        dir: -1,
+      };
+      const right = {
+        x: cx + axisX * spanPx,
+        y: cy + axisY * spanPx,
+        dir: 1,
+      };
+
+      return {
+        type: 'EDUK_WIDTH',
+        source,
+        sourceId,
+        code: source.codigoPT,
+        instanceId: source.id,
+        options: [...widthInfo.widthOptions],
+        currentIndex: widthInfo.currentIndex,
+        propertyKey: 'width',
+        center: { x: cx, y: cy },
+        axis: { x: axisX, y: axisY },
+        dragAxis: { x: axisX, y: axisY },
+        handles: [left, right],
+        family: source.kind,
+      };
+    },
+    [transformTool, measureMode, scaleMode, isWallDrawMode, selectedIds, getAllBounds, toCanvas]
+  );
+
+  const pickVariantHandleDirection = useCallback((mx, my, control) => {
+    if (!control?.handles?.length) return 0;
+    let bestDir = 0;
+    let bestDist = Infinity;
+    for (const handle of control.handles) {
+      const dist = Math.hypot(mx - handle.x, my - handle.y);
+      if (dist <= VARIANT_HANDLE_HIT_RADIUS_PX && dist < bestDist) {
+        bestDist = dist;
+        bestDir = handle.dir;
+      }
+    }
+    return bestDir;
+  }, []);
+
+  const resolveVariantDragTargetIndex = useCallback((startIndex, projectedDeltaPx, optionCount) => {
+    if (Math.abs(projectedDeltaPx) <= VARIANT_HANDLE_DEADZONE_PX) {
+      return Math.max(0, Math.min(optionCount - 1, startIndex));
+    }
+    const deltaSteps = Math.round(projectedDeltaPx / VARIANT_HANDLE_STEP_PX);
+    return Math.max(0, Math.min(optionCount - 1, startIndex + deltaSteps));
+  }, []);
+
+  const processVariantHandleDragQueue = useCallback(async () => {
+    const session = variantHandleDragRef.current;
+    if (!session || session.isApplying) return;
+    if (session.targetIndex === session.currentIndex) return;
+
+    session.isApplying = true;
+
+    try {
+      while (variantHandleDragRef.current === session) {
+        if (session.targetIndex === session.currentIndex) break;
+
+        const targetValue = session.options?.[session.targetIndex];
+        if (!targetValue || !session.propertyKey) break;
+
+        await historyApi?.swapEdukVariant?.(session.instanceId, session.code, {
+          [session.propertyKey]: targetValue,
+        });
+
+        const latestSource = (getSnapshot?.() || []).find((item) => item.id === session.instanceId);
+        if (latestSource?.codigoPT) {
+          session.code = latestSource.codigoPT;
+          const refreshed = getEdukWidthInfoByCode(session.code);
+          if (refreshed) {
+            session.currentIndex = refreshed.currentIndex;
+            session.options = [...refreshed.widthOptions];
+            continue;
+          }
+        }
+
+        // Fallback to avoid tight retry loops if snapshot refresh lags one frame.
+        session.currentIndex = session.targetIndex;
+      }
+    } finally {
+      if (variantHandleDragRef.current === session) {
+        session.isApplying = false;
+      }
+    }
+
+    const active = variantHandleDragRef.current;
+    if (active === session && session.targetIndex !== session.currentIndex && !session.isApplying) {
+      Promise.resolve().then(() => {
+        void processVariantHandleDragQueue();
+      });
+    }
+  }, [historyApi, getSnapshot]);
+
+  const cancelVariantHandleDrag = useCallback((pointerId = null) => {
+    const session = variantHandleDragRef.current;
+    if (!session) return false;
+    if (pointerId != null && session.pointerId !== pointerId) return false;
+
+    const canvas = canvasRef.current;
+    if (canvas?.hasPointerCapture?.(session.pointerId)) {
+      canvas.releasePointerCapture(session.pointerId);
+    }
+
+    variantHandleDragRef.current = null;
+    setIsVariantHandleDragging(false);
+    setHoveredVariantHandleDir(0);
+    return true;
+  }, []);
+
   // Pointer move for wall preview, pan and piece dragging.
   const handlePointerMove = useCallback(
     (e) => {
@@ -710,6 +857,44 @@ export default function Plan2DOverlay({
         if (!p) return;
         setScaleHoverPx(p);
         return;
+      }
+
+      const variantDrag = variantHandleDragRef.current;
+      if (variantDrag?.pointerId === e.pointerId) {
+        const projectedDeltaPxRaw =
+          (mx - variantDrag.startMx) * variantDrag.dragAxis.x +
+          (my - variantDrag.startMy) * variantDrag.dragAxis.y;
+        const projectedDeltaPx = projectedDeltaPxRaw * (variantDrag.dragDir || 1);
+        const nextTarget = resolveVariantDragTargetIndex(
+          variantDrag.startIndex,
+          projectedDeltaPx,
+          variantDrag.options.length
+        );
+        if (nextTarget !== variantDrag.targetIndex) {
+          variantDrag.targetIndex = nextTarget;
+          void processVariantHandleDragQueue();
+        }
+        if ((variantDrag.dragDir || 0) !== hoveredVariantHandleDir) {
+          setHoveredVariantHandleDir(variantDrag.dragDir || 0);
+        }
+        e.preventDefault();
+        return;
+      }
+
+      if (
+        !dragRef.current.isDown &&
+        !selectionDragRef.current &&
+        !dimensionTextDragRef.current &&
+        !dragPieceRef.current &&
+        !rotationDragRef.current
+      ) {
+        const variantControl = resolveActiveVariantControl2D();
+        const variantDir = variantControl
+          ? pickVariantHandleDirection(mx, my, variantControl)
+          : 0;
+        if (variantDir !== hoveredVariantHandleDir) {
+          setHoveredVariantHandleDir(variantDir);
+        }
       }
 
       // pan dragging
@@ -860,6 +1045,11 @@ export default function Plan2DOverlay({
       onUpdateRotation2D,
       pickPartAtCanvasPoint,
       isPartMovementLocked2D,
+      resolveActiveVariantControl2D,
+      pickVariantHandleDirection,
+      resolveVariantDragTargetIndex,
+      processVariantHandleDragQueue,
+      hoveredVariantHandleDir,
     ]
   );
 
@@ -919,6 +1109,15 @@ export default function Plan2DOverlay({
       const dimensionTextDrag = dimensionTextDragRef.current;
       const pieceDrag = dragPieceRef.current;
       const rotationDrag = rotationDragRef.current;
+      const variantDrag = variantHandleDragRef.current;
+
+      if (variantDrag?.pointerId === e.pointerId) {
+        cancelVariantHandleDrag(e.pointerId);
+        suppressNextClickRef.current = true;
+        dragRef.current.isDown = false;
+        dragRef.current.mode = null;
+        return;
+      }
 
       if (activeSelectionDrag?.pointerId === e.pointerId) {
         const rect = canvas?.getBoundingClientRect?.();
@@ -994,17 +1193,25 @@ export default function Plan2DOverlay({
       onEndRotation2D,
       onEndMove2D,
       recordDimensionHistoryAction,
+      cancelVariantHandleDrag,
     ]
   );
 
   const handlePointerCancel = useCallback(
     (e) => {
+      cancelVariantHandleDrag(e.pointerId);
       cancelSelectionDrag(e.pointerId);
       cancelDimensionTextDrag(e.pointerId);
       cancelPieceDrag();
       handlePointerUp(e);
     },
-    [cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag, handlePointerUp]
+    [
+      cancelSelectionDrag,
+      cancelDimensionTextDrag,
+      cancelPieceDrag,
+      handlePointerUp,
+      cancelVariantHandleDrag,
+    ]
   );
 
   // zoom wheel
@@ -1074,6 +1281,50 @@ export default function Plan2DOverlay({
 
       // drag de pieza con botón izquierdo
       if (e.button !== 0) return;
+
+      if (!measureMode && !scaleMode && !isWallDrawMode && transformTool === 'move') {
+        const variantControl = resolveActiveVariantControl2D();
+        const variantDir = variantControl
+          ? pickVariantHandleDirection(mx, my, variantControl)
+          : 0;
+
+        if (variantControl && variantDir !== 0) {
+          const startIndex = variantControl.currentIndex;
+          const optionCount = variantControl.options.length;
+          const initialTarget = resolveVariantDragTargetIndex(
+            startIndex,
+            variantDir * VARIANT_HANDLE_STEP_PX,
+            optionCount
+          );
+
+          variantHandleDragRef.current = {
+            type: variantControl.type,
+            pointerId: e.pointerId,
+            code: variantControl.code,
+            instanceId: variantControl.instanceId,
+            family: variantControl.family || 'EDUK',
+            axis: variantControl.axis,
+            dragAxis: variantControl.dragAxis,
+            dragDir: variantDir,
+            startMx: mx,
+            startMy: my,
+            startIndex,
+            currentIndex: startIndex,
+            targetIndex: initialTarget,
+            options: [...variantControl.options],
+            propertyKey: variantControl.propertyKey,
+            isApplying: false,
+          };
+
+          setIsVariantHandleDragging(true);
+          setHoveredVariantHandleDir(variantDir);
+          canvas.setPointerCapture?.(e.pointerId);
+          void processVariantHandleDragQueue();
+          e.preventDefault();
+          return;
+        }
+      }
+
       if (!measureMode && !scaleMode && !isWallDrawMode) {
         const pickedDimension = pickDimensionAtCanvasPoint(mx, my);
         if (pickedDimension) {
@@ -1220,6 +1471,10 @@ export default function Plan2DOverlay({
       pickDimensionAtCanvasPoint,
       selectedDimensionId,
       toCanvas,
+      resolveActiveVariantControl2D,
+      pickVariantHandleDirection,
+      resolveVariantDragTargetIndex,
+      processVariantHandleDragQueue,
     ]
   );
 
@@ -1231,23 +1486,31 @@ export default function Plan2DOverlay({
         setIsRotatingPiece(false);
         onCancelRotation2D?.();
       }
+      cancelVariantHandleDrag();
       cancelSelectionDrag();
       cancelDimensionTextDrag();
       cancelPieceDrag();
     };
     window.addEventListener('keydown', onEscape);
     return () => window.removeEventListener('keydown', onEscape);
-  }, [onCancelRotation2D, cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag]);
+  }, [
+    onCancelRotation2D,
+    cancelSelectionDrag,
+    cancelDimensionTextDrag,
+    cancelPieceDrag,
+    cancelVariantHandleDrag,
+  ]);
 
   useEffect(() => {
     const cancelActiveDrag = () => {
+      cancelVariantHandleDrag();
       cancelSelectionDrag();
       cancelDimensionTextDrag();
       cancelPieceDrag();
     };
     window.addEventListener('blur', cancelActiveDrag);
     return () => window.removeEventListener('blur', cancelActiveDrag);
-  }, [cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag]);
+  }, [cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag, cancelVariantHandleDrag]);
 
   useEffect(() => {
     if (transformTool === 'rotate' || !rotationDragRef.current) return;
@@ -1255,6 +1518,18 @@ export default function Plan2DOverlay({
     setIsRotatingPiece(false);
     onCancelRotation2D?.();
   }, [transformTool, onCancelRotation2D]);
+
+  useEffect(() => {
+    if (transformTool !== 'move' || measureMode || scaleMode || isWallDrawMode) {
+      cancelVariantHandleDrag();
+    }
+  }, [
+    transformTool,
+    measureMode,
+    scaleMode,
+    isWallDrawMode,
+    cancelVariantHandleDrag,
+  ]);
 
   const handleClick = useCallback(
     (e) => {
@@ -1765,6 +2040,65 @@ export default function Plan2DOverlay({
         ctx.restore();
       }
 
+      const activeVariantControl = resolveActiveVariantControl2D(snap);
+      if (
+        activeVariantControl?.type === 'EDUK_WIDTH'
+      ) {
+        const { handles, center, axis, type } = activeVariantControl;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(37, 99, 235, 0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(handles[0].x, handles[0].y);
+        ctx.lineTo(handles[1].x, handles[1].y);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.20)';
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (const handle of handles) {
+          const isActive =
+            hoveredVariantHandleDir === handle.dir ||
+            (isVariantHandleDragging && variantHandleDragRef.current?.dragDir === handle.dir);
+
+          const radius = isActive ? 11 : 9;
+
+          ctx.fillStyle = isActive ? 'rgba(37, 99, 235, 0.95)' : 'rgba(37, 99, 235, 0.80)';
+          ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(handle.x, handle.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          const nx = axis.x * handle.dir;
+          const ny = axis.y * handle.dir;
+          const tx = -ny;
+          const ty = nx;
+
+          const tipX = handle.x + nx * 6;
+          const tipY = handle.y + ny * 6;
+          const baseCenterX = handle.x - nx * 4;
+          const baseCenterY = handle.y - ny * 4;
+          const leftX = baseCenterX + tx * 3.5;
+          const leftY = baseCenterY + ty * 3.5;
+          const rightX = baseCenterX - tx * 3.5;
+          const rightY = baseCenterY - ty * 3.5;
+
+          ctx.fillStyle = 'rgba(255,255,255,0.98)';
+          ctx.beginPath();
+          ctx.moveTo(tipX, tipY);
+          ctx.lineTo(leftX, leftY);
+          ctx.lineTo(rightX, rightY);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
       const rotationHandle = getRotationHandle();
       if (rotationHandle) {
         const degrees = ((rotationHandle.angle * 180) / Math.PI + 360) % 360;
@@ -1917,6 +2251,9 @@ export default function Plan2DOverlay({
     scaleStartPx,
     scaleHoverPx,
     getRotationHandle,
+    resolveActiveVariantControl2D,
+    hoveredVariantHandleDir,
+    isVariantHandleDragging,
   ]);
 
   if (!visible) {
@@ -2301,6 +2638,10 @@ export default function Plan2DOverlay({
           cursor:
             measureMode || isWallDrawMode || scaleMode || selectionDrag
               ? 'crosshair'
+              : isVariantHandleDragging
+                ? 'grabbing'
+                : hoveredVariantHandleDir
+                  ? 'pointer'
               : isRotatingPiece
                 ? 'grabbing'
                 : transformTool === 'rotate'
@@ -2318,6 +2659,7 @@ export default function Plan2DOverlay({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={(event) => {
+          cancelVariantHandleDrag(event.pointerId);
           cancelSelectionDrag(event.pointerId);
           cancelDimensionTextDrag(event.pointerId);
           cancelPieceDrag();
@@ -2331,6 +2673,7 @@ export default function Plan2DOverlay({
             !dragRef.current.isDown
           ) {
             setHoveredMovablePieceId(null);
+            setHoveredVariantHandleDir(0);
           }
         }}
         onContextMenu={(e) => e.preventDefault()}

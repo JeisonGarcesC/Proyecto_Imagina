@@ -23,6 +23,7 @@ import {
   getSeatVariantByCode,
   getModuleVariantByCode,
 } from './properties/clakPuffVariants';
+import { getEdukVariantGroupByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
 
 const typologyImageCache = new Map();
@@ -322,6 +323,7 @@ export default function LeftPanel({
   const [qEduk, setQEduk] = useState('');
   const [edukItems, setEdukItems] = useState([]);
   const [edukReady, setEdukReady] = useState(false);
+  const [showEdukVariants, setShowEdukVariants] = useState(false);
 
   // ZEN ALMACENAMIENTO states
   const [qAlmacen, setQAlmacen] = useState('');
@@ -1166,13 +1168,35 @@ export default function LeftPanel({
     const q = String(qEduk || '')
       .trim()
       .toLowerCase();
-    if (!q) return edukItems || [];
-    return (edukItems || []).filter((it) => {
-      const code = String(it?.codigoPT ?? '').toLowerCase();
-      const title = String(it?.ui?.title ?? '').toLowerCase();
-      return code.includes(q) || title.includes(q);
-    });
-  }, [edukItems, qEduk]);
+
+    // If user is searching, show matching items (including variants)
+    if (q) {
+      return (edukItems || []).filter((it) => {
+        const code = String(it?.codigoPT ?? '').toLowerCase();
+        const title = String(it?.ui?.title ?? '').toLowerCase();
+        return code.includes(q) || title.includes(q);
+      });
+    }
+
+    // When not searching, show one representative per variant group
+    if (!showEdukVariants) {
+      const seen = new Set();
+      const out = [];
+
+      for (const it of edukItems || []) {
+        const code = String(it?.codigoPT || '').trim();
+        const group = getEdukVariantGroupByCode(code);
+        const key = group ? `group_${group.id}` : code;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(it);
+      }
+
+      return out;
+    }
+
+    return edukItems || [];
+  }, [edukItems, qEduk, showEdukVariants]);
 
   // ================================
   // Filtrado ZEN ALMACENAMIENTO
@@ -2371,6 +2395,36 @@ export default function LeftPanel({
               outline: 'none',
             }}
           />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <button
+              onClick={() => setShowEdukVariants((s) => !s)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 8,
+                border: '1px solid #e5e7eb',
+                background: showEdukVariants ? '#111827' : '#ffffff',
+                color: showEdukVariants ? '#fff' : '#111827',
+                cursor: 'pointer',
+                fontSize: 13,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 2,
+                  display: 'inline-block',
+                  background: showEdukVariants ? '#34d399' : '#d1d5db',
+                }}
+              />
+              {showEdukVariants ? 'Variantes: ON' : 'Variantes: OFF'}
+            </button>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>Mostrar todas las variantes</div>
+          </div>
 
           {!edukReady && <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Eduk...</div>}
 
