@@ -25,6 +25,8 @@ export default function TopMenuBar({
   onMoveAsGroupChange,
   onLogout,
   onNewProject,
+  getProjectData,
+  onLoadProject,
   debugSaveAlert = false,
   onOpenBom,
   onCloseBom,
@@ -88,7 +90,7 @@ export default function TopMenuBar({
   }, []);
 
   const doSave = () => {
-    const data = threeApiRef.current?.exportProject?.();
+    const data = getProjectData?.() ?? threeApiRef.current?.exportProject?.();
     if (!data) return;
 
     if (debugSaveAlert) {
@@ -136,7 +138,8 @@ export default function TopMenuBar({
         return;
       }
 
-      threeApiRef.current?.loadProject?.(json);
+      if (onLoadProject) await onLoadProject(json);
+      else await threeApiRef.current?.loadProject?.(json);
     } catch (err) {
       console.error('Error cargando JSON:', err);
       alert('No pude cargar el proyecto. Revisa que sea un JSON válido.');

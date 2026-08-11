@@ -29,6 +29,13 @@ import BOMView from './components/BOMView';
 import { catalogByCodigoPT } from './catalog/catalogData';
 
 import Plan2DUploader from './components/Plan2DUploader';
+import {
+  createPlanDefinition,
+  legacyPlanStateToDefinition,
+  planDefinitionToLegacyState,
+} from './core/plans/models/planDefinition';
+import { deserializePlan, serializePlan } from './core/plans/serialization/serializePlan';
+import { getPlanAsset, savePlanAsset } from './core/plans/storage/planAssetStore';
 
 import { exportProjectPPT } from './exports/exportPPT';
 
@@ -306,8 +313,11 @@ export default function App() {
 
   const [plan2DVisible, setPlan2DVisible] = useState(true);
   const [plan2DSrc, setPlan2DSrc] = useState(null);
-  const [, setPlan2DKind] = useState(null);
-  const [, setPlan2DName] = useState('');
+  const [plan2DKind, setPlan2DKind] = useState(null);
+  const [plan2DName, setPlan2DName] = useState('');
+  const [plan2DMimeType, setPlan2DMimeType] = useState('');
+  const [plan2DAssetId, setPlan2DAssetId] = useState(null);
+  const [plan2DId, setPlan2DId] = useState(() => createPlanDefinition().id);
   const [plan2DTransform, setPlan2DTransform] = useState({
     metersPerPixel: 0.01, // temporal, luego se calibra
     offsetX: 0,
@@ -315,6 +325,39 @@ export default function App() {
     opacity: 0.35,
   });
   const plan2DUrlRef = useRef(null);
+  useEffect(
+    () => () => {
+      if (plan2DUrlRef.current) URL.revokeObjectURL(plan2DUrlRef.current);
+    },
+    []
+  );
+  const planDefinition = useMemo(
+    () =>
+      legacyPlanStateToDefinition({
+        id: plan2DId,
+        src: plan2DSrc,
+        kind: plan2DKind,
+        name: plan2DName,
+        mimeType: plan2DMimeType,
+        assetId: plan2DAssetId,
+        visible: plan2DVisible,
+        transform: plan2DTransform,
+      }),
+    [
+      plan2DId,
+      plan2DSrc,
+      plan2DKind,
+      plan2DName,
+      plan2DMimeType,
+      plan2DAssetId,
+      plan2DVisible,
+      plan2DTransform,
+    ]
+  );
+  const legacyPlan2D = useMemo(
+    () => planDefinitionToLegacyState(planDefinition),
+    [planDefinition]
+  );
 
   const handleLoadPlan2D = async (file, meta) => {
     if (!file) return;
@@ -325,8 +368,25 @@ export default function App() {
     }
 
     const type = meta?.type || 'unknown';
+    const supportsDurableAsset = ['image', 'svg', 'pdf'].includes(type);
+    let assetId = null;
+
+    if (supportsDurableAsset) {
+      try {
+        assetId = await savePlanAsset(file, {
+          fileName: meta?.name || file.name || '',
+          mimeType: meta?.mime || file.type || '',
+        });
+      } catch (error) {
+        console.error('No se pudo guardar el asset durable del plano:', error);
+      }
+    }
+
+    setPlan2DId(createPlanDefinition().id);
+    setPlan2DAssetId(assetId);
     setPlan2DKind(type);
     setPlan2DName(meta?.name || file.name || '');
+    setPlan2DMimeType(meta?.mime || file.type || '');
 
     if (type === 'image' || type === 'svg') {
       const url = URL.createObjectURL(file);
@@ -370,6 +430,101 @@ export default function App() {
     }
 
     setPlan2DSrc(null);
+  };
+
+  const buildProjectData = () => {
+    const project = threeApiRef.current?.exportProject?.();
+    if (!project) return null;
+
+    return {
+      ...project,
+      plan2D: plan2DSrc ? serializePlan(planDefinition) : null,
+    };
+  };
+
+  const restorePlan2DFromProject = async (project) => {
+    const restoredPlan = deserializePlan(project?.plan2D);
+
+    if (!restoredPlan) {
+      if (plan2DUrlRef.current) URL.revokeObjectURL(plan2DUrlRef.current);
+      plan2DUrlRef.current = null;
+      setPlan2DId(createPlanDefinition().id);
+      setPlan2DSrc(null);
+      setPlan2DKind(null);
+      setPlan2DName('');
+      setPlan2DMimeType('');
+      setPlan2DAssetId(null);
+      setPlan2DVisible(true);
+      setPlan2DTransform({
+        metersPerPixel: 0.01,
+        offsetX: 0,
+        offsetZ: 0,
+        opacity: 0.35,
+        rotation: 0,
+        scale: 1,
+      });
+      return;
+    }
+
+    const legacy = planDefinitionToLegacyState(restoredPlan);
+    let restoredSrc = null;
+
+    if (restoredPlan.assetId) {
+      try {
+        const asset = await getPlanAsset(restoredPlan.assetId);
+        if (!asset?.blob || !(asset.blob instanceof Blob)) {
+          throw new Error(`Asset no encontrado: ${restoredPlan.assetId}`);
+        }
+
+        restoredSrc =
+          restoredPlan.sourceType === 'PDF'
+            ? await pdfFileToDataUrl(asset.blob)
+            : URL.createObjectURL(asset.blob);
+      } catch (error) {
+        console.warn('planDefinition asset unavailable', {
+          assetId: restoredPlan.assetId,
+          error,
+        });
+      }
+    }
+
+    if (!restoredSrc) restoredSrc = legacy.src;
+
+    if (typeof restoredSrc === 'string' && restoredSrc.startsWith('blob:')) {
+      try {
+        const response = await fetch(restoredSrc);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      } catch (error) {
+        console.warn('planDefinition source unavailable', {
+          source: restoredSrc,
+          error,
+        });
+        restoredSrc = null;
+      }
+    }
+
+    if (plan2DUrlRef.current && plan2DUrlRef.current !== restoredSrc) {
+      URL.revokeObjectURL(plan2DUrlRef.current);
+      plan2DUrlRef.current = null;
+    }
+
+    if (typeof restoredSrc === 'string' && restoredSrc.startsWith('blob:')) {
+      plan2DUrlRef.current = restoredSrc;
+    }
+
+    setPlan2DId(restoredPlan.id);
+    setPlan2DSrc(restoredSrc);
+    setPlan2DKind(legacy.kind);
+    setPlan2DName(legacy.name);
+    setPlan2DMimeType(restoredPlan.mimeType);
+    setPlan2DAssetId(restoredPlan.assetId);
+    setPlan2DVisible(legacy.visible);
+    setPlan2DTransform(legacy.transform);
+  };
+
+  const loadProjectData = async (project) => {
+    await restorePlan2DFromProject(project);
+    return threeApiRef.current?.loadProject?.(project);
   };
 
   /* =====================================================
@@ -572,6 +727,8 @@ export default function App() {
         onMoveAsGroupChange={handleMoveAsGroupChange}
         onLogout={logout}
         onNewProject={() => threeApiRef.current?.clearProject?.()}
+        getProjectData={buildProjectData}
+        onLoadProject={loadProjectData}
         debugSaveAlert={false}
         onOpenBom={() => setBomOpen(true)}
         onCloseBom={() => setBomOpen(false)}
@@ -911,9 +1068,9 @@ export default function App() {
             onSetWalls={setWalls}
             height={240}
             invertZ={false}
-            plan2DSrc={plan2DSrc}
-            plan2DVisible={plan2DVisible}
-            plan2DTransform={plan2DTransform}
+            plan2DSrc={legacyPlan2D.src}
+            plan2DVisible={legacyPlan2D.visible}
+            plan2DTransform={legacyPlan2D.transform}
             onPlan2DTransformChange={setPlan2DTransform}
           />
 
