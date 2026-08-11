@@ -51,6 +51,15 @@ export async function getZenProductDefinition(codigoPT, options = {}) {
       USD: Number(details.USD?.precio || 0),
     },
   };
+  const addonsByCode = new Map(
+    (catalog?.addons || []).map((addon) => [String(addon?.code || ''), addon])
+  );
+  const addons = (variantDefinition?.addons || []).map((addon) => ({
+    ...addon,
+    ...(addonsByCode.get(String(addon?.code || '')) || {}),
+    code: addon.code,
+    qty: addon.qty,
+  }));
 
   return {
     kind: 'CATALOG_PRODUCT',
@@ -66,6 +75,6 @@ export async function getZenProductDefinition(codigoPT, options = {}) {
       precio: commercialData.precio,
       udm: commercialData.udm,
     },
-    addons: (variantDefinition?.addons || []).map((addon) => ({ ...addon })),
+    addons,
   };
 }

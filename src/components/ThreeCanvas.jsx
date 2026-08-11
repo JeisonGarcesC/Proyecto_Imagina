@@ -35,6 +35,11 @@ import {
   normalizeSaludVariantCode,
 } from '../mepal/salud/products/saludVariantDefinition';
 import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekSocialInstance';
+import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
+import {
+  getZenVariantOptionsByCode,
+  normalizeZenVariantCode,
+} from '../mepal/zen/products/zenVariantDefinition.js';
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 
@@ -2624,6 +2629,59 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function addZen(codigoPT, options = {}) {
+      if (readOnly) return;
+      const parentGroup = options?.parentGroup || null;
+      const codigo = String(codigoPT || '').trim();
+
+      let result;
+      try {
+        result = await createZenInstance({
+          codigoPT: codigo,
+          country: countryRef.current,
+          variant: options?.variant || 'base',
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(`No se pudo crear el producto Zen Almacenamiento ${codigo}`, error);
+        return;
+      }
+
+      const { object, partRecord } = result;
+      object.userData = {
+        ...(object.userData || {}),
+        isPartRoot: true,
+        materialBase: object.userData?.materialBase ?? options?.materialBase ?? null,
+        materialCode: object.userData?.materialCode ?? options?.materialCode ?? null,
+      };
+
+      const bounds2d = computeBounds2D(object);
+      if (bounds2d) {
+        object.userData.bounds2d = {
+          localCenter: bounds2d.localCenter.toArray(),
+          sizeLocal: bounds2d.sizeLocal.toArray(),
+        };
+      }
+
+      object.position.set(0.5 + parts.length * 0.9, 0, 0.5);
+
+      if (parentGroup) {
+        parentGroup.add(object);
+      } else {
+        scene.add(object);
+      }
+      object.updateMatrixWorld(true);
+
+      parts.push(partRecord);
+      pickables.push(object);
+
+      setActivePart(object);
+      emitBOM();
+
+      if (parts.length === 1) frameObject(object);
+      refreshFloorAndGrid();
+    }
+
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
       if (readOnly) return;
 
@@ -2809,8 +2867,34 @@ export default function ThreeCanvas({
     async function swapAlmacenamientoVariant(instanceId, codigo, targetVariant = 'base') {
       if (readOnly) return;
 
-      const currentCode = String(codigo || '').trim();
-      if (!currentCode) return;
+      const baseCode = normalizeZenVariantCode(codigo);
+      if (!baseCode) return;
+
+      const requestedVariant = String(targetVariant || 'base')
+        .trim()
+        .replace(/^_+/, '')
+        .replace(/\.glb$/i, '')
+        .toLowerCase();
+      const normalizedTarget =
+        requestedVariant === 'normal'
+          ? 'base'
+          : requestedVariant === 'laminate'
+            ? 'lamiante'
+            : requestedVariant;
+
+      const variantOptions = getZenVariantOptionsByCode(baseCode) || [];
+      const targetDefinition = variantOptions.find(
+        ({ variantType }) => variantType === normalizedTarget
+      );
+
+      if (!targetDefinition) {
+        console.warn(
+          '[swapAlmacenamientoVariant] Variante no compatible:',
+          targetVariant,
+          baseCode
+        );
+        return;
+      }
 
       const found = parts.find(({ obj }) => {
         return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
@@ -2822,84 +2906,72 @@ export default function ThreeCanvas({
       }
 
       const oldObj = found.obj;
-      const variantList = Array.isArray(oldObj?.userData?.almacenVariants)
-        ? oldObj.userData.almacenVariants
-        : [];
-
-      if (!variantList.length) {
-        console.warn(
-          '[swapAlmacenamientoVariant] La pieza no tiene variantes disponibles:',
-          currentCode
-        );
-        return;
-      }
-
-      const normTarget = String(targetVariant || 'base')
-        .trim()
-        .toLowerCase();
-
-      const targetEntry =
-        normTarget === 'base'
-          ? variantList.find((v) => !v?.variant) || variantList[0]
-          : variantList.find(
-              (v) =>
-                String(v?.variant || '')
-                  .replace(/^_+/, '')
-                  .toLowerCase() === normTarget
-            );
-
-      if (!targetEntry?.src) {
-        console.warn(
-          '[swapAlmacenamientoVariant] Variante no encontrada:',
-          targetVariant,
-          variantList
-        );
-        return;
-      }
-
-      const savedPos = oldObj.position.clone();
-      const savedRot = oldObj.rotation.clone();
+      const oldInstanceId = oldObj.userData?.instanceId || oldObj.uuid;
+      const savedPosition = oldObj.position.clone();
+      const savedQuaternion = oldObj.quaternion.clone();
+      const savedScale = oldObj.scale.clone();
       const savedUserData = { ...oldObj.userData };
-      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+      delete savedUserData.bounds2d;
+      const savedParent = oldObj.parent || scene;
+      const savedParentIndex = savedParent.children.indexOf(oldObj);
+      const savedSelectedIds = Array.from(new Set(selectedIds3D));
+      if (!savedSelectedIds.includes(oldInstanceId)) savedSelectedIds.push(oldInstanceId);
 
-      const gltf = await loadExistingGlb([targetEntry.src]);
-      if (!gltf) {
-        console.error('[swapAlmacenamientoVariant] No se encontró el GLB:', targetEntry.src);
+      let result;
+      try {
+        result = await createZenInstance({
+          codigoPT: baseCode,
+          country: countryRef.current,
+          variant: normalizedTarget,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(
+          `[swapAlmacenamientoVariant] No se pudo crear la variante ${normalizedTarget} de ${baseCode}`,
+          error
+        );
         return;
       }
 
-      removePartObject(oldObj);
-
-      const newObj = gltf.scene;
-      const addonParts = await buildAlmacenamientoAddonParts(targetEntry?.variant || null);
+      const { object: newObj, metadata, partRecord } = result;
       newObj.userData = {
+        ...(newObj.userData || {}),
         ...savedUserData,
-        kind: 'ALMACENAMIENTO',
-        codigoPT: currentCode,
-        code: currentCode,
-        name: savedUserData?.name || currentCode,
-        instanceId: newObj.uuid,
-        almacenVariant: targetEntry?.variant || null,
-        almacenCategory: targetEntry?.category || savedUserData?.almacenCategory || null,
-        almacenVariants: variantList,
-        almacenAddonParts: addonParts,
+        ...metadata,
+        instanceId: oldInstanceId,
       };
 
-      newObj.name = `ALMACENAMIENTO_${currentCode}`;
-      newObj.position.copy(savedPos);
-      newObj.rotation.copy(savedRot);
-      newObj.updateMatrixWorld(true);
+      newObj.position.copy(savedPosition);
+      newObj.quaternion.copy(savedQuaternion);
+      newObj.scale.copy(savedScale);
 
-      if (parentGroup) {
-        parentGroup.add(newObj);
-      } else {
-        scene.add(newObj);
+      const bounds2d = computeBounds2D(newObj);
+      if (bounds2d) {
+        newObj.userData.bounds2d = {
+          localCenter: bounds2d.localCenter.toArray(),
+          sizeLocal: bounds2d.sizeLocal.toArray(),
+        };
       }
 
-      parts.push({ code: currentCode, obj: newObj });
+      removePartObject(oldObj, { emitBom: false });
+
+      savedParent.add(newObj);
+
+      if (savedParentIndex >= 0) {
+        const appendedIndex = savedParent.children.indexOf(newObj);
+        if (appendedIndex >= 0 && appendedIndex !== savedParentIndex) {
+          savedParent.children.splice(appendedIndex, 1);
+          savedParent.children.splice(savedParentIndex, 0, newObj);
+        }
+      }
+
+      newObj.updateMatrixWorld(true);
+
+      parts.push({ ...partRecord, obj: newObj });
       pickables.push(newObj);
 
       setActivePart(newObj);
+      syncSelectedIds3D(savedSelectedIds);
       emitBOM();
       refreshFloorAndGrid();
     }
@@ -3141,6 +3213,7 @@ export default function ThreeCanvas({
         removePartObject(child, {
           skipFloatingChildren: true,
           disposeResources: options.disposeResources,
+          emitBom: options.emitBom,
         });
       });
     }
@@ -3150,14 +3223,14 @@ export default function ThreeCanvas({
 
       const root = getRootPartObject(obj) || obj;
 
-      const { skipFloatingChildren = false, disposeResources = true } = options;
+      const { skipFloatingChildren = false, disposeResources = true, emitBom = true } = options;
 
       const isAssembly =
         root.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || root.userData?.type === 'koncisa-plus';
 
       // Si se elimina un puesto, primero elimina pantallas asociadas que estén por fuera.
       if (isAssembly && !skipFloatingChildren) {
-        removeFloatingChildrenOfAssembly(root, { disposeResources });
+        removeFloatingChildrenOfAssembly(root, { disposeResources, emitBom });
       }
 
       // Quitar de su padre real.
@@ -3195,7 +3268,7 @@ export default function ThreeCanvas({
 
       if (disposeResources) disposeObject3D(root);
 
-      emitBOM();
+      if (emitBom) emitBOM();
 
       return true;
     }
@@ -3959,6 +4032,7 @@ export default function ThreeCanvas({
       addMepalTekSocial,
       addClak,
       addEduk,
+      addZen,
       swapMepalSaludVariant,
       swapClakVariant,
       swapAlmacenamientoVariant,
