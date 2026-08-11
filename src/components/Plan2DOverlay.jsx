@@ -21,6 +21,7 @@ import {
   getPlanWorldBounds,
   worldPointToDocument,
 } from '../core/plans/utils/planTransform';
+import { drawVectorPlan2D } from '../core/plans/renderers/vectorPlanRenderer2D';
 import {
   getEdukWidthInfoByCode,
 } from '../mepal/eduk/products/edukShelfHeightDefinition';
@@ -384,13 +385,13 @@ export default function Plan2DOverlay({
   const canInteractWithPlan = Boolean(
     plan2DDefinition &&
       plan2DVisible &&
-      planImageRef.current &&
+      (plan2DDefinition.renderType === 'VECTOR' || planImageRef.current) &&
       planEditMode &&
       plan2DDefinition.locked === false
   );
 
   useEffect(() => {
-    if (!plan2DSrc) {
+    if (!plan2DSrc || plan2DDefinition?.renderType === 'VECTOR') {
       planImageRef.current = null;
       return;
     }
@@ -408,7 +409,7 @@ export default function Plan2DOverlay({
       planImageRef.current = null;
     };
     img.src = plan2DSrc;
-  }, [plan2DSrc]);
+  }, [plan2DSrc, plan2DDefinition?.renderType]);
 
   useEffect(() => {
     setScaleStartPx(null);
@@ -524,7 +525,10 @@ export default function Plan2DOverlay({
     }
 
     // 5) Plano importado (SVG / PDF convertido / imagen)
-    if (plan2DVisible && planImageRef.current) {
+    if (
+      plan2DVisible &&
+      (planImageRef.current || plan2DDefinition?.renderType === 'VECTOR')
+    ) {
       const planBounds = getPlanWorldBounds(getRuntimePlan());
       minX = Math.min(minX, planBounds.minX);
       maxX = Math.max(maxX, planBounds.maxX);
@@ -621,13 +625,17 @@ export default function Plan2DOverlay({
       if (!worldPoint) return null;
       const runtimePlan = getRuntimePlan();
       const documentPoint = worldPointToDocument(worldPoint, runtimePlan);
-      const widthPx = runtimePlan.raster?.widthPx || 0;
-      const heightPx = runtimePlan.raster?.heightPx || 0;
+      const isVector = runtimePlan.renderType === 'VECTOR';
+      const bounds = runtimePlan.vector?.bounds;
+      const minX = isVector ? bounds?.minX : 0;
+      const minY = isVector ? bounds?.minY : 0;
+      const maxX = isVector ? bounds?.maxX : runtimePlan.raster?.widthPx;
+      const maxY = isVector ? bounds?.maxY : runtimePlan.raster?.heightPx;
       const inside =
-        documentPoint.x >= 0 &&
-        documentPoint.y >= 0 &&
-        documentPoint.x <= widthPx &&
-        documentPoint.y <= heightPx;
+        documentPoint.x >= minX &&
+        documentPoint.y >= minY &&
+        documentPoint.x <= maxX &&
+        documentPoint.y <= maxY;
 
       return inside ? { worldPoint, documentPoint } : null;
     },
@@ -2050,6 +2058,14 @@ export default function Plan2DOverlay({
         ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
 
         ctx.restore();
+      }
+
+      if (plan2DVisible && plan2DDefinition?.renderType === 'VECTOR') {
+        drawVectorPlan2D(ctx, getRuntimePlan(), {
+          toCanvas: toCanvasLocal,
+          scale: s,
+          invertZ,
+        });
       }
 
       // borde

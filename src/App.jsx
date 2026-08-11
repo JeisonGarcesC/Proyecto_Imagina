@@ -36,6 +36,9 @@ import {
 } from './core/plans/models/planDefinition';
 import { deserializePlan, serializePlan } from './core/plans/serialization/serializePlan';
 import { getPlanAsset, savePlanAsset } from './core/plans/storage/planAssetStore';
+import { loadDxfPlan } from './core/plans/loaders/dxfPlanLoader';
+import { createDxfCalibration, resolveDxfUnitSelection } from './core/plans/utils/dxfUnits';
+import DxfUnitSelector from './core/plans/components/DxfUnitSelector';
 
 import { exportProjectPPT } from './exports/exportPPT';
 
@@ -338,6 +341,8 @@ export default function App() {
   const [plan2DMimeType, setPlan2DMimeType] = useState('');
   const [plan2DAssetId, setPlan2DAssetId] = useState(null);
   const [plan2DRaster, setPlan2DRaster] = useState({ widthPx: null, heightPx: null });
+  const [plan2DVector, setPlan2DVector] = useState(null);
+  const [pendingDxfPlan, setPendingDxfPlan] = useState(null);
   const [plan2DLocked, setPlan2DLocked] = useState(true);
   const [planEditMode, setPlanEditMode] = useState(false);
   const [planCalibrationRequestId, setPlanCalibrationRequestId] = useState(0);
@@ -361,6 +366,8 @@ export default function App() {
         mimeType: plan2DMimeType,
         assetId: plan2DAssetId,
         raster: plan2DRaster,
+        vector: plan2DVector,
+        renderType: plan2DKind === 'dxf' ? 'VECTOR' : 'RASTER',
         calibration: plan2DCalibration,
         locked: plan2DLocked,
         visible: plan2DVisible,
@@ -374,6 +381,7 @@ export default function App() {
       plan2DMimeType,
       plan2DAssetId,
       plan2DRaster,
+      plan2DVector,
       plan2DCalibration,
       plan2DLocked,
       plan2DVisible,
@@ -384,21 +392,60 @@ export default function App() {
     () => planDefinitionToLegacyState(planDefinition),
     [planDefinition]
   );
-  const hasPlan2D = Boolean(plan2DSrc || plan2DAssetId);
+  const hasPlan2D = Boolean(plan2DSrc || plan2DAssetId || plan2DVector);
   const activePlanDefinition = hasPlan2D ? planDefinition : null;
 
   useEffect(() => {
     if (!hasPlan2D || plan2DLocked) setPlanEditMode(false);
   }, [hasPlan2D, plan2DLocked]);
 
+  const commitPlan2DImport = ({
+    type,
+    name,
+    mimeType,
+    assetId,
+    source = null,
+    objectUrl = null,
+    vector = null,
+    calibration = DEFAULT_PLAN_CALIBRATION,
+    replacing = false,
+  }) => {
+    if (plan2DUrlRef.current) URL.revokeObjectURL(plan2DUrlRef.current);
+    plan2DUrlRef.current = objectUrl;
+
+    if (!replacing) setPlan2DId(createPlanDefinition().id);
+    setPlan2DAssetId(assetId);
+    setPlan2DRaster({ widthPx: null, heightPx: null });
+    setPlan2DVector(vector);
+    setPlanEditMode(false);
+    setPlan2DCalibration(calibration);
+    setPlanCalibrationRequestId(0);
+    setPlan2DTransform((current) =>
+      replacing
+        ? { ...current, metersPerPixel: calibration.metersPerDocumentUnit, scale: 1 }
+        : {
+            ...createDefaultPlanTransform(),
+            metersPerPixel: calibration.metersPerDocumentUnit,
+          }
+    );
+    if (!replacing) setPlan2DLocked(true);
+    setPlan2DKind(type);
+    setPlan2DName(name);
+    setPlan2DMimeType(mimeType);
+    setPlan2DSrc(source);
+    if (!replacing) setPlan2DVisible(true);
+  };
+
   const handleLoadPlan2D = async (file, meta, options = {}) => {
     if (!file) return;
     const replacing = options.replace === true && Boolean(activePlanDefinition);
     const type = meta?.type || 'unknown';
-    const supportsDurableAsset = ['image', 'svg', 'pdf'].includes(type);
+    const supportsDurableAsset = ['image', 'svg', 'pdf', 'dxf'].includes(type);
     let nextSource = null;
     let nextObjectUrl = null;
     let assetId = null;
+    let nextVector = null;
+    let nextCalibration = DEFAULT_PLAN_CALIBRATION;
 
     if (type === 'image' || type === 'svg') {
       nextObjectUrl = URL.createObjectURL(file);
@@ -415,8 +462,19 @@ export default function App() {
       alert('El DWG no se puede renderizar directo en este visor. Convierte el archivo a DXF o SVG para visualizarlo en 2D.');
       return;
     } else if (type === 'dxf') {
-      alert('El DXF ya fue detectado, pero todavía falta integrar su renderer/parser. Por ahora usa SVG, imagen o PDF.');
-      return;
+      try {
+        const normalized = await loadDxfPlan(file);
+        if (!normalized?.vector?.bounds) {
+          alert('El DXF no contiene geometría compatible para visualizar.');
+          return;
+        }
+        nextVector = normalized.vector;
+        nextCalibration = normalized.calibration;
+      } catch (error) {
+        console.error('No se pudo procesar el DXF:', error);
+        alert(error?.message || 'No se pudo procesar el DXF.');
+        return;
+      }
     } else {
       return;
     }
@@ -429,33 +487,47 @@ export default function App() {
         });
       } catch (error) {
         console.error('No se pudo guardar el asset durable del plano:', error);
-        if (replacing) {
+        if (replacing || type === 'dxf') {
           if (nextObjectUrl) URL.revokeObjectURL(nextObjectUrl);
           return;
         }
       }
     }
 
-    if (plan2DUrlRef.current) URL.revokeObjectURL(plan2DUrlRef.current);
-    plan2DUrlRef.current = nextObjectUrl;
+    const importData = {
+      type,
+      name: meta?.name || file.name || '',
+      mimeType: meta?.mime || file.type || '',
+      assetId,
+      source: nextSource,
+      objectUrl: nextObjectUrl,
+      vector: nextVector,
+      calibration: nextCalibration,
+      replacing,
+    };
 
-    if (!replacing) setPlan2DId(createPlanDefinition().id);
-    setPlan2DAssetId(assetId);
-    setPlan2DRaster({ widthPx: null, heightPx: null });
-    setPlanEditMode(false);
-    setPlan2DCalibration(DEFAULT_PLAN_CALIBRATION);
-    setPlanCalibrationRequestId(0);
-    setPlan2DTransform((current) =>
-      replacing
-        ? { ...current, metersPerPixel: DEFAULT_PLAN_CALIBRATION.metersPerDocumentUnit, scale: 1 }
-        : createDefaultPlanTransform()
-    );
-    if (!replacing) setPlan2DLocked(true);
-    setPlan2DKind(type);
-    setPlan2DName(meta?.name || file.name || '');
-    setPlan2DMimeType(meta?.mime || file.type || '');
-    setPlan2DSrc(nextSource);
-    if (!replacing) setPlan2DVisible(true);
+    if (type === 'dxf' && nextCalibration.metersPerDocumentUnit == null) {
+      setPendingDxfPlan(importData);
+      return;
+    }
+
+    commitPlan2DImport(importData);
+  };
+
+  const handleConfirmDxfUnit = (unit) => {
+    if (!pendingDxfPlan) return;
+    const selectedUnits = resolveDxfUnitSelection(unit);
+    if (!selectedUnits) return;
+
+    commitPlan2DImport({
+      ...pendingDxfPlan,
+      vector: {
+        ...pendingDxfPlan.vector,
+        units: { ...pendingDxfPlan.vector.units, ...selectedUnits },
+      },
+      calibration: createDxfCalibration(selectedUnits),
+    });
+    setPendingDxfPlan(null);
   };
 
   const handleDeletePlan2D = () => {
@@ -476,6 +548,7 @@ export default function App() {
     setPlan2DMimeType('');
     setPlan2DAssetId(null);
     setPlan2DRaster({ widthPx: null, heightPx: null });
+    setPlan2DVector(null);
     setPlan2DCalibration(DEFAULT_PLAN_CALIBRATION);
     setPlan2DLocked(true);
     setPlan2DVisible(true);
@@ -507,6 +580,7 @@ export default function App() {
       setPlan2DMimeType('');
       setPlan2DAssetId(null);
       setPlan2DRaster({ widthPx: null, heightPx: null });
+      setPlan2DVector(null);
       setPlan2DCalibration(DEFAULT_PLAN_CALIBRATION);
       setPlan2DLocked(true);
       setPlan2DVisible(true);
@@ -525,7 +599,9 @@ export default function App() {
         }
 
         restoredSrc =
-          restoredPlan.sourceType === 'PDF'
+          restoredPlan.renderType === 'VECTOR'
+            ? null
+            : restoredPlan.sourceType === 'PDF'
             ? await pdfFileToDataUrl(asset.blob)
             : URL.createObjectURL(asset.blob);
       } catch (error) {
@@ -567,6 +643,7 @@ export default function App() {
     setPlan2DMimeType(restoredPlan.mimeType);
     setPlan2DAssetId(restoredPlan.assetId);
     setPlan2DRaster(restoredPlan.raster);
+    setPlan2DVector(restoredPlan.vector);
     setPlan2DCalibration(restoredPlan.calibration);
     setPlan2DLocked(legacy.locked);
     setPlan2DVisible(legacy.visible);
@@ -610,6 +687,20 @@ export default function App() {
     const nextRotation = Number(rotation);
     if (!Number.isFinite(nextRotation)) return;
     setPlan2DTransform((current) => ({ ...current, rotation: nextRotation }));
+  };
+
+  const handleVectorLayerChange = (layerId, patch) => {
+    if (!layerId || !patch || typeof patch !== 'object') return;
+    setPlan2DVector((current) => {
+      if (!current || !Array.isArray(current.layers)) return current;
+      let changed = false;
+      const layers = current.layers.map((layer) => {
+        if (layer.id !== layerId && layer.name !== layerId) return layer;
+        changed = true;
+        return { ...layer, ...patch, id: layer.id, name: layer.name };
+      });
+      return changed ? { ...current, layers } : current;
+    });
   };
 
   const handlePlanRasterChange = ({ widthPx, heightPx }) => {
@@ -821,6 +912,12 @@ export default function App() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <DxfUnitSelector
+        open={Boolean(pendingDxfPlan)}
+        fileName={pendingDxfPlan?.name}
+        onCancel={() => setPendingDxfPlan(null)}
+        onConfirm={handleConfirmDxfUnit}
+      />
       {/* TOP BAR */}
       <TopMenuBar
         user={user}
@@ -1011,6 +1108,7 @@ export default function App() {
               onPlanOpacityChange={handlePlanOpacityChange}
               onPlanPositionChange={handlePlanPositionChange}
               onPlanRotationChange={handlePlanRotationChange}
+              onVectorLayerChange={handleVectorLayerChange}
               onPlanRecalibrate={() =>
                 setPlanCalibrationRequestId((current) => current + 1)
               }

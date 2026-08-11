@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getDxfUnitDisplayName } from '../utils/dxfUnits.js';
 
 export default function PlanProperties({
   plan,
@@ -9,6 +10,7 @@ export default function PlanProperties({
   onOpacityChange,
   onPositionChange,
   onRotationChange,
+  onVectorLayerChange,
   onRecalibrate,
   onReplaceFile,
   onDelete,
@@ -133,7 +135,10 @@ export default function PlanProperties({
 
       <div style={{ display: 'grid', gap: 3 }}>
         <span>
-          Escala actual: <strong>1 px = {formatScale(metersPerUnit)} m</strong>
+          Escala actual:{' '}
+          <strong>
+            1 {plan.renderType === 'VECTOR' ? 'unidad DXF' : 'px'} = {formatScale(metersPerUnit)} m
+          </strong>
         </span>
         {Number.isFinite(calibratedDistance) && calibratedDistance > 0 ? (
           <span style={{ opacity: 0.72 }}>
@@ -141,6 +146,24 @@ export default function PlanProperties({
           </span>
         ) : null}
       </div>
+
+      {plan.renderType === 'VECTOR' ? (
+        <>
+          <div style={{ display: 'grid', gap: 3 }}>
+            <span>
+              Unidad DXF: <strong>{getDxfUnitDisplayName(plan.vector?.units?.name)}</strong>
+            </span>
+            {plan.vector?.units?.source === 'USER' ? (
+              <span style={{ opacity: 0.7 }}>Unidad definida manualmente</span>
+            ) : null}
+          </div>
+          <VectorLayers
+            layers={plan.vector?.layers || []}
+            entityCount={plan.vector?.diagnostics?.normalizedEntityCount}
+            onLayerChange={onVectorLayerChange}
+          />
+        </>
+      ) : null}
 
       <div style={{ display: 'grid', gap: 7 }}>
         <button type="button" onClick={onRecalibrate} disabled={plan.locked} style={actionStyle}>
@@ -155,6 +178,104 @@ export default function PlanProperties({
       </div>
     </section>
   );
+}
+
+function VectorLayers({ layers, entityCount, onLayerChange }) {
+  const safeLayers = Array.isArray(layers) ? layers : [];
+
+  const setAllVisible = (visible) => {
+    safeLayers.forEach((layer) => onLayerChange?.(layer.id, { visible }));
+  };
+
+  return (
+    <section aria-label="Layers del plano DXF" style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <strong>Layers</strong>
+        <span style={{ opacity: 0.65 }}>
+          {safeLayers.length} layers
+          {Number.isFinite(Number(entityCount)) ? ` · ${Number(entityCount).toLocaleString()} entidades` : ''}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button type="button" style={compactActionStyle} onClick={() => setAllVisible(true)}>
+          Mostrar todos
+        </button>
+        <button type="button" style={compactActionStyle} onClick={() => setAllVisible(false)}>
+          Ocultar todos
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gap: 4,
+          maxHeight: 210,
+          overflowY: 'auto',
+          padding: 5,
+          border: '1px solid #e5e7eb',
+          borderRadius: 7,
+          background: '#f8fafc',
+        }}
+      >
+        {safeLayers.map((layer) => (
+          <div
+            key={layer.id || layer.name}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'auto minmax(0, 1fr) auto auto',
+              alignItems: 'center',
+              gap: 7,
+              minHeight: 28,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={layer.visible !== false}
+              onChange={(event) =>
+                onLayerChange?.(layer.id, { visible: event.target.checked })
+              }
+              aria-label={`Mostrar layer ${layer.name}`}
+            />
+            <span
+              title={layer.lineType ? `${layer.name} · ${layer.lineType}` : layer.name}
+              style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {layer.name || '0'}
+              {layer.lineType ? <small style={{ opacity: 0.55 }}> · {layer.lineType}</small> : null}
+            </span>
+            <span
+              title={layer.color || (layer.aciColor != null ? `ACI ${layer.aciColor}` : 'Sin color')}
+              aria-label={`Color del layer ${layer.name}`}
+              style={{
+                width: 13,
+                height: 13,
+                borderRadius: 3,
+                border: '1px solid rgba(0,0,0,0.25)',
+                background: isHexColor(layer.color) ? layer.color : '#64748b',
+              }}
+            />
+            <label title={layer.locked ? 'Desbloquear layer' : 'Bloquear layer'}>
+              <input
+                type="checkbox"
+                checked={layer.locked === true}
+                onChange={(event) =>
+                  onLayerChange?.(layer.id, { locked: event.target.checked })
+                }
+                aria-label={`Bloquear layer ${layer.name}`}
+              />
+              <span aria-hidden="true">🔒</span>
+            </label>
+          </div>
+        ))}
+        {!safeLayers.length ? <span style={{ opacity: 0.65 }}>Sin layers disponibles.</span> : null}
+      </div>
+    </section>
+  );
+}
+
+function isHexColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || ''));
 }
 
 function PositionField({ label, value, step = '0.01', disabled, onChange }) {
@@ -222,6 +343,12 @@ const actionStyle = {
   background: '#fff',
   cursor: 'pointer',
   fontWeight: 650,
+};
+
+const compactActionStyle = {
+  ...actionStyle,
+  padding: '5px 7px',
+  fontSize: 11,
 };
 
 const deleteStyle = {

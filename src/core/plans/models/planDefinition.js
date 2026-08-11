@@ -90,7 +90,10 @@ export function createPlanDefinition(options = {}) {
       scale: finiteNumber(transform.scale, 1),
     },
     calibration: {
-      metersPerDocumentUnit: finiteNumber(calibration.metersPerDocumentUnit, 0.01),
+      metersPerDocumentUnit:
+        calibration.metersPerDocumentUnit === null
+          ? null
+          : finiteNumber(calibration.metersPerDocumentUnit, 0.01),
       sourceDistance: calibration.sourceDistance ?? null,
       realDistanceMeters: calibration.realDistanceMeters ?? null,
       units: String(calibration.units || 'px'),
@@ -128,6 +131,8 @@ export function legacyPlanStateToDefinition({
   mimeType = '',
   assetId = null,
   raster = null,
+  vector = null,
+  renderType = null,
   calibration = null,
   locked = true,
   visible = true,
@@ -142,6 +147,8 @@ export function legacyPlanStateToDefinition({
     mimeType,
     assetId,
     raster,
+    vector,
+    renderType,
     source: {
       url: isDataUrl ? null : src,
       dataUrl: isDataUrl ? src : null,
