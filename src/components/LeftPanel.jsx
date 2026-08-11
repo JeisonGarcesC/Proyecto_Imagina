@@ -2050,16 +2050,10 @@ export default function LeftPanel({
                           const variants = almacenVariantsMap.get(codeBase) || [];
                           const baseVariant =
                             variants.find((v) => !v?.variant) || variants[0] || null;
-                          const src = baseVariant?.src || it.model?.src;
-                          const itemFor3D = {
-                            codigoPT: codeBase,
-                            ui: it.ui,
-                            model: { kind: 'glb', src, variant: baseVariant?.variant || null },
-                            raw: it.raw,
-                            variants,
-                          };
-                          if (threeApiRef?.current?.addPartFromGlb) {
-                            threeApiRef.current.addPartFromGlb(itemFor3D);
+                          if (threeApiRef?.current?.addZen) {
+                            threeApiRef.current.addZen(codeBase, {
+                              variant: baseVariant?.variant || 'base',
+                            });
                           } else {
                             onAddCatalogItem?.(it.codigoPT);
                           }
