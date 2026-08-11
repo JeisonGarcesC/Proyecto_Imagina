@@ -80,6 +80,12 @@ import {
   isModuleCode as isClakModuleCode,
   normalizeClakPuffCode,
 } from './properties/clakPuffVariants';
+import {
+  getEdukShelfHeightInfoByCode,
+  getEdukHeightInfoByCode,
+  getEdukWidthInfoByCode,
+  resolveEdukCodeBySelection,
+} from '../mepal/eduk/products/edukShelfHeightDefinition';
 
 const MM_TO_M = 1 / 1000;
 const ALMACENAMIENTO_CUSHION_CODE = '22000008239';
@@ -277,6 +283,7 @@ export default function ThreeCanvas({
     const dragOffset = new THREE.Vector3();
     let isDragging = false;
     let dragSession3D = null;
+    let edukHandleDragSession = null;
     let selectedIds3D = [];
 
     let selectionHelper = null;
@@ -299,6 +306,45 @@ export default function ThreeCanvas({
     const rotationHandle = new THREE.Group();
     rotationHandle.name = 'ROTATION_HANDLE';
     rotationHandle.visible = false;
+
+    const edukTableHandleGroup = new THREE.Group();
+    edukTableHandleGroup.name = 'EDUK_TABLE_WIDTH_HANDLES';
+    edukTableHandleGroup.visible = false;
+
+    const edukHandleGeometry = new THREE.ConeGeometry(0.08, 0.18, 14);
+    const edukHandleMaterial = new THREE.MeshBasicMaterial({
+      color: 0x2563eb,
+      depthTest: false,
+      transparent: true,
+      opacity: 0.92,
+    });
+
+    const edukWidthHandlePrev = new THREE.Mesh(edukHandleGeometry, edukHandleMaterial);
+    edukWidthHandlePrev.rotation.z = Math.PI / 2;
+    edukWidthHandlePrev.renderOrder = 1004;
+    edukWidthHandlePrev.userData.edukVariantHandleDir = -1;
+
+    const edukWidthHandleNext = new THREE.Mesh(edukHandleGeometry, edukHandleMaterial.clone());
+    edukWidthHandleNext.rotation.z = -Math.PI / 2;
+    edukWidthHandleNext.renderOrder = 1004;
+    edukWidthHandleNext.userData.edukVariantHandleDir = 1;
+
+    const edukHeightHandlePrev = new THREE.Mesh(edukHandleGeometry, edukHandleMaterial.clone());
+    edukHeightHandlePrev.rotation.x = Math.PI;
+    edukHeightHandlePrev.renderOrder = 1004;
+    edukHeightHandlePrev.userData.edukVariantHandleDir = -1;
+
+    const edukHeightHandleNext = new THREE.Mesh(edukHandleGeometry, edukHandleMaterial.clone());
+    edukHeightHandleNext.renderOrder = 1004;
+    edukHeightHandleNext.userData.edukVariantHandleDir = 1;
+
+    edukTableHandleGroup.add(
+      edukWidthHandlePrev,
+      edukWidthHandleNext,
+      edukHeightHandlePrev,
+      edukHeightHandleNext
+    );
+    scene.add(edukTableHandleGroup);
 
     const rotationRing = new THREE.Mesh(
       new THREE.TorusGeometry(1, 0.035, 10, 72),
@@ -377,6 +423,209 @@ export default function ThreeCanvas({
       }
       rotationHandle.visible = true;
       rotationHandle.updateMatrixWorld(true);
+    }
+
+    function resolveActiveEdukVariantContext() {
+      if (!activePart || activePart.userData?.kind !== 'EDUK') return null;
+
+      const code = String(activePart.userData?.codigoPT || activePart.userData?.code || '').trim();
+      if (!code) return null;
+
+      const widthInfo = getEdukWidthInfoByCode(code);
+      if (widthInfo) {
+        return {
+          type: 'EDUK_WIDTH',
+          code,
+          instanceId: activePart.userData?.instanceId || activePart.uuid,
+          options: [...widthInfo.widthOptions],
+          currentIndex: widthInfo.currentIndex,
+          propertyKey: 'width',
+          dragAxis: 'x',
+        };
+      }
+
+      const heightInfo = getEdukHeightInfoByCode(code);
+      if (heightInfo) {
+        return {
+          type: 'EDUK_HEIGHT',
+          code,
+          instanceId: activePart.userData?.instanceId || activePart.uuid,
+          options: [...heightInfo.heightOptions],
+          currentIndex: heightInfo.currentIndex,
+          propertyKey: 'height',
+          dragAxis: 'y',
+        };
+      }
+
+      return null;
+    }
+
+    function setCanvasCursor(cursor) {
+      renderer.domElement.style.cursor = cursor || '';
+    }
+
+    function updateEdukTableHandles() {
+      const context = resolveActiveEdukVariantContext();
+      if (!context || isRotating3D) {
+        edukTableHandleGroup.visible = false;
+        return;
+      }
+
+      const box = new THREE.Box3().setFromObject(activePart);
+      if (box.isEmpty()) {
+        edukTableHandleGroup.visible = false;
+        return;
+      }
+
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const yOffset = Math.max(0.08, size.y * 0.08);
+      const handleScale = THREE.MathUtils.clamp(Math.max(size.x, size.z) * 0.14, 0.7, 1.15);
+      const spanX = Math.max(0.28, size.x * 0.5 + 0.08);
+      const spanY = Math.max(0.24, size.y * 0.5 + 0.08);
+
+      const worldQuaternion = activePart.getWorldQuaternion(new THREE.Quaternion());
+      const yaw = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
+
+      const useVertical = context.type === 'EDUK_HEIGHT';
+      edukTableHandleGroup.position.set(center.x, useVertical ? center.y : box.max.y + yOffset, center.z);
+      edukTableHandleGroup.rotation.set(0, yaw, 0);
+
+      edukWidthHandlePrev.visible = context.type === 'EDUK_WIDTH';
+      edukWidthHandleNext.visible = context.type === 'EDUK_WIDTH';
+      edukHeightHandlePrev.visible = context.type === 'EDUK_HEIGHT';
+      edukHeightHandleNext.visible = context.type === 'EDUK_HEIGHT';
+
+      if (context.type === 'EDUK_WIDTH') {
+        edukWidthHandlePrev.position.set(-spanX, 0, 0);
+        edukWidthHandleNext.position.set(spanX, 0, 0);
+      } else if (context.type === 'EDUK_HEIGHT') {
+        edukHeightHandlePrev.position.set(0, -spanY, 0);
+        edukHeightHandleNext.position.set(0, spanY, 0);
+      }
+
+      edukWidthHandlePrev.scale.setScalar(handleScale);
+      edukWidthHandleNext.scale.setScalar(handleScale);
+      edukHeightHandlePrev.scale.setScalar(handleScale);
+      edukHeightHandleNext.scale.setScalar(handleScale);
+
+      edukTableHandleGroup.visible = true;
+      edukTableHandleGroup.updateMatrixWorld(true);
+    }
+
+    function resolveEdukHandleDirection(object) {
+      let node = object;
+      while (node) {
+        if (typeof node.userData?.edukVariantHandleDir === 'number') {
+          return Number(node.userData.edukVariantHandleDir);
+        }
+        if (node === edukTableHandleGroup) break;
+        node = node.parent;
+      }
+      return 0;
+    }
+
+    function resolveEdukDragTargetIndex(startIndex, deltaPx, optionCount) {
+      const STEP_PX = 28;
+      const deltaSteps = Math.round(deltaPx / STEP_PX);
+      return THREE.MathUtils.clamp(startIndex + deltaSteps, 0, Math.max(optionCount - 1, 0));
+    }
+
+    async function processEdukHandleDragQueue() {
+      const session = edukHandleDragSession;
+      if (!session || session.isApplying) return;
+      if (session.targetIndex === session.currentIndex) return;
+
+      session.isApplying = true;
+
+      const targetValue = session.options[session.targetIndex];
+      const context = resolveActiveEdukVariantContext();
+      if (context && targetValue) {
+        await swapEdukVariant(context.instanceId, context.code, {
+          [context.propertyKey]: targetValue,
+        });
+      }
+
+      const updatedContext = resolveActiveEdukVariantContext();
+      if (updatedContext) {
+        session.currentIndex = updatedContext.currentIndex;
+        session.options = [...updatedContext.options];
+        session.propertyKey = updatedContext.propertyKey;
+      }
+
+      session.isApplying = false;
+
+      if (session.targetIndex !== session.currentIndex) {
+        void processEdukHandleDragQueue();
+      }
+    }
+
+    function startEdukHandleDrag(pointerEvent, direction) {
+      const context = resolveActiveEdukVariantContext();
+      if (!context) return false;
+
+      edukHandleDragSession = {
+        pointerId: pointerEvent.pointerId,
+        pointerStartX: pointerEvent.clientX,
+        pointerStartY: pointerEvent.clientY,
+        dragDir: direction,
+        dragAxis: context.dragAxis,
+        startIndex: context.currentIndex,
+        currentIndex: context.currentIndex,
+        targetIndex: context.currentIndex,
+        options: [...context.options],
+        propertyKey: context.propertyKey,
+        isApplying: false,
+      };
+
+      const initialTarget = resolveEdukDragTargetIndex(
+        context.currentIndex,
+        direction > 0 ? 28 : -28,
+        context.options.length
+      );
+      edukHandleDragSession.targetIndex = initialTarget;
+
+      controls.enabled = false;
+      renderer.domElement.setPointerCapture?.(pointerEvent.pointerId);
+      setCanvasCursor('grabbing');
+      void processEdukHandleDragQueue();
+      return true;
+    }
+
+    function updateEdukHandleDrag(pointerEvent) {
+      if (!edukHandleDragSession) return;
+      if (pointerEvent.pointerId !== edukHandleDragSession.pointerId) return;
+
+      const deltaPxRaw =
+        edukHandleDragSession.dragAxis === 'y'
+          ? edukHandleDragSession.pointerStartY - pointerEvent.clientY
+          : pointerEvent.clientX - edukHandleDragSession.pointerStartX;
+
+      const nextIndex = resolveEdukDragTargetIndex(
+        edukHandleDragSession.startIndex,
+        deltaPxRaw * (edukHandleDragSession.dragDir || 1),
+        edukHandleDragSession.options.length
+      );
+
+      if (nextIndex === edukHandleDragSession.targetIndex) return;
+      edukHandleDragSession.targetIndex = nextIndex;
+      void processEdukHandleDragQueue();
+    }
+
+    function endEdukHandleDrag(pointerId = null) {
+      if (!edukHandleDragSession) return false;
+      if (pointerId !== null && pointerId !== edukHandleDragSession.pointerId) return false;
+
+      try {
+        renderer.domElement.releasePointerCapture?.(edukHandleDragSession.pointerId);
+      } catch (err) {
+        void err;
+      }
+
+      edukHandleDragSession = null;
+      if (!isDragging && !isRotating3D) controls.enabled = true;
+      setCanvasCursor('');
+      return true;
     }
 
     function computeBounds2D(root) {
@@ -669,6 +918,10 @@ export default function ThreeCanvas({
     function setActivePart(obj, selectionContext = null) {
       activePart = obj;
       activeSubMesh = null; // ✅ cada vez que cambia selección, reset submesh
+      const edukWidthContext =
+        obj?.userData?.kind === 'EDUK'
+          ? getEdukWidthInfoByCode(obj.userData?.codigoPT || obj.userData?.code)
+          : null;
 
       // limpia helper anterior
       if (selectionHelper) {
@@ -684,6 +937,7 @@ export default function ThreeCanvas({
         selectionHelper.update();
       }
       updateRotationHandle();
+      updateEdukTableHandles();
 
       const subKey = obj?.userData?.activeSubKey || null;
       const finishes = obj?.userData?.finishes || {};
@@ -730,6 +984,8 @@ export default function ThreeCanvas({
         selectionPreserve: selectionContext?.preserve === true,
         selectionTargetIds: selectionContext?.targetIds || null,
         ductCovers: obj.userData?.ductCovers || null,
+        edukWidth: edukWidthContext?.currentWidth || null,
+        edukToma: edukWidthContext?.toma || null,
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
       });
@@ -2976,6 +3232,84 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function swapEdukShelfHeight(instanceId, codigo, targetHeight = '114cm') {
+      const currentInfo = getEdukShelfHeightInfoByCode(codigo);
+      if (!currentInfo) {
+        console.warn('[swapEdukShelfHeight] Código fuera de estanterías configuradas:', codigo);
+        return;
+      }
+      await swapEdukVariant(instanceId, codigo, { height: targetHeight });
+    }
+
+    async function swapEdukVariant(instanceId, codigo, nextSelection = {}) {
+      if (readOnly) return;
+
+      const currentCode = String(codigo || '').trim();
+      if (!currentCode) return;
+
+      const targetCode = resolveEdukCodeBySelection(currentCode, nextSelection);
+      if (!targetCode) {
+        console.warn('[swapEdukVariant] Combinación de propiedades inválida:', currentCode, nextSelection);
+        return;
+      }
+
+      if (targetCode === currentCode) return;
+
+      const found = parts.find(({ obj }) => {
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      });
+
+      if (!found?.obj) {
+        console.warn('[swapEdukVariant] No se encontró la pieza:', instanceId);
+        return;
+      }
+
+      const oldObj = found.obj;
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+      const savedScale = oldObj.scale.clone();
+      const savedUserData = { ...oldObj.userData };
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      let result;
+      try {
+        result = await createEdukInstance({
+          codigoPT: targetCode,
+          country: countryRef.current,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error(`[swapEdukVariant] No se pudo crear la variante ${targetCode}`, error);
+        return;
+      }
+
+      const { object: newObj, partRecord } = result;
+      newObj.userData = {
+        ...savedUserData,
+        ...newObj.userData,
+      };
+
+      removePartObject(oldObj);
+
+      if (parentGroup) {
+        parentGroup.add(newObj);
+      } else {
+        scene.add(newObj);
+      }
+
+      parts.push(partRecord);
+      pickables.push(newObj);
+
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.scale.copy(savedScale);
+      newObj.updateMatrixWorld(true);
+
+      setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
     async function addCatalogItem(codigoPT) {
       if (readOnly) return;
       const codigo = String(codigoPT);
@@ -3264,6 +3598,7 @@ export default function ThreeCanvas({
         }
 
         onSelectionChange?.(null);
+        updateEdukTableHandles();
       }
 
       if (disposeResources) disposeObject3D(root);
@@ -4036,6 +4371,8 @@ export default function ThreeCanvas({
       swapMepalSaludVariant,
       swapClakVariant,
       swapAlmacenamientoVariant,
+      swapEdukShelfHeight,
+      swapEdukVariant,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
       exportDXF: () => {
         const snap = getPartsSnapshot2D();
@@ -7235,6 +7572,19 @@ export default function ThreeCanvas({
       updateMouseFromEvent(e);
       raycaster.setFromCamera(mouse, camera);
 
+      if (edukTableHandleGroup.visible) {
+        const edukHandleHits = raycaster.intersectObjects(edukTableHandleGroup.children, true);
+        if (edukHandleHits.length) {
+          const direction = resolveEdukHandleDirection(edukHandleHits[0].object);
+          if (direction !== 0) {
+            startEdukHandleDrag(e, direction);
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+        }
+      }
+
       if (transformToolRef.current === 'rotate' && rotationHandle.visible) {
         const handleHits = raycaster.intersectObjects(rotationHandle.children, true);
         if (handleHits.length && beginRotation({})) {
@@ -7399,9 +7749,27 @@ export default function ThreeCanvas({
     function onPointerMove(e) {
       if (readOnly) return;
 
+      updateMouseFromEvent(e);
+      raycaster.setFromCamera(mouse, camera);
+
+      if (edukHandleDragSession) {
+        updateEdukHandleDrag(e);
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      if (edukTableHandleGroup.visible && !isDragging && !isRotating3D) {
+        const edukHandleHits = raycaster.intersectObjects(edukTableHandleGroup.children, true);
+        const direction = edukHandleHits.length
+          ? resolveEdukHandleDirection(edukHandleHits[0].object)
+          : 0;
+        setCanvasCursor(direction !== 0 ? 'pointer' : '');
+      } else if (!isDragging && !isRotating3D) {
+        setCanvasCursor('');
+      }
+
       if (isRotating3D && rotationSession) {
-        updateMouseFromEvent(e);
-        raycaster.setFromCamera(mouse, camera);
         if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
           const pointerAngle = Math.atan2(
             dragPoint.z - rotationSession.pivot.z,
@@ -7415,9 +7783,6 @@ export default function ThreeCanvas({
         return;
       }
       if (!isDragging || !activePart) return;
-
-      updateMouseFromEvent(e);
-      raycaster.setFromCamera(mouse, camera);
 
       if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
         if (dragSession3D) {
@@ -7456,6 +7821,11 @@ export default function ThreeCanvas({
     }
 
     function onPointerUp(e) {
+      if (endEdukHandleDrag(e.pointerId)) {
+        e.preventDefault();
+        return;
+      }
+
       if (isRotating3D) {
         isRotating3D = false;
         endRotation();
@@ -7518,6 +7888,7 @@ export default function ThreeCanvas({
     }
 
     function onPointerCancel(e) {
+      endEdukHandleDrag(e.pointerId);
       if (isRotating3D) {
         cancelRotation();
         isRotating3D = false;
@@ -7526,17 +7897,19 @@ export default function ThreeCanvas({
       cancelDragSession(e.pointerId);
     }
 
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
-    renderer.domElement.addEventListener('pointermove', onPointerMove);
-    renderer.domElement.addEventListener('pointerup', onPointerUp);
-    renderer.domElement.addEventListener('lostpointercapture', onPointerCancel);
+    renderer.domElement.addEventListener('pointerdown', onPointerDown, true);
+    renderer.domElement.addEventListener('pointermove', onPointerMove, true);
+    renderer.domElement.addEventListener('pointerup', onPointerUp, true);
+    renderer.domElement.addEventListener('lostpointercapture', onPointerCancel, true);
 
     window.addEventListener('pointerup', onPointerUp);
     function onWindowPointerCancel(e) {
+      endEdukHandleDrag(e.pointerId);
       if (rotationSession) cancelRotation();
       cancelDragSession(e.pointerId);
     }
     function onWindowBlur() {
+      endEdukHandleDrag();
       if (rotationSession) cancelRotation();
       cancelDragSession();
     }
@@ -7563,6 +7936,7 @@ export default function ThreeCanvas({
       if (selectionHelper) selectionHelper.update();
       additionalSelectionHelpers.forEach((helper) => helper.update());
       updateRotationHandle();
+      updateEdukTableHandles();
 
       if (!isDragging) snapActivePart();
 
@@ -10218,14 +10592,15 @@ export default function ThreeCanvas({
       window.removeEventListener('resize', onResize);
       cancelAnimationFrame(rafId);
 
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
-      renderer.domElement.removeEventListener('pointermove', onPointerMove);
-      renderer.domElement.removeEventListener('pointerup', onPointerUp);
-      renderer.domElement.removeEventListener('lostpointercapture', onPointerCancel);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown, true);
+      renderer.domElement.removeEventListener('pointermove', onPointerMove, true);
+      renderer.domElement.removeEventListener('pointerup', onPointerUp, true);
+      renderer.domElement.removeEventListener('lostpointercapture', onPointerCancel, true);
 
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerCancel);
       window.removeEventListener('blur', onWindowBlur);
+      endEdukHandleDrag();
 
       clearAdditionalSelectionHelpers();
 
@@ -10249,6 +10624,13 @@ export default function ThreeCanvas({
       rotationLabelTexture.dispose();
       rotationLabel.material.dispose();
       scene.remove(rotationHandle);
+      edukHandleGeometry.dispose();
+      edukHandleMaterial.dispose();
+      edukWidthHandleNext.material.dispose();
+      edukHeightHandlePrev.material.dispose();
+      edukHeightHandleNext.material.dispose();
+      scene.remove(edukTableHandleGroup);
+      renderer.domElement.style.cursor = '';
       renderer.dispose();
       if (renderer.domElement?.parentNode === container) {
         container.removeChild(renderer.domElement);

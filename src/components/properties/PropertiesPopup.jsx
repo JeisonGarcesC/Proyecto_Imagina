@@ -5,6 +5,7 @@ import KoncisaPlusProperties, {
 import MepalSaludProperties from './MepalSaludProperties';
 import ClakProperties from './ClakProperties';
 import AlmacenamientoProperties from './AlmacenamientoProperties';
+import EdukProperties, { isEdukShelfEditablePart } from './EdukProperties';
 import { isClakPuffVariantPart } from './clakPuffVariants';
 import { sectionStyle } from './shared/PropertyStyles';
 import PropertyHeader from './shared/PropertyHeader';
@@ -50,6 +51,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isKoncisaPlusEditablePart(part) ||
     isMepalSaludPart(part) ||
     isAlmacenamientoPart(part) ||
+    isEdukShelfEditablePart(part) ||
     isClakPuffVariantPart(part) ||
     isFloor;
 
@@ -95,6 +97,8 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       <ClakProperties part={part} api={api} onClose={onClose} />
 
       <AlmacenamientoProperties part={part} api={api} onClose={onClose} />
+
+      <EdukProperties part={part} api={api} onClose={onClose} />
 
       {isFloor && (
         <div style={sectionStyle}>
