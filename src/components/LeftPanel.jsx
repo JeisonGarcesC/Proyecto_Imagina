@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadTipologiasDetalle } from '../services/tipologiasDetalle';
 import {
   loadChairsPriceList,
@@ -27,6 +27,7 @@ import {
 } from './properties/clakPuffVariants';
 import { getEdukVariantGroupByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
+import PlanProperties from '../core/plans/components/PlanProperties';
 
 const typologyImageCache = new Map();
 const IMAGE_FOLDER_SETS = {
@@ -303,10 +304,21 @@ export default function LeftPanel({
   // otros
   Plan2DUploader,
   handleLoadPlan2D,
-  plan2DVisible,
-  setPlan2DVisible,
+  planDefinition,
+  planEditMode,
+  onPlanEditModeChange,
+  onPlanVisibleChange,
+  onPlanLockedChange,
+  onPlanOpacityChange,
+  onPlanPositionChange,
+  onPlanRotationChange,
+  onVectorLayerChange,
+  onResetDxfScale,
+  onPlanRecalibrate,
+  onDeletePlan,
   setSurfaceOpen,
 }) {
+  const planUploaderRef = useRef(null);
   const [qCatalog, setQCatalog] = useState('');
   const [qTyp, setQTyp] = useState('');
   const [tipologias, setTipologias] = useState([]);
@@ -1859,21 +1871,31 @@ export default function LeftPanel({
         <>
           <h3 style={{ margin: '0 0 12px 0' }}>Planos</h3>
 
-          {Plan2DUploader ? <Plan2DUploader onLoadFile={handleLoadPlan2D} /> : null}
+          {Plan2DUploader ? (
+            <Plan2DUploader
+              ref={planUploaderRef}
+              hideButton={Boolean(planDefinition)}
+              onLoadFile={(file, meta) =>
+                handleLoadPlan2D?.(file, meta, { replace: Boolean(planDefinition) })
+              }
+            />
+          ) : null}
 
-          <button
-            onClick={() => setPlan2DVisible((v) => !v)}
-            style={{
-              marginTop: 10,
-              padding: '8px 12px',
-              borderRadius: 10,
-              border: '1px solid #ddd',
-              cursor: 'pointer',
-              fontWeight: 700,
-            }}
-          >
-            {plan2DVisible ? 'Ocultar plano' : 'Mostrar plano'}
-          </button>
+          <PlanProperties
+            plan={planDefinition}
+            planEditMode={planEditMode}
+            onPlanEditModeChange={onPlanEditModeChange}
+            onVisibleChange={onPlanVisibleChange}
+            onLockedChange={onPlanLockedChange}
+            onOpacityChange={onPlanOpacityChange}
+            onPositionChange={onPlanPositionChange}
+            onRotationChange={onPlanRotationChange}
+            onVectorLayerChange={onVectorLayerChange}
+            onResetDxfScale={onResetDxfScale}
+            onRecalibrate={onPlanRecalibrate}
+            onReplaceFile={() => planUploaderRef.current?.open?.()}
+            onDelete={onDeletePlan}
+          />
         </>
       )}
 

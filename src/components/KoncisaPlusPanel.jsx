@@ -1,3 +1,5 @@
+//src/components/KoncisaPlusPanel.jsx
+
 /*
 function redondearLargoSencillo(mm) {
   const metros = mm / 1000;
@@ -162,9 +164,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
         },
         leaderReturnOutletCoupling: {
           enabled:
-            !leaderCredenzaEnabled &&
-            leaderHasGrommetBox &&
-            leaderReturnOutletCouplingEnabled,
+            !leaderCredenzaEnabled && leaderHasGrommetBox && leaderReturnOutletCouplingEnabled,
         },
         leaderCostadoOutletCoupling: {
           enabled: leaderJunctionHasOutletBox && leaderCostadoOutletCouplingEnabled,
@@ -316,8 +316,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderMainFloorDuctEnabled, setLeaderMainFloorDuctEnabled] = useState(false);
   const [leaderReturnFloorDuctEnabled, setLeaderReturnFloorDuctEnabled] = useState(false);
   const [leaderMainOutletCouplingEnabled, setLeaderMainOutletCouplingEnabled] = useState(false);
-  const [leaderReturnOutletCouplingEnabled, setLeaderReturnOutletCouplingEnabled] =
-    useState(false);
+  const [leaderReturnOutletCouplingEnabled, setLeaderReturnOutletCouplingEnabled] = useState(false);
   const [leaderCostadoOutletCouplingEnabled, setLeaderCostadoOutletCouplingEnabled] =
     useState(false);
   // Falda puesto líder
@@ -551,7 +550,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
                     <option value={600}>600 mm</option>
                   </select>
                 </div>
-
               </>
             )}
           </div>
