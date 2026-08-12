@@ -37,6 +37,15 @@ export function drawVectorPlan2D(ctx, plan, view, options = {}) {
       });
       continue;
     }
+    if (entity?.type === 'DIMENSION') {
+      drawDimensionEntity(ctx, entity, layer, plan, {
+        toCanvas,
+        scale,
+        invertZ: view.invertZ === true,
+        backgroundColor: options.backgroundColor,
+      });
+      continue;
+    }
     if (!['LINE', 'POLYLINE', 'ARC', 'CIRCLE'].includes(entity?.type)) continue;
 
     ctx.strokeStyle = resolveEntityColor(entity, layer, options.backgroundColor);
@@ -47,6 +56,72 @@ export function drawVectorPlan2D(ctx, plan, view, options = {}) {
 
   ctx.restore();
   return true;
+}
+
+function drawDimensionEntity(ctx, entity, layer, plan, view) {
+  const geometry = entity?.geometry;
+  if (!geometry) return;
+  const color = resolveEntityColor(entity, layer, view.backgroundColor);
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.25;
+  ctx.beginPath();
+  for (const line of [...(geometry.extensionLines || []), ...(geometry.dimensionLines || [])]) {
+    appendLine(ctx, line?.start, line?.end, plan, view);
+  }
+  ctx.stroke();
+
+  for (const arrow of geometry.arrows || []) drawDimensionArrow(ctx, arrow, plan, view);
+
+  const displayText = String(geometry.displayText ?? '');
+  if (geometry.textPosition && displayText) {
+    const [x, y] = pointToCanvas(geometry.textPosition, plan, view);
+    const sourceHeight = Number(geometry.textHeight);
+    const rawFontSize = sourceHeight > 0
+      ? sourceHeight * Number(plan.calibration.metersPerDocumentUnit) * view.scale
+      : 12;
+    if (!Number.isFinite(rawFontSize) || (sourceHeight > 0 && rawFontSize < MIN_TEXT_RENDER_PX)) {
+      ctx.restore();
+      return;
+    }
+    const fontSize = Math.min(MAX_FONT_PX, Math.max(MIN_FONT_PX, rawFontSize));
+    const direction = view.invertZ ? -1 : 1;
+    const rotation = screenAngle(
+      (Number(plan?.transform?.rotation) || 0) + (Number(geometry.rotation) || 0),
+      direction
+    );
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.font = `${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(displayText, 0, 0);
+  }
+  ctx.restore();
+}
+
+function drawDimensionArrow(ctx, arrow, plan, view) {
+  if (!arrow?.point || !arrow?.direction) return;
+  const [x, y] = pointToCanvas(arrow.point, plan, view);
+  const rotation = Number(plan?.transform?.rotation) || 0;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const directionSign = view.invertZ ? -1 : 1;
+  const dx = arrow.direction.x * cos - arrow.direction.y * sin;
+  const dy = directionSign * (arrow.direction.x * sin + arrow.direction.y * cos);
+  const length = 7;
+  const halfWidth = 3;
+  const nx = -dy;
+  const ny = dx;
+
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + dx * length + nx * halfWidth, y + dy * length + ny * halfWidth);
+  ctx.lineTo(x + dx * length - nx * halfWidth, y + dy * length - ny * halfWidth);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function drawTextEntity(ctx, entity, layer, plan, view) {

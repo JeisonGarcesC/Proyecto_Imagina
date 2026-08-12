@@ -56,11 +56,15 @@ export function getDxfUnitDisplayName(unit) {
 }
 
 export function createDxfCalibration(units) {
+  const detectedScale = units?.detected ? units.metersPerUnit : null;
   return {
-    metersPerDocumentUnit: units?.detected ? units.metersPerUnit : null,
+    metersPerDocumentUnit: units?.metersPerUnit ?? null,
+    originalMetersPerDocumentUnit: detectedScale,
     sourceDistance: null,
     realDistanceMeters: null,
     units: 'dxf-unit',
     inputUnit: UNIT_ALIASES[units?.name] || units?.name || null,
+    points: null,
+    source: units?.detected ? 'DXF_INSUNITS' : units?.source === 'USER' ? 'MANUAL' : null,
   };
 }

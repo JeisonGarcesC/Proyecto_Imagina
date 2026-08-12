@@ -727,6 +727,28 @@ export default function App() {
     }));
   };
 
+  const handleResetDxfScale = () => {
+    const originalScale = Number(plan2DVector?.units?.metersPerUnit);
+    if (plan2DVector?.units?.detected !== true || !Number.isFinite(originalScale) || originalScale <= 0) {
+      return;
+    }
+    setPlan2DCalibration((current) => ({
+      ...current,
+      metersPerDocumentUnit: originalScale,
+      originalMetersPerDocumentUnit: originalScale,
+      sourceDistance: null,
+      realDistanceMeters: null,
+      points: null,
+      units: 'dxf-unit',
+      source: 'DXF_INSUNITS',
+    }));
+    setPlan2DTransform((current) => ({
+      ...current,
+      metersPerPixel: originalScale,
+      scale: 1,
+    }));
+  };
+
   /* =====================================================
      FILTRO DE MATERIALES POR CÓDIGO GENÉRICO (✔ correcto)
      ===================================================== */
@@ -1109,6 +1131,7 @@ export default function App() {
               onPlanPositionChange={handlePlanPositionChange}
               onPlanRotationChange={handlePlanRotationChange}
               onVectorLayerChange={handleVectorLayerChange}
+              onResetDxfScale={handleResetDxfScale}
               onPlanRecalibrate={() =>
                 setPlanCalibrationRequestId((current) => current + 1)
               }

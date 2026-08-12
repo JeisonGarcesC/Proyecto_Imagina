@@ -17,6 +17,7 @@ export function normalizeDxf(parsed, options = {}) {
     sourceEntityCount: countSourceEntities(parsed),
     normalizedEntityCount: 0,
     ignoredByType: {},
+    ignoredDimensionTypes: {},
     warnings: [],
   };
   const statistics = {
@@ -25,6 +26,7 @@ export function normalizeDxf(parsed, options = {}) {
     arcs: 0,
     circles: 0,
     texts: 0,
+    dimensions: 0,
     inserts: 0,
     blocks: Object.keys(parsed?.blocks || {}).length,
   };
@@ -177,7 +179,118 @@ function createNormalizedEntity(source, matrix, state, context) {
     };
   }
 
+  if (source.type === 'DIMENSION') {
+    return normalizeDimension(source, matrix, state, common);
+  }
+
   return null;
+}
+
+function normalizeDimension(source, matrix, state, common) {
+  const baseType = (Number(source.dimensionType) || 0) & 0x0f;
+  if (baseType !== 0 && baseType !== 1) {
+    increment(state.diagnostics.ignoredDimensionTypes, dimensionTypeName(baseType));
+    return null;
+  }
+
+  const point1 = source.linearOrAngularPoint1;
+  const point2 = source.linearOrAngularPoint2;
+  const anchor = source.anchorPoint;
+  if (![point1, point2, anchor].every(isFinitePoint)) return null;
+
+  const measuredValue = Math.hypot(point2.x - point1.x, point2.y - point1.y);
+  if (!(measuredValue > 0)) return null;
+
+  const angle = baseType === 1
+    ? Math.atan2(point2.y - point1.y, point2.x - point1.x)
+    : degreesToRadians(Number(source.angle) || 0);
+  const normal = { x: -Math.sin(angle), y: Math.cos(angle) };
+  const dimensionStart = projectToDimensionLine(point1, anchor, normal);
+  const dimensionEnd = projectToDimensionLine(point2, anchor, normal);
+  const fallbackTextPosition = midpoint(dimensionStart, dimensionEnd);
+  const textPosition = isFinitePoint(source.middleOfText) ? source.middleOfText : fallbackTextPosition;
+  const blockTextHeight = resolveDimensionBlockTextHeight(state.parsed, source.block);
+  const scale = getMatrixScale(matrix);
+  const normalizedMeasurement = measuredValue * scale.average;
+  const textOverride = resolveDimensionTextOverride(source.text);
+  const displayText = textOverride ?? formatDimensionMeasurement(normalizedMeasurement);
+  const transformedStart = transformPoint(dimensionStart, matrix);
+  const transformedEnd = transformPoint(dimensionEnd, matrix);
+  const direction = normalizeVector({
+    x: transformedEnd.x - transformedStart.x,
+    y: transformedEnd.y - transformedStart.y,
+  });
+
+  return {
+    ...common,
+    type: 'DIMENSION',
+    geometry: {
+      dimensionType: baseType === 1 ? 'ALIGNED' : classifyLinearDimension(angle),
+      definitionPoint: transformPoint(anchor, matrix),
+      extensionPoint1: transformPoint(point1, matrix),
+      extensionPoint2: transformPoint(point2, matrix),
+      dimensionLinePoint: transformPoint(anchor, matrix),
+      textPosition: transformPoint(textPosition, matrix),
+      measuredValue: normalizedMeasurement,
+      styledMeasurement: Number.isFinite(Number(source.actualMeasurement))
+        ? Number(source.actualMeasurement) * scale.average
+        : null,
+      textOverride,
+      displayText,
+      rotation: angle + matrixRotation(matrix),
+      textHeight: blockTextHeight ? blockTextHeight * scale.average : null,
+      extensionLines: [
+        { start: transformPoint(point1, matrix), end: transformedStart },
+        { start: transformPoint(point2, matrix), end: transformedEnd },
+      ],
+      dimensionLines: [{ start: transformedStart, end: transformedEnd }],
+      arrows: [
+        { point: transformedStart, direction },
+        { point: transformedEnd, direction: { x: -direction.x, y: -direction.y } },
+      ],
+    },
+    source: { ...common.source, block: source.block || common.source.block },
+  };
+}
+
+function projectToDimensionLine(point, anchor, normal) {
+  const distance = (anchor.x - point.x) * normal.x + (anchor.y - point.y) * normal.y;
+  return { x: point.x + normal.x * distance, y: point.y + normal.y * distance };
+}
+
+function midpoint(first, second) {
+  return { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+}
+
+function normalizeVector(vector) {
+  const length = Math.hypot(vector.x, vector.y) || 1;
+  return { x: vector.x / length, y: vector.y / length };
+}
+
+function resolveDimensionTextOverride(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized && normalized !== '<>' ? value : null;
+}
+
+function formatDimensionMeasurement(value) {
+  return Number(value).toFixed(6).replace(/\.?0+$/, '');
+}
+
+function resolveDimensionBlockTextHeight(parsed, blockName) {
+  const entities = parsed?.blocks?.[blockName]?.entities || [];
+  const text = entities.find((entity) => entity?.type === 'TEXT' || entity?.type === 'MTEXT');
+  const height = Number(text?.textHeight ?? text?.height);
+  return Number.isFinite(height) && height > 0 ? height : null;
+}
+
+function classifyLinearDimension(angle) {
+  const normalized = Math.abs(Math.sin(angle));
+  return normalized < 1e-6 ? 'HORIZONTAL' : Math.abs(Math.cos(angle)) < 1e-6 ? 'VERTICAL' : 'LINEAR';
+}
+
+function dimensionTypeName(type) {
+  return ({ 2: 'ANGULAR', 3: 'DIAMETER', 4: 'RADIUS', 5: 'ANGULAR_3_POINT', 6: 'ORDINATE' })[type] || `TYPE_${type}`;
 }
 
 function normalizePolyline(source, matrix, state, common) {
@@ -375,7 +488,7 @@ function isPositiveNumber(value) { return Number.isFinite(Number(value)) && Numb
 function isFinitePoint(point) { return Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y)); }
 function increment(record, key) { record[key] = (record[key] || 0) + 1; }
 function incrementStatistic(statistics, type) {
-  const key = { LINE: 'lines', POLYLINE: 'polylines', ARC: 'arcs', CIRCLE: 'circles', TEXT: 'texts' }[type];
+  const key = { LINE: 'lines', POLYLINE: 'polylines', ARC: 'arcs', CIRCLE: 'circles', TEXT: 'texts', DIMENSION: 'dimensions' }[type];
   if (key) statistics[key] += 1;
 }
 function assertEntityCapacity(state) {

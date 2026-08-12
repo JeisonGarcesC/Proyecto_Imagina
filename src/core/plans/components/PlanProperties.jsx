@@ -11,6 +11,7 @@ export default function PlanProperties({
   onPositionChange,
   onRotationChange,
   onVectorLayerChange,
+  onResetDxfScale,
   onRecalibrate,
   onReplaceFile,
   onDelete,
@@ -151,15 +152,28 @@ export default function PlanProperties({
         <>
           <div style={{ display: 'grid', gap: 3 }}>
             <span>
-              Unidad DXF: <strong>{getDxfUnitDisplayName(plan.vector?.units?.name)}</strong>
+              Unidad del archivo: <strong>{getDxfUnitDisplayName(plan.vector?.units?.name)}</strong>
             </span>
-            {plan.vector?.units?.source === 'USER' ? (
-              <span style={{ opacity: 0.7 }}>Unidad definida manualmente</span>
-            ) : null}
+            <span>
+              Escala detectada:{' '}
+              <strong>{formatDxfScale(resolveOriginalDxfScale(plan))}</strong>
+            </span>
+            <span>
+              Escala utilizada: <strong>{formatDxfScale(plan.calibration?.metersPerDocumentUnit)}</strong>
+            </span>
+            <span style={{ opacity: 0.7 }}>
+              Recalibración:{' '}
+              {plan.calibration?.source === 'MANUAL'
+                ? 'Manual'
+                : plan.vector?.units?.source === 'USER'
+                  ? 'Unidad definida manualmente'
+                  : 'Detectada desde DXF'}
+            </span>
           </div>
           <VectorLayers
             layers={plan.vector?.layers || []}
             entityCount={plan.vector?.diagnostics?.normalizedEntityCount}
+            dimensionCount={plan.vector?.statistics?.dimensions}
             onLayerChange={onVectorLayerChange}
           />
         </>
@@ -167,8 +181,13 @@ export default function PlanProperties({
 
       <div style={{ display: 'grid', gap: 7 }}>
         <button type="button" onClick={onRecalibrate} disabled={plan.locked} style={actionStyle}>
-          Recalibrar
+          {plan.renderType === 'VECTOR' ? 'Recalibrar DXF' : 'Recalibrar'}
         </button>
+        {plan.renderType === 'VECTOR' && resolveOriginalDxfScale(plan) != null ? (
+          <button type="button" onClick={onResetDxfScale} disabled={plan.locked} style={actionStyle}>
+            Restablecer escala DXF
+          </button>
+        ) : null}
         <button type="button" onClick={onReplaceFile} style={actionStyle}>
           Reemplazar archivo
         </button>
@@ -180,7 +199,7 @@ export default function PlanProperties({
   );
 }
 
-function VectorLayers({ layers, entityCount, onLayerChange }) {
+function VectorLayers({ layers, entityCount, dimensionCount, onLayerChange }) {
   const safeLayers = Array.isArray(layers) ? layers : [];
 
   const setAllVisible = (visible) => {
@@ -194,6 +213,7 @@ function VectorLayers({ layers, entityCount, onLayerChange }) {
         <span style={{ opacity: 0.65 }}>
           {safeLayers.length} layers
           {Number.isFinite(Number(entityCount)) ? ` · ${Number(entityCount).toLocaleString()} entidades` : ''}
+          {Number(dimensionCount) > 0 ? ` · ${Number(dimensionCount).toLocaleString()} cotas` : ''}
         </span>
       </div>
 
@@ -327,6 +347,22 @@ function formatPosition(value) {
 
 function formatScale(value) {
   return Number(value).toPrecision(6).replace(/\.?0+$/, '');
+}
+
+function resolveOriginalDxfScale(plan) {
+  const stored = Number(plan?.calibration?.originalMetersPerDocumentUnit);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  const detected = Number(plan?.vector?.units?.metersPerUnit);
+  return plan?.vector?.units?.detected && Number.isFinite(detected) && detected > 0
+    ? detected
+    : null;
+}
+
+function formatDxfScale(value) {
+  const scale = Number(value);
+  return Number.isFinite(scale) && scale > 0
+    ? `1 unidad = ${formatScale(scale)} m`
+    : 'No disponible';
 }
 
 const controlStyle = {

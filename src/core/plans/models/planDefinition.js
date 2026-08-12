@@ -94,10 +94,15 @@ export function createPlanDefinition(options = {}) {
         calibration.metersPerDocumentUnit === null
           ? null
           : finiteNumber(calibration.metersPerDocumentUnit, 0.01),
+      originalMetersPerDocumentUnit:
+        calibration.originalMetersPerDocumentUnit == null
+          ? null
+          : finiteNumber(calibration.originalMetersPerDocumentUnit, null),
       sourceDistance: calibration.sourceDistance ?? null,
       realDistanceMeters: calibration.realDistanceMeters ?? null,
       units: String(calibration.units || 'px'),
       inputUnit: String(calibration.inputUnit || 'm'),
+      source: calibration.source ?? null,
       points:
         calibration.points?.a && calibration.points?.b
           ? {

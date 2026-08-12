@@ -281,6 +281,7 @@ export default function LeftPanel({
   onPlanPositionChange,
   onPlanRotationChange,
   onVectorLayerChange,
+  onResetDxfScale,
   onPlanRecalibrate,
   onDeletePlan,
   setSurfaceOpen,
@@ -1780,6 +1781,7 @@ export default function LeftPanel({
             onPositionChange={onPlanPositionChange}
             onRotationChange={onPlanRotationChange}
             onVectorLayerChange={onVectorLayerChange}
+            onResetDxfScale={onResetDxfScale}
             onRecalibrate={onPlanRecalibrate}
             onReplaceFile={() => planUploaderRef.current?.open?.()}
             onDelete={onDeletePlan}

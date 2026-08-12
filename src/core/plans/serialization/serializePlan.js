@@ -1,4 +1,4 @@
-import { normalizePlanDefinition } from '../models/planDefinition';
+import { normalizePlanDefinition } from '../models/planDefinition.js';
 
 export function serializePlan(plan) {
   if (!plan) return null;

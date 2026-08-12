@@ -22,11 +22,10 @@ import {
   worldPointToDocument,
 } from '../core/plans/utils/planTransform';
 import { drawVectorPlan2D } from '../core/plans/renderers/vectorPlanRenderer2D';
-import {
-  getEdukWidthInfoByCode,
-} from '../mepal/eduk/products/edukShelfHeightDefinition';
+import { getEdukWidthInfoByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 
-const MIN_ZOOM = 20;
+//Zoom escalas del 2d
+const MIN_ZOOM = 2;
 const MAX_ZOOM = 50_000;
 const ZOOM_FACTOR = 0.0015;
 const MEASURE_SNAP_TOLERANCE_PX = 10;
@@ -80,6 +79,12 @@ function fmtMeasure(m) {
 
   const m2 = Math.round(m * 100) / 100;
   return `${m2.toFixed(2)} m`;
+}
+
+function formatDocumentDistance(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '';
+  return Number(number.toPrecision(7)).toString();
 }
 
 function drawMeasureLine(ctx, x1, y1, x2, y2, label, opts = {}) {
@@ -353,9 +358,6 @@ export default function Plan2DOverlay({
 
   const canvasToPlanPixel = useCallback(
     (mx, my) => {
-      const img = planImageRef.current;
-      if (!img) return null;
-
       const canvas = canvasRef.current;
       if (!canvas) return null;
       const rect = canvas.getBoundingClientRect();
@@ -367,12 +369,20 @@ export default function Plan2DOverlay({
         x: (mx - width / 2) / s + cx,
         z: ((my - height / 2) / s) * sign + cz,
       };
-      const documentPoint = worldPointToDocument(worldPoint, getRuntimePlan());
+      const runtimePlan = getRuntimePlan();
+      const documentPoint = worldPointToDocument(worldPoint, runtimePlan);
+      const isVector = runtimePlan.renderType === 'VECTOR';
+      const bounds = runtimePlan.vector?.bounds;
+      const minX = isVector ? Number(bounds?.minX) : 0;
+      const minY = isVector ? Number(bounds?.minY) : 0;
+      const maxX = isVector ? Number(bounds?.maxX) : Number(runtimePlan.raster?.widthPx);
+      const maxY = isVector ? Number(bounds?.maxY) : Number(runtimePlan.raster?.heightPx);
       if (
-        documentPoint.x < 0 ||
-        documentPoint.y < 0 ||
-        documentPoint.x > img.width ||
-        documentPoint.y > img.height
+        ![minX, minY, maxX, maxY].every(Number.isFinite) ||
+        documentPoint.x < minX ||
+        documentPoint.y < minY ||
+        documentPoint.x > maxX ||
+        documentPoint.y > maxY
       ) {
         return null;
       }
@@ -384,10 +394,10 @@ export default function Plan2DOverlay({
 
   const canInteractWithPlan = Boolean(
     plan2DDefinition &&
-      plan2DVisible &&
-      (plan2DDefinition.renderType === 'VECTOR' || planImageRef.current) &&
-      planEditMode &&
-      plan2DDefinition.locked === false
+    plan2DVisible &&
+    (plan2DDefinition.renderType === 'VECTOR' || planImageRef.current) &&
+    planEditMode &&
+    plan2DDefinition.locked === false
   );
 
   useEffect(() => {
@@ -416,10 +426,10 @@ export default function Plan2DOverlay({
     setScaleHoverPx(null);
     setCalibrationDraft(null);
     setScaleMode(false);
-  }, [plan2DSrc]);
+  }, [plan2DSrc, plan2DDefinition?.id]);
 
   useEffect(() => {
-    if (!calibrationRequestId || !plan2DSrc) return;
+    if (!calibrationRequestId || (!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR')) return;
     setCalibrationDraft(null);
     setScaleStartPx(null);
     setScaleHoverPx(null);
@@ -428,7 +438,7 @@ export default function Plan2DOverlay({
     setMeasureStart(null);
     setMeasureHover(null);
     setMeasureSnap(null);
-  }, [calibrationRequestId, plan2DSrc]);
+  }, [calibrationRequestId, plan2DSrc, plan2DDefinition?.renderType]);
 
   const isWallDrawMode = wallMode === true || wallMode === 'DRAW';
 
@@ -525,10 +535,7 @@ export default function Plan2DOverlay({
     }
 
     // 5) Plano importado (SVG / PDF convertido / imagen)
-    if (
-      plan2DVisible &&
-      (planImageRef.current || plan2DDefinition?.renderType === 'VECTOR')
-    ) {
+    if (plan2DVisible && (planImageRef.current || plan2DDefinition?.renderType === 'VECTOR')) {
       const planBounds = getPlanWorldBounds(getRuntimePlan());
       minX = Math.min(minX, planBounds.minX);
       maxX = Math.max(maxX, planBounds.maxX);
@@ -1014,9 +1021,7 @@ export default function Plan2DOverlay({
         !rotationDragRef.current
       ) {
         const planHit =
-          !measureMode && !scaleMode && !isWallDrawMode
-            ? hitTestPlanAtCanvasPoint(mx, my)
-            : null;
+          !measureMode && !scaleMode && !isWallDrawMode ? hitTestPlanAtCanvasPoint(mx, my) : null;
         setIsPlanHovered(Boolean(planHit));
         if (planHit) {
           setHoveredMovablePieceId(null);
@@ -1025,9 +1030,7 @@ export default function Plan2DOverlay({
         }
 
         const variantControl = resolveActiveVariantControl2D();
-        const variantDir = variantControl
-          ? pickVariantHandleDirection(mx, my, variantControl)
-          : 0;
+        const variantDir = variantControl ? pickVariantHandleDirection(mx, my, variantControl) : 0;
         if (variantDir !== hoveredVariantHandleDir) {
           setHoveredVariantHandleDir(variantDir);
         }
@@ -1289,9 +1292,10 @@ export default function Plan2DOverlay({
           direction: classifySelectionWindow(activeSelectionDrag.startScreen, currentScreen),
         };
         const candidates = collectSelectionCandidates(getSnapshot?.() || [], completedSelection);
-        const resolvedCandidates = resolveSelectionTargetIds?.(candidates, {
-          asGroup: moveAsGroup,
-        }) || candidates;
+        const resolvedCandidates =
+          resolveSelectionTargetIds?.(candidates, {
+            asGroup: moveAsGroup,
+          }) || candidates;
         onPickIds?.(
           applySelectionOperation(selectedIds, resolvedCandidates, completedSelection.operation)
         );
@@ -1460,9 +1464,7 @@ export default function Plan2DOverlay({
 
       if (!measureMode && !scaleMode && !isWallDrawMode && transformTool === 'move') {
         const variantControl = resolveActiveVariantControl2D();
-        const variantDir = variantControl
-          ? pickVariantHandleDirection(mx, my, variantControl)
-          : 0;
+        const variantDir = variantControl ? pickVariantHandleDirection(mx, my, variantControl) : 0;
 
         if (variantControl && variantDir !== 0) {
           const startIndex = variantControl.currentIndex;
@@ -1701,13 +1703,7 @@ export default function Plan2DOverlay({
     if (transformTool !== 'move' || measureMode || scaleMode || isWallDrawMode) {
       cancelVariantHandleDrag();
     }
-  }, [
-    transformTool,
-    measureMode,
-    scaleMode,
-    isWallDrawMode,
-    cancelVariantHandleDrag,
-  ]);
+  }, [transformTool, measureMode, scaleMode, isWallDrawMode, cancelVariantHandleDrag]);
 
   const handleClick = useCallback(
     (e) => {
@@ -1737,13 +1733,12 @@ export default function Plan2DOverlay({
         }
 
         const end = p;
-        
 
-        const pixelDistance = Math.hypot(end.x - scaleStartPx.x, end.y - scaleStartPx.y);
+        const sourceDistance = Math.hypot(end.x - scaleStartPx.x, end.y - scaleStartPx.y);
 
-        if (pixelDistance > 1) {
+        if (sourceDistance > Number.EPSILON) {
           setCalibrationDraft({
-            sourceDistance: pixelDistance,
+            sourceDistance,
             points: {
               a: { x: scaleStartPx.x, y: scaleStartPx.y },
               b: { x: end.x, y: end.y },
@@ -1754,7 +1749,7 @@ export default function Plan2DOverlay({
         }
 
         setScaleStartPx(null);
-        
+
         setScaleHoverPx(null);
         setScaleMode(false);
         return;
@@ -2175,16 +2170,23 @@ export default function Plan2DOverlay({
         }
       }
 
-      if (scaleMode && scaleStartPx && scaleHoverPx && planImageRef.current) {
+      if (scaleMode && scaleStartPx && scaleHoverPx) {
         const runtimePlan = getRuntimePlan();
         const startWorld = documentPointToWorld(scaleStartPx, runtimePlan);
         const hoverWorld = documentPointToWorld(scaleHoverPx, runtimePlan);
         const [x1, y1] = toCanvasLocal(startWorld.x, startWorld.z);
         const [x2, y2] = toCanvasLocal(hoverWorld.x, hoverWorld.z);
 
-        const pxLen = Math.hypot(scaleHoverPx.x - scaleStartPx.x, scaleHoverPx.y - scaleStartPx.y);
+        const sourceLength = Math.hypot(
+          scaleHoverPx.x - scaleStartPx.x,
+          scaleHoverPx.y - scaleStartPx.y
+        );
+        const sourceLabel =
+          getRuntimePlan().renderType === 'VECTOR'
+            ? `${formatDocumentDistance(sourceLength)} unidades`
+            : `${Math.round(sourceLength)} px`;
 
-        drawMeasureLine(ctx, x1, y1, x2, y2, `${Math.round(pxLen)} px`, {
+        drawMeasureLine(ctx, x1, y1, x2, y2, sourceLabel, {
           preview: true,
         });
       }
@@ -2221,9 +2223,7 @@ export default function Plan2DOverlay({
       }
 
       const activeVariantControl = resolveActiveVariantControl2D(snap);
-      if (
-        activeVariantControl?.type === 'EDUK_WIDTH'
-      ) {
+      if (activeVariantControl?.type === 'EDUK_WIDTH') {
         const { handles, center, axis, type } = activeVariantControl;
 
         ctx.save();
@@ -2473,9 +2473,7 @@ export default function Plan2DOverlay({
       }}
     >
       {/* barra superior */}
-      <div
-        className="plan2d-overlay__controls"
-      >
+      <div className="plan2d-overlay__controls">
         <span
           aria-live="polite"
           style={{
@@ -2587,7 +2585,7 @@ export default function Plan2DOverlay({
             setScaleMode(next);
             setCalibrationDraft(null);
             setScaleStartPx(null);
-            
+
             setScaleHoverPx(null);
             if (next) {
               setMeasureMode(false);
@@ -2596,17 +2594,25 @@ export default function Plan2DOverlay({
               setMeasureSnap(null);
             }
           }}
-          disabled={!plan2DSrc || isWallDrawMode}
+          disabled={(!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR') || isWallDrawMode}
           style={{
             padding: '6px 10px',
             borderRadius: 10,
             border: '1px solid rgba(0,0,0,0.14)',
             background: scaleMode ? 'rgba(16, 185, 129, 0.16)' : 'rgba(255,255,255,0.92)',
             color: scaleMode ? 'rgba(6, 95, 70, 1)' : 'inherit',
-            cursor: !plan2DSrc || isWallDrawMode ? 'not-allowed' : 'pointer',
-            opacity: !plan2DSrc || isWallDrawMode ? 0.6 : 1,
+            cursor:
+              (!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR') || isWallDrawMode
+                ? 'not-allowed'
+                : 'pointer',
+            opacity:
+              (!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR') || isWallDrawMode ? 0.6 : 1,
           }}
-          title={!plan2DSrc ? 'Carga un plano primero' : 'Calibrar escala del plano'}
+          title={
+            !plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR'
+              ? 'Carga un plano primero'
+              : 'Calibrar escala del plano'
+          }
         >
           Escala
         </button>
@@ -2716,21 +2722,24 @@ export default function Plan2DOverlay({
             <button
               type="button"
               onClick={() => {
-                const enteredValue = Number(
-                  String(calibrationDraft.value || '').replace(',', '.')
-                );
+                const enteredValue = Number(String(calibrationDraft.value || '').replace(',', '.'));
                 const unitFactor = CALIBRATION_UNIT_TO_METERS[calibrationDraft.unit];
                 const realDistanceMeters = enteredValue * unitFactor;
                 if (!Number.isFinite(realDistanceMeters) || realDistanceMeters <= 0) return;
 
                 const calibration = {
-                  metersPerDocumentUnit:
-                    realDistanceMeters / calibrationDraft.sourceDistance,
+                  metersPerDocumentUnit: realDistanceMeters / calibrationDraft.sourceDistance,
                   sourceDistance: calibrationDraft.sourceDistance,
                   realDistanceMeters,
-                  units: 'px',
+                  units: plan2DDefinition?.renderType === 'VECTOR' ? 'dxf-unit' : 'px',
                   inputUnit: calibrationDraft.unit,
                   points: calibrationDraft.points,
+                  source: 'MANUAL',
+                  originalMetersPerDocumentUnit:
+                    plan2DDefinition?.calibration?.originalMetersPerDocumentUnit ??
+                    (plan2DDefinition?.vector?.units?.detected
+                      ? plan2DDefinition.vector.units.metersPerUnit
+                      : null),
                 };
                 if (onPlanCalibrationChange) {
                   onPlanCalibrationChange(calibration);
@@ -2905,19 +2914,19 @@ export default function Plan2DOverlay({
                 ? 'grabbing'
                 : isPlanHovered
                   ? 'grab'
-              : isVariantHandleDragging
-                ? 'grabbing'
-                : hoveredVariantHandleDir
-                  ? 'pointer'
-              : isRotatingPiece
-                ? 'grabbing'
-                : transformTool === 'rotate'
-                  ? 'default'
-              : dragPieceId
-                ? 'grabbing'
-                : hoveredMovablePieceId
-                  ? 'grab'
-                  : 'default',
+                  : isVariantHandleDragging
+                    ? 'grabbing'
+                    : hoveredVariantHandleDir
+                      ? 'pointer'
+                      : isRotatingPiece
+                        ? 'grabbing'
+                        : transformTool === 'rotate'
+                          ? 'default'
+                          : dragPieceId
+                            ? 'grabbing'
+                            : hoveredMovablePieceId
+                              ? 'grab'
+                              : 'default',
         }}
         onClick={handleClick}
         onPointerMove={handlePointerMove}

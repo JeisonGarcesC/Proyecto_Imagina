@@ -28,7 +28,27 @@ function includeEntity(bounds, entity) {
     includeCircle(bounds, geometry);
   } else if (entity.type === 'TEXT') {
     includeText(bounds, geometry);
+  } else if (entity.type === 'DIMENSION') {
+    includeDimension(bounds, geometry);
   }
+}
+
+function includeDimension(bounds, dimension) {
+  dimension.extensionLines?.forEach((line) => {
+    includePoint(bounds, line?.start);
+    includePoint(bounds, line?.end);
+  });
+  dimension.dimensionLines?.forEach((line) => {
+    includePoint(bounds, line?.start);
+    includePoint(bounds, line?.end);
+  });
+  includePoint(bounds, dimension.textPosition);
+  const height = Math.max(0, Number(dimension.textHeight) || 0);
+  const width = height * 0.65 * String(dimension.displayText || '').length;
+  includePoint(bounds, {
+    x: Number(dimension.textPosition?.x) + width,
+    y: Number(dimension.textPosition?.y) + height,
+  });
 }
 
 function includeSegment(bounds, segment) {
