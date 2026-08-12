@@ -1,0 +1,10 @@
+[
+  {
+    "id": "mila-demo-01",
+    "codigoPT": "MILA_001",
+    "title": "Elemento Mila base",
+    "subtitle": "Plantilla inicial de menú",
+    "description": "Producto demo para el menú Mila",
+    "modelSrc": "/assets/models/Mila/placeholder.glb"
+  }
+]

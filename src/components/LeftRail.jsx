@@ -53,6 +53,16 @@ export default function LeftRail({ active, onChange }) {
       label: 'Koncisa Plus',
       image: '/assets/iconos_imagen/koncisa2PlussLibrary.png',
     },
+    {
+      id: 'morea',
+      label: 'Morea',
+      image: '/assets/iconos_imagen/MepalMorea.png',
+    },
+    {
+      id: 'mila',
+      label: 'Mila',
+      image: '/assets/iconos_imagen/MepalMila.png',
+    },
   ];
 
   return (

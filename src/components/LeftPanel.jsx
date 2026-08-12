@@ -13,6 +13,8 @@ import { loadMepalTekSocialItems } from '../mepal/tekSocial/catalog/tekSocialLoa
 import { loadZenCatalog } from '../mepal/zen/catalog/zenCatalogLoader';
 import { loadClakItems } from '../services/clakLoader';
 import { loadEdukItems } from '../mepal/eduk/catalog/edukLoader';
+import { loadMoreaItems } from '../services/moreaLoader';
+import { loadMilaItems } from '../services/milaLoader';
 import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
@@ -39,6 +41,8 @@ const IMAGE_FOLDER_SETS = {
   eduk: ['Eduk'],
   mepalSalud: ['MepalSalud'],
   tekSocial: ['Mepal TekSocial'],
+  morea: ['Morea'],
+  mila: ['Mila'],
 };
 
 function CardImage({
@@ -231,6 +235,34 @@ function EdukCardImage({ codigo, title }) {
   );
 }
 
+function MoreaCardImage({ codigo, title }) {
+  return (
+    <CardImage
+      assetName={codigo}
+      title={title}
+      imageFolders={IMAGE_FOLDER_SETS.morea}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
+function MilaCardImage({ codigo, title }) {
+  return (
+    <CardImage
+      assetName={codigo}
+      title={title}
+      imageFolders={IMAGE_FOLDER_SETS.mila}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
 export default function LeftPanel({
   section,
   threeApiRef,
@@ -324,6 +356,16 @@ export default function LeftPanel({
   const [edukItems, setEdukItems] = useState([]);
   const [edukReady, setEdukReady] = useState(false);
   const [showEdukVariants, setShowEdukVariants] = useState(false);
+
+  // MOREA states
+  const [qMorea, setQMorea] = useState('');
+  const [moreaItems, setMoreaItems] = useState([]);
+  const [moreaReady, setMoreaReady] = useState(false);
+
+  // MILA states
+  const [qMila, setQMila] = useState('');
+  const [milaItems, setMilaItems] = useState([]);
+  const [milaReady, setMilaReady] = useState(false);
 
   // ZEN ALMACENAMIENTO states
   const [qAlmacen, setQAlmacen] = useState('');
@@ -1199,6 +1241,38 @@ export default function LeftPanel({
   }, [edukItems, qEduk, showEdukVariants]);
 
   // ================================
+  // Filtrado de MOREA
+  // ================================
+  const moreaFiltered = useMemo(() => {
+    const q = String(qMorea || '')
+      .trim()
+      .toLowerCase();
+    if (!q) return moreaItems || [];
+    return (moreaItems || []).filter((it) => {
+      const code = String(it?.codigoPT ?? '').toLowerCase();
+      const title = String(it?.title ?? '').toLowerCase();
+      const subtitle = String(it?.subtitle ?? '').toLowerCase();
+      return code.includes(q) || title.includes(q) || subtitle.includes(q);
+    });
+  }, [moreaItems, qMorea]);
+
+  // ================================
+  // Filtrado de MILA
+  // ================================
+  const milaFiltered = useMemo(() => {
+    const q = String(qMila || '')
+      .trim()
+      .toLowerCase();
+    if (!q) return milaItems || [];
+    return (milaItems || []).filter((it) => {
+      const code = String(it?.codigoPT ?? '').toLowerCase();
+      const title = String(it?.title ?? '').toLowerCase();
+      const subtitle = String(it?.subtitle ?? '').toLowerCase();
+      return code.includes(q) || title.includes(q) || subtitle.includes(q);
+    });
+  }, [milaItems, qMila]);
+
+  // ================================
   // Filtrado ZEN ALMACENAMIENTO
   // ================================
   const almacenFiltered = useMemo(() => {
@@ -1227,6 +1301,42 @@ export default function LeftPanel({
     });
     return out;
   }, [almacenFiltered]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const items = await loadMoreaItems();
+        if (!alive) return;
+        setMoreaItems(items);
+        setMoreaReady(true);
+      } catch (err) {
+        console.error('Error cargando Morea:', err);
+        if (alive) setMoreaReady(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const items = await loadMilaItems();
+        if (!alive) return;
+        setMilaItems(items);
+        setMilaReady(true);
+      } catch (err) {
+        console.error('Error cargando Mila:', err);
+        if (alive) setMilaReady(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -2153,6 +2263,134 @@ export default function LeftPanel({
           {officeAccessoriesReady && officeAccessoriesFiltered.length === 0 && (
             <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
               No hay accesorios disponibles. Agrega entradas a officeAccessories.json
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ======================= MOREA ======================= */}
+      {section === 'morea' && (
+        <>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+            Morea
+          </h1>
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Selecciona un producto Morea para verlo en el menú de la librería.
+          </div>
+
+          <input
+            value={qMorea}
+            onChange={(e) => setQMorea(e.target.value)}
+            placeholder="Buscar por código o descripción..."
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 10,
+              outline: 'none',
+            }}
+          />
+
+          {!moreaReady && <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Morea...</div>}
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            {moreaFiltered.map((it) => (
+              <button
+                key={String(it.codigoPT)}
+                disabled={readOnly}
+                onClick={() => !readOnly && alert('La lógica de inserción de Morea se añadirá cuando esté lista la regla de fabricación.')}
+                style={cardBtn(readOnly)}
+              >
+                <MoreaCardImage codigo={it.codigoPT} title={it.title || it.codigoPT} />
+                <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                  {it.codigoPT}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.85,
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {it.title || it.codigoPT}
+                </div>
+                {it.subtitle ? (
+                  <div style={{ fontSize: 11, opacity: 0.65 }}>{it.subtitle}</div>
+                ) : null}
+              </button>
+            ))}
+          </div>
+
+          {moreaReady && moreaFiltered.length === 0 && (
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
+              No hay productos disponibles. Agrega entradas a morea.json.
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ======================= MILA ======================= */}
+      {section === 'mila' && (
+        <>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+            Mila
+          </h1>
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Selecciona un producto Mila para verlo en el menú de la librería.
+          </div>
+
+          <input
+            value={qMila}
+            onChange={(e) => setQMila(e.target.value)}
+            placeholder="Buscar por código o descripción..."
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 10,
+              outline: 'none',
+            }}
+          />
+
+          {!milaReady && <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Mila...</div>}
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            {milaFiltered.map((it) => (
+              <button
+                key={String(it.codigoPT)}
+                disabled={readOnly}
+                onClick={() => !readOnly && alert('La lógica de inserción de Mila se añadirá cuando esté lista la regla de fabricación.')}
+                style={cardBtn(readOnly)}
+              >
+                <MilaCardImage codigo={it.codigoPT} title={it.title || it.codigoPT} />
+                <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                  {it.codigoPT}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.85,
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {it.title || it.codigoPT}
+                </div>
+                {it.subtitle ? (
+                  <div style={{ fontSize: 11, opacity: 0.65 }}>{it.subtitle}</div>
+                ) : null}
+              </button>
+            ))}
+          </div>
+
+          {milaReady && milaFiltered.length === 0 && (
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
+              No hay productos disponibles. Agrega entradas a mila.json.
             </div>
           )}
         </>
