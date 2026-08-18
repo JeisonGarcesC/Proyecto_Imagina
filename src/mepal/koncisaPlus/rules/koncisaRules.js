@@ -224,7 +224,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         diameterMm: 80,
         x: baseX,
         y: 740, //altura grommet
-        z: -300,
+        z: -300 + 230,
         rotY: 0,
       });
 
@@ -233,7 +233,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         diameterMm: 80,
         x: baseX,
         y: 740, //altura grommet
-        z: 300,
+        z: 300 - 230,
         rotY: Math.PI,
       });
     }

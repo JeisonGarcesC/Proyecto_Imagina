@@ -10,6 +10,13 @@ import { createSurfaceMesh, createSurfaceMeta } from '../factories/surfaceFactor
 import { createHistoryManager, HISTORY_ACTION_TYPES } from '../history/historyManager';
 import { CreateObjectsCommand } from '../history/CreateObjectsCommand';
 import { setClipboard } from '../clipboard/clipboardManager';
+import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
+import { resolveComponentKey } from '../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe';
+import { loadPersistedEntity } from '../core/persistence/entityLoaders';
+import {
+  buildVersionedProject,
+  isVersionedEntityProject,
+} from '../core/persistence/projectPersistence';
 
 import { MODEL_TYPES } from '../catalog/catalogData';
 
@@ -2292,6 +2299,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function loadExistingGlb(possibleSrcs) {
@@ -2446,6 +2454,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addChair(codigoSilla, options = {}) {
@@ -2542,6 +2551,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addAres(codigoAres, options = {}) {
@@ -2582,6 +2592,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addPlant(plantName, options = {}) {
@@ -2695,6 +2706,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addOfficeAccessory(accessoryName, options = {}) {
@@ -2808,6 +2820,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addMepalSalud(codigoMepal, options = {}) {
@@ -2820,6 +2833,7 @@ export default function ThreeCanvas({
         result = await createSaludInstance({
           codigoPT: codigo,
           country: countryRef.current,
+          variant: options?.variant,
           loadGlb: loadExistingGlb,
         });
       } catch (error) {
@@ -2846,6 +2860,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addMepalTekSocial(codigoMepalTekSocial, options = {}) {
@@ -2884,6 +2899,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addClak(codigoClak, options = {}) {
@@ -2922,6 +2938,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addEduk(codigoEduk, options = {}) {
@@ -2960,6 +2977,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addZen(codigoPT, options = {}) {
@@ -3013,6 +3031,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(object);
       refreshFloorAndGrid();
+      return object;
     }
 
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
@@ -3398,8 +3417,7 @@ export default function ThreeCanvas({
       try {
         const det = await getTipologiaDetalle(codigo, countryRef.current);
         if (det) {
-          await addTypology(codigo);
-          return;
+          return await addTypology(codigo);
         }
       } catch (e) {
         // si falla el fetch no bloqueamos agregar catálogo normal
@@ -3516,16 +3534,37 @@ export default function ThreeCanvas({
     function applyTransform(obj, t) {
       if (!t) return;
       if (Array.isArray(t.position)) obj.position.fromArray(t.position);
-      if (Array.isArray(t.rotation)) obj.rotation.set(t.rotation[0], t.rotation[1], t.rotation[2]);
+      if (Array.isArray(t.quaternion) && t.quaternion.length === 4) {
+        obj.quaternion.fromArray(t.quaternion);
+      } else if (Array.isArray(t.rotation)) {
+        obj.rotation.set(t.rotation[0], t.rotation[1], t.rotation[2]);
+      }
       if (Array.isArray(t.scale)) obj.scale.fromArray(t.scale);
       obj.updateMatrixWorld(true);
     }
 
     function clearProject() {
+      const koncisaAssemblies = new Set();
+      parts.forEach(({ obj }) => {
+        let current = obj?.parent || null;
+        while (current) {
+          if (current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY') {
+            koncisaAssemblies.add(current);
+            break;
+          }
+          current = current.parent || null;
+        }
+      });
+
       // remover objetos de escena
       for (const p of parts) {
-        scene.remove(p.obj);
+        if (p.obj?.parent) p.obj.parent.remove(p.obj);
+        else scene.remove(p.obj);
       }
+      koncisaAssemblies.forEach((assembly) => {
+        if (assembly.parent) assembly.parent.remove(assembly);
+        else scene.remove(assembly);
+      });
       parts.length = 0;
 
       // pickables
@@ -3793,8 +3832,232 @@ export default function ThreeCanvas({
         });
       }
 
+      function createPersistedSurface(entity) {
+        const dimMm = entity?.metadata?.dim;
+        if (!dimMm) throw new Error('SURFACE_MISSING_DIMENSIONS');
+
+        const codigoPT = entity.codigoPT;
+        const widthM = Number(dimMm.widthMm) / 1000;
+        const depthM = Number(dimMm.depthMm) / 1000;
+        const thicknessM = Number(dimMm.thickMm) / 1000;
+        const mesh = createSurfaceMesh({ widthM, depthM, thicknessM });
+        const meta = createSurfaceMeta({ partCode: codigoPT, widthM, depthM, thicknessM });
+        const item = catalogByCodeRef.current?.get?.(codigoPT);
+
+        mesh.userData = {
+          ...(mesh.userData || {}),
+          code: entity.code || codigoPT,
+          codigoPT,
+          kind: 'SURFACE',
+          line: entity.metadata?.line || null,
+          dim: dimMm,
+          meta,
+          units: 'm',
+          internalCode: codigoPT,
+          instanceId: entity.instanceId || mesh.uuid,
+          generico: entity.metadata?.generico || item?.generico || item?.raw?.generico || null,
+          materialBase: entity.materialBase || item?.materialBase || item?.raw?.material || 'LAMINA',
+          materialCode: entity.materialCode || null,
+          finishes: null,
+          activeSubKey: null,
+          activeSubName: null,
+        };
+
+        mesh.name = `SURFACE_${codigoPT}`;
+        scene.add(mesh);
+        parts.push({ code: codigoPT, obj: mesh });
+        pickables.push(mesh);
+        catalogCache.set(codigoPT, { base: mesh, meta });
+        return mesh;
+      }
+
+      function restorePersistedEntityState(object, entity) {
+        object.userData = {
+          ...(object.userData || {}),
+          instanceId: entity.instanceId || object.userData?.instanceId || object.uuid,
+          materialBase: entity.materialBase ?? object.userData?.materialBase ?? null,
+          materialCode: entity.materialCode ?? object.userData?.materialCode ?? null,
+        };
+        applyTransform(object, entity.transform);
+
+        if (object.userData.materialCode) {
+          const codeStr = String(object.userData.materialCode);
+          const def = materialsByCodeRef.current?.get?.(codeStr) || null;
+          applyMaterialToObject3D(object, codeStr, def);
+        }
+
+        if (entity.finishes && typeof entity.finishes === 'object') {
+          object.userData.activeSubKey = entity.activeSubKey || null;
+          object.userData.activeSubName = entity.activeSubName || null;
+          reapplyFinishesToRoot(object, entity.finishes);
+        }
+      }
+
+      async function createPersistedKoncisaPlus(entity) {
+        const partsStartIndex = parts.length;
+        let createdAssembly = null;
+        const factoryApi = {
+          createKoncisaPlusAssemblyGroup: (config) => {
+            createdAssembly = createKoncisaPlusAssemblyGroup(config);
+            return createdAssembly;
+          },
+          addSurface,
+          addExternalGlbPart,
+          addNativeBlockPart,
+          addKoncisaCostadoAssemblyPart,
+          addKoncisaLeaderSkirtAssemblyPart,
+          addNativeKoncisaDuctPart,
+          addKoncisaPrivacyPanel,
+          selectObject: (object) => object && setActivePart(object),
+        };
+
+        try {
+          const result = await createKoncisaPlusInstance({
+            api: factoryApi,
+            config: entity.config || entity.recipe?.config,
+            transformOverrides: entity.transform,
+            notify: (message) => console.warn('[loadProject] Koncisa:', message),
+          });
+          if (!result?.assembly) throw new Error('KONCISA_FACTORY_DID_NOT_RETURN_ASSEMBLY');
+
+          const createdRecords = parts.slice(partsStartIndex);
+          const expectedCount = Number(entity.recipe?.diagnostics?.componentCount || 0);
+          if (expectedCount > 0 && createdRecords.length < expectedCount) {
+            throw new Error(
+              `KONCISA_INCOMPLETE_ASSEMBLY:${createdRecords.length}/${expectedCount}`
+            );
+          }
+
+          const assembly = result.assembly;
+          const generatedAssemblyId = assembly.userData?.instanceId;
+          const generatedGroupId = assembly.userData?.groupId;
+          const assemblyId = entity.assemblyId || entity.instanceId || generatedAssemblyId;
+          const groupId = entity.groupId || assemblyId || generatedGroupId;
+
+          assembly.userData = {
+            ...(assembly.userData || {}),
+            instanceId: assemblyId,
+            code: assemblyId,
+            codigoPT: assemblyId,
+            groupId,
+            groupName: entity.metadata?.groupName || assembly.userData?.groupName,
+            config: entity.config || entity.recipe?.config || assembly.userData?.config,
+          };
+
+          createdRecords.forEach(({ obj }) => {
+            if (!obj) return;
+            obj.traverse?.((node) => {
+              node.userData = { ...(node.userData || {}) };
+              if (
+                node.userData.parentAssemblyId === generatedAssemblyId ||
+                node.userData.parentAssemblyId === generatedGroupId
+              ) {
+                node.userData.parentAssemblyId = assemblyId;
+              }
+              if (node.userData.groupId === generatedGroupId) node.userData.groupId = groupId;
+              if (node.userData.groupName === result.groupName && entity.metadata?.groupName) {
+                node.userData.groupName = entity.metadata.groupName;
+              }
+            });
+          });
+
+          const availableByKey = new Map();
+          createdRecords.forEach(({ obj }) => {
+            const key = resolveComponentKey(obj);
+            if (!key) return;
+            const queue = availableByKey.get(key) || [];
+            queue.push(obj);
+            availableByKey.set(key, queue);
+          });
+
+          for (const component of entity.recipe?.components || []) {
+            if (!component?.key) continue;
+            const object = availableByKey.get(component.key)?.shift?.() || null;
+            if (!object) continue;
+
+            const transform = component.transform || {};
+            if (Array.isArray(transform.position)) object.position.fromArray(transform.position);
+            if (Array.isArray(transform.quaternion)) {
+              object.quaternion.fromArray(transform.quaternion).normalize();
+            }
+            if (Array.isArray(transform.scale)) object.scale.fromArray(transform.scale);
+            object.userData = {
+              ...(object.userData || {}),
+              ...(component.state || {}),
+              meta: {
+                ...(object.userData?.meta || {}),
+                ...(component.metadata || {}),
+              },
+            };
+
+            const finish = entity.recipe?.finishes?.[component.key];
+            if (finish?.materialCode) {
+              const codeStr = String(finish.materialCode);
+              const def = materialsByCodeRef.current?.get?.(codeStr) || null;
+              object.userData.materialCode = codeStr;
+              applyMaterialToObject3D(object, codeStr, def);
+            }
+            if (finish?.submeshes) reapplyFinishesToRoot(object, finish.submeshes);
+            object.updateMatrixWorld(true);
+          }
+
+          assembly.updateMatrixWorld(true);
+          return assembly;
+        } catch (error) {
+          if (createdAssembly) {
+            removePartObject(createdAssembly, { emitBom: false, disposeResources: true });
+          }
+          throw error;
+        }
+      }
+
+      if (isVersionedEntityProject(project)) {
+        const result = { loaded: [], failed: [] };
+        const context = {
+          createSurface: createPersistedSurface,
+          addClak,
+          addEduk,
+          addAres,
+          addMepalSalud,
+          addMepalTekSocial,
+          addZen,
+          addOfficeAccessory,
+          addCatalogItem,
+          createKoncisaPlus: createPersistedKoncisaPlus,
+        };
+
+        for (const [index, entity] of project.entities.entries()) {
+          try {
+            const object = await loadPersistedEntity(entity, context);
+            restorePersistedEntityState(object, entity);
+            result.loaded.push({
+              index,
+              kind: entity.kind,
+              codigoPT: entity.codigoPT,
+              assemblyId: entity.assemblyId || null,
+            });
+          } catch (error) {
+            const failure = {
+              index,
+              kind: entity?.kind || null,
+              codigoPT: entity?.codigoPT || null,
+              assemblyId: entity?.assemblyId || null,
+              reason: error?.message || String(error),
+            };
+            result.failed.push(failure);
+            console.error('[loadProject] No se pudo cargar entity:', failure, error);
+          }
+        }
+
+        emitBOM();
+        refreshFloorAndGrid();
+        if (result.failed.length) console.warn('[loadProject] Carga parcial:', result);
+        return result;
+      }
+
       // reconstruir piezas
-      for (const part of project.parts || []) {
+      const legacyResult = { loaded: [], failed: [] };
+      for (const [index, part] of (project.parts || []).entries()) {
         //  try/catch por pieza: si una falla, no tumba el resto
         try {
           const codigoPT = part.codigoPT;
@@ -3854,6 +4117,7 @@ export default function ThreeCanvas({
             parts.push({ code: codigoPT, obj: mesh });
             pickables.push(mesh);
             catalogCache.set(codigoPT, { base: mesh, meta });
+            legacyResult.loaded.push({ index, kind: 'SURFACE', codigoPT });
             continue;
           }
 
@@ -3892,15 +4156,23 @@ export default function ThreeCanvas({
             parts.push({ code: partCode, obj: mesh });
             pickables.push(mesh);
             catalogCache.set(partCode, { base: mesh, meta });
+            legacyResult.loaded.push({ index, kind: 'PROCEDURAL', codigoPT });
             continue;
           }
 
           // ===========================
           // 3) GLB (incluye tipologías)
           // ===========================
-          await addCatalogItem(codigoPT);
-          const last = parts[parts.length - 1]?.obj;
-          if (!last) continue;
+          const last = await addCatalogItem(codigoPT);
+          if (!last) {
+            legacyResult.failed.push({
+              index,
+              kind: part.kind || 'LEGACY',
+              codigoPT: codigoPT || null,
+              reason: 'CREATOR_DID_NOT_RETURN_OBJECT',
+            });
+            continue;
+          }
 
           applyTransform(last, part.transform);
 
@@ -3924,13 +4196,22 @@ export default function ThreeCanvas({
 
             reapplyFinishesToRoot(last, part.finishes);
           }
+          legacyResult.loaded.push({ index, kind: part.kind || 'LEGACY', codigoPT });
         } catch (err) {
           console.error('[loadProject] Error cargando part:', part?.codigoPT, err);
+          legacyResult.failed.push({
+            index,
+            kind: part?.kind || 'LEGACY',
+            codigoPT: part?.codigoPT || null,
+            reason: err?.message || String(err),
+          });
           // sigue con la siguiente pieza
         }
       }
 
       emitBOM();
+      if (legacyResult.failed.length) console.warn('[loadProject] Carga legacy parcial:', legacyResult);
+      return legacyResult;
     }
 
     loadProjectRef.current = loadProject;
@@ -10662,19 +10943,16 @@ export default function ThreeCanvas({
         return Object.keys(out).length ? out : null;
       }
 
-      const data = {
-        version: '1.1',
-        units: 'm',
-        floor: {
+      const floor = {
           showGrid: floorMeshRef.current?.userData?.showGrid !== false,
           gridSize: floorMeshRef.current?.userData?.gridSize || 0.1,
           materialCode: floorMeshRef.current?.userData?.materialCode || null,
-        },
-        camera: {
+        };
+      const cameraState = {
           position: camera.position.toArray(),
           target: controls.target.toArray(),
-        },
-        parts: parts.map(({ code, obj }) => {
+        };
+      const legacyParts = parts.map(({ code, obj }) => {
           const codigoPT = obj.userData?.codigoPT || code;
 
           const entry = {
@@ -10719,10 +10997,15 @@ export default function ThreeCanvas({
           }
 
           return entry;
-        }),
-      };
+        });
 
-      return data;
+      return buildVersionedProject({
+        parts,
+        collectFinishes: collectFinishesFromObject,
+        floor,
+        camera: cameraState,
+        legacyParts,
+      });
     }
 
     // ====== Cleanup ======
