@@ -1248,7 +1248,9 @@ export default function App() {
 
           <Plan2DOverlay
             historyApi={threeApi}
-            getSnapshot={() => threeApiRef.current?.getPartsSnapshot2D?.() || []}
+            getSnapshot={(options) =>
+              threeApiRef.current?.getPartsSnapshot2D?.(options) || []
+            }
             selectedIds={selectedIds}
             moveAsGroup={moveAsGroup}
             onPickIds={(ids) => setSelectedIds(Array.from(new Set(ids || [])))}

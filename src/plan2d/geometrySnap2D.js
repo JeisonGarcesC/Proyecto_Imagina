@@ -1,3 +1,5 @@
+import { buildFootprintWorldGeometry } from './footprintGeometry2D.js';
+
 export const SNAP_TYPES = Object.freeze({
   VERTEX: 'VERTEX',
   ENDPOINT: 'ENDPOINT',
@@ -74,37 +76,15 @@ function isSnapTypeEnabled(type, config) {
   return config[settingByType[type]] !== false;
 }
 
-function rotateLocalPoint(localX, localZ, centerX, centerZ, angle) {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  return {
-    x: centerX + localX * cos - localZ * sin,
-    z: centerZ + localX * sin + localZ * cos,
-  };
-}
-
 export function buildSnapGeometry(snapshot = []) {
   const points = [];
   const segments = [];
 
   snapshot.filter(Boolean).forEach((part) => {
-    const centerX = Number(part.x);
-    const centerZ = Number(part.z);
-    const width = Math.abs(Number(part.w));
-    const depth = Math.abs(Number(part.d));
-    const angle = Number(part.rotY) || 0;
-    if (![centerX, centerZ, width, depth].every(Number.isFinite)) return;
-    if (width <= 0 || depth <= 0) return;
-
     const sourceId = part.id || null;
-    const halfWidth = width / 2;
-    const halfDepth = depth / 2;
-    const vertices = [
-      rotateLocalPoint(-halfWidth, -halfDepth, centerX, centerZ, angle),
-      rotateLocalPoint(halfWidth, -halfDepth, centerX, centerZ, angle),
-      rotateLocalPoint(halfWidth, halfDepth, centerX, centerZ, angle),
-      rotateLocalPoint(-halfWidth, halfDepth, centerX, centerZ, angle),
-    ];
+    const footprintGeometry = buildFootprintWorldGeometry(part);
+    if (!footprintGeometry) return;
+    const vertices = footprintGeometry.snapVertices;
 
     vertices.forEach((point, index) => {
       points.push({
@@ -115,9 +95,7 @@ export function buildSnapGeometry(snapshot = []) {
       });
     });
 
-    for (let index = 0; index < vertices.length; index += 1) {
-      const a = vertices[index];
-      const b = vertices[(index + 1) % vertices.length];
+    footprintGeometry.snapSegments.forEach(({ a, b }, index) => {
       const midpoint = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 };
       points.push({
         type: SNAP_TYPES.MIDPOINT,
@@ -133,11 +111,11 @@ export function buildSnapGeometry(snapshot = []) {
         feature: { kind: SNAP_TYPES.SEGMENT, edgeIndex: index },
         endpointType: SNAP_TYPES.ENDPOINT,
       });
-    }
+    });
 
     points.push({
       type: SNAP_TYPES.CENTER,
-      point: { x: centerX, z: centerZ },
+      point: { ...footprintGeometry.center },
       sourceId,
       feature: { kind: SNAP_TYPES.CENTER },
     });

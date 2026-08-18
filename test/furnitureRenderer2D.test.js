@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { drawFurnitureFootprint2D } from '../src/plan2d/furnitureRenderer2D.js';
+import {
+  drawFurnitureFootprint2D,
+  FURNITURE_2D_RENDER_MODES,
+} from '../src/plan2d/furnitureRenderer2D.js';
 import { createFootprint2D, FOOTPRINT2D_TYPES } from '../src/plan2d/footprint2D.js';
 
 function createContext() {
@@ -109,3 +112,47 @@ test('usa rectángulo ante footprint inválido', () => {
   assert.deepEqual(callsOf(ctx, 'rect')[0], ['rect', -10, -7.5, 20, 15]);
 });
 
+test('modo DETAILED dibuja contornos independientes', () => {
+  const ctx = createContext();
+  const footprint = createFootprint2D({
+    type: FOOTPRINT2D_TYPES.RECTANGLE,
+    points: [
+      { x: -1, z: -1 },
+      { x: 1, z: -1 },
+      { x: 1, z: 1 },
+      { x: -1, z: 1 },
+    ],
+  });
+  const detailedShapes = [
+    { points: [{ x: -1, z: -1 }, { x: 0, z: -1 }, { x: 0, z: 1 }] },
+    { points: [{ x: 0, z: -1 }, { x: 1, z: -1 }, { x: 1, z: 1 }] },
+  ];
+  const result = drawFurnitureFootprint2D(
+    ctx,
+    { w: 2, d: 2, footprint, detailedFootprint: { detailedShapes } },
+    { scale: 10, mode: FURNITURE_2D_RENDER_MODES.DETAILED }
+  );
+  assert.equal(result.renderedType, FURNITURE_2D_RENDER_MODES.DETAILED);
+  assert.equal(result.shapeCount, 2);
+  assert.equal(callsOf(ctx, 'moveTo').length, 2);
+});
+
+test('modo DETAILED sin datos conserva el render NORMAL', () => {
+  const ctx = createContext();
+  const footprint = createFootprint2D({
+    type: FOOTPRINT2D_TYPES.RECTANGLE,
+    points: [
+      { x: -1, z: -1 },
+      { x: 1, z: -1 },
+      { x: 1, z: 1 },
+      { x: -1, z: 1 },
+    ],
+  });
+  const result = drawFurnitureFootprint2D(
+    ctx,
+    { w: 2, d: 2, footprint },
+    { scale: 10, mode: FURNITURE_2D_RENDER_MODES.DETAILED }
+  );
+  assert.equal(result.renderedType, FOOTPRINT2D_TYPES.RECTANGLE);
+  assert.equal(callsOf(ctx, 'rect').length, 1);
+});

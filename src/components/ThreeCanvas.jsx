@@ -21,6 +21,11 @@ import { exportSceneToGLTF } from '../utils/exportGLTF';
 
 import { exportPlanToDXF } from '../utils/exportDXF';
 import { getFootprint2D } from '../plan2d/extractFootprint2D';
+import {
+  extractDetailedFootprint2D,
+  getDetailedFootprint2DCacheEntry,
+  hasDetailedFootprint2DCacheEntry,
+} from '../plan2d/extractDetailedFootprint2D';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
@@ -1163,12 +1168,28 @@ export default function ThreeCanvas({
     }
 */
 
-    function getPartsSnapshot2D() {
+    function getPartsSnapshot2D(options = {}) {
+      const includeDetailed = options?.includeDetailed === true;
+      let detailedGenerationBudget = Math.max(
+        0,
+        Number(options?.detailedGenerationBudget) || 2
+      );
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
 
           obj.updateMatrixWorld(true);
+          const attachDetailed = (snapshot) => {
+            if (!includeDetailed) return snapshot;
+            let detailedFootprint = getDetailedFootprint2DCacheEntry(obj);
+            if (!hasDetailedFootprint2DCacheEntry(obj) && detailedGenerationBudget > 0) {
+              detailedGenerationBudget -= 1;
+              detailedFootprint = extractDetailedFootprint2D(obj, {
+                normalShape: snapshot.footprint,
+              });
+            }
+            return { ...snapshot, detailedFootprint };
+          };
 
           const objectType = String(obj.userData?.type || obj.userData?.kind || '')
             .trim()
@@ -1191,7 +1212,7 @@ export default function ThreeCanvas({
             const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
 
-            return {
+            return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || null,
 
@@ -1211,7 +1232,7 @@ export default function ThreeCanvas({
 
               subtype: obj.userData?.subtype || null,
               footprint: getFootprint2D(obj, { fallbackBounds: localBounds }),
-            };
+            });
           }
 
           const b = obj.userData?.bounds2d;
@@ -1235,7 +1256,7 @@ export default function ThreeCanvas({
 
             const worldEuler = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ');
 
-            return {
+            return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
 
               groupId: obj.userData?.groupId || null,
@@ -1251,7 +1272,7 @@ export default function ThreeCanvas({
 
               kind: obj.userData?.kind || 'PART',
               footprint: getFootprint2D(obj, { fallbackBounds: b }),
-            };
+            });
           }
 
           const computedBounds = computeBounds2D(obj);
@@ -1261,7 +1282,7 @@ export default function ThreeCanvas({
             const worldScale = obj.getWorldScale(new THREE.Vector3());
             const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
-            return {
+            return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || null,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
@@ -1272,7 +1293,7 @@ export default function ThreeCanvas({
               rotY: Number(worldRotY || 0),
               kind: obj.userData?.kind || 'PART',
               footprint,
-            };
+            });
           }
 
           const box = new THREE.Box3().setFromObject(obj);
@@ -1288,7 +1309,7 @@ export default function ThreeCanvas({
             },
           });
 
-          return {
+          return attachDetailed({
             id: obj.userData?.instanceId || obj.uuid,
             groupId: obj.userData?.groupId || null,
 
@@ -1304,7 +1325,7 @@ export default function ThreeCanvas({
 
             kind: obj.userData?.kind || 'PART',
             footprint,
-          };
+          });
         })
         .filter(Boolean);
     }

@@ -10,7 +10,11 @@ import {
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
-import { drawFurnitureFootprint2D } from '../plan2d/furnitureRenderer2D';
+import {
+  drawFurnitureFootprint2D,
+  FURNITURE_2D_RENDER_MODES,
+} from '../plan2d/furnitureRenderer2D';
+import { hitTestFootprint2D } from '../plan2d/footprintGeometry2D';
 import {
   classifySelectionWindow,
   collectSelectionCandidates,
@@ -461,6 +465,9 @@ export default function Plan2DOverlay({
   // visible toggle
   const [visible, setVisible] = useState(defaultVisible);
   const [viewMode, setViewMode] = useState('normal');
+  const [plan2DDetailMode, setPlan2DDetailMode] = useState(
+    FURNITURE_2D_RENDER_MODES.NORMAL
+  );
 
   // draft muros
   const [draftPts, setDraftPts] = useState([]); // [{x,z}...]
@@ -729,35 +736,26 @@ export default function Plan2DOverlay({
     ensureInitializedView();
   }, [ensureInitializedView]);
 
-  const pickRectHit = useCallback(
-    (mx, my, p, s) => {
+  const pickFootprintHit = useCallback(
+    (mx, my, p) => {
       const [px, py] = toCanvas(p.x, p.z);
-      const rw = p.w * s;
-      const rd = p.d * s;
-      const ang = -(p.rotY || 0);
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint || !hitTestFootprint2D(p, worldPoint)) return null;
       const dx = mx - px;
       const dy = my - py;
-      const rx = dx * Math.cos(ang) - dy * Math.sin(ang);
-      const ry = dx * Math.sin(ang) + dy * Math.cos(ang);
-
-      if (Math.abs(rx) <= rw / 2 && Math.abs(ry) <= rd / 2) {
-        return rx * rx + ry * ry;
-      }
-
-      return null;
+      return dx * dx + dy * dy;
     },
-    [toCanvas]
+    [toCanvas, canvasToWorld]
   );
 
   const pickPartAtCanvasPoint = useCallback(
     (mx, my) => {
       const snap = getAllBounds()?.snap || [];
-      const { s } = viewRef.current;
       let best = null;
       let bestDist = Infinity;
 
       for (const p of snap) {
-        const dist = pickRectHit(mx, my, p, s);
+        const dist = pickFootprintHit(mx, my, p);
         if (dist == null || dist >= bestDist) continue;
         bestDist = dist;
         best = p;
@@ -765,7 +763,7 @@ export default function Plan2DOverlay({
 
       return best;
     },
-    [getAllBounds, pickRectHit]
+    [getAllBounds, pickFootprintHit]
   );
 
   const getSelectionTargetIds = useCallback(
@@ -1828,13 +1826,11 @@ export default function Plan2DOverlay({
         return;
       }
 
-      const { s } = viewRef.current;
-
       let best = null;
       let bestDist = Infinity;
 
       for (const p of snap) {
-        const dist = pickRectHit(mx, my, p, s);
+        const dist = pickFootprintHit(mx, my, p);
         if (dist == null) continue;
         if (dist < bestDist) {
           bestDist = dist;
@@ -1871,7 +1867,7 @@ export default function Plan2DOverlay({
       canvasToWorld,
       resolveMeasureSnap,
       getAllBounds,
-      pickRectHit,
+      pickFootprintHit,
       getSelectionTargetIds,
       onPickIds,
       selectedIds,
@@ -2015,7 +2011,11 @@ export default function Plan2DOverlay({
       // si no hay view init, intenta
       if (!viewRef.current.initialized) ensureInitializedView();
 
-      const snap = (getSnapshot?.() || []).filter(Boolean);
+      const snap = (
+        getSnapshot?.({
+          includeDetailed: plan2DDetailMode === FURNITURE_2D_RENDER_MODES.DETAILED,
+        }) || []
+      ).filter(Boolean);
       const snapGeometry = buildSnapGeometry(snap);
       const { s, cx, cz } = viewRef.current;
 
@@ -2207,7 +2207,11 @@ export default function Plan2DOverlay({
         ctx.strokeStyle = isSel ? 'rgba(56, 194, 212, 0.95)' : 'rgba(0,0,0,0.30)';
         ctx.lineWidth = isSel ? 2.2 : 1;
 
-        drawFurnitureFootprint2D(ctx, p, { scale: s, invertZ });
+        drawFurnitureFootprint2D(ctx, p, {
+          scale: s,
+          invertZ,
+          mode: plan2DDetailMode,
+        });
         ctx.fill();
         ctx.stroke();
 
@@ -2432,6 +2436,7 @@ export default function Plan2DOverlay({
     resolveActiveVariantControl2D,
     hoveredVariantHandleDir,
     isVariantHandleDragging,
+    plan2DDetailMode,
   ]);
 
   if (!visible) {
@@ -2498,6 +2503,35 @@ export default function Plan2DOverlay({
           title="Fit (F)"
         >
           Fit
+        </button>
+
+        <button
+          type="button"
+          onClick={() =>
+            setPlan2DDetailMode((current) =>
+              current === FURNITURE_2D_RENDER_MODES.DETAILED
+                ? FURNITURE_2D_RENDER_MODES.NORMAL
+                : FURNITURE_2D_RENDER_MODES.DETAILED
+            )
+          }
+          aria-pressed={plan2DDetailMode === FURNITURE_2D_RENDER_MODES.DETAILED}
+          title="Alternar representación detallada del mobiliario"
+          style={{
+            padding: '6px 10px',
+            borderRadius: 10,
+            border: '1px solid rgba(0,0,0,0.14)',
+            background:
+              plan2DDetailMode === FURNITURE_2D_RENDER_MODES.DETAILED
+                ? 'rgba(37, 99, 235, 0.14)'
+                : 'rgba(255,255,255,0.92)',
+            color:
+              plan2DDetailMode === FURNITURE_2D_RENDER_MODES.DETAILED
+                ? 'rgba(30, 64, 175, 1)'
+                : 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          Vista detallada
         </button>
 
         {viewMode !== 'normal' && (

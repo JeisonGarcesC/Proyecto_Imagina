@@ -1,5 +1,10 @@
 import { FOOTPRINT2D_TYPES } from './footprint2D.js';
 
+export const FURNITURE_2D_RENDER_MODES = Object.freeze({
+  NORMAL: 'NORMAL',
+  DETAILED: 'DETAILED',
+});
+
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -34,8 +39,7 @@ function resolvePolygonPoints(footprint, scale, zSign) {
   return points.every(Boolean) ? points : null;
 }
 
-function drawPolygon(ctx, points) {
-  ctx.beginPath();
+function appendPolygon(ctx, points) {
   ctx.moveTo(points[0].x, points[0].y);
   for (let index = 1; index < points.length; index += 1) {
     ctx.lineTo(points[index].x, points[index].y);
@@ -43,10 +47,38 @@ function drawPolygon(ctx, points) {
   ctx.closePath();
 }
 
+function drawPolygon(ctx, points) {
+  ctx.beginPath();
+  appendPolygon(ctx, points);
+}
+
+function drawDetailedShapes(ctx, part, footprintScale, zSign) {
+  const shapes = part?.detailedFootprint?.detailedShapes;
+  const normalShape = part?.footprint;
+  if (!normalShape || !Array.isArray(shapes) || !shapes.length) return null;
+
+  const resolvedShapes = shapes.map((shape) =>
+    resolvePolygonPoints(
+      { points: shape?.points, center: normalShape.center },
+      footprintScale,
+      zSign
+    )
+  );
+  if (!resolvedShapes.every(Boolean)) return null;
+
+  ctx.beginPath();
+  resolvedShapes.forEach((points) => appendPolygon(ctx, points));
+  return {
+    renderedType: FURNITURE_2D_RENDER_MODES.DETAILED,
+    fallback: false,
+    shapeCount: resolvedShapes.length,
+  };
+}
+
 export function drawFurnitureFootprint2D(
   ctx,
   part,
-  { scale = 1, invertZ = true } = {}
+  { scale = 1, invertZ = true, mode = FURNITURE_2D_RENDER_MODES.NORMAL } = {}
 ) {
   if (!ctx?.beginPath || !ctx?.rect) return null;
   const normalizedScale = Math.max(0, finiteNumber(scale, 1));
@@ -59,6 +91,11 @@ export function drawFurnitureFootprint2D(
   }
 
   try {
+    if (mode === FURNITURE_2D_RENDER_MODES.DETAILED) {
+      const detailed = drawDetailedShapes(ctx, part, footprintScale, invertZ ? -1 : 1);
+      if (detailed) return detailed;
+    }
+
     if (footprint.type === FOOTPRINT2D_TYPES.RECTANGLE) {
       ctx.beginPath();
       ctx.rect(-widthPx / 2, -depthPx / 2, widthPx, depthPx);
@@ -121,4 +158,3 @@ export function drawFurnitureFootprint2D(
 
   return drawRectangleFallback(ctx, widthPx, depthPx);
 }
-
