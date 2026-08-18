@@ -259,14 +259,17 @@ export function getPasacablesConfig({
 
     if (tipoPuesto === 'sencillo') {
       let z = 0;
-      if (position === 'LEFT') z = -300;
-      if (position === 'RIGHT') z = 300;
+      let mover = baseX - 50;
+      console.log('position pasacable: ', position);
+
+      if (position === 'LEFT') mover = -600 + 120;
+      if (position === 'RIGHT') mover = 600 - 110;
 
       out.push({
         index: i,
-        x: baseX,
-        y: 740, //altura Pasacable
-        z,
+        x: baseX - 50 + mover,
+        y: 705, //altura Pasacable
+        z: -180,
         rotY: 0,
       });
     }

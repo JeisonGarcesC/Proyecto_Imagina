@@ -122,6 +122,31 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
             />
             Mostrar cuadrícula
           </label>
+
+          <label
+            style={{
+              display: 'grid',
+              gap: 6,
+              marginTop: 12,
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            Tamaño de cuadrícula
+            <select
+              value={String(part?.gridSize || 0.1)}
+              onChange={(e) => {
+                api?.updateFloorVisualOptions?.({
+                  gridSize: Number(e.target.value),
+                });
+              }}
+            >
+              <option value="0.1">0.10 m</option>
+              <option value="0.25">0.25 m</option>
+              <option value="0.5">0.50 m</option>
+              <option value="1">1.00 m</option>
+            </select>
+          </label>
         </div>
       )}
 

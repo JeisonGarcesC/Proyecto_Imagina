@@ -43,7 +43,10 @@ import {
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 
-import { createKoncisaPrivacyPanelProcedural, panelHasCanto } from '../mepal/koncisaPlus/parts/pantallas';
+import {
+  createKoncisaPrivacyPanelProcedural,
+  panelHasCanto,
+} from '../mepal/koncisaPlus/parts/pantallas';
 
 import {
   resolvePedestalFromCostado,
@@ -488,7 +491,11 @@ export default function ThreeCanvas({
       const yaw = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
 
       const useVertical = context.type === 'EDUK_HEIGHT';
-      edukTableHandleGroup.position.set(center.x, useVertical ? center.y : box.max.y + yOffset, center.z);
+      edukTableHandleGroup.position.set(
+        center.x,
+        useVertical ? center.y : box.max.y + yOffset,
+        center.z
+      );
       edukTableHandleGroup.rotation.set(0, yaw, 0);
 
       edukWidthHandlePrev.visible = context.type === 'EDUK_WIDTH';
@@ -760,7 +767,9 @@ export default function ThreeCanvas({
       }
 
       //const divisions = Math.max(10, Math.round(size));// de 1 metro en 1 metro
-      const cellSize = 0.1; // 10 cm
+      const configuredGridSize = Number(floorMesh.userData?.gridSize);
+      const cellSize =
+        Number.isFinite(configuredGridSize) && configuredGridSize > 0 ? configuredGridSize : 0.1;
       const divisions = Math.max(10, Math.round(size / cellSize));
       //const newGrid = new THREE.GridHelper(size, divisions, 0x999999, 0xdddddd);
       const newGrid = new THREE.GridHelper(size, divisions, 0xbcbcbc, 0xe9e9e9);
@@ -773,17 +782,25 @@ export default function ThreeCanvas({
       const floor = floorMeshRef.current;
       if (!floor) return false;
 
+      const nextPatch = { ...patch };
+      if (Object.hasOwn(nextPatch, 'gridSize')) {
+        const gridSize = Number(nextPatch.gridSize);
+        if (!Number.isFinite(gridSize) || gridSize <= 0) return false;
+        nextPatch.gridSize = gridSize;
+      }
+
       floor.userData = {
         ...floor.userData,
-        ...patch,
+        ...nextPatch,
       };
 
-      applyFloorVisualState();
+      if (Object.hasOwn(nextPatch, 'gridSize')) refreshFloorAndGrid();
+      else applyFloorVisualState();
       setActivePart(floor);
 
       onFloatingEditorRequest?.({
         open: true,
-        x: 120,
+        x: 640,
         y: 120,
         part: {
           code: floor.userData?.codigoPT || floor.userData?.code || 'FLOOR_MAIN',
@@ -795,6 +812,7 @@ export default function ThreeCanvas({
           instanceId: floor.userData?.instanceId || 'FLOOR_MAIN',
           description: floor.userData?.description || 'Piso principal',
           showGrid: floor.userData?.showGrid !== false,
+          gridSize: floor.userData?.gridSize || 0.1,
         },
       });
 
@@ -826,12 +844,13 @@ export default function ThreeCanvas({
       excludeFromBOM: true,
       isFloor: true,
       showGrid: true,
+      gridSize: 0.1,
     };
 
     scene.add(floorMesh);
     floorMeshRef.current = floorMesh;
     // importante: que pueda seleccionarse
-    //pickables.push(floorMesh);
+    pickables.push(floorMesh);
 
     // bounds iniciales vacíos / mínimos
     const initialBounds = computeSceneXZBounds([], walls);
@@ -869,6 +888,15 @@ export default function ThreeCanvas({
       const floor = floorMeshRef.current;
       if (!floor) return;
 
+      const hasFinish = Boolean(floor.userData?.materialCode);
+      const floorMaterials = Array.isArray(floor.material) ? floor.material : [floor.material];
+      floorMaterials.filter(Boolean).forEach((material) => {
+        material.transparent = !hasFinish;
+        material.opacity = hasFinish ? 1 : 0;
+        material.depthWrite = hasFinish;
+        material.needsUpdate = true;
+      });
+
       const grid = gridHelperRef.current;
       if (grid) {
         grid.visible = floor.userData?.showGrid !== false;
@@ -887,6 +915,8 @@ export default function ThreeCanvas({
       const floor = floorMeshRef.current;
       grid.visible = floor?.userData?.showGrid !== false;
     }
+
+    applyFloorVisualState();
 
     function clearAdditionalSelectionHelpers() {
       additionalSelectionHelpers.forEach((helper) => {
@@ -988,6 +1018,7 @@ export default function ThreeCanvas({
         edukToma: edukWidthContext?.toma || null,
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
+        gridSize: obj.userData?.isFloor ? obj.userData?.gridSize || 0.1 : undefined,
       });
     }
 
@@ -999,7 +1030,7 @@ export default function ThreeCanvas({
 
       onFloatingEditorRequest?.({
         open: true,
-        x: 120,
+        x: 340,
         y: 120,
         part: {
           code: floor.userData?.codigoPT || floor.userData?.code || 'FLOOR_MAIN',
@@ -1011,6 +1042,7 @@ export default function ThreeCanvas({
           instanceId: floor.userData?.instanceId || 'FLOOR_MAIN',
           description: floor.userData?.description || 'Piso principal',
           showGrid: floor.userData?.showGrid !== false,
+          gridSize: floor.userData?.gridSize || 0.1,
         },
       });
 
@@ -1822,6 +1854,7 @@ export default function ThreeCanvas({
 
         // 2. Priorizar contenedores/raíces de ensamblaje
         if (
+          kind === 'FLOOR_VISUAL' ||
           kind === 'TYPOLOGY' ||
           kind === 'CHAIR' ||
           kind === 'ARES' ||
@@ -1902,10 +1935,7 @@ export default function ThreeCanvas({
       return matchedAssembly;
     }
 
-    function resolveSelectionTargets(
-      object,
-      { asGroup = moveAsGroupRef.current } = {}
-    ) {
+    function resolveSelectionTargets(object, { asGroup = moveAsGroupRef.current } = {}) {
       const physicalRoot = getRootPartObject(object);
       const physicalId = physicalRoot?.userData?.instanceId || physicalRoot?.uuid;
 
@@ -3052,9 +3082,7 @@ export default function ThreeCanvas({
         }
 
         const currentOptions = getClakVariantOptionsByCode(currentCode) || [];
-        const sameFamily = currentOptions.some(
-          (it) => normalizeClakPuffCode(it.code) === nextCode
-        );
+        const sameFamily = currentOptions.some((it) => normalizeClakPuffCode(it.code) === nextCode);
         if (!sameFamily) {
           console.warn(
             '[swapClakVariant] Cambio entre familias no permitido:',
@@ -3249,7 +3277,11 @@ export default function ThreeCanvas({
 
       const targetCode = resolveEdukCodeBySelection(currentCode, nextSelection);
       if (!targetCode) {
-        console.warn('[swapEdukVariant] Combinación de propiedades inválida:', currentCode, nextSelection);
+        console.warn(
+          '[swapEdukVariant] Combinación de propiedades inválida:',
+          currentCode,
+          nextSelection
+        );
         return;
       }
 
@@ -3451,6 +3483,8 @@ export default function ThreeCanvas({
 
       // pickables
       pickables.length = 0;
+      const floor = floorMeshRef.current;
+      if (floor) pickables.push(floor);
 
       // selección
       activePart = null;
@@ -3467,6 +3501,7 @@ export default function ThreeCanvas({
     // ====== Eliminar piezas ======
     function disposeObject3D(root) {
       if (!root) return;
+      if (root.userData?.isFloor) return;
       root.traverse?.((n) => {
         // geometría
         if (n.geometry?.dispose) n.geometry.dispose();
@@ -3556,6 +3591,7 @@ export default function ThreeCanvas({
       if (!obj) return false;
 
       const root = getRootPartObject(obj) || obj;
+      if (root.userData?.lockedDelete) return false;
 
       const { skipFloatingChildren = false, disposeResources = true, emitBom = true } = options;
 
@@ -3641,9 +3677,25 @@ export default function ThreeCanvas({
     async function loadProject(project) {
       //console.log('[loadProject] materialsByCodeRef size:', materialsByCodeRef.current?.size || 0);
 
-      if (!project?.parts?.length) return;
+      if (!project) return;
 
       clearProject();
+
+      const floor = floorMeshRef.current;
+      if (floor) {
+        const floorState = project.floor || {};
+        const loadedGridSize = Number(floorState.gridSize);
+        floor.userData.showGrid = floorState.showGrid !== false;
+        floor.userData.gridSize =
+          Number.isFinite(loadedGridSize) && loadedGridSize > 0 ? loadedGridSize : 0.1;
+        floor.userData.materialCode = floorState.materialCode || null;
+
+        const floorMaterialDef = floor.userData.materialCode
+          ? materialsByCodeRef.current?.get?.(String(floor.userData.materialCode)) || null
+          : null;
+        applyMaterialToObject3D(floor, floor.userData.materialCode, floorMaterialDef);
+        refreshFloorAndGrid();
+      }
 
       // cámara (opcional)
       if (project.camera?.position) camera.position.fromArray(project.camera.position);
@@ -3695,7 +3747,7 @@ export default function ThreeCanvas({
       }
 
       // reconstruir piezas
-      for (const part of project.parts) {
+      for (const part of project.parts || []) {
         //  try/catch por pieza: si una falla, no tumba el resto
         try {
           const codigoPT = part.codigoPT;
@@ -7493,14 +7545,15 @@ export default function ThreeCanvas({
         return;
       }
 
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        selectFloor();
+        return;
+      }
+
       if (!activePart) return;
 
       switch (e.key) {
-        case 'p':
-        case 'P':
-          e.preventDefault();
-          selectFloor();
-          break;
         case 'ArrowUp':
         case 'w':
           moveTargetOrGroup(activePart, 0, 0, -MOVE_STEP);
@@ -7568,6 +7621,18 @@ export default function ThreeCanvas({
 
     function onPointerDown(e) {
       if (readOnly) return;
+      if (e.button === 2 && pickables.length) {
+        updateMouseFromEvent(e);
+        raycaster.setFromCamera(mouse, camera);
+        const secondaryHits = raycaster.intersectObjects(pickables, true);
+        const secondaryRoot = secondaryHits.length
+          ? getRootPartObject(secondaryHits[0].object)
+          : null;
+        if (secondaryRoot?.userData?.isFloor) {
+          onFloatingEditorRequest?.({ open: false });
+        }
+      }
+      if (e.button !== 0) return;
 
       updateMouseFromEvent(e);
       raycaster.setFromCamera(mouse, camera);
@@ -7613,6 +7678,7 @@ export default function ThreeCanvas({
       const hitObj = hits[0].object; // Mesh real clickeado
       const root = getRootPartObject(hitObj);
       if (!root) return;
+      if (root.userData?.isFloor) return;
 
       const rootId = root.userData?.instanceId || root.uuid;
       const selectionTargetIds = resolveSelectionTargets(hitObj);
@@ -7648,12 +7714,6 @@ export default function ThreeCanvas({
         return;
       }
 
-      if (root?.userData?.lockedMovement) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
       //para propiedades flotantes p popup:
       onFloatingEditorRequest?.({
         open: true,
@@ -7669,12 +7729,19 @@ export default function ThreeCanvas({
           instanceId: root.userData?.instanceId || null,
           description: root.userData?.description || null,
           showGrid: root.userData?.showGrid !== false,
+          gridSize: root.userData?.isFloor ? root.userData?.gridSize || 0.1 : undefined,
           mepalVariant: root.userData?.mepalVariant || 'normal',
           almacenVariant: root.userData?.almacenVariant || null,
           almacenCategory: root.userData?.almacenCategory || null,
           almacenVariants: root.userData?.almacenVariants || null,
         },
       });
+
+      if (root?.userData?.lockedMovement) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
 
       const isAssemblyRoot =
         root?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || root?.userData?.type === 'koncisa-plus';
@@ -7887,6 +7954,18 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    function onDoubleClick(e) {
+      if (readOnly || e.button !== 0 || !pickables.length) return;
+
+      updateMouseFromEvent(e);
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(pickables, true);
+      if (!hits.length) return;
+
+      const root = getRootPartObject(hits[0].object);
+      if (root?.userData?.isFloor) selectFloor();
+    }
+
     function onPointerCancel(e) {
       endEdukHandleDrag(e.pointerId);
       if (isRotating3D) {
@@ -7900,6 +7979,7 @@ export default function ThreeCanvas({
     renderer.domElement.addEventListener('pointerdown', onPointerDown, true);
     renderer.domElement.addEventListener('pointermove', onPointerMove, true);
     renderer.domElement.addEventListener('pointerup', onPointerUp, true);
+    renderer.domElement.addEventListener('dblclick', onDoubleClick, true);
     renderer.domElement.addEventListener('lostpointercapture', onPointerCancel, true);
 
     window.addEventListener('pointerup', onPointerUp);
@@ -10424,6 +10504,7 @@ export default function ThreeCanvas({
         //activePart.userData.materialDef = def;
 
         applyMaterialToObject3D(activePart, code, def);
+        if (activePart.userData?.isFloor) applyFloorVisualState();
 
         activePart.userData.finishes = null;
         activePart.userData.activeSubKey = null;
@@ -10435,7 +10516,14 @@ export default function ThreeCanvas({
           dimM: activePart.userData?.dimM || null,
           materialCode: activePart.userData?.materialCode ?? null,
           materialBase: activePart.userData?.materialBase ?? null,
+          generico: activePart.userData?.generico ?? null,
           line: activePart.userData?.line ?? null,
+          kind: activePart.userData?.kind ?? null,
+          instanceId: activePart.userData?.instanceId ?? null,
+          showGrid: activePart.userData?.isFloor
+            ? activePart.userData?.showGrid !== false
+            : undefined,
+          gridSize: activePart.userData?.isFloor ? activePart.userData?.gridSize || 0.1 : undefined,
           subKey: null,
           subName: null,
           subMaterialCode: null,
@@ -10529,6 +10617,11 @@ export default function ThreeCanvas({
       const data = {
         version: '1.1',
         units: 'm',
+        floor: {
+          showGrid: floorMeshRef.current?.userData?.showGrid !== false,
+          gridSize: floorMeshRef.current?.userData?.gridSize || 0.1,
+          materialCode: floorMeshRef.current?.userData?.materialCode || null,
+        },
         camera: {
           position: camera.position.toArray(),
           target: controls.target.toArray(),
@@ -10595,6 +10688,7 @@ export default function ThreeCanvas({
       renderer.domElement.removeEventListener('pointerdown', onPointerDown, true);
       renderer.domElement.removeEventListener('pointermove', onPointerMove, true);
       renderer.domElement.removeEventListener('pointerup', onPointerUp, true);
+      renderer.domElement.removeEventListener('dblclick', onDoubleClick, true);
       renderer.domElement.removeEventListener('lostpointercapture', onPointerCancel, true);
 
       window.removeEventListener('pointerup', onPointerUp);
