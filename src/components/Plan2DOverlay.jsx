@@ -10,6 +10,7 @@ import {
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
+import { drawFurnitureFootprint2D } from '../plan2d/furnitureRenderer2D';
 import {
   classifySelectionWindow,
   collectSelectionCandidates,
@@ -2196,9 +2197,6 @@ export default function Plan2DOverlay({
 
       for (const p of snap) {
         const [px, py] = toCanvasLocal(p.x, p.z);
-        const rw = p.w * s;
-        const rd = p.d * s;
-
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(-(p.rotY || 0));
@@ -2209,8 +2207,7 @@ export default function Plan2DOverlay({
         ctx.strokeStyle = isSel ? 'rgba(56, 194, 212, 0.95)' : 'rgba(0,0,0,0.30)';
         ctx.lineWidth = isSel ? 2.2 : 1;
 
-        ctx.beginPath();
-        ctx.rect(-rw / 2, -rd / 2, rw, rd);
+        drawFurnitureFootprint2D(ctx, p, { scale: s, invertZ });
         ctx.fill();
         ctx.stroke();
 

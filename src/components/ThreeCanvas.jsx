@@ -20,6 +20,7 @@ import { applyMaterialToObject3D, applyMaterialToMesh } from '../materials/apply
 import { exportSceneToGLTF } from '../utils/exportGLTF';
 
 import { exportPlanToDXF } from '../utils/exportDXF';
+import { getFootprint2D } from '../plan2d/extractFootprint2D';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
@@ -1209,6 +1210,7 @@ export default function ThreeCanvas({
               type: obj.userData?.type || 'superficie',
 
               subtype: obj.userData?.subtype || null,
+              footprint: getFootprint2D(obj, { fallbackBounds: localBounds }),
             };
           }
 
@@ -1248,11 +1250,13 @@ export default function ThreeCanvas({
               rotY: Number(worldEuler.y || 0),
 
               kind: obj.userData?.kind || 'PART',
+              footprint: getFootprint2D(obj, { fallbackBounds: b }),
             };
           }
 
           const computedBounds = computeBounds2D(obj);
           if (computedBounds) {
+            const footprint = getFootprint2D(obj, { fallbackBounds: computedBounds });
             const centerWorld = computedBounds.localCenter.clone().applyMatrix4(obj.matrixWorld);
             const worldScale = obj.getWorldScale(new THREE.Vector3());
             const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
@@ -1267,6 +1271,7 @@ export default function ThreeCanvas({
               d: Math.max(0.001, computedBounds.sizeLocal.z * Math.abs(worldScale.z)),
               rotY: Number(worldRotY || 0),
               kind: obj.userData?.kind || 'PART',
+              footprint,
             };
           }
 
@@ -1276,6 +1281,12 @@ export default function ThreeCanvas({
 
           box.getSize(size);
           box.getCenter(center);
+          const footprint = getFootprint2D(obj, {
+            fallbackBounds: {
+              localCenter: [0, 0, 0],
+              sizeLocal: [size.x, size.y, size.z],
+            },
+          });
 
           return {
             id: obj.userData?.instanceId || obj.uuid,
@@ -1292,6 +1303,7 @@ export default function ThreeCanvas({
             rotY: 0,
 
             kind: obj.userData?.kind || 'PART',
+            footprint,
           };
         })
         .filter(Boolean);
