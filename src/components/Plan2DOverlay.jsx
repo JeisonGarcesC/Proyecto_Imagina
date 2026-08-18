@@ -185,10 +185,14 @@ function createDimensionSnapReference(resolved) {
   };
 }
 
+const EMPTY_DETAILED_2D_IDS = new Set();
+
 export default function Plan2DOverlay({
   historyApi,
   getSnapshot,
   selectedIds = [],
+  detailed2DIds = EMPTY_DETAILED_2D_IDS,
+  onDetailed2DIdsChange,
   moveAsGroup = false,
   onPickIds,
   resolveSelectionTargetIds,
@@ -470,7 +474,6 @@ export default function Plan2DOverlay({
   // visible toggle
   const [visible, setVisible] = useState(defaultVisible);
   const [viewMode, setViewMode] = useState('normal');
-  const [detailed2DIds, setDetailed2DIds] = useState(() => new Set());
   const latestSnapshotRef = useRef([]);
 
   // draft muros
@@ -2523,8 +2526,8 @@ export default function Plan2DOverlay({
           type="button"
           disabled={!selectedDetailKeys.length}
           onClick={() =>
-            setDetailed2DIds((current) =>
-              updateDetailed2DIds(current, selectedDetailKeys, !selectedAreDetailed)
+            onDetailed2DIdsChange?.(
+              updateDetailed2DIds(detailed2DIds, selectedDetailKeys, !selectedAreDetailed)
             )
           }
           aria-pressed={selectedAreDetailed}

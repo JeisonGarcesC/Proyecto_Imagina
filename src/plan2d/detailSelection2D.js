@@ -35,6 +35,10 @@ export function is2DDetailEnabled(part, detailed2DIds) {
   return Boolean(key && detailed2DIds?.has?.(key));
 }
 
+export function normalizeDetailed2DIds(detailed2DIds) {
+  return detailed2DIds instanceof Set ? detailed2DIds : new Set(detailed2DIds || []);
+}
+
 export function updateDetailed2DIds(currentIds, keys, enabled) {
   const next = new Set(currentIds || []);
   (keys || []).map(stableId).filter(Boolean).forEach((key) => {

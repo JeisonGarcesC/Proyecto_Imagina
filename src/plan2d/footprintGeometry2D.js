@@ -175,6 +175,42 @@ export function buildFootprintWorldGeometry(part, options) {
   };
 }
 
+export function buildDetailedFootprintWorldShapes(part) {
+  const shapes = part?.detailedFootprint?.detailedShapes;
+  const scale = resolveFootprintScale(part, part?.footprint);
+  const centerX = Number(part?.x);
+  const centerZ = Number(part?.z);
+  if (!Array.isArray(shapes) || !shapes.length || !scale) return [];
+  if (!Number.isFinite(centerX) || !Number.isFinite(centerZ)) return [];
+
+  const footprintCenterX = finiteNumber(part?.footprint?.center?.x);
+  const footprintCenterZ = finiteNumber(part?.footprint?.center?.z);
+  const rotation = finiteNumber(part?.rotY);
+  const cosine = Math.cos(rotation);
+  const sine = Math.sin(rotation);
+
+  return shapes.flatMap((shape) => {
+    if (!Array.isArray(shape?.points) || shape.points.length < 2) return [];
+    const points = shape.points.map((point) => {
+      const x = Number(point?.x);
+      const z = Number(point?.z);
+      if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+      return transformPoint(
+        {
+          x: (x - footprintCenterX) * scale.x,
+          z: (z - footprintCenterZ) * scale.z,
+        },
+        centerX,
+        centerZ,
+        cosine,
+        sine
+      );
+    });
+    if (!points.every(Boolean)) return [];
+    return [{ points, closed: shape.closed !== false, role: shape.role || null }];
+  });
+}
+
 function orientation(a, b, point) {
   return (b.x - a.x) * (point.z - a.z) - (b.z - a.z) * (point.x - a.x);
 }

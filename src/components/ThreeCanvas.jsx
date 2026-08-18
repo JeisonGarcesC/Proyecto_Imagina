@@ -4473,11 +4473,12 @@ export default function ThreeCanvas({
       swapEdukShelfHeight,
       swapEdukVariant,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
-      exportDXF: () => {
-        const snap = getPartsSnapshot2D();
+      exportDXF: ({ detailed2DIds = [] } = {}) => {
+        const snap = getPartsSnapshot2D({ detailed2DIds });
         exportPlanToDXF({
           walls,
           partsSnapshot: snap,
+          detailed2DIds,
           fileName: 'proyecto.dxf',
         });
       },

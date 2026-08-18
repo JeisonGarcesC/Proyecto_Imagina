@@ -1,4 +1,13 @@
 // src/utils/planExport.js
+import { FOOTPRINT2D_TYPES } from '../plan2d/footprint2D.js';
+import {
+  buildDetailedFootprintWorldShapes,
+  buildFootprintWorldGeometry,
+} from '../plan2d/footprintGeometry2D.js';
+import {
+  is2DDetailEnabled,
+  normalizeDetailed2DIds,
+} from '../plan2d/detailSelection2D.js';
 
 function safeNum(n, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
@@ -11,14 +20,25 @@ function boundsFromData(parts = [], walls = []) {
     maxZ = -Infinity;
 
   for (const p of parts) {
-    const x = safeNum(p.x);
-    const z = safeNum(p.z);
-    const w = Math.max(0, safeNum(p.w));
-    const d = Math.max(0, safeNum(p.d));
-    minX = Math.min(minX, x - w / 2);
-    maxX = Math.max(maxX, x + w / 2);
-    minZ = Math.min(minZ, z - d / 2);
-    maxZ = Math.max(maxZ, z + d / 2);
+    const geometry = buildFootprintWorldGeometry(p);
+    const vertices = geometry?.vertices || [];
+    if (vertices.length >= 3) {
+      vertices.forEach((point) => {
+        minX = Math.min(minX, point.x);
+        maxX = Math.max(maxX, point.x);
+        minZ = Math.min(minZ, point.z);
+        maxZ = Math.max(maxZ, point.z);
+      });
+    } else {
+      const x = safeNum(p.x);
+      const z = safeNum(p.z);
+      const w = Math.max(0, safeNum(p.w));
+      const d = Math.max(0, safeNum(p.d));
+      minX = Math.min(minX, x - w / 2);
+      maxX = Math.max(maxX, x + w / 2);
+      minZ = Math.min(minZ, z - d / 2);
+      maxZ = Math.max(maxZ, z + d / 2);
+    }
   }
 
   for (const w of walls || []) {
@@ -54,7 +74,9 @@ export function generatePlanSvg({
   paddingM = 0.25,
   includeDims = true,
   title = 'Planta 2D',
+  detailed2DIds = [],
 } = {}) {
+  const detailIds = normalizeDetailed2DIds(detailed2DIds);
   const b = boundsFromData(parts, walls);
   const pad = paddingM;
   const minX = b.minX - pad;
@@ -114,15 +136,62 @@ export function generatePlanSvg({
 
   const partEls = (parts || [])
     .map((p) => {
+      const geometry = buildFootprintWorldGeometry(p);
       const cx = X(p.x);
       const cy = Y(p.z);
       const w = Math.max(0.01, safeNum(p.w)) * pxPerM;
       const d = Math.max(0.01, safeNum(p.d)) * pxPerM;
       const rot = (-safeNum(p.rotY, 0) * 180) / Math.PI;
       const id = p.id ? esc(p.id) : '';
+      const detailedShapes = is2DDetailEnabled(p, detailIds)
+        ? buildDetailedFootprintWorldShapes(p)
+        : [];
+      if (detailedShapes.length) {
+        const shapes = detailedShapes
+          .map((detailedShape) => {
+            const points = detailedShape.points
+              .map((point) => `${X(point.x).toFixed(2)},${Y(point.z).toFixed(2)}`)
+              .join(' ');
+            const tag = detailedShape.closed ? 'polygon' : 'polyline';
+            return `<${tag} points="${points}" fill="${detailedShape.closed ? 'rgba(0,0,0,0.08)' : 'none'}" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
+          })
+          .join('\n  ');
+        return `
+  ${shapes}
+  ${id ? `<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}`;
+      }
+      let shape = `<rect x="${(-w / 2).toFixed(2)}" y="${(-d / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${d.toFixed(2)}" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
+
+      if (geometry && !geometry.fallback) {
+        if (
+          geometry.type === FOOTPRINT2D_TYPES.POLYGON ||
+          geometry.type === FOOTPRINT2D_TYPES.TRIANGLE
+        ) {
+          const points = geometry.vertices
+            .map((point) => `${X(point.x).toFixed(2)},${Y(point.z).toFixed(2)}`)
+            .join(' ');
+          shape = `<polygon points="${points}" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
+        } else if (
+          geometry.type === FOOTPRINT2D_TYPES.CIRCLE ||
+          geometry.type === FOOTPRINT2D_TYPES.ELLIPSE
+        ) {
+          const radiusX = geometry.radii.x * pxPerM;
+          const radiusZ = geometry.radii.z * pxPerM;
+          const isCircle = Math.abs(radiusX - radiusZ) <= 1e-6;
+          shape = isCircle
+            ? `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${radiusX.toFixed(2)}" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`
+            : `<ellipse cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" rx="${radiusX.toFixed(2)}" ry="${radiusZ.toFixed(2)}" transform="rotate(${rot.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
+        }
+      }
+
+      if (shape.startsWith('<polygon') || shape.startsWith('<circle') || shape.startsWith('<ellipse')) {
+        return `
+  ${shape}
+  ${id ? `<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}`;
+      }
       return `
   <g transform="translate(${cx.toFixed(2)} ${cy.toFixed(2)}) rotate(${rot.toFixed(2)})">
-    <rect x="${(-w / 2).toFixed(2)}" y="${(-d / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${d.toFixed(2)}" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />
+    ${shape}
     ${id ? `<text x="0" y="0" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}
   </g>`;
     })

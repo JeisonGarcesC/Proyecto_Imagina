@@ -262,8 +262,8 @@ export function getPasacablesConfig({
       let mover = baseX - 50 + 62;
       console.log('position pasacable: ', position);
 
-      if (position === 'LEFT') mover = -600 + 120 - 14;
-      if (position === 'RIGHT') mover = 600 - 110 + 27;
+      if (position === 'LEFT') mover = -494;
+      if (position === 'RIGHT') mover = 517;
 
       out.push({
         index: i,
@@ -277,28 +277,33 @@ export function getPasacablesConfig({
     if (tipoPuesto === 'doble') {
       switch (position) {
         case 'CENTER':
-          out.push({ index: `${i}_f`, x: baseX - 38, y: 690, z: -300 + 165, rotY: 0 });
-          out.push({ index: `${i}_b`, x: baseX + 38, y: 690, z: 300 - 165, rotY: Math.PI });
+          out.push({ index: `${i}_f`, x: baseX - 38, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_b`, x: baseX + 38, y: 690, z: 111, rotY: Math.PI });
           break;
 
         case 'LEFT_RIGHT':
-          out.push({ index: `${i}_l`, x: baseX, y: 690, z: -300 + 165, rotY: 0 });
-          out.push({ index: `${i}_r`, x: baseX, y: 690, z: 300 - 165, rotY: Math.PI });
+          out.push({ index: `${i}_l`, x: baseX - 544, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_r`, x: baseX + 555, y: 690, z: 111, rotY: Math.PI });
+          break;
+
+        case 'RIGHT_LEFT':
+          out.push({ index: `${i}_l`, x: baseX + 479, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_r`, x: baseX - 468, y: 690, z: 111, rotY: Math.PI });
           break;
 
         case 'LEFT_LEFT':
-          out.push({ index: `${i}_l1`, x: baseX, y: 690, z: -300 + 165, rotY: 0 });
-          out.push({ index: `${i}_l2`, x: baseX, y: 690, z: 300 - 165, rotY: Math.PI });
+          out.push({ index: `${i}_l1`, x: baseX - 544, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_l2`, x: baseX - 468, y: 690, z: 111, rotY: Math.PI });
           break;
 
         case 'RIGHT_RIGHT':
-          out.push({ index: `${i}_r1`, x: baseX, y: 690, z: -300 + 165, rotY: 0 });
-          out.push({ index: `${i}_r2`, x: baseX, y: 690, z: 300 - 165, rotY: Math.PI });
+          out.push({ index: `${i}_r1`, x: baseX + 479, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_r2`, x: baseX + 555, y: 690, z: 111, rotY: Math.PI });
           break;
 
         default:
-          out.push({ index: `${i}_f`, x: baseX, y: 690, z: -300 + 165, rotY: 0 });
-          out.push({ index: `${i}_b`, x: baseX, y: 690, z: 300 - 165, rotY: Math.PI });
+          out.push({ index: `${i}_f`, x: baseX - 38, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_b`, x: baseX + 38, y: 690, z: 111, rotY: Math.PI });
           break;
       }
     }
