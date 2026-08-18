@@ -1,15 +1,24 @@
 // src/utils/export/exportDXF.js
 import Drawing from 'dxf-writer';
+import { FOOTPRINT2D_TYPES } from '../plan2d/footprint2D.js';
+import {
+  buildDetailedFootprintWorldShapes,
+  buildFootprintWorldGeometry,
+} from '../plan2d/footprintGeometry2D.js';
+import {
+  is2DDetailEnabled,
+  normalizeDetailed2DIds,
+} from '../plan2d/detailSelection2D.js';
 
 /**
  * Exporta planta 2D a DXF:
  * - walls[]: [{id, points:[{x,z}], thickness}]
  * - partsSnapshot[]: [{id, codigoPT, x, z, w, d, rotY}]
  */
-export function exportPlanToDXF({
+export function generatePlanDxf({
   walls = [],
   partsSnapshot = [],
-  filename = 'planta.dxf',
+  detailed2DIds = [],
   layers = {
     walls: 'WALLS',
     parts: 'PARTS',
@@ -17,6 +26,7 @@ export function exportPlanToDXF({
   },
 } = {}) {
   const d = new Drawing();
+  const detailIds = normalizeDetailed2DIds(detailed2DIds);
 
   // Capas
   d.addLayer(layers.walls, Drawing.ACI.BLUE, 'CONTINUOUS');
@@ -24,43 +34,12 @@ export function exportPlanToDXF({
   d.addLayer(layers.text, Drawing.ACI.WHITE, 'CONTINUOUS');
 
   // Helpers
-  const addPolyline = (pts, layer) => {
+  const addPolyline = (pts, layer, closed = false) => {
     if (!pts || pts.length < 2) return;
     d.setActiveLayer(layer);
     // dxf-writer trabaja en XY, nosotros mapeamos: X = x, Y = z
     const xy = pts.map((p) => [p.x, p.z]);
-    d.drawPolyline(xy, false); // false = no cerrada
-  };
-
-  const addRect = (cx, cz, w, dDepth, rotY, layer) => {
-    // rect en XZ, rotación alrededor de Y
-    const hw = w / 2;
-    const hd = dDepth / 2;
-
-    const corners = [
-      { x: -hw, z: -hd },
-      { x: hw, z: -hd },
-      { x: hw, z: hd },
-      { x: -hw, z: hd },
-    ];
-
-    const c = Math.cos(rotY || 0);
-    const s = Math.sin(rotY || 0);
-
-    const pts = corners.map((p) => {
-      const xr = p.x * c - p.z * s;
-      const zr = p.x * s + p.z * c;
-      return { x: cx + xr, z: cz + zr };
-    });
-
-    // cerrar
-    pts.push(pts[0]);
-
-    d.setActiveLayer(layer);
-    d.drawPolyline(
-      pts.map((p) => [p.x, p.z]),
-      false
-    );
+    d.drawPolyline(xy, closed);
   };
 
   const addText = (text, x, z, height = 0.12, layer = layers.text) => {
@@ -78,18 +57,53 @@ export function exportPlanToDXF({
 
   // 2) Piezas
   for (const p of partsSnapshot || []) {
-    const cx = p.x;
-    const cz = p.z;
-    const ww = Math.max(0.001, p.w);
-    const dd = Math.max(0.001, p.d);
-    addRect(cx, cz, ww, dd, p.rotY || 0, layers.parts);
+    const geometry = buildFootprintWorldGeometry(p);
+    if (!geometry) continue;
+    const detailedShapes = is2DDetailEnabled(p, detailIds)
+      ? buildDetailedFootprintWorldShapes(p)
+      : [];
+    d.setActiveLayer(layers.parts);
+    if (detailedShapes.length) {
+      detailedShapes.forEach((shape) => addPolyline(shape.points, layers.parts, shape.closed));
+    } else if (
+      (geometry.type === FOOTPRINT2D_TYPES.CIRCLE ||
+        geometry.type === FOOTPRINT2D_TYPES.ELLIPSE) &&
+      !geometry.fallback
+    ) {
+      const radiusX = geometry.radii.x;
+      const radiusZ = geometry.radii.z;
+      if (Math.abs(radiusX - radiusZ) <= 1e-9) {
+        d.drawCircle(geometry.center.x, geometry.center.z, radiusX);
+      } else {
+        const rotation = Number.isFinite(Number(p.rotY)) ? Number(p.rotY) : 0;
+        const xIsMajor = radiusX >= radiusZ;
+        const majorRadius = xIsMajor ? radiusX : radiusZ;
+        const minorRadius = xIsMajor ? radiusZ : radiusX;
+        const axisAngle = rotation + (xIsMajor ? 0 : Math.PI / 2);
+        d.drawEllipse(
+          geometry.center.x,
+          geometry.center.z,
+          Math.cos(axisAngle) * majorRadius,
+          Math.sin(axisAngle) * majorRadius,
+          minorRadius / majorRadius
+        );
+      }
+    } else {
+      addPolyline(geometry.vertices, layers.parts, true);
+    }
 
     // texto (código)
-    if (p.codigoPT) addText(p.codigoPT, cx, cz, 0.12, layers.text);
+    if (p.codigoPT) {
+      addText(p.codigoPT, geometry.center.x, geometry.center.z, 0.12, layers.text);
+    }
   }
 
-  // Descargar
-  const blob = new Blob([d.toDxfString()], { type: 'application/dxf' });
+  return d.toDxfString();
+}
+
+export function exportPlanToDXF(options = {}) {
+  const filename = options.filename || 'planta.dxf';
+  const blob = new Blob([generatePlanDxf(options)], { type: 'application/dxf' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = filename;

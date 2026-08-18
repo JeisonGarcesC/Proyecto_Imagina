@@ -1073,6 +1073,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
                 >
                   <option value="CENTER">Centro</option>
                   <option value="LEFT_RIGHT">Izq - Der</option>
+                  <option value="RIGHT_LEFT">Der - Izq</option>
                   <option value="LEFT_LEFT">Izq - Izq</option>
                   <option value="RIGHT_RIGHT">Der - Der</option>
                 </select>

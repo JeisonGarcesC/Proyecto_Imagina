@@ -329,6 +329,7 @@ export function buildKoncisaPlus(config = {}) {
     });
 
     pasacables.forEach((p) => {
+      //console.log('p.y: ', p.y);
       parts.push(
         createPasacable({
           groupId,

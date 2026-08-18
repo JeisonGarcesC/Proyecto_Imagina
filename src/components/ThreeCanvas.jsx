@@ -10,6 +10,13 @@ import { createSurfaceMesh, createSurfaceMeta } from '../factories/surfaceFactor
 import { createHistoryManager, HISTORY_ACTION_TYPES } from '../history/historyManager';
 import { CreateObjectsCommand } from '../history/CreateObjectsCommand';
 import { setClipboard } from '../clipboard/clipboardManager';
+import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
+import { resolveComponentKey } from '../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe';
+import { loadPersistedEntity } from '../core/persistence/entityLoaders';
+import {
+  buildVersionedProject,
+  isVersionedEntityProject,
+} from '../core/persistence/projectPersistence';
 
 import { MODEL_TYPES } from '../catalog/catalogData';
 
@@ -20,6 +27,13 @@ import { applyMaterialToObject3D, applyMaterialToMesh } from '../materials/apply
 import { exportSceneToGLTF } from '../utils/exportGLTF';
 
 import { exportPlanToDXF } from '../utils/exportDXF';
+import { getFootprint2D } from '../plan2d/extractFootprint2D';
+import {
+  extractDetailedFootprint2D,
+  getDetailedFootprint2DCacheEntry,
+  hasDetailedFootprint2DCacheEntry,
+} from '../plan2d/extractDetailedFootprint2D';
+import { get2DDetailKey } from '../plan2d/detailSelection2D';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
@@ -43,7 +57,10 @@ import {
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 
-import { createKoncisaPrivacyPanelProcedural, panelHasCanto } from '../mepal/koncisaPlus/parts/pantallas';
+import {
+  createKoncisaPrivacyPanelProcedural,
+  panelHasCanto,
+} from '../mepal/koncisaPlus/parts/pantallas';
 
 import {
   resolvePedestalFromCostado,
@@ -560,7 +577,11 @@ export default function ThreeCanvas({
       const yaw = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
 
       const useVertical = context.type === 'EDUK_HEIGHT';
-      edukTableHandleGroup.position.set(center.x, useVertical ? center.y : box.max.y + yOffset, center.z);
+      edukTableHandleGroup.position.set(
+        center.x,
+        useVertical ? center.y : box.max.y + yOffset,
+        center.z
+      );
       edukTableHandleGroup.rotation.set(0, yaw, 0);
 
       edukWidthHandlePrev.visible = context.type === 'EDUK_WIDTH';
@@ -982,7 +1003,9 @@ export default function ThreeCanvas({
       }
 
       //const divisions = Math.max(10, Math.round(size));// de 1 metro en 1 metro
-      const cellSize = 0.1; // 10 cm
+      const configuredGridSize = Number(floorMesh.userData?.gridSize);
+      const cellSize =
+        Number.isFinite(configuredGridSize) && configuredGridSize > 0 ? configuredGridSize : 0.1;
       const divisions = Math.max(10, Math.round(size / cellSize));
       //const newGrid = new THREE.GridHelper(size, divisions, 0x999999, 0xdddddd);
       const newGrid = new THREE.GridHelper(size, divisions, 0xbcbcbc, 0xe9e9e9);
@@ -995,17 +1018,25 @@ export default function ThreeCanvas({
       const floor = floorMeshRef.current;
       if (!floor) return false;
 
+      const nextPatch = { ...patch };
+      if (Object.hasOwn(nextPatch, 'gridSize')) {
+        const gridSize = Number(nextPatch.gridSize);
+        if (!Number.isFinite(gridSize) || gridSize <= 0) return false;
+        nextPatch.gridSize = gridSize;
+      }
+
       floor.userData = {
         ...floor.userData,
-        ...patch,
+        ...nextPatch,
       };
 
-      applyFloorVisualState();
+      if (Object.hasOwn(nextPatch, 'gridSize')) refreshFloorAndGrid();
+      else applyFloorVisualState();
       setActivePart(floor);
 
       onFloatingEditorRequest?.({
         open: true,
-        x: 120,
+        x: 640,
         y: 120,
         part: {
           code: floor.userData?.codigoPT || floor.userData?.code || 'FLOOR_MAIN',
@@ -1017,6 +1048,7 @@ export default function ThreeCanvas({
           instanceId: floor.userData?.instanceId || 'FLOOR_MAIN',
           description: floor.userData?.description || 'Piso principal',
           showGrid: floor.userData?.showGrid !== false,
+          gridSize: floor.userData?.gridSize || 0.1,
         },
       });
 
@@ -1048,12 +1080,13 @@ export default function ThreeCanvas({
       excludeFromBOM: true,
       isFloor: true,
       showGrid: true,
+      gridSize: 0.1,
     };
 
     scene.add(floorMesh);
     floorMeshRef.current = floorMesh;
     // importante: que pueda seleccionarse
-    //pickables.push(floorMesh);
+    pickables.push(floorMesh);
 
     // bounds iniciales vacíos / mínimos
     const initialBounds = computeSceneXZBounds([], walls);
@@ -1091,6 +1124,15 @@ export default function ThreeCanvas({
       const floor = floorMeshRef.current;
       if (!floor) return;
 
+      const hasFinish = Boolean(floor.userData?.materialCode);
+      const floorMaterials = Array.isArray(floor.material) ? floor.material : [floor.material];
+      floorMaterials.filter(Boolean).forEach((material) => {
+        material.transparent = !hasFinish;
+        material.opacity = hasFinish ? 1 : 0;
+        material.depthWrite = hasFinish;
+        material.needsUpdate = true;
+      });
+
       const grid = gridHelperRef.current;
       if (grid) {
         grid.visible = floor.userData?.showGrid !== false;
@@ -1109,6 +1151,8 @@ export default function ThreeCanvas({
       const floor = floorMeshRef.current;
       grid.visible = floor?.userData?.showGrid !== false;
     }
+
+    applyFloorVisualState();
 
     function clearAdditionalSelectionHelpers() {
       additionalSelectionHelpers.forEach((helper) => {
@@ -1211,6 +1255,7 @@ export default function ThreeCanvas({
         edukToma: edukWidthContext?.toma || null,
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
+        gridSize: obj.userData?.isFloor ? obj.userData?.gridSize || 0.1 : undefined,
       });
     }
 
@@ -1222,7 +1267,7 @@ export default function ThreeCanvas({
 
       onFloatingEditorRequest?.({
         open: true,
-        x: 120,
+        x: 340,
         y: 120,
         part: {
           code: floor.userData?.codigoPT || floor.userData?.code || 'FLOOR_MAIN',
@@ -1234,6 +1279,7 @@ export default function ThreeCanvas({
           instanceId: floor.userData?.instanceId || 'FLOOR_MAIN',
           description: floor.userData?.description || 'Piso principal',
           showGrid: floor.userData?.showGrid !== false,
+          gridSize: floor.userData?.gridSize || 0.1,
         },
       });
 
@@ -1353,12 +1399,29 @@ export default function ThreeCanvas({
     }
 */
 
-    function getPartsSnapshot2D() {
+    function getPartsSnapshot2D(options = {}) {
+      const requestedDetailKeys = new Set(options?.detailed2DIds || []);
+      let detailedGenerationBudget = Math.max(
+        0,
+        Number(options?.detailedGenerationBudget) || 2
+      );
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
 
           obj.updateMatrixWorld(true);
+          const attachDetailed = (snapshot) => {
+            const detailKey = get2DDetailKey(snapshot);
+            if (!detailKey || !requestedDetailKeys.has(detailKey)) return snapshot;
+            let detailedFootprint = getDetailedFootprint2DCacheEntry(obj);
+            if (!hasDetailedFootprint2DCacheEntry(obj) && detailedGenerationBudget > 0) {
+              detailedGenerationBudget -= 1;
+              detailedFootprint = extractDetailedFootprint2D(obj, {
+                normalShape: snapshot.footprint,
+              });
+            }
+            return { ...snapshot, detailedFootprint };
+          };
 
           const objectType = String(obj.userData?.type || obj.userData?.kind || '')
             .trim()
@@ -1381,9 +1444,12 @@ export default function ThreeCanvas({
             const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
 
-            return {
+            return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
+              instanceId: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || null,
+              assemblyId: obj.userData?.assemblyId || null,
+              parentAssemblyId: obj.userData?.parentAssemblyId || null,
 
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
@@ -1400,7 +1466,8 @@ export default function ThreeCanvas({
               type: obj.userData?.type || 'superficie',
 
               subtype: obj.userData?.subtype || null,
-            };
+              footprint: getFootprint2D(obj, { fallbackBounds: localBounds }),
+            });
           }
 
           const b = obj.userData?.bounds2d;
@@ -1424,10 +1491,13 @@ export default function ThreeCanvas({
 
             const worldEuler = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ');
 
-            return {
+            return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
+              instanceId: obj.userData?.instanceId || obj.uuid,
 
               groupId: obj.userData?.groupId || null,
+              assemblyId: obj.userData?.assemblyId || null,
+              parentAssemblyId: obj.userData?.parentAssemblyId || null,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
               x: centerWorld.x,
@@ -1439,18 +1509,23 @@ export default function ThreeCanvas({
               rotY: Number(worldEuler.y || 0),
 
               kind: obj.userData?.kind || 'PART',
-            };
+              footprint: getFootprint2D(obj, { fallbackBounds: b }),
+            });
           }
 
           const computedBounds = computeBounds2D(obj);
           if (computedBounds) {
+            const footprint = getFootprint2D(obj, { fallbackBounds: computedBounds });
             const centerWorld = computedBounds.localCenter.clone().applyMatrix4(obj.matrixWorld);
             const worldScale = obj.getWorldScale(new THREE.Vector3());
             const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
-            return {
+            return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
+              instanceId: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || null,
+              assemblyId: obj.userData?.assemblyId || null,
+              parentAssemblyId: obj.userData?.parentAssemblyId || null,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
               x: centerWorld.x,
               z: centerWorld.z,
@@ -1458,7 +1533,8 @@ export default function ThreeCanvas({
               d: Math.max(0.001, computedBounds.sizeLocal.z * Math.abs(worldScale.z)),
               rotY: Number(worldRotY || 0),
               kind: obj.userData?.kind || 'PART',
-            };
+              footprint,
+            });
           }
 
           const box = new THREE.Box3().setFromObject(obj);
@@ -1467,10 +1543,19 @@ export default function ThreeCanvas({
 
           box.getSize(size);
           box.getCenter(center);
+          const footprint = getFootprint2D(obj, {
+            fallbackBounds: {
+              localCenter: [0, 0, 0],
+              sizeLocal: [size.x, size.y, size.z],
+            },
+          });
 
-          return {
+          return attachDetailed({
             id: obj.userData?.instanceId || obj.uuid,
+            instanceId: obj.userData?.instanceId || obj.uuid,
             groupId: obj.userData?.groupId || null,
+            assemblyId: obj.userData?.assemblyId || null,
+            parentAssemblyId: obj.userData?.parentAssemblyId || null,
 
             codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
@@ -1483,7 +1568,8 @@ export default function ThreeCanvas({
             rotY: 0,
 
             kind: obj.userData?.kind || 'PART',
-          };
+            footprint,
+          });
         })
         .filter(Boolean);
     }
@@ -2213,6 +2299,7 @@ export default function ThreeCanvas({
 
         // 2. Priorizar contenedores/raíces de ensamblaje
         if (
+          kind === 'FLOOR_VISUAL' ||
           kind === 'TYPOLOGY' ||
           kind === 'CHAIR' ||
           kind === 'ARES' ||
@@ -2307,10 +2394,7 @@ export default function ThreeCanvas({
       return getAssemblyObject(object);
     }
 
-    function resolveSelectionTargets(
-      object,
-      { asGroup = moveAsGroupRef.current } = {}
-    ) {
+    function resolveSelectionTargets(object, { asGroup = moveAsGroupRef.current } = {}) {
       const physicalRoot = getRootPartObject(object);
       const physicalId = physicalRoot?.userData?.instanceId || physicalRoot?.uuid;
 
@@ -2627,6 +2711,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function loadExistingGlb(possibleSrcs) {
@@ -2781,6 +2866,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addChair(codigoSilla, options = {}) {
@@ -2877,6 +2963,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addAres(codigoAres, options = {}) {
@@ -2917,6 +3004,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addPlant(plantName, options = {}) {
@@ -3030,6 +3118,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addOfficeAccessory(accessoryName, options = {}) {
@@ -3143,6 +3232,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addMepalSalud(codigoMepal, options = {}) {
@@ -3155,6 +3245,7 @@ export default function ThreeCanvas({
         result = await createSaludInstance({
           codigoPT: codigo,
           country: countryRef.current,
+          variant: options?.variant,
           loadGlb: loadExistingGlb,
         });
       } catch (error) {
@@ -3181,6 +3272,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addMepalTekSocial(codigoMepalTekSocial, options = {}) {
@@ -3219,6 +3311,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addClak(codigoClak, options = {}) {
@@ -3257,6 +3350,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addEduk(codigoEduk, options = {}) {
@@ -3295,6 +3389,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(obj);
       refreshFloorAndGrid();
+      return obj;
     }
 
     async function addZen(codigoPT, options = {}) {
@@ -3348,6 +3443,7 @@ export default function ThreeCanvas({
 
       if (parts.length === 1) frameObject(object);
       refreshFloorAndGrid();
+      return object;
     }
 
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
@@ -3791,9 +3887,7 @@ export default function ThreeCanvas({
         }
 
         const currentOptions = getClakVariantOptionsByCode(currentCode) || [];
-        const sameFamily = currentOptions.some(
-          (it) => normalizeClakPuffCode(it.code) === nextCode
-        );
+        const sameFamily = currentOptions.some((it) => normalizeClakPuffCode(it.code) === nextCode);
         if (!sameFamily) {
           console.warn(
             '[swapClakVariant] Cambio entre familias no permitido:',
@@ -3988,7 +4082,11 @@ export default function ThreeCanvas({
 
       const targetCode = resolveEdukCodeBySelection(currentCode, nextSelection);
       if (!targetCode) {
-        console.warn('[swapEdukVariant] Combinación de propiedades inválida:', currentCode, nextSelection);
+        console.warn(
+          '[swapEdukVariant] Combinación de propiedades inválida:',
+          currentCode,
+          nextSelection
+        );
         return;
       }
 
@@ -4058,8 +4156,7 @@ export default function ThreeCanvas({
       try {
         const det = await getTipologiaDetalle(codigo, countryRef.current);
         if (det) {
-          await addTypology(codigo);
-          return;
+          return await addTypology(codigo);
         }
       } catch (e) {
         // si falla el fetch no bloqueamos agregar catálogo normal
@@ -4176,20 +4273,43 @@ export default function ThreeCanvas({
     function applyTransform(obj, t) {
       if (!t) return;
       if (Array.isArray(t.position)) obj.position.fromArray(t.position);
-      if (Array.isArray(t.rotation)) obj.rotation.set(t.rotation[0], t.rotation[1], t.rotation[2]);
+      if (Array.isArray(t.quaternion) && t.quaternion.length === 4) {
+        obj.quaternion.fromArray(t.quaternion);
+      } else if (Array.isArray(t.rotation)) {
+        obj.rotation.set(t.rotation[0], t.rotation[1], t.rotation[2]);
+      }
       if (Array.isArray(t.scale)) obj.scale.fromArray(t.scale);
       obj.updateMatrixWorld(true);
     }
 
     function clearProject() {
+      const koncisaAssemblies = new Set();
+      parts.forEach(({ obj }) => {
+        let current = obj?.parent || null;
+        while (current) {
+          if (current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY') {
+            koncisaAssemblies.add(current);
+            break;
+          }
+          current = current.parent || null;
+        }
+      });
+
       // remover objetos de escena
       for (const p of parts) {
-        scene.remove(p.obj);
+        if (p.obj?.parent) p.obj.parent.remove(p.obj);
+        else scene.remove(p.obj);
       }
+      koncisaAssemblies.forEach((assembly) => {
+        if (assembly.parent) assembly.parent.remove(assembly);
+        else scene.remove(assembly);
+      });
       parts.length = 0;
 
       // pickables
       pickables.length = 0;
+      const floor = floorMeshRef.current;
+      if (floor) pickables.push(floor);
 
       // selección
       activePart = null;
@@ -4206,6 +4326,7 @@ export default function ThreeCanvas({
     // ====== Eliminar piezas ======
     function disposeObject3D(root) {
       if (!root) return;
+      if (root.userData?.isFloor) return;
       root.traverse?.((n) => {
         // geometría
         if (n.geometry?.dispose) n.geometry.dispose();
@@ -4295,6 +4416,7 @@ export default function ThreeCanvas({
       if (!obj) return false;
 
       const root = getRootPartObject(obj) || obj;
+      if (root.userData?.lockedDelete) return false;
 
       const { skipFloatingChildren = false, disposeResources = true, emitBom = true } = options;
 
@@ -4381,9 +4503,25 @@ export default function ThreeCanvas({
     async function loadProject(project) {
       //console.log('[loadProject] materialsByCodeRef size:', materialsByCodeRef.current?.size || 0);
 
-      if (!project?.parts?.length) return;
+      if (!project) return;
 
       clearProject();
+
+      const floor = floorMeshRef.current;
+      if (floor) {
+        const floorState = project.floor || {};
+        const loadedGridSize = Number(floorState.gridSize);
+        floor.userData.showGrid = floorState.showGrid !== false;
+        floor.userData.gridSize =
+          Number.isFinite(loadedGridSize) && loadedGridSize > 0 ? loadedGridSize : 0.1;
+        floor.userData.materialCode = floorState.materialCode || null;
+
+        const floorMaterialDef = floor.userData.materialCode
+          ? materialsByCodeRef.current?.get?.(String(floor.userData.materialCode)) || null
+          : null;
+        applyMaterialToObject3D(floor, floor.userData.materialCode, floorMaterialDef);
+        refreshFloorAndGrid();
+      }
 
       // cámara (opcional)
       if (project.camera?.position) camera.position.fromArray(project.camera.position);
@@ -4434,8 +4572,232 @@ export default function ThreeCanvas({
         });
       }
 
+      function createPersistedSurface(entity) {
+        const dimMm = entity?.metadata?.dim;
+        if (!dimMm) throw new Error('SURFACE_MISSING_DIMENSIONS');
+
+        const codigoPT = entity.codigoPT;
+        const widthM = Number(dimMm.widthMm) / 1000;
+        const depthM = Number(dimMm.depthMm) / 1000;
+        const thicknessM = Number(dimMm.thickMm) / 1000;
+        const mesh = createSurfaceMesh({ widthM, depthM, thicknessM });
+        const meta = createSurfaceMeta({ partCode: codigoPT, widthM, depthM, thicknessM });
+        const item = catalogByCodeRef.current?.get?.(codigoPT);
+
+        mesh.userData = {
+          ...(mesh.userData || {}),
+          code: entity.code || codigoPT,
+          codigoPT,
+          kind: 'SURFACE',
+          line: entity.metadata?.line || null,
+          dim: dimMm,
+          meta,
+          units: 'm',
+          internalCode: codigoPT,
+          instanceId: entity.instanceId || mesh.uuid,
+          generico: entity.metadata?.generico || item?.generico || item?.raw?.generico || null,
+          materialBase: entity.materialBase || item?.materialBase || item?.raw?.material || 'LAMINA',
+          materialCode: entity.materialCode || null,
+          finishes: null,
+          activeSubKey: null,
+          activeSubName: null,
+        };
+
+        mesh.name = `SURFACE_${codigoPT}`;
+        scene.add(mesh);
+        parts.push({ code: codigoPT, obj: mesh });
+        pickables.push(mesh);
+        catalogCache.set(codigoPT, { base: mesh, meta });
+        return mesh;
+      }
+
+      function restorePersistedEntityState(object, entity) {
+        object.userData = {
+          ...(object.userData || {}),
+          instanceId: entity.instanceId || object.userData?.instanceId || object.uuid,
+          materialBase: entity.materialBase ?? object.userData?.materialBase ?? null,
+          materialCode: entity.materialCode ?? object.userData?.materialCode ?? null,
+        };
+        applyTransform(object, entity.transform);
+
+        if (object.userData.materialCode) {
+          const codeStr = String(object.userData.materialCode);
+          const def = materialsByCodeRef.current?.get?.(codeStr) || null;
+          applyMaterialToObject3D(object, codeStr, def);
+        }
+
+        if (entity.finishes && typeof entity.finishes === 'object') {
+          object.userData.activeSubKey = entity.activeSubKey || null;
+          object.userData.activeSubName = entity.activeSubName || null;
+          reapplyFinishesToRoot(object, entity.finishes);
+        }
+      }
+
+      async function createPersistedKoncisaPlus(entity) {
+        const partsStartIndex = parts.length;
+        let createdAssembly = null;
+        const factoryApi = {
+          createKoncisaPlusAssemblyGroup: (config) => {
+            createdAssembly = createKoncisaPlusAssemblyGroup(config);
+            return createdAssembly;
+          },
+          addSurface,
+          addExternalGlbPart,
+          addNativeBlockPart,
+          addKoncisaCostadoAssemblyPart,
+          addKoncisaLeaderSkirtAssemblyPart,
+          addNativeKoncisaDuctPart,
+          addKoncisaPrivacyPanel,
+          selectObject: (object) => object && setActivePart(object),
+        };
+
+        try {
+          const result = await createKoncisaPlusInstance({
+            api: factoryApi,
+            config: entity.config || entity.recipe?.config,
+            transformOverrides: entity.transform,
+            notify: (message) => console.warn('[loadProject] Koncisa:', message),
+          });
+          if (!result?.assembly) throw new Error('KONCISA_FACTORY_DID_NOT_RETURN_ASSEMBLY');
+
+          const createdRecords = parts.slice(partsStartIndex);
+          const expectedCount = Number(entity.recipe?.diagnostics?.componentCount || 0);
+          if (expectedCount > 0 && createdRecords.length < expectedCount) {
+            throw new Error(
+              `KONCISA_INCOMPLETE_ASSEMBLY:${createdRecords.length}/${expectedCount}`
+            );
+          }
+
+          const assembly = result.assembly;
+          const generatedAssemblyId = assembly.userData?.instanceId;
+          const generatedGroupId = assembly.userData?.groupId;
+          const assemblyId = entity.assemblyId || entity.instanceId || generatedAssemblyId;
+          const groupId = entity.groupId || assemblyId || generatedGroupId;
+
+          assembly.userData = {
+            ...(assembly.userData || {}),
+            instanceId: assemblyId,
+            code: assemblyId,
+            codigoPT: assemblyId,
+            groupId,
+            groupName: entity.metadata?.groupName || assembly.userData?.groupName,
+            config: entity.config || entity.recipe?.config || assembly.userData?.config,
+          };
+
+          createdRecords.forEach(({ obj }) => {
+            if (!obj) return;
+            obj.traverse?.((node) => {
+              node.userData = { ...(node.userData || {}) };
+              if (
+                node.userData.parentAssemblyId === generatedAssemblyId ||
+                node.userData.parentAssemblyId === generatedGroupId
+              ) {
+                node.userData.parentAssemblyId = assemblyId;
+              }
+              if (node.userData.groupId === generatedGroupId) node.userData.groupId = groupId;
+              if (node.userData.groupName === result.groupName && entity.metadata?.groupName) {
+                node.userData.groupName = entity.metadata.groupName;
+              }
+            });
+          });
+
+          const availableByKey = new Map();
+          createdRecords.forEach(({ obj }) => {
+            const key = resolveComponentKey(obj);
+            if (!key) return;
+            const queue = availableByKey.get(key) || [];
+            queue.push(obj);
+            availableByKey.set(key, queue);
+          });
+
+          for (const component of entity.recipe?.components || []) {
+            if (!component?.key) continue;
+            const object = availableByKey.get(component.key)?.shift?.() || null;
+            if (!object) continue;
+
+            const transform = component.transform || {};
+            if (Array.isArray(transform.position)) object.position.fromArray(transform.position);
+            if (Array.isArray(transform.quaternion)) {
+              object.quaternion.fromArray(transform.quaternion).normalize();
+            }
+            if (Array.isArray(transform.scale)) object.scale.fromArray(transform.scale);
+            object.userData = {
+              ...(object.userData || {}),
+              ...(component.state || {}),
+              meta: {
+                ...(object.userData?.meta || {}),
+                ...(component.metadata || {}),
+              },
+            };
+
+            const finish = entity.recipe?.finishes?.[component.key];
+            if (finish?.materialCode) {
+              const codeStr = String(finish.materialCode);
+              const def = materialsByCodeRef.current?.get?.(codeStr) || null;
+              object.userData.materialCode = codeStr;
+              applyMaterialToObject3D(object, codeStr, def);
+            }
+            if (finish?.submeshes) reapplyFinishesToRoot(object, finish.submeshes);
+            object.updateMatrixWorld(true);
+          }
+
+          assembly.updateMatrixWorld(true);
+          return assembly;
+        } catch (error) {
+          if (createdAssembly) {
+            removePartObject(createdAssembly, { emitBom: false, disposeResources: true });
+          }
+          throw error;
+        }
+      }
+
+      if (isVersionedEntityProject(project)) {
+        const result = { loaded: [], failed: [] };
+        const context = {
+          createSurface: createPersistedSurface,
+          addClak,
+          addEduk,
+          addAres,
+          addMepalSalud,
+          addMepalTekSocial,
+          addZen,
+          addOfficeAccessory,
+          addCatalogItem,
+          createKoncisaPlus: createPersistedKoncisaPlus,
+        };
+
+        for (const [index, entity] of project.entities.entries()) {
+          try {
+            const object = await loadPersistedEntity(entity, context);
+            restorePersistedEntityState(object, entity);
+            result.loaded.push({
+              index,
+              kind: entity.kind,
+              codigoPT: entity.codigoPT,
+              assemblyId: entity.assemblyId || null,
+            });
+          } catch (error) {
+            const failure = {
+              index,
+              kind: entity?.kind || null,
+              codigoPT: entity?.codigoPT || null,
+              assemblyId: entity?.assemblyId || null,
+              reason: error?.message || String(error),
+            };
+            result.failed.push(failure);
+            console.error('[loadProject] No se pudo cargar entity:', failure, error);
+          }
+        }
+
+        emitBOM();
+        refreshFloorAndGrid();
+        if (result.failed.length) console.warn('[loadProject] Carga parcial:', result);
+        return result;
+      }
+
       // reconstruir piezas
-      for (const part of project.parts) {
+      const legacyResult = { loaded: [], failed: [] };
+      for (const [index, part] of (project.parts || []).entries()) {
         //  try/catch por pieza: si una falla, no tumba el resto
         try {
           const codigoPT = part.codigoPT;
@@ -4495,6 +4857,7 @@ export default function ThreeCanvas({
             parts.push({ code: codigoPT, obj: mesh });
             pickables.push(mesh);
             catalogCache.set(codigoPT, { base: mesh, meta });
+            legacyResult.loaded.push({ index, kind: 'SURFACE', codigoPT });
             continue;
           }
 
@@ -4533,15 +4896,23 @@ export default function ThreeCanvas({
             parts.push({ code: partCode, obj: mesh });
             pickables.push(mesh);
             catalogCache.set(partCode, { base: mesh, meta });
+            legacyResult.loaded.push({ index, kind: 'PROCEDURAL', codigoPT });
             continue;
           }
 
           // ===========================
           // 3) GLB (incluye tipologías)
           // ===========================
-          await addCatalogItem(codigoPT);
-          const last = parts[parts.length - 1]?.obj;
-          if (!last) continue;
+          const last = await addCatalogItem(codigoPT);
+          if (!last) {
+            legacyResult.failed.push({
+              index,
+              kind: part.kind || 'LEGACY',
+              codigoPT: codigoPT || null,
+              reason: 'CREATOR_DID_NOT_RETURN_OBJECT',
+            });
+            continue;
+          }
 
           applyTransform(last, part.transform);
 
@@ -4565,13 +4936,22 @@ export default function ThreeCanvas({
 
             reapplyFinishesToRoot(last, part.finishes);
           }
+          legacyResult.loaded.push({ index, kind: part.kind || 'LEGACY', codigoPT });
         } catch (err) {
           console.error('[loadProject] Error cargando part:', part?.codigoPT, err);
+          legacyResult.failed.push({
+            index,
+            kind: part?.kind || 'LEGACY',
+            codigoPT: part?.codigoPT || null,
+            reason: err?.message || String(err),
+          });
           // sigue con la siguiente pieza
         }
       }
 
       emitBOM();
+      if (legacyResult.failed.length) console.warn('[loadProject] Carga legacy parcial:', legacyResult);
+      return legacyResult;
     }
 
     loadProjectRef.current = loadProject;
@@ -5163,11 +5543,12 @@ export default function ThreeCanvas({
       swapEdukShelfHeight,
       swapEdukVariant,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
-      exportDXF: () => {
-        const snap = getPartsSnapshot2D();
+      exportDXF: ({ detailed2DIds = [] } = {}) => {
+        const snap = getPartsSnapshot2D({ detailed2DIds });
         exportPlanToDXF({
           walls,
           partsSnapshot: snap,
+          detailed2DIds,
           fileName: 'proyecto.dxf',
         });
       },
@@ -8311,14 +8692,15 @@ export default function ThreeCanvas({
         return;
       }
 
+      if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        selectFloor();
+        return;
+      }
+
       if (!activePart) return;
 
       switch (e.key) {
-        case 'p':
-        case 'P':
-          e.preventDefault();
-          selectFloor();
-          break;
         case 'ArrowUp':
         case 'w':
           moveTargetOrGroup(activePart, 0, 0, -MOVE_STEP);
@@ -8386,6 +8768,18 @@ export default function ThreeCanvas({
 
     function onPointerDown(e) {
       if (readOnly) return;
+      if (e.button === 2 && pickables.length) {
+        updateMouseFromEvent(e);
+        raycaster.setFromCamera(mouse, camera);
+        const secondaryHits = raycaster.intersectObjects(pickables, true);
+        const secondaryRoot = secondaryHits.length
+          ? getRootPartObject(secondaryHits[0].object)
+          : null;
+        if (secondaryRoot?.userData?.isFloor) {
+          onFloatingEditorRequest?.({ open: false });
+        }
+      }
+      if (e.button !== 0) return;
 
       updateMouseFromEvent(e);
       raycaster.setFromCamera(mouse, camera);
@@ -8431,6 +8825,7 @@ export default function ThreeCanvas({
       const hitObj = hits[0].object; // Mesh real clickeado
       const root = getRootPartObject(hitObj);
       if (!root) return;
+      if (root.userData?.isFloor) return;
 
       const rootId = root.userData?.instanceId || root.uuid;
       const selectionTargetIds = resolveSelectionTargets(hitObj);
@@ -8461,12 +8856,6 @@ export default function ThreeCanvas({
       });
 
       if (transformToolRef.current === 'rotate') {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
-      if (root?.userData?.lockedMovement) {
         e.preventDefault();
         e.stopPropagation();
         return;
@@ -8539,6 +8928,7 @@ export default function ThreeCanvas({
           instanceId: root.userData?.instanceId || null,
           description: root.userData?.description || null,
           showGrid: root.userData?.showGrid !== false,
+          gridSize: root.userData?.isFloor ? root.userData?.gridSize || 0.1 : undefined,
           mepalVariant: root.userData?.mepalVariant || 'normal',
           almacenVariant: root.userData?.almacenVariant || null,
           almacenCategory: root.userData?.almacenCategory || null,
@@ -8548,7 +8938,17 @@ export default function ThreeCanvas({
         },
       });
 
-      if (moveAsGroupRef.current && root?.userData?.groupId) {
+      if (root?.userData?.lockedMovement) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      const isAssemblyRoot =
+        root?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || root?.userData?.type === 'koncisa-plus';
+
+      //if (moveAsGroup && root?.userData?.groupId) {
+      if (moveAsGroupRef.current && root?.userData?.groupId && !isAssemblyRoot) {
         const grouped = getGroupedObjects(root);
         dragGroupStartRef.current = grouped.map((obj) => ({
           obj,
@@ -8854,6 +9254,18 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    function onDoubleClick(e) {
+      if (readOnly || e.button !== 0 || !pickables.length) return;
+
+      updateMouseFromEvent(e);
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(pickables, true);
+      if (!hits.length) return;
+
+      const root = getRootPartObject(hits[0].object);
+      if (root?.userData?.isFloor) selectFloor();
+    }
+
     function onPointerCancel(e) {
       endEdukHandleDrag(e.pointerId);
       if (isRotating3D) {
@@ -8867,6 +9279,7 @@ export default function ThreeCanvas({
     renderer.domElement.addEventListener('pointerdown', onPointerDown, true);
     renderer.domElement.addEventListener('pointermove', onPointerMove, true);
     renderer.domElement.addEventListener('pointerup', onPointerUp, true);
+    renderer.domElement.addEventListener('dblclick', onDoubleClick, true);
     renderer.domElement.addEventListener('lostpointercapture', onPointerCancel, true);
 
     window.addEventListener('pointerup', onPointerUp);
@@ -11399,6 +11812,7 @@ export default function ThreeCanvas({
         //activePart.userData.materialDef = def;
 
         applyMaterialToObject3D(activePart, code, def);
+        if (activePart.userData?.isFloor) applyFloorVisualState();
 
         activePart.userData.finishes = null;
         activePart.userData.activeSubKey = null;
@@ -11410,7 +11824,14 @@ export default function ThreeCanvas({
           dimM: activePart.userData?.dimM || null,
           materialCode: activePart.userData?.materialCode ?? null,
           materialBase: activePart.userData?.materialBase ?? null,
+          generico: activePart.userData?.generico ?? null,
           line: activePart.userData?.line ?? null,
+          kind: activePart.userData?.kind ?? null,
+          instanceId: activePart.userData?.instanceId ?? null,
+          showGrid: activePart.userData?.isFloor
+            ? activePart.userData?.showGrid !== false
+            : undefined,
+          gridSize: activePart.userData?.isFloor ? activePart.userData?.gridSize || 0.1 : undefined,
           subKey: null,
           subName: null,
           subMaterialCode: null,
@@ -11501,14 +11922,16 @@ export default function ThreeCanvas({
         return Object.keys(out).length ? out : null;
       }
 
-      const data = {
-        version: '1.1',
-        units: 'm',
-        camera: {
+      const floor = {
+          showGrid: floorMeshRef.current?.userData?.showGrid !== false,
+          gridSize: floorMeshRef.current?.userData?.gridSize || 0.1,
+          materialCode: floorMeshRef.current?.userData?.materialCode || null,
+        };
+      const cameraState = {
           position: camera.position.toArray(),
           target: controls.target.toArray(),
-        },
-        parts: parts.map(({ code, obj }) => {
+        };
+      const legacyParts = parts.map(({ code, obj }) => {
           const codigoPT = obj.userData?.codigoPT || code;
 
           const entry = {
@@ -11553,10 +11976,15 @@ export default function ThreeCanvas({
           }
 
           return entry;
-        }),
-      };
+        });
 
-      return data;
+      return buildVersionedProject({
+        parts,
+        collectFinishes: collectFinishesFromObject,
+        floor,
+        camera: cameraState,
+        legacyParts,
+      });
     }
 
     // ====== Cleanup ======
@@ -11570,6 +11998,7 @@ export default function ThreeCanvas({
       renderer.domElement.removeEventListener('pointerdown', onPointerDown, true);
       renderer.domElement.removeEventListener('pointermove', onPointerMove, true);
       renderer.domElement.removeEventListener('pointerup', onPointerUp, true);
+      renderer.domElement.removeEventListener('dblclick', onDoubleClick, true);
       renderer.domElement.removeEventListener('lostpointercapture', onPointerCancel, true);
 
       window.removeEventListener('pointerup', onPointerUp);

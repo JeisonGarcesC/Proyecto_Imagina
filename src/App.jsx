@@ -282,6 +282,7 @@ export default function App() {
   const [byCode, setByCode] = useState(new Map());
   const [bomItems, setBomItems] = useState([]);
   const [bomOpen, setBomOpen] = useState(false);
+  const [detailed2DIds, setDetailed2DIds] = useState(() => new Set());
 
   const bomTotal = useMemo(() => {
     return (bomItems || []).reduce((acc, it) => {
@@ -312,25 +313,27 @@ export default function App() {
   //console.log('[App] materials:', materials?.length, 'materialsByCode:', materialsByCode.size);
 
   const getPlanData = () => {
-    const parts = threeApiRef.current?.getPartsSnapshot2D?.() || [];
-    return { parts, walls };
+    const detailIds = Array.from(detailed2DIds);
+    const parts =
+      threeApiRef.current?.getPartsSnapshot2D?.({ detailed2DIds: detailIds }) || [];
+    return { parts, walls, detailed2DIds: detailIds };
   };
 
   const exportPlanSvg = () => {
-    const { parts, walls } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, title: 'Planta 2D (Piezas + Muros)' });
+    const { parts, walls, detailed2DIds: detailIds } = getPlanData();
+    const svg = generatePlanSvg({ parts, walls, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
     downloadTextFile('planta_2d.svg', svg, 'image/svg+xml');
   };
 
   const exportPlanPng = async () => {
-    const { parts, walls } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, title: 'Planta 2D (Piezas + Muros)' });
+    const { parts, walls, detailed2DIds: detailIds } = getPlanData();
+    const svg = generatePlanSvg({ parts, walls, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
     await exportSvgToPng(svg, { scale: 2, filename: 'planta_2d.png' });
   };
 
   const exportPlanPdf = () => {
-    const { parts, walls } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, title: 'Planta 2D (Piezas + Muros)' });
+    const { parts, walls, detailed2DIds: detailIds } = getPlanData();
+    const svg = generatePlanSvg({ parts, walls, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
     printSvgAsPdf(svg, { title: 'Planta 2D' });
   };
 
@@ -651,6 +654,7 @@ export default function App() {
   };
 
   const loadProjectData = async (project) => {
+    setDetailed2DIds(new Set());
     await restorePlan2DFromProject(project);
     return threeApiRef.current?.loadProject?.(project);
   };
@@ -954,7 +958,10 @@ export default function App() {
         moveAsGroup={moveAsGroup}
         onMoveAsGroupChange={handleMoveAsGroupChange}
         onLogout={logout}
-        onNewProject={() => threeApiRef.current?.clearProject?.()}
+        onNewProject={() => {
+          setDetailed2DIds(new Set());
+          threeApiRef.current?.clearProject?.();
+        }}
         getProjectData={buildProjectData}
         onLoadProject={loadProjectData}
         debugSaveAlert={false}
@@ -966,7 +973,9 @@ export default function App() {
         onExportPng={exportPlanPng}
         onExportPdf={exportPlanPdf}
         onExportGlb={() => threeApiRef.current?.exportGLTF?.()}
-        onExportDxf={() => threeApiRef.current?.exportDXF?.()}
+        onExportDxf={() =>
+          threeApiRef.current?.exportDXF?.({ detailed2DIds: Array.from(detailed2DIds) })
+        }
       />
 
       {/* APP GRID */}
@@ -1248,8 +1257,12 @@ export default function App() {
 
           <Plan2DOverlay
             historyApi={threeApi}
-            getSnapshot={() => threeApiRef.current?.getPartsSnapshot2D?.() || []}
+            getSnapshot={(options) =>
+              threeApiRef.current?.getPartsSnapshot2D?.(options) || []
+            }
             selectedIds={selectedIds}
+            detailed2DIds={detailed2DIds}
+            onDetailed2DIdsChange={setDetailed2DIds}
             moveAsGroup={moveAsGroup}
             onPickIds={(ids) => setSelectedIds(Array.from(new Set(ids || [])))}
             resolveSelectionTargetIds={(ids, options) =>
