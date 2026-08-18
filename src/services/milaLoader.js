@@ -16,6 +16,7 @@ export async function loadMilaItems() {
       title: item.title || item.name || 'Producto Mila',
       subtitle: item.subtitle || item.description || 'Elemento de librería Mila',
       modelSrc: item.modelSrc || '/assets/models/Mila/placeholder.glb',
+      role: item.role || null,
       raw: item,
     }));
 

@@ -1,10 +1,38 @@
 [
   {
-    "id": "mila-demo-01",
-    "codigoPT": "MILA_001",
-    "title": "Elemento Mila base",
-    "subtitle": "Plantilla inicial de menú",
-    "description": "Producto demo para el menú Mila",
-    "modelSrc": "/assets/models/Mila/placeholder.glb"
+    "id": "mila-seat",
+    "codigoPT": "TKSSI011000-W-SEAT",
+    "title": "Silla Mila",
+    "subtitle": "Silla y espaldar",
+    "description": "Modelo principal de la poltrona Mila",
+    "modelSrc": "/assets/models/Mila/sillamila/TKSSI011000-W-SEAT.glb",
+    "role": "seat"
+  },
+  {
+    "id": "mila-legs",
+    "codigoPT": "TKSSO080000",
+    "title": "Patas Mila",
+    "subtitle": "Patas izquierda y derecha",
+    "description": "Base metálica de la poltrona Mila",
+    "modelSrc": "/assets/models/Mila/sillamila/TKSSO080000.glb",
+    "role": "legs"
+  },
+  {
+    "id": "mila-double-seat",
+    "codigoPT": "TKSSI180000_W_SEAT",
+    "title": "Silla Mila doble",
+    "subtitle": "Silla y espaldar doble",
+    "description": "Modelo principal de la poltrona Mila doble",
+    "modelSrc": "/assets/models/Mila/sillamiladoble/TKSSI180000_W_SEAT.glb",
+    "role": "seat-double"
+  },
+  {
+    "id": "mila-double-legs",
+    "codigoPT": "TKSSO110000",
+    "title": "Patas Mila doble",
+    "subtitle": "Patas izquierda y derecha",
+    "description": "Base metálica de la poltrona Mila doble",
+    "modelSrc": "/assets/models/Mila/sillamiladoble/TKSSO110000.glb",
+    "role": "legs-double"
   }
 ]
