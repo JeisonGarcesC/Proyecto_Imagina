@@ -26,6 +26,7 @@ import {
   getDetailedFootprint2DCacheEntry,
   hasDetailedFootprint2DCacheEntry,
 } from '../plan2d/extractDetailedFootprint2D';
+import { get2DDetailKey } from '../plan2d/detailSelection2D';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
@@ -1169,7 +1170,7 @@ export default function ThreeCanvas({
 */
 
     function getPartsSnapshot2D(options = {}) {
-      const includeDetailed = options?.includeDetailed === true;
+      const requestedDetailKeys = new Set(options?.detailed2DIds || []);
       let detailedGenerationBudget = Math.max(
         0,
         Number(options?.detailedGenerationBudget) || 2
@@ -1180,7 +1181,8 @@ export default function ThreeCanvas({
 
           obj.updateMatrixWorld(true);
           const attachDetailed = (snapshot) => {
-            if (!includeDetailed) return snapshot;
+            const detailKey = get2DDetailKey(snapshot);
+            if (!detailKey || !requestedDetailKeys.has(detailKey)) return snapshot;
             let detailedFootprint = getDetailedFootprint2DCacheEntry(obj);
             if (!hasDetailedFootprint2DCacheEntry(obj) && detailedGenerationBudget > 0) {
               detailedGenerationBudget -= 1;
@@ -1214,7 +1216,10 @@ export default function ThreeCanvas({
 
             return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
+              instanceId: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || null,
+              assemblyId: obj.userData?.assemblyId || null,
+              parentAssemblyId: obj.userData?.parentAssemblyId || null,
 
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
@@ -1258,8 +1263,11 @@ export default function ThreeCanvas({
 
             return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
+              instanceId: obj.userData?.instanceId || obj.uuid,
 
               groupId: obj.userData?.groupId || null,
+              assemblyId: obj.userData?.assemblyId || null,
+              parentAssemblyId: obj.userData?.parentAssemblyId || null,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
               x: centerWorld.x,
@@ -1284,7 +1292,10 @@ export default function ThreeCanvas({
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
             return attachDetailed({
               id: obj.userData?.instanceId || obj.uuid,
+              instanceId: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || null,
+              assemblyId: obj.userData?.assemblyId || null,
+              parentAssemblyId: obj.userData?.parentAssemblyId || null,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
               x: centerWorld.x,
               z: centerWorld.z,
@@ -1311,7 +1322,10 @@ export default function ThreeCanvas({
 
           return attachDetailed({
             id: obj.userData?.instanceId || obj.uuid,
+            instanceId: obj.userData?.instanceId || obj.uuid,
             groupId: obj.userData?.groupId || null,
+            assemblyId: obj.userData?.assemblyId || null,
+            parentAssemblyId: obj.userData?.parentAssemblyId || null,
 
             codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 

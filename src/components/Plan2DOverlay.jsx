@@ -16,6 +16,11 @@ import {
 } from '../plan2d/furnitureRenderer2D';
 import { hitTestFootprint2D } from '../plan2d/footprintGeometry2D';
 import {
+  collectSelected2DDetailKeys,
+  is2DDetailEnabled,
+  updateDetailed2DIds,
+} from '../plan2d/detailSelection2D';
+import {
   classifySelectionWindow,
   collectSelectionCandidates,
   SELECTION_WINDOW_TYPES,
@@ -465,9 +470,8 @@ export default function Plan2DOverlay({
   // visible toggle
   const [visible, setVisible] = useState(defaultVisible);
   const [viewMode, setViewMode] = useState('normal');
-  const [plan2DDetailMode, setPlan2DDetailMode] = useState(
-    FURNITURE_2D_RENDER_MODES.NORMAL
-  );
+  const [detailed2DIds, setDetailed2DIds] = useState(() => new Set());
+  const latestSnapshotRef = useRef([]);
 
   // draft muros
   const [draftPts, setDraftPts] = useState([]); // [{x,z}...]
@@ -2013,9 +2017,10 @@ export default function Plan2DOverlay({
 
       const snap = (
         getSnapshot?.({
-          includeDetailed: plan2DDetailMode === FURNITURE_2D_RENDER_MODES.DETAILED,
+          detailed2DIds: Array.from(detailed2DIds),
         }) || []
       ).filter(Boolean);
+      latestSnapshotRef.current = snap;
       const snapGeometry = buildSnapGeometry(snap);
       const { s, cx, cz } = viewRef.current;
 
@@ -2210,7 +2215,9 @@ export default function Plan2DOverlay({
         drawFurnitureFootprint2D(ctx, p, {
           scale: s,
           invertZ,
-          mode: plan2DDetailMode,
+          mode: is2DDetailEnabled(p, detailed2DIds)
+            ? FURNITURE_2D_RENDER_MODES.DETAILED
+            : FURNITURE_2D_RENDER_MODES.NORMAL,
         });
         ctx.fill();
         ctx.stroke();
@@ -2436,8 +2443,15 @@ export default function Plan2DOverlay({
     resolveActiveVariantControl2D,
     hoveredVariantHandleDir,
     isVariantHandleDragging,
-    plan2DDetailMode,
+    detailed2DIds,
   ]);
+
+  const selectedDetailKeys = collectSelected2DDetailKeys(
+    selectedIds,
+    latestSnapshotRef.current
+  );
+  const selectedAreDetailed =
+    selectedDetailKeys.length > 0 && selectedDetailKeys.every((key) => detailed2DIds.has(key));
 
   if (!visible) {
     return (
@@ -2507,31 +2521,35 @@ export default function Plan2DOverlay({
 
         <button
           type="button"
+          disabled={!selectedDetailKeys.length}
           onClick={() =>
-            setPlan2DDetailMode((current) =>
-              current === FURNITURE_2D_RENDER_MODES.DETAILED
-                ? FURNITURE_2D_RENDER_MODES.NORMAL
-                : FURNITURE_2D_RENDER_MODES.DETAILED
+            setDetailed2DIds((current) =>
+              updateDetailed2DIds(current, selectedDetailKeys, !selectedAreDetailed)
             )
           }
-          aria-pressed={plan2DDetailMode === FURNITURE_2D_RENDER_MODES.DETAILED}
-          title="Alternar representación detallada del mobiliario"
+          aria-pressed={selectedAreDetailed}
+          title={
+            selectedDetailKeys.length
+              ? 'Alternar representación 2D de la selección'
+              : 'Seleccione uno o varios objetos'
+          }
           style={{
             padding: '6px 10px',
             borderRadius: 10,
             border: '1px solid rgba(0,0,0,0.14)',
             background:
-              plan2DDetailMode === FURNITURE_2D_RENDER_MODES.DETAILED
+              selectedAreDetailed
                 ? 'rgba(37, 99, 235, 0.14)'
                 : 'rgba(255,255,255,0.92)',
             color:
-              plan2DDetailMode === FURNITURE_2D_RENDER_MODES.DETAILED
+              selectedAreDetailed
                 ? 'rgba(30, 64, 175, 1)'
                 : 'inherit',
-            cursor: 'pointer',
+            cursor: selectedDetailKeys.length ? 'pointer' : 'not-allowed',
+            opacity: selectedDetailKeys.length ? 1 : 0.55,
           }}
         >
-          Vista detallada
+          {selectedAreDetailed ? 'Vista normal 2D' : 'Vista detallada 2D'}
         </button>
 
         {viewMode !== 'normal' && (
