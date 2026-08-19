@@ -1,6 +1,7 @@
 // src/mepal/mila/connectors/milaConnectors.js
 import * as THREE from 'three';
 import { MILA_GIRO_CONNECTOR_TUNE } from '../config/milaGiroTunables.js';
+import { MILA_ACCESSORY_OFFSETS_MM } from '../config/milaTunables.js';
 
 export const MILA_CONNECTOR_CONFIG = {
   SNAP_RADIUS_M: 0.48, // Radio de detección para acople óptimo (48 cm)
@@ -97,14 +98,11 @@ export function createMilaConnectorMesh({ side = 'left' } = {}) {
 }
 
 /**
- * Obtiene el nodo raíz del ensamble o superficie de giro Mila.
- * Sube por la cadena de padres hasta encontrar el grupo contenedor (MILA_ASSEMBLY o MILA_GIRO_SURFACE).
- * Nunca confunde ensambles individuales con el groupId general.
+ * Obtiene el nodo raíz del ensamble, accesorio o superficie de giro Mila.
  */
 export function getMilaAssemblyRoot(object) {
   if (!object) return null;
 
-  // 1. Subir por la cadena de padres directa hasta encontrar el contenedor del ensamble
   let curr = object;
   while (curr && curr.parent && curr !== curr.parent) {
     if (
@@ -119,7 +117,6 @@ export function getMilaAssemblyRoot(object) {
     curr = curr.parent;
   }
 
-  // 2. Si el objeto mismo es el ensamble
   if (
     object.userData?.kind === 'MILA_ASSEMBLY' ||
     object.userData?.kind === 'MILA_GIRO_SURFACE' ||
@@ -131,7 +128,6 @@ export function getMilaAssemblyRoot(object) {
     return object;
   }
 
-  // 3. Fallback: buscar por parentAssemblyId (únicamente por instanceId o uuid exacto, nunca por groupId ni code)
   const parentAssemblyId =
     object.userData?.parentAssemblyId || object.userData?.meta?.parentAssemblyId;
   if (parentAssemblyId) {
@@ -153,8 +149,7 @@ export function getMilaAssemblyRoot(object) {
 }
 
 /**
- * Resuelve los conectores (puertos A y B / izquierdo y derecho) de un objeto Mila
- * Compatible con ensambles Mila (sillas de 1 a 4 puestos) y Superficies de Giro Mila
+ * Resuelve los conectores de un objeto Mila (Silla, Giro o Accesorio individual).
  */
 export function resolveMilaAssemblyConnectors(object) {
   if (!object) return null;
@@ -162,13 +157,22 @@ export function resolveMilaAssemblyConnectors(object) {
   const targetObj = getMilaAssemblyRoot(object);
   if (!targetObj) return null;
 
+  const role = String(targetObj.userData?.meta?.role || targetObj.userData?.role || '').toLowerCase();
+
   const isGiro =
     targetObj.userData?.kind === 'MILA_GIRO_SURFACE' ||
     targetObj.userData?.type === 'MILA_GIRO_SURFACE' ||
-    targetObj.userData?.meta?.role === 'giro-surface';
+    role === 'giro-surface';
+
+  const isAccessory =
+    role === 'armrest-left' ||
+    role === 'armrest-right' ||
+    role === 'armrest-center' ||
+    role === 'screen';
 
   const isMila =
     isGiro ||
+    isAccessory ||
     targetObj.userData?.kind === 'MILA_ASSEMBLY' ||
     targetObj.userData?.type === 'mila' ||
     String(targetObj.userData?.line || '').toUpperCase() === 'MILA';
@@ -178,38 +182,28 @@ export function resolveMilaAssemblyConnectors(object) {
   targetObj.updateMatrixWorld(true);
   const worldQuaternion = targetObj.getWorldQuaternion(new THREE.Quaternion());
   const yaw = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
+  const chairConnectorY = 0.14;
+  const chairConnectorZ = -0.36;
 
   // ─────────────────────────────────────────────────────────
-  // CASO A: Superficie de Giro Mila (centrada en las platinas grises)
-  // Las posiciones y normales se controlan desde milaGiroTunables.js
+  // CASO A: Superficie de Giro Mila
   // ─────────────────────────────────────────────────────────
   if (isGiro) {
     const angleDeg = Number(
       targetObj.userData?.angleDeg || targetObj.userData?.meta?.angleDeg || 60
     );
     const angleRad = (angleDeg * Math.PI) / 180;
-
-    // Leer tunables por ángulo (fallback a 60° si el ángulo no está definido)
     const tune = MILA_GIRO_CONNECTOR_TUNE[angleDeg] || MILA_GIRO_CONNECTOR_TUNE[60];
 
     const tuneA = tune.portA;
     const tuneB = tune.portB;
 
-    const localLeft = new THREE.Vector3(
-      Number(tuneA.x),
-      Number(tuneA.y),
-      Number(tuneA.z)
-    );
-    const localRight = new THREE.Vector3(
-      Number(tuneB.x),
-      Number(tuneB.y),
-      Number(tuneB.z)
-    );
+    const localLeft = new THREE.Vector3(Number(tuneA.x), Number(tuneA.y), Number(tuneA.z));
+    const localRight = new THREE.Vector3(Number(tuneB.x), Number(tuneB.y), Number(tuneB.z));
 
     const worldLeft = localLeft.clone().applyMatrix4(targetObj.matrixWorld);
     const worldRight = localRight.clone().applyMatrix4(targetObj.matrixWorld);
 
-    // Normales locales hacia afuera definidas en tunables
     const localNormalLeft = tuneA.normal
       ? new THREE.Vector3(tuneA.normal.x, tuneA.normal.y, tuneA.normal.z).normalize()
       : new THREE.Vector3(Math.cos(tuneA.rotY || 0), 0, -Math.sin(tuneA.rotY || 0)).normalize();
@@ -224,12 +218,11 @@ export function resolveMilaAssemblyConnectors(object) {
     return {
       assembly: targetObj,
       isGiro: true,
+      isAccessory: false,
       angleDeg,
       angleRad,
       localLeft,
       localRight,
-      localNormalLeft,
-      localNormalRight,
       worldLeft,
       worldRight,
       normalLeft,
@@ -239,6 +232,7 @@ export function resolveMilaAssemblyConnectors(object) {
       ports: {
         left: {
           id: 'left',
+          portType: 'giro',
           localPos: localLeft,
           localNormal: localNormalLeft,
           worldPos: worldLeft,
@@ -246,6 +240,7 @@ export function resolveMilaAssemblyConnectors(object) {
         },
         right: {
           id: 'right',
+          portType: 'giro',
           localPos: localRight,
           localNormal: localNormalRight,
           worldPos: worldRight,
@@ -256,76 +251,272 @@ export function resolveMilaAssemblyConnectors(object) {
   }
 
   // ─────────────────────────────────────────────────────────
-  // CASO B: Ensamble Silla Mila (1 a 4 puestos)
-  // Conectores a los extremos de las vigas/patas (Z ≈ -0.36m, Y ≈ 0.14m)
+  // CASO B: Accesorios individuales Mila (Apoyabrazos / Pantallas)
   // ─────────────────────────────────────────────────────────
-  const quantity = Math.max(1, Number(targetObj.userData?.config?.quantity || 1));
+  if (isAccessory) {
+    const ports = {};
+
+    if (role === 'armrest-left') {
+      // Conector hacia la derecha (+X) para acoplarse al lateral izquierdo de la silla
+      const localPos = new THREE.Vector3(0.120, chairConnectorY, chairConnectorZ);
+      const localNormal = new THREE.Vector3(1, 0, 0);
+      const worldPos = localPos.clone().applyMatrix4(targetObj.matrixWorld);
+      const worldNormal = localNormal.clone().applyQuaternion(worldQuaternion).normalize();
+      ports.right = {
+        id: 'right',
+        portType: 'armrest-left',
+        targetPortType: 'left',
+        localPos,
+        localNormal,
+        worldPos,
+        worldNormal,
+      };
+      return {
+        assembly: targetObj,
+        isGiro: false,
+        isAccessory: true,
+        accessoryRole: 'armrest-left',
+        worldRight: worldPos,
+        normalRight: worldNormal,
+        connectorY: chairConnectorY,
+        yaw,
+        ports,
+      };
+    }
+
+    if (role === 'armrest-right') {
+      // Conector hacia la izquierda (-X) para acoplarse al lateral derecho de la silla
+      const localPos = new THREE.Vector3(0.0368, chairConnectorY, chairConnectorZ);
+      const localNormal = new THREE.Vector3(-1, 0, 0);
+      const worldPos = localPos.clone().applyMatrix4(targetObj.matrixWorld);
+      const worldNormal = localNormal.clone().applyQuaternion(worldQuaternion).normalize();
+      ports.left = {
+        id: 'left',
+        portType: 'armrest-right',
+        targetPortType: 'right',
+        localPos,
+        localNormal,
+        worldPos,
+        worldNormal,
+      };
+      return {
+        assembly: targetObj,
+        isGiro: false,
+        isAccessory: true,
+        accessoryRole: 'armrest-right',
+        worldLeft: worldPos,
+        normalLeft: worldNormal,
+        connectorY: chairConnectorY,
+        yaw,
+        ports,
+      };
+    }
+
+    if (role === 'armrest-center') {
+      // Conector hacia atrás (-Z) para acoplarse a la unión entre puestos de la silla
+      const userOffsetZ = Number(MILA_ACCESSORY_OFFSETS_MM.armrestCenter.z || -80) / 1000;
+      const localPos = new THREE.Vector3(0.060, chairConnectorY, chairConnectorZ - userOffsetZ);
+      const localNormal = new THREE.Vector3(0, 0, -1);
+      const worldPos = localPos.clone().applyMatrix4(targetObj.matrixWorld);
+      const worldNormal = localNormal.clone().applyQuaternion(worldQuaternion).normalize();
+      ports.center = {
+        id: 'center',
+        portType: 'armrest-center',
+        targetPortType: 'seam',
+        localPos,
+        localNormal,
+        worldPos,
+        worldNormal,
+      };
+      return {
+        assembly: targetObj,
+        isGiro: false,
+        isAccessory: true,
+        accessoryRole: 'armrest-center',
+        worldLeft: worldPos,
+        normalLeft: worldNormal,
+        connectorY: chairConnectorY,
+        yaw,
+        ports,
+      };
+    }
+
+    if (role === 'screen') {
+      // Conector hacia adelante (+Z) para acoplarse al espaldar de la silla
+      const localPos = new THREE.Vector3(0, chairConnectorY, 0);
+      const localNormal = new THREE.Vector3(0, 0, 1);
+      const worldPos = localPos.clone().applyMatrix4(targetObj.matrixWorld);
+      const worldNormal = localNormal.clone().applyQuaternion(worldQuaternion).normalize();
+      ports.screen = {
+        id: 'screen',
+        portType: 'screen',
+        targetPortType: 'screen',
+        localPos,
+        localNormal,
+        worldPos,
+        worldNormal,
+      };
+      return {
+        assembly: targetObj,
+        isGiro: false,
+        isAccessory: true,
+        accessoryRole: 'screen',
+        worldLeft: worldPos,
+        normalLeft: worldNormal,
+        connectorY: chairConnectorY,
+        yaw,
+        ports,
+      };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // CASO C: Ensamble Silla Mila (1 a 4 puestos)
+  // ─────────────────────────────────────────────────────────
+  let hasArmrestLeft = false;
+  let hasArmrestRight = false;
+  let hasArmrestCenter = false;
+  let hasScreen = false;
+
+  targetObj.traverse((node) => {
+    if (node === targetObj) return;
+    const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
+    if (r === 'armrest-left') hasArmrestLeft = true;
+    if (r === 'armrest-right') hasArmrestRight = true;
+    if (r === 'armrest-center') hasArmrestCenter = true;
+    if (r === 'screen') hasScreen = true;
+  });
+
+  const quantity = Math.max(1, Number(targetObj.userData?.config?.quantity || targetObj.userData?.quantity || 1));
   const moduleSpacingM = Number(targetObj.userData?.config?.moduleSpacingMm || 600) / 1000;
   const totalWidthM = quantity * moduleSpacingM;
 
-  const chairConnectorY = 0.14;
-  const chairConnectorZ = -0.36;
-
   const localLeft = new THREE.Vector3(0, chairConnectorY, chairConnectorZ);
   const localRight = new THREE.Vector3(totalWidthM, chairConnectorY, chairConnectorZ);
+  const localScreen = new THREE.Vector3(0.300, chairConnectorY, -0.720);
 
   const localNormalLeft = new THREE.Vector3(-1, 0, 0);
   const localNormalRight = new THREE.Vector3(1, 0, 0);
+  const localNormalScreen = new THREE.Vector3(0, 0, -1);
 
   const worldLeft = localLeft.clone().applyMatrix4(targetObj.matrixWorld);
   const worldRight = localRight.clone().applyMatrix4(targetObj.matrixWorld);
+  const worldScreen = localScreen.clone().applyMatrix4(targetObj.matrixWorld);
 
   const normalLeft = localNormalLeft.clone().applyQuaternion(worldQuaternion).normalize();
   const normalRight = localNormalRight.clone().applyQuaternion(worldQuaternion).normalize();
+  const normalScreen = localNormalScreen.clone().applyQuaternion(worldQuaternion).normalize();
+
+  const ports = {
+    left: {
+      id: 'left',
+      portType: 'left',
+      isOccupied: hasArmrestLeft,
+      localPos: localLeft,
+      localNormal: localNormalLeft,
+      worldPos: worldLeft,
+      worldNormal: normalLeft,
+    },
+    right: {
+      id: 'right',
+      portType: 'right',
+      isOccupied: hasArmrestRight,
+      localPos: localRight,
+      localNormal: localNormalRight,
+      worldPos: worldRight,
+      worldNormal: normalRight,
+    },
+    screen: {
+      id: 'screen',
+      portType: 'screen',
+      isOccupied: hasScreen,
+      localPos: localScreen,
+      localNormal: localNormalScreen,
+      worldPos: worldScreen,
+      worldNormal: normalScreen,
+    },
+  };
+
+  // Puertos intermedios para apoyabrazos centrales (si tiene 2 o más puestos)
+  if (quantity >= 2) {
+    for (let seamIndex = 1; seamIndex < quantity; seamIndex += 1) {
+      const seamX = seamIndex * moduleSpacingM;
+      const localSeam = new THREE.Vector3(seamX, chairConnectorY, chairConnectorZ);
+      const localNormalSeam = new THREE.Vector3(0, 0, 1);
+      const worldSeam = localSeam.clone().applyMatrix4(targetObj.matrixWorld);
+      const normalSeam = localNormalSeam.clone().applyQuaternion(worldQuaternion).normalize();
+
+      ports[`seam_${seamIndex}`] = {
+        id: `seam_${seamIndex}`,
+        portType: 'seam',
+        seamIndex,
+        isOccupied: hasArmrestCenter,
+        localPos: localSeam,
+        localNormal: localNormalSeam,
+        worldPos: worldSeam,
+        worldNormal: normalSeam,
+      };
+    }
+  }
 
   return {
     assembly: targetObj,
     isGiro: false,
+    isAccessory: false,
+    hasArmrestLeft,
+    hasArmrestRight,
+    hasArmrestCenter,
+    hasScreen,
     localLeft,
     localRight,
-    localNormalLeft,
-    localNormalRight,
     worldLeft,
     worldRight,
     normalLeft,
     normalRight,
     connectorY: chairConnectorY,
     yaw,
-    ports: {
-      left: {
-        id: 'left',
-        localPos: localLeft,
-        localNormal: localNormalLeft,
-        worldPos: worldLeft,
-        worldNormal: normalLeft,
-      },
-      right: {
-        id: 'right',
-        localPos: localRight,
-        localNormal: localNormalRight,
-        worldPos: worldRight,
-        worldNormal: normalRight,
-      },
-    },
+    ports,
   };
 }
 
 /**
- * Determina si un puerto específico en coordenadas de mundo ya está conectado a otra pieza en la escena
+ * Determina si un puerto específico en coordenadas de mundo ya está ocupado
  */
-export function isMilaPortOccupied(portWorldPos, targetAssembly, allCandidates = [], thresholdM = 0.06) {
+export function isMilaPortOccupied(portWorldPos, targetAssembly, allCandidates = [], thresholdM = 0.12) {
   if (!portWorldPos || !targetAssembly) return false;
 
+  // 1. Si el objeto mismo tiene puertos marcados como isOccupied (por tener accesorios instalados)
+  const targetConnectors = resolveMilaAssemblyConnectors(targetAssembly);
+  if (targetConnectors?.ports) {
+    for (const key of Object.keys(targetConnectors.ports)) {
+      const p = targetConnectors.ports[key];
+      if (p && p.worldPos && p.isOccupied) {
+        const dist2D = new THREE.Vector2(
+          portWorldPos.x - p.worldPos.x,
+          portWorldPos.z - p.worldPos.z
+        ).length();
+        if (dist2D < 0.06) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // 2. Verificar proximidad con cualquier otro objeto de la escena
   for (const candidate of allCandidates) {
     if (!candidate || candidate === targetAssembly) continue;
     const candidateConnectors = resolveMilaAssemblyConnectors(candidate);
     if (!candidateConnectors || !candidateConnectors.ports) continue;
 
-    for (const portKey of ['left', 'right']) {
+    for (const portKey of Object.keys(candidateConnectors.ports)) {
       const p = candidateConnectors.ports[portKey];
       if (p && p.worldPos) {
-        const dist = portWorldPos.distanceTo(p.worldPos);
-        if (dist < thresholdM) {
+        const dist2D = new THREE.Vector2(
+          portWorldPos.x - p.worldPos.x,
+          portWorldPos.z - p.worldPos.z
+        ).length();
+        const distY = Math.abs(portWorldPos.y - p.worldPos.y);
+        if (dist2D < thresholdM && distY < 0.35) {
           return true;
         }
       }
@@ -336,13 +527,36 @@ export function isMilaPortOccupied(portWorldPos, targetAssembly, allCandidates =
 }
 
 /**
- * Evalúa y calcula el mejor snap entre un objeto Mila/Giro activo y todos los demás elementos Mila de la escena.
- * Evalúa exhaustivamente todas las combinaciones posibles de puertos (izq-izq, izq-der, der-izq, der-der).
+ * Valida si dos puertos son compatibles para acoplarse entre sí
+ */
+function areMilaPortsCompatible(actPort, tgtPort) {
+  if (!actPort || !tgtPort) return false;
+
+  // Si el puerto activo exige un tipo de puerto destino específico:
+  if (actPort.targetPortType) {
+    return tgtPort.portType === actPort.targetPortType || tgtPort.id === actPort.targetPortType;
+  }
+
+  // Si el puerto destino exige un tipo específico:
+  if (tgtPort.targetPortType) {
+    return actPort.portType === tgtPort.targetPortType || actPort.id === tgtPort.targetPortType;
+  }
+
+  // Puertos laterales normales (silla izquierda/derecha y superficie de giro izquierda/derecha):
+  const actIsSide = actPort.id === 'left' || actPort.id === 'right' || actPort.portType === 'giro';
+  const tgtIsSide = tgtPort.id === 'left' || tgtPort.id === 'right' || tgtPort.portType === 'giro';
+  return actIsSide && tgtIsSide;
+}
+
+/**
+ * Evalúa y calcula el mejor snap entre un objeto Mila activo (silla, giro o accesorio)
+ * y todos los demás elementos Mila de la escena.
  */
 export function findBestMilaConnectorSnap({
   activeAssembly,
   allAssemblies = [],
   allGiroSurfaces = [],
+  allAccessories = [],
   snapRadius = MILA_CONNECTOR_CONFIG.SNAP_RADIUS_M,
 }) {
   if (!activeAssembly) return null;
@@ -351,20 +565,17 @@ export function findBestMilaConnectorSnap({
   if (!activeConnectors || !activeConnectors.ports) return null;
 
   const activeGroupId = activeAssembly.userData?.groupId;
-  const allCandidates = [...allAssemblies, ...allGiroSurfaces];
+  const allCandidates = [...allAssemblies, ...allGiroSurfaces, ...allAccessories];
 
   let bestSnap = null;
   let minDistance = snapRadius;
 
-  const activePorts = [
-    activeConnectors.ports.left,
-    activeConnectors.ports.right,
-  ];
+  const activePortList = Object.values(activeConnectors.ports);
 
   for (const targetObj of allCandidates) {
     if (!targetObj || targetObj === activeAssembly) continue;
 
-    // No hacer snap contra objetos que ya están unidos en el mismo grupo rígido continuo
+    // No hacer snap contra objetos que ya pertenecen al mismo groupId
     if (activeGroupId && targetObj.userData?.groupId === activeGroupId) {
       continue;
     }
@@ -372,15 +583,20 @@ export function findBestMilaConnectorSnap({
     const targetConnectors = resolveMilaAssemblyConnectors(targetObj);
     if (!targetConnectors || !targetConnectors.ports) continue;
 
-    const targetPorts = [
-      targetConnectors.ports.left,
-      targetConnectors.ports.right,
-    ];
+    const targetPortList = Object.values(targetConnectors.ports);
 
-    // Evaluar todas las combinaciones de puertos (2 x 2 = 4 combinaciones)
-    for (const actPort of activePorts) {
-      for (const tgtPort of targetPorts) {
-        // Ignorar puertos objetivo que ya estén ocupados por otra pieza conectada en la escena
+    for (const actPort of activePortList) {
+      if (actPort.isOccupied) continue;
+
+      for (const tgtPort of targetPortList) {
+        if (tgtPort.isOccupied) continue;
+
+        // Comprobar compatibilidad de roles entre puertos
+        if (!areMilaPortsCompatible(actPort, tgtPort)) {
+          continue;
+        }
+
+        // Ignorar puertos objetivo ocupados por otra pieza
         if (isMilaPortOccupied(tgtPort.worldPos, targetObj, allCandidates)) {
           continue;
         }
@@ -409,9 +625,14 @@ export function findBestMilaConnectorSnap({
             .clone()
             .applyAxisAngle(new THREE.Vector3(0, 1, 0), requiredYaw);
 
+          const isAccessorySnap = Boolean(activeConnectors.isAccessory || targetConnectors.isAccessory);
+          const targetPosY = isAccessorySnap
+            ? (activeConnectors.isAccessory ? targetObj.position.y : activeAssembly.position.y)
+            : (tgtPort.worldPos.y - rotatedOffset.y);
+
           const targetPos = new THREE.Vector3(
             tgtPort.worldPos.x - rotatedOffset.x,
-            activeAssembly.position.y,
+            Number.isFinite(targetPosY) ? targetPosY : activeAssembly.position.y,
             tgtPort.worldPos.z - rotatedOffset.z
           );
 
@@ -441,7 +662,6 @@ export function findBestMilaConnectorSnap({
 
 /**
  * Unifica dos ensambles conectados bajo el mismo groupId para comportarse como un solo objeto rígido continuo.
- * Actualiza todas las piezas que pertenecían a groupA o groupB en la escena para evitar fragmentación de grupos.
  */
 export function unifyMilaConnectedAssemblies(objA, objB) {
   if (!objA || !objB) return null;
@@ -454,7 +674,6 @@ export function unifyMilaConnectedAssemblies(objA, objB) {
   const commonGroupId =
     groupA || groupB || `MILA_GROUP_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 
-  // Encontrar la raíz de la escena para actualizar todas las piezas que ya pertenecían a cualquiera de los dos grupos
   let sceneRoot = rootA;
   while (sceneRoot.parent) sceneRoot = sceneRoot.parent;
 

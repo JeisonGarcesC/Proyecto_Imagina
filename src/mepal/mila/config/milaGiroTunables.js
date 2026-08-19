@@ -17,9 +17,9 @@
 // ─────────────────────────────────────────────────────────────────────────────────
 export const MILA_GIRO_TUNE = {
   // Altura de aparición de la superficie de giro en el mundo 3D (en milímetros).
-  // Con SPAWN_Y_MM = 320mm (0.32m) + bracket Y 30mm (0.03m) = 0.35m en mundo,
-  // coincidiendo perfectamente con la altura de los conectores de las sillas Mila (0.35m).
-  SPAWN_Y_MM: 320,
+  // Con SPAWN_Y_MM = 110mm (0.11m) + bracket Y 30mm (0.03m) = 0.14m en mundo,
+  // coincidiendo perfectamente con la altura de las platinas y conectores de las sillas Mila (0.14m).
+  SPAWN_Y_MM: 250,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────

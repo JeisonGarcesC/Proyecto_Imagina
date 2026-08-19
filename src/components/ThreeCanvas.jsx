@@ -104,8 +104,11 @@ import {
   resolveEdukCodeBySelection,
 } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import {
+  MILA_ACCESSORY_CATALOG,
+  MILA_ACCESSORY_OFFSETS_MM,
   MILA_MODEL_SOURCES,
   MILA_SINGLE_SEAT_MODE_OFFSETS_MM,
+  resolveMilaScreenCatalogItem,
 } from '../mepal/mila/config/milaTunables';
 import {
   createMilaConnectorMesh,
@@ -748,11 +751,13 @@ export default function ThreeCanvas({
         return;
       }
 
-      // Recolectar todos los ensambles y giros de la escena
+      // Recolectar todos los ensambles, giros y accesorios de la escena
       const allAssemblies = [];
       const allGiroSurfaces = [];
+      const allAccessories = [];
       scene.children.forEach((node) => {
         if (node === targetObj) return;
+        const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
         if (
           node.userData?.kind === 'MILA_ASSEMBLY' ||
           node.userData?.type === 'mila'
@@ -761,44 +766,93 @@ export default function ThreeCanvas({
         } else if (
           node.userData?.kind === 'MILA_GIRO_SURFACE' ||
           node.userData?.type === 'MILA_GIRO_SURFACE' ||
-          node.userData?.meta?.role === 'giro-surface'
+          r === 'giro-surface'
         ) {
           allGiroSurfaces.push(node);
+        } else if (
+          r === 'armrest-left' ||
+          r === 'armrest-right' ||
+          r === 'armrest-center' ||
+          r === 'screen'
+        ) {
+          allAccessories.push(node);
         }
       });
-      const allSceneObjects = [...allAssemblies, ...allGiroSurfaces];
+      const allSceneObjects = [...allAssemblies, ...allGiroSurfaces, ...allAccessories];
 
-      // Verificar si los puertos están ocupados (ya conectados a otra pieza en la escena)
-      const isLeftOccupied = !isDragging && isMilaPortOccupied(connectors.worldLeft, targetObj, allSceneObjects);
-      const isRightOccupied = !isDragging && isMilaPortOccupied(connectors.worldRight, targetObj, allSceneObjects);
+      const pLeft = connectors.ports?.left;
+      const pRight = connectors.ports?.right;
+      const pCenter = connectors.ports?.center;
+      const pScreen = connectors.ports?.screen;
 
-      milaLeftConnector.position.copy(connectors.worldLeft);
-      if (connectors.normalLeft) {
-        milaLeftConnector.quaternion.setFromUnitVectors(
-          new THREE.Vector3(1, 0, 0),
-          connectors.normalLeft
-        );
+      let isLeftOccupied = true;
+      let isRightOccupied = true;
+
+      if (connectors.isAccessory) {
+        if (connectors.accessoryRole === 'armrest-left') {
+          if (pRight) {
+            milaRightConnector.position.copy(pRight.worldPos);
+            milaRightConnector.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), pRight.worldNormal);
+            milaRightConnector.visible = true;
+          } else {
+            milaRightConnector.visible = false;
+          }
+          milaLeftConnector.visible = false;
+        } else if (connectors.accessoryRole === 'armrest-right') {
+          if (pLeft) {
+            milaLeftConnector.position.copy(pLeft.worldPos);
+            milaLeftConnector.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), pLeft.worldNormal);
+            milaLeftConnector.visible = true;
+          } else {
+            milaLeftConnector.visible = false;
+          }
+          milaRightConnector.visible = false;
+        } else if (connectors.accessoryRole === 'armrest-center') {
+          if (pCenter) {
+            milaLeftConnector.position.copy(pCenter.worldPos);
+            milaLeftConnector.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), pCenter.worldNormal);
+            milaLeftConnector.visible = true;
+          }
+          milaRightConnector.visible = false;
+        } else if (connectors.accessoryRole === 'screen') {
+          if (pScreen) {
+            milaLeftConnector.position.copy(pScreen.worldPos);
+            milaLeftConnector.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), pScreen.worldNormal);
+            milaLeftConnector.visible = true;
+          }
+          milaRightConnector.visible = false;
+        }
       } else {
-        milaLeftConnector.rotation.set(0, connectors.yaw, 0);
-      }
-      milaLeftConnector.visible = !isLeftOccupied;
+        isLeftOccupied = !isDragging && (pLeft?.isOccupied || isMilaPortOccupied(pLeft?.worldPos, targetObj, allSceneObjects));
+        isRightOccupied = !isDragging && (pRight?.isOccupied || isMilaPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
 
-      milaRightConnector.position.copy(connectors.worldRight);
-      if (connectors.normalRight) {
-        milaRightConnector.quaternion.setFromUnitVectors(
-          new THREE.Vector3(1, 0, 0),
-          connectors.normalRight
-        );
-      } else {
-        const rightYaw = connectors.isGiro ? connectors.yaw - connectors.angleRad : connectors.yaw;
-        milaRightConnector.rotation.set(0, rightYaw, 0);
+        if (pLeft) {
+          milaLeftConnector.position.copy(pLeft.worldPos);
+          milaLeftConnector.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), pLeft.worldNormal);
+          milaLeftConnector.visible = !isLeftOccupied;
+        } else {
+          milaLeftConnector.visible = false;
+        }
+
+        if (pRight) {
+          milaRightConnector.position.copy(pRight.worldPos);
+          milaRightConnector.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), pRight.worldNormal);
+          milaRightConnector.visible = !isRightOccupied;
+        } else {
+          milaRightConnector.visible = false;
+        }
       }
-      milaRightConnector.visible = !isRightOccupied;
 
       let isSnapCandidate = false;
       if (isDragging) {
-        milaLeftConnector.visible = true;
-        milaRightConnector.visible = true;
+        if (connectors.isAccessory) {
+          if (connectors.accessoryRole === 'armrest-left') milaRightConnector.visible = true;
+          else if (connectors.accessoryRole === 'armrest-right') milaLeftConnector.visible = true;
+          else milaLeftConnector.visible = true;
+        } else {
+          milaLeftConnector.visible = !pLeft?.isOccupied;
+          milaRightConnector.visible = !pRight?.isOccupied;
+        }
 
         const activeGroupId = targetObj.userData?.groupId;
         const candidateAssemblies = allAssemblies.filter(
@@ -807,17 +861,23 @@ export default function ThreeCanvas({
         const candidateGiroSurfaces = allGiroSurfaces.filter(
           (node) => !activeGroupId || node.userData?.groupId !== activeGroupId
         );
+        const candidateAccessories = allAccessories.filter(
+          (node) => !activeGroupId || node.userData?.groupId !== activeGroupId
+        );
 
         const snapResult = findBestMilaConnectorSnap({
           activeAssembly: targetObj,
           allAssemblies: candidateAssemblies,
           allGiroSurfaces: candidateGiroSurfaces,
+          allAccessories: candidateAccessories,
         });
 
         if (snapResult) {
           isSnapCandidate = true;
           const activeMesh =
-            snapResult.activeSide === 'left' ? milaLeftConnector : milaRightConnector;
+            snapResult.activeSide === 'left' || snapResult.activeSide === 'center' || snapResult.activeSide === 'screen'
+              ? milaLeftConnector
+              : milaRightConnector;
           setConnectorMeshColor(
             activeMesh,
             MILA_CONNECTOR_CONFIG.COLOR_SNAP_ACTIVE,
@@ -825,7 +885,7 @@ export default function ThreeCanvas({
           );
 
           const otherMesh =
-            snapResult.activeSide === 'left' ? milaRightConnector : milaLeftConnector;
+            activeMesh === milaLeftConnector ? milaRightConnector : milaLeftConnector;
           setConnectorMeshColor(
             otherMesh,
             MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
@@ -2409,6 +2469,7 @@ export default function ThreeCanvas({
       let members = [];
 
       if (assembly) {
+        members.push(assembly);
         const assemblyIds = new Set(
           [assembly.userData?.instanceId, assembly.userData?.code, assembly.uuid].filter(Boolean)
         );
@@ -2416,10 +2477,28 @@ export default function ThreeCanvas({
         const linkedMembers = physicalObjects.filter((candidate) =>
           assemblyIds.has(candidate.userData?.parentAssemblyId)
         );
-        members = Array.from(new Set([...descendants, ...linkedMembers]));
+        members = Array.from(new Set([...members, ...descendants, ...linkedMembers]));
       }
 
       if (targetGroupId) {
+        const groupedRoots = getGroupedObjects(physicalRoot);
+        groupedRoots.forEach((root) => {
+          if (!root) return;
+          members.push(root);
+          const rootAssembly = getAssemblyObject(root);
+          if (rootAssembly) {
+            members.push(rootAssembly);
+            const rootIds = new Set(
+              [rootAssembly.userData?.instanceId, rootAssembly.userData?.code, rootAssembly.uuid].filter(Boolean)
+            );
+            const descendants = physicalObjects.filter((candidate) => isDescendantOf(candidate, rootAssembly));
+            const linkedMembers = physicalObjects.filter((candidate) =>
+              rootIds.has(candidate.userData?.parentAssemblyId)
+            );
+            members.push(...descendants, ...linkedMembers);
+          }
+        });
+
         const groupMembers = physicalObjects.filter(
           (candidate) => candidate.userData?.groupId === targetGroupId
         );
@@ -3847,6 +3926,232 @@ export default function ThreeCanvas({
       syncSelectedIds3D(Array.from(new Set(nextSelectedIds)));
       setActivePart(newObj, { targetIds: nextSelectedIds });
       updateMilaConnectors();
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
+    async function toggleMilaAccessory(targetIdentifier, accessoryType, enabled = true) {
+      if (readOnly) return;
+
+      let targetObj = null;
+      for (const p of parts) {
+        const o = p.obj;
+        if (
+          o?.userData?.instanceId === targetIdentifier ||
+          o?.userData?.groupId === targetIdentifier ||
+          o?.userData?.parentAssemblyId === targetIdentifier ||
+          o?.uuid === targetIdentifier
+        ) {
+          targetObj = o;
+          break;
+        }
+      }
+
+      if (!targetObj) {
+        scene.traverse((node) => {
+          if (
+            !targetObj &&
+            (node.userData?.instanceId === targetIdentifier ||
+              node.userData?.groupId === targetIdentifier ||
+              node.userData?.parentAssemblyId === targetIdentifier ||
+              node.uuid === targetIdentifier)
+          ) {
+            targetObj = node;
+          }
+        });
+      }
+
+      if (!targetObj) {
+        console.warn('[toggleMilaAccessory] No se encontró el objeto o ensamble Mila:', targetIdentifier);
+        return;
+      }
+
+      let assemblyGroup = targetObj;
+      while (
+        assemblyGroup.parent &&
+        assemblyGroup.parent !== scene &&
+        (assemblyGroup.parent.userData?.kind === 'MILA_ASSEMBLY' ||
+          assemblyGroup.parent.userData?.groupId === targetObj.userData?.groupId)
+      ) {
+        assemblyGroup = assemblyGroup.parent;
+      }
+
+      const groupId = assemblyGroup.userData?.groupId || targetObj.userData?.groupId || assemblyGroup.uuid;
+      const groupName = assemblyGroup.userData?.groupName || 'Mila';
+      const isMilaDouble =
+        assemblyGroup.userData?.line === 'MILA_DOUBLE' ||
+        assemblyGroup.userData?.meta?.category === 'mila-double';
+
+      const seatNodes = [];
+      assemblyGroup.traverse((node) => {
+        if (
+          node.userData?.kind === 'GLB_PART' &&
+          String(node.userData?.meta?.role || '').toLowerCase() === 'seat'
+        ) {
+          seatNodes.push(node);
+        }
+      });
+      seatNodes.sort((a, b) => a.position.x - b.position.x);
+      const quantity = Math.max(1, seatNodes.length);
+      const moduleSpacingMm = seatNodes[0]?.userData?.meta?.moduleSpacingMm || 600;
+
+      const removePartsByRole = (role) => {
+        const toRemove = [];
+        assemblyGroup.traverse((node) => {
+          if (
+            node !== assemblyGroup &&
+            (String(node.userData?.meta?.role || '').toLowerCase() === role.toLowerCase() ||
+              String(node.userData?.role || '').toLowerCase() === role.toLowerCase())
+          ) {
+            toRemove.push(node);
+          }
+        });
+
+        toRemove.forEach((node) => {
+          try {
+            if (node.parent) node.parent.remove(node);
+            else scene.remove(node);
+          } catch (err) {
+            void err;
+          }
+          removePartsRecordsUnder(node);
+          removePickablesUnder(node);
+        });
+      };
+
+      if (accessoryType === 'armrest-left') {
+        removePartsByRole('armrest-left');
+        if (enabled) {
+          const item = MILA_ACCESSORY_CATALOG.armrestLeft;
+          const offset = MILA_ACCESSORY_OFFSETS_MM.armrestLeft;
+          await addExternalGlbPart({
+            kind: 'GLB_PART',
+            type: 'GLB_PART',
+            line: isMilaDouble ? 'MILA_DOUBLE' : 'MILA',
+            groupId,
+            groupName,
+            code: item.code,
+            codigoPT: item.code,
+            name: `${groupName} ${item.label}`,
+            description: item.description,
+            prices: item.prices,
+            model: { src: item.modelSrc },
+            position: {
+              x: Number(offset.x || 0),
+              y: Number(offset.y || 0),
+              z: Number(offset.z || 0),
+            },
+            rotation: { x: 0, y: 0, z: 0 },
+            parentGroup: assemblyGroup,
+            meta: {
+              category: isMilaDouble ? 'mila-double' : 'mila',
+              role: 'armrest-left',
+              moduleSpacingMm,
+            },
+          });
+        }
+      } else if (accessoryType === 'armrest-right') {
+        removePartsByRole('armrest-right');
+        if (enabled) {
+          const item = MILA_ACCESSORY_CATALOG.armrestRight;
+          const offset = MILA_ACCESSORY_OFFSETS_MM.armrestRight;
+          const rightAnchorX = (quantity - 1) * moduleSpacingMm;
+          await addExternalGlbPart({
+            kind: 'GLB_PART',
+            type: 'GLB_PART',
+            line: isMilaDouble ? 'MILA_DOUBLE' : 'MILA',
+            groupId,
+            groupName,
+            code: item.code,
+            codigoPT: item.code,
+            name: `${groupName} ${item.label}`,
+            description: item.description,
+            prices: item.prices,
+            model: { src: item.modelSrc },
+            position: {
+              x: rightAnchorX + 600 + Number(offset.x || 0),
+              y: Number(offset.y || 0),
+              z: Number(offset.z || 0),
+            },
+            rotation: { x: 0, y: 0, z: 0 },
+            parentGroup: assemblyGroup,
+            meta: {
+              category: isMilaDouble ? 'mila-double' : 'mila',
+              role: 'armrest-right',
+              quantity,
+              moduleSpacingMm,
+            },
+          });
+        }
+      } else if (accessoryType === 'armrest-center') {
+        removePartsByRole('armrest-center');
+        if (enabled && quantity > 1) {
+          const item = MILA_ACCESSORY_CATALOG.armrestCenter;
+          const offset = MILA_ACCESSORY_OFFSETS_MM.armrestCenter;
+          for (let seamIndex = 1; seamIndex < quantity; seamIndex += 1) {
+            const seamX = seamIndex * moduleSpacingMm;
+            await addExternalGlbPart({
+              kind: 'GLB_PART',
+              type: 'GLB_PART',
+              line: isMilaDouble ? 'MILA_DOUBLE' : 'MILA',
+              groupId,
+              groupName,
+              code: item.code,
+              codigoPT: item.code,
+              name: `${groupName} ${item.label} ${seamIndex}`,
+              description: item.description,
+              prices: item.prices,
+              model: { src: item.modelSrc },
+              position: {
+                x: seamX + Number(offset.x || 0),
+                y: Number(offset.y || 0),
+                z: Number(offset.z || 0),
+              },
+              rotation: { x: 0, y: 0, z: 0 },
+              parentGroup: assemblyGroup,
+              meta: {
+                category: isMilaDouble ? 'mila-double' : 'mila',
+                role: 'armrest-center',
+                seamIndex,
+                moduleSpacingMm,
+              },
+            });
+          }
+        }
+      } else if (accessoryType === 'screen') {
+        removePartsByRole('screen');
+        if (enabled) {
+          const item = resolveMilaScreenCatalogItem(quantity);
+          const offset = MILA_ACCESSORY_OFFSETS_MM.screen;
+          await addExternalGlbPart({
+            kind: 'GLB_PART',
+            type: 'GLB_PART',
+            line: isMilaDouble ? 'MILA_DOUBLE' : 'MILA',
+            groupId,
+            groupName,
+            code: item.code,
+            codigoPT: item.code,
+            name: `${groupName} ${item.label}`,
+            description: item.description,
+            prices: item.prices,
+            model: { src: item.modelSrc },
+            position: {
+              x: Number(offset.x || 0),
+              y: Number(offset.y || 0),
+              z: Number(offset.z || 0),
+            },
+            rotation: { x: 0, y: 0, z: 0 },
+            parentGroup: assemblyGroup,
+            meta: {
+              category: isMilaDouble ? 'mila-double' : 'mila',
+              role: 'screen',
+              quantity,
+              moduleSpacingMm,
+            },
+          });
+        }
+      }
+
       emitBOM();
       refreshFloorAndGrid();
     }
@@ -5537,6 +5842,7 @@ export default function ThreeCanvas({
       addZen,
       swapMilaSeatVariant,
       swapMilaGiroGrommet,
+      toggleMilaAccessory,
       swapMepalSaludVariant,
       swapClakVariant,
       swapAlmacenamientoVariant,
@@ -5750,7 +6056,19 @@ export default function ThreeCanvas({
 
     function findPartById(instanceId) {
       if (!instanceId) return activePart;
-      return parts.find(({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId)?.obj;
+      const fromParts = parts.find(
+        ({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId
+      )?.obj;
+      if (fromParts) return fromParts;
+
+      let found = null;
+      scene.traverse((node) => {
+        if (found) return;
+        if (node.userData?.instanceId === instanceId || node.uuid === instanceId) {
+          found = node;
+        }
+      });
+      return found;
     }
 
     function resolveRotationSource(sourceId) {
@@ -5882,9 +6200,12 @@ export default function ThreeCanvas({
           return;
         }
 
-        const assembly = getKoncisaAssemblyObject(source) || getKoncisaAssemblyObject(physicalRoot);
         if (assembly) {
-          targets.push(assembly);
+          if (physicalRoot.userData?.groupId) {
+            targets.push(...getGroupedObjects(physicalRoot));
+          } else {
+            targets.push(assembly);
+          }
           return;
         }
 
@@ -5987,9 +6308,15 @@ export default function ThreeCanvas({
         const assembly =
           getKoncisaAssemblyObject(sourceObject) || getKoncisaAssemblyObject(physicalRoot);
         if (assembly) {
-          getAssemblyRotationTargets(assembly).forEach((target) => {
-            targetsById.set(target.uuid, target);
-          });
+          if (physicalRoot.userData?.groupId) {
+            getGroupedObjects(physicalRoot).forEach((target) => {
+              targetsById.set(target.uuid, target);
+            });
+          } else {
+            getAssemblyRotationTargets(assembly).forEach((target) => {
+              targetsById.set(target.uuid, target);
+            });
+          }
           return;
         }
 
@@ -6593,17 +6920,17 @@ export default function ThreeCanvas({
 
         if (deleteAsGroupRef.current) {
           const assembly = getKoncisaAssemblyObject(obj) || getKoncisaAssemblyObject(physicalRoot);
-          if (assembly) {
-            targetsByKey.set('assembly:' + assembly.uuid, { obj: assembly, isAssembly: true });
+          const groupId = assembly?.userData?.groupId || physicalRoot.userData?.groupId;
+          if (groupId) {
+            getGroupedObjects(physicalRoot).forEach((groupObj) => {
+              const asm = getAssemblyObject(groupObj);
+              const targetNode = asm || groupObj;
+              targetsByKey.set('groupItem:' + targetNode.uuid, { obj: targetNode, isAssembly: !!asm });
+            });
             return;
           }
-
-          const groupId = physicalRoot.userData?.groupId;
-          if (groupId) {
-            const key = 'group:' + groupId;
-            if (!targetsByKey.has(key)) {
-              targetsByKey.set(key, { obj: physicalRoot, isAssembly: false });
-            }
+          if (assembly) {
+            targetsByKey.set('assembly:' + assembly.uuid, { obj: assembly, isAssembly: true });
             return;
           }
         }
@@ -8905,11 +9232,31 @@ export default function ThreeCanvas({
           index: idx,
         }));
 
+        let hasArmrestLeft = false;
+        let hasArmrestRight = false;
+        let hasArmrestCenter = false;
+        let hasScreen = false;
+
+        root.traverse((node) => {
+          const role = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
+          if (role === 'armrest-left') hasArmrestLeft = true;
+          if (role === 'armrest-right') hasArmrestRight = true;
+          if (role === 'armrest-center') hasArmrestCenter = true;
+          if (role === 'screen') hasScreen = true;
+        });
+
         if (clickedSeat) {
           const clickedId = clickedSeat.userData?.instanceId || clickedSeat.uuid;
           const foundIdx = milaSeats.findIndex((s) => s.instanceId === clickedId);
           if (foundIdx >= 0) clickedMilaSeatIndex = foundIdx;
         }
+
+        // Propiedades de accesorios para el popup de propiedades
+        root.userData._milaArmrestLeft = hasArmrestLeft;
+        root.userData._milaArmrestRight = hasArmrestRight;
+        root.userData._milaArmrestCenter = hasArmrestCenter;
+        root.userData._milaHasScreen = hasScreen;
+        root.userData._milaQuantity = seatNodes.length;
       }
 
       //para propiedades flotantes p popup:
@@ -8935,6 +9282,12 @@ export default function ThreeCanvas({
           almacenVariants: root.userData?.almacenVariants || null,
           seats: milaSeats,
           clickedSeatIndex: clickedMilaSeatIndex,
+          armrestLeft: root.userData?._milaArmrestLeft || false,
+          armrestRight: root.userData?._milaArmrestRight || false,
+          armrestCenter: root.userData?._milaArmrestCenter || false,
+          hasScreen: root.userData?._milaHasScreen || false,
+          quantity: root.userData?._milaQuantity || (milaSeats?.length ?? 1),
+          assemblyGroupId: root.userData?.groupId || root.userData?.instanceId || root.uuid,
         },
       });
 
@@ -9109,10 +9462,12 @@ export default function ThreeCanvas({
       const activeGroupId = targetObj.userData?.groupId;
       const allAssemblies = [];
       const allGiroSurfaces = [];
+      const allAccessories = [];
       scene.children.forEach((node) => {
         if (node === targetObj) return;
         if (activeGroupId && node.userData?.groupId === activeGroupId) return;
 
+        const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
         if (
           node.userData?.kind === 'MILA_ASSEMBLY' ||
           node.userData?.type === 'mila'
@@ -9121,9 +9476,16 @@ export default function ThreeCanvas({
         } else if (
           node.userData?.kind === 'MILA_GIRO_SURFACE' ||
           node.userData?.type === 'MILA_GIRO_SURFACE' ||
-          node.userData?.meta?.role === 'giro-surface'
+          r === 'giro-surface'
         ) {
           allGiroSurfaces.push(node);
+        } else if (
+          r === 'armrest-left' ||
+          r === 'armrest-right' ||
+          r === 'armrest-center' ||
+          r === 'screen'
+        ) {
+          allAccessories.push(node);
         }
       });
 
@@ -9131,6 +9493,7 @@ export default function ThreeCanvas({
         activeAssembly: targetObj,
         allAssemblies,
         allGiroSurfaces,
+        allAccessories,
       });
 
       if (snapResult && snapResult.targetTransform && snapResult.targetObj) {

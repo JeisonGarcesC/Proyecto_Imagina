@@ -34,5 +34,68 @@
     "description": "Base metálica de la poltrona Mila doble",
     "modelSrc": "/assets/models/Mila/sillamiladoble/TKSSO110000.glb",
     "role": "legs-double"
+  },
+  {
+    "id": "mila-armrest-left",
+    "codigoPT": "22000127151",
+    "title": "Apoyabrazos izquierdo Mila",
+    "subtitle": "Brazo izquierdo tapizado",
+    "description": "BRAZO IZQUIERDO TAPIZADO TEK SOCIAL (MILA V2) TKSSI140000",
+    "modelSrc": "/assets/models/Mila/TKSSI140000_IZQ.glb",
+    "role": "armrest-left"
+  },
+  {
+    "id": "mila-armrest-right",
+    "codigoPT": "22000127151",
+    "title": "Apoyabrazos derecho Mila",
+    "subtitle": "Brazo derecho tapizado",
+    "description": "BRAZO DERECHO TAPIZADO TEK SOCIAL (MILA V2) TKSSI140000",
+    "modelSrc": "/assets/models/Mila/TKSSI140000_DER.glb",
+    "role": "armrest-right"
+  },
+  {
+    "id": "mila-armrest-center",
+    "codigoPT": "22000110791",
+    "title": "Apoyabrazos intermedio Mila",
+    "subtitle": "Brazo intermedio tapizado",
+    "description": "APOYA BRAZOS INTERMEDIO POLTRONA TEK SOCIAL TKSSI090000",
+    "modelSrc": "/assets/models/Mila/TKSSI090000_INT.glb",
+    "role": "armrest-center"
+  },
+  {
+    "id": "mila-screen-60",
+    "codigoPT": "22000127825",
+    "title": "Pantalla acústica Mila 1P",
+    "subtitle": "Panel envolvente 60 cm",
+    "description": "PANEL ESPALDA TERMINAL TAPIZADO 1 PUESTO TEK SOCIAL (MILA V2) TKSPN070000",
+    "modelSrc": "/assets/models/Mila/TKSPN070000_60_W_2P.glb",
+    "role": "screen"
+  },
+  {
+    "id": "mila-screen-120",
+    "codigoPT": "22000127826",
+    "title": "Pantalla acústica Mila 2P",
+    "subtitle": "Panel envolvente 120 cm",
+    "description": "PANEL ESPALDA TERMINAL TAPIZADO 2 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000",
+    "modelSrc": "/assets/models/Mila/TKSPN070000_120_W_2P.glb",
+    "role": "screen"
+  },
+  {
+    "id": "mila-screen-180",
+    "codigoPT": "22000127827",
+    "title": "Pantalla acústica Mila 3P",
+    "subtitle": "Panel envolvente 180 cm",
+    "description": "PANEL ESPALDA TERMINAL TAPIZADO 3 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000",
+    "modelSrc": "/assets/models/Mila/TKSPN070000_180_W_2P.glb",
+    "role": "screen"
+  },
+  {
+    "id": "mila-screen-240",
+    "codigoPT": "22000127828",
+    "title": "Pantalla acústica Mila 4P",
+    "subtitle": "Panel envolvente 240 cm",
+    "description": "PANEL ESPALDA TERMINAL TAPIZADO 4 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000",
+    "modelSrc": "/assets/models/Mila/TKSPN070000_240_W_2P.glb",
+    "role": "screen"
   }
 ]

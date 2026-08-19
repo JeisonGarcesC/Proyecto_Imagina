@@ -21,6 +21,7 @@ import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/create
 import MilaPanel from './MilaPanel';
 import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import { createMilaGiroInstance } from '../mepal/mila/factories/createMilaGiroInstance';
+import { createMilaAccessoryInstance } from '../mepal/mila/factories/createMilaAccessoryInstance';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,
@@ -1534,6 +1535,8 @@ export default function LeftPanel({
 
             if (config?.type === 'giro') {
               await createMilaGiroInstance({ api, config });
+            } else if (config?.type === 'accessory') {
+              await createMilaAccessoryInstance({ api, config });
             } else {
               await createMilaInstance({ api, config });
             }

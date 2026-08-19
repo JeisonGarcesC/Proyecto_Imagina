@@ -120,6 +120,13 @@ export default function MilaProperties({ part, api, onClose }) {
 
   const currentMode = resolveMilaModeFromPart(currentSeat);
   const seatLabel = currentSeat.label || `Silla ${(Number(part?.clickedSeatIndex ?? 0)) + 1}`;
+  const assemblyId = part.assemblyGroupId || part.groupId || part.instanceId || part.userData?.groupId;
+  const quantity = Number(part.quantity || part.seats?.length || 1);
+
+  const armrestLeft = Boolean(part.armrestLeft ?? part.meta?.armrestLeft);
+  const armrestRight = Boolean(part.armrestRight ?? part.meta?.armrestRight);
+  const armrestCenter = Boolean(part.armrestCenter ?? part.meta?.armrestCenter);
+  const hasScreen = Boolean(part.hasScreen ?? part.meta?.hasScreen);
 
   async function handleModeChange(e) {
     const targetMode = e.target.value;
@@ -127,6 +134,12 @@ export default function MilaProperties({ part, api, onClose }) {
     if (!api?.swapMilaSeatVariant || !currentSeat.instanceId) return;
 
     await api.swapMilaSeatVariant(currentSeat.instanceId, currentSeat.code, targetMode);
+    onClose?.();
+  }
+
+  async function handleAccessoryChange(type, enabled) {
+    if (!api?.toggleMilaAccessory || !assemblyId) return;
+    await api.toggleMilaAccessory(assemblyId, type, enabled);
     onClose?.();
   }
 
@@ -146,12 +159,109 @@ export default function MilaProperties({ part, api, onClose }) {
           background: '#fff',
           fontSize: 12,
           cursor: 'pointer',
+          marginBottom: 12,
         }}
       >
         <option value="chair">Silla</option>
         <option value="table">Mesa</option>
         <option value="tableGrommet">Mesa con grommet</option>
       </select>
+
+      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8, color: '#111827', borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
+        Accesorios Ensamble
+      </div>
+
+      <div style={{ display: 'grid', gap: 8 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: 2 }}>
+            Apoyabrazo Izquierdo
+          </label>
+          <select
+            value={armrestLeft ? 'si' : 'no'}
+            onChange={(e) => handleAccessoryChange('armrest-left', e.target.value === 'si')}
+            style={{
+              width: '100%',
+              padding: '6px 8px',
+              borderRadius: 8,
+              border: '1px solid #d1d5db',
+              background: '#fff',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="no">No</option>
+            <option value="si">Si</option>
+          </select>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: 2 }}>
+            Apoyabrazo Derecho
+          </label>
+          <select
+            value={armrestRight ? 'si' : 'no'}
+            onChange={(e) => handleAccessoryChange('armrest-right', e.target.value === 'si')}
+            style={{
+              width: '100%',
+              padding: '6px 8px',
+              borderRadius: 8,
+              border: '1px solid #d1d5db',
+              background: '#fff',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="no">No</option>
+            <option value="si">Si</option>
+          </select>
+        </div>
+
+        {quantity > 1 && (
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: 2 }}>
+              Apoyabrazos Intermedios
+            </label>
+            <select
+              value={armrestCenter ? 'si' : 'no'}
+              onChange={(e) => handleAccessoryChange('armrest-center', e.target.value === 'si')}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                background: '#fff',
+                fontSize: 12,
+                cursor: 'pointer',
+              }}
+            >
+              <option value="no">No</option>
+              <option value="si">Si</option>
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#4b5563', display: 'block', marginBottom: 2 }}>
+            Pantalla Envolvente (W_2P)
+          </label>
+          <select
+            value={hasScreen ? 'si' : 'no'}
+            onChange={(e) => handleAccessoryChange('screen', e.target.value === 'si')}
+            style={{
+              width: '100%',
+              padding: '6px 8px',
+              borderRadius: 8,
+              border: '1px solid #d1d5db',
+              background: '#fff',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="no">No</option>
+            <option value="si">Si</option>
+          </select>
+        </div>
+      </div>
     </div>
   );
 }
