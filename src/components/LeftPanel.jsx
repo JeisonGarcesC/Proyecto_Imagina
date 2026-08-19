@@ -17,6 +17,9 @@ import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
+import LinkPanel from './LinkPanel';
+import KuoGoPanel from './KuoGoPanel';
+import KuoAVPanel from './KuoAVPanel';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,
@@ -27,7 +30,7 @@ import { getEdukVariantGroupByCode } from '../mepal/eduk/products/edukShelfHeigh
 import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
 
 const typologyImageCache = new Map();
-const IMAGE_FOLDER_SETS = {
+export const IMAGE_FOLDER_SETS = {
   general: ['general'],
   tipologias: ['tipologias'],
   sillas: ['Sillas'],
@@ -39,9 +42,10 @@ const IMAGE_FOLDER_SETS = {
   eduk: ['Eduk'],
   mepalSalud: ['MepalSalud'],
   tekSocial: ['Mepal TekSocial'],
+  link: ['Link/Credenza EXE'],
 };
 
-function CardImage({
+export function CardImage({
   assetName,
   title,
   imageFolders = [],
@@ -2454,6 +2458,21 @@ export default function LeftPanel({
             </div>
           )}
         </>
+      )}
+
+      {/* ======================= LINK ======================= */}
+      {section === 'link' && (
+        <LinkPanel threeApiRef={threeApiRef} />
+      )}
+
+      {/* ======================= KUO GO ======================= */}
+      {section === 'kuoGo' && (
+        <KuoGoPanel threeApiRef={threeApiRef} />
+      )}
+
+      {/* ======================= KUO ALTURA VARIABLE ======================= */}
+      {section === 'kuoAlturaVariable' && (
+        <KuoAVPanel threeApiRef={threeApiRef} />
       )}
     </div>
   );

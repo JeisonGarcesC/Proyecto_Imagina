@@ -29,6 +29,11 @@ import { createAresInstance } from '../mepal/ares/factories/createAresInstance';
 import { getAresProductDefinition } from '../mepal/ares/products/aresProductDefinition';
 import { createClakInstance } from '../mepal/clak/factories/createClakInstance';
 import { createEdukInstance } from '../mepal/eduk/factories/createEdukInstance';
+import { createLinkInstance } from '../mepal/link/factories/createLinkInstance';
+import { createKuoGoInstance } from '../mepal/kuoGo/factories/createKuoGoInstance';
+import { createKuoAVInstance } from '../mepal/kuoAV/factory/createKuoAVInstance';
+import { createKuoAVDobleInstance } from '../mepal/kuoAVDoble/factory/createKuoAVDobleInstance';
+import { createKuoAVPantallaInstance } from '../mepal/kuoAV/factory/createKuoAVPantallaInstance';
 import { createSaludInstance } from '../mepal/salud/factories/createSaludInstance';
 import {
   getSaludVariantOptionsByCode,
@@ -464,6 +469,87 @@ export default function ThreeCanvas({
       renderer.domElement.style.cursor = cursor || '';
     }
 
+    // ===== MARCADORES VISUALES DE POSICIÓN / EXTENSIÓN CET (KUO AV) =====
+    const kuoAVSnapMarkersGroup = new THREE.Group();
+    kuoAVSnapMarkersGroup.visible = false;
+    scene.add(kuoAVSnapMarkersGroup);
+
+    const markerMat = new THREE.MeshStandardMaterial({
+      color: 0xffcc00,
+      emissive: 0x886600,
+      roughness: 0.35,
+      metalness: 0.2,
+    });
+
+    const markerCylGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.14, 18);
+    const markerDiscGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.03, 18);
+
+    const snapMarkerRight = new THREE.Mesh(markerCylGeo, markerMat);
+    snapMarkerRight.rotation.z = Math.PI / 2;
+    snapMarkerRight.userData = { isKuoSnapMarker: true, snapType: 'EXTENSION_DER' };
+
+    const snapMarkerLeft = new THREE.Mesh(markerCylGeo, markerMat);
+    snapMarkerLeft.rotation.z = -Math.PI / 2;
+    snapMarkerLeft.userData = { isKuoSnapMarker: true, snapType: 'EXTENSION_IZQ' };
+
+    const snapMarkerFront = new THREE.Mesh(markerCylGeo, markerMat);
+    snapMarkerFront.rotation.x = Math.PI / 2;
+    snapMarkerFront.userData = { isKuoSnapMarker: true, snapType: 'FRONT' };
+
+    const snapMarkerBack = new THREE.Mesh(markerCylGeo, markerMat);
+    snapMarkerBack.rotation.x = -Math.PI / 2;
+    snapMarkerBack.userData = { isKuoSnapMarker: true, snapType: 'BACK' };
+
+    const snapMarkerCenter = new THREE.Mesh(markerDiscGeo, markerMat);
+    snapMarkerCenter.userData = { isKuoSnapMarker: true, snapType: 'CENTER' };
+
+    kuoAVSnapMarkersGroup.add(
+      snapMarkerRight,
+      snapMarkerLeft,
+      snapMarkerFront,
+      snapMarkerBack,
+      snapMarkerCenter
+    );
+
+    function updateKuoAVSnapMarkers() {
+      const assembly =
+        activePart?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
+        activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
+          ? activePart
+          : getKoncisaAssemblyObject(activePart);
+
+      if (
+        !assembly ||
+        (assembly.userData?.kind !== 'KUO_AV_DOBLE_ASSEMBLY' &&
+          assembly.userData?.kind !== 'KUO_AV_ASSEMBLY')
+      ) {
+        kuoAVSnapMarkersGroup.visible = false;
+        return;
+      }
+
+      const box = new THREE.Box3().setFromObject(assembly);
+      if (box.isEmpty()) {
+        kuoAVSnapMarkersGroup.visible = false;
+        return;
+      }
+
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const surfaceY = box.max.y;
+
+      const halfW = size.x / 2;
+      const halfD = size.z / 2;
+
+      snapMarkerRight.position.set(center.x + halfW + 0.05, surfaceY, center.z);
+      snapMarkerLeft.position.set(center.x - halfW - 0.05, surfaceY, center.z);
+      snapMarkerFront.position.set(center.x, surfaceY, center.z + halfD + 0.05);
+      snapMarkerBack.position.set(center.x, surfaceY, center.z - halfD - 0.05);
+      snapMarkerCenter.position.set(center.x, surfaceY + 0.015, center.z);
+
+      kuoAVSnapMarkersGroup.visible = true;
+      kuoAVSnapMarkersGroup.updateMatrixWorld(true);
+    }
+
     function updateEdukTableHandles() {
       const context = resolveActiveEdukVariantContext();
       if (!context || isRotating3D) {
@@ -738,19 +824,17 @@ export default function ThreeCanvas({
       gridHelper,
       scene,
       bounds,
-      padding = 4,
-      minSize = 12,
+      padding = 10,
+      minSize = 40,
     }) {
       const spanX = bounds.maxX - bounds.minX;
       const spanZ = bounds.maxZ - bounds.minZ;
 
       const size = Math.max(minSize, Math.ceil(Math.max(spanX, spanZ) + padding * 2));
-      const centerX = (bounds.minX + bounds.maxX) / 2;
-      const centerZ = (bounds.minZ + bounds.maxZ) / 2;
 
-      // Piso
+      // Piso estático anclado en el origen del mundo
       floorMesh.scale.set(size, size, 1);
-      floorMesh.position.set(centerX, 0, centerZ);
+      floorMesh.position.set(0, 0, 0);
 
       // Grid viejo fuera
       if (gridHelper.current) {
@@ -759,12 +843,10 @@ export default function ThreeCanvas({
         gridHelper.current.material?.dispose?.();
       }
 
-      //const divisions = Math.max(10, Math.round(size));// de 1 metro en 1 metro
       const cellSize = 0.1; // 10 cm
       const divisions = Math.max(10, Math.round(size / cellSize));
-      //const newGrid = new THREE.GridHelper(size, divisions, 0x999999, 0xdddddd);
       const newGrid = new THREE.GridHelper(size, divisions, 0xbcbcbc, 0xe9e9e9);
-      newGrid.position.set(centerX, 0.001, centerZ);
+      newGrid.position.set(0, 0.001, 0);
       scene.add(newGrid);
       gridHelper.current = newGrid;
     }
@@ -821,6 +903,7 @@ export default function ThreeCanvas({
       materialCode: null,
       generico: 'PISO',
       instanceId: 'FLOOR_MAIN',
+      isWorldGround: true,
       lockedMovement: true,
       lockedDelete: true,
       excludeFromBOM: true,
@@ -908,6 +991,14 @@ export default function ThreeCanvas({
       parts.forEach(({ obj }) => {
         const id = obj?.userData?.instanceId || obj?.uuid;
         if (!id || !selectedSet.has(id) || obj === activePart) return;
+        // Si el objeto es un hijo interno del mismo ensamble que activePart, no dibujar helper adicional redundante
+        if (
+          obj.userData?.parentAssemblyId &&
+          (obj.userData.parentAssemblyId === activeId ||
+            obj.userData.parentAssemblyId === activePart?.userData?.parentAssemblyId)
+        ) {
+          return;
+        }
         const helper = new THREE.BoxHelper(obj, 0xffcc00);
         scene.add(helper);
         helper.update();
@@ -938,6 +1029,7 @@ export default function ThreeCanvas({
       }
       updateRotationHandle();
       updateEdukTableHandles();
+      updateKuoAVSnapMarkers();
 
       const subKey = obj?.userData?.activeSubKey || null;
       const finishes = obj?.userData?.finishes || {};
@@ -980,6 +1072,9 @@ export default function ThreeCanvas({
         groupName: obj.userData?.groupName || null,
         logicalCode: obj.userData?.logicalCode || null,
         instanceId: obj.userData?.instanceId || obj.uuid || null,
+        config: obj.userData?.config || null,
+        userData: obj.userData || null,
+        parentAssemblyId: obj.userData?.parentAssemblyId || null,
         selectionToggle: selectionContext?.toggle === true,
         selectionPreserve: selectionContext?.preserve === true,
         selectionTargetIds: selectionContext?.targetIds || null,
@@ -1137,6 +1232,28 @@ export default function ThreeCanvas({
 
           obj.updateMatrixWorld(true);
 
+          if (obj.userData?.kind === 'KUO_AV_ASSEMBLY' || obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
+            const box = new THREE.Box3().setFromObject(obj);
+            const size = new THREE.Vector3();
+            const center = new THREE.Vector3();
+            box.getSize(size);
+            box.getCenter(center);
+            const w = obj.userData?.dimMm?.width ? obj.userData.dimMm.width / 1000 : obj.userData?.dimMm?.widthMm ? obj.userData.dimMm.widthMm / 1000 : size.x;
+            const d = obj.userData?.dimMm?.depth ? obj.userData.dimMm.depth / 1000 : obj.userData?.dimMm?.depthMm ? obj.userData.dimMm.depthMm / 1000 : size.z;
+            return {
+              id: obj.userData?.instanceId || obj.uuid,
+              groupId: obj.userData?.groupId || obj.userData?.instanceId,
+              codigoPT: obj.userData?.codigoPT || obj.userData?.code || obj.userData?.kind || 'KUO_AV',
+              x: center.x,
+              z: center.z,
+              w: Math.max(0.001, w),
+              d: Math.max(0.001, d),
+              rotY: obj.rotation.y || 0,
+              kind: obj.userData.kind,
+              type: obj.userData.kind,
+            };
+          }
+
           const objectType = String(obj.userData?.type || obj.userData?.kind || '')
             .trim()
             .toLowerCase();
@@ -1267,11 +1384,15 @@ export default function ThreeCanvas({
 
     function selectPartById(instanceId) {
       const found = parts.find(
-        ({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId
+        ({ obj }) =>
+          (obj?.userData?.instanceId || obj?.uuid) === instanceId ||
+          obj?.userData?.parentAssemblyId === instanceId ||
+          obj?.userData?.groupId === instanceId
       );
       if (found?.obj) {
-        setActivePart(found.obj);
-        frameObject?.(found.obj); // opcional: enfocar al seleccionar desde 2D
+        const root = getRootPartObject(found.obj) || found.obj;
+        setActivePart(root);
+        frameObject?.(root); // opcional: enfocar al seleccionar desde 2D
       }
     }
 
@@ -1285,6 +1406,14 @@ export default function ThreeCanvas({
       const nextX = Number(x);
       const nextZ = Number(z);
       if (!Number.isFinite(nextX) || !Number.isFinite(nextZ)) return false;
+
+      if (obj.userData?.kind === 'KUO_AV_ASSEMBLY') {
+        console.log('[KUO INTERACTION]');
+        console.log('2D DRAG MOVE');
+        console.log(`instanceId: ${instanceId}`);
+        console.log(`x: ${(nextX * 1000).toFixed(1)}`);
+        console.log(`z: ${(nextZ * 1000).toFixed(1)}`);
+      }
 
       obj.updateMatrixWorld(true);
 
@@ -1443,6 +1572,39 @@ export default function ThreeCanvas({
         if (!obj) continue;
 
         if (obj.userData?.excludeFromBOM) continue;
+
+        if (obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
+          const bomList = obj.userData?.bom || [];
+          const parentCode = normalizeText(
+            obj.userData?.codigoPT || obj.userData?.code || p.code || 'PUESTO_DOBLE_KUO_AV'
+          );
+          const label = obj.userData?.name || 'Puesto Doble Kuo AV';
+          const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+          const groupId = obj.userData?.groupId || groupInstanceId;
+          const groupName = obj.userData?.groupName || 'Puesto Doble Kuo AV';
+
+          if (Array.isArray(bomList) && bomList.length) {
+            for (const it of bomList) {
+              addRow(
+                String(it.codigo || it.code),
+                Number(it.cantidad || it.qty || 1),
+                it.descripcion || it.description || it.name,
+                it.unitPrice || 0,
+                groupId,
+                groupName,
+                it.prices,
+                null,
+                groupInstanceId
+              );
+            }
+          }
+          continue;
+        }
+
+        // Si es una pieza hija de un ensamblaje, la raíz ya procesó el BOM
+        if (obj.userData?.parentAssemblyId) {
+          continue;
+        }
 
         if (obj.userData?.kind === 'TYPOLOGY') {
           const parentCode = normalizeText(
@@ -1832,6 +1994,7 @@ export default function ThreeCanvas({
           kind === 'CLAK' ||
           kind === 'EDUK' ||
           kind === 'ALMACENAMIENTO' ||
+          kind === 'KUO_AV_ASSEMBLY' ||
           kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
           return cur;
@@ -1879,6 +2042,8 @@ export default function ThreeCanvas({
       while (current) {
         if (
           current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ||
+          current.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+          current.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
           current.userData?.type === 'koncisa-plus'
         ) {
           return current;
@@ -2044,8 +2209,271 @@ export default function ThreeCanvas({
       return a || b;
     }
 
-    function snapActivePart() {
-      if (!snapActive || !activePart) return;
+    function snapKuoAVAssembly(assembly, applyVariantSwap = false) {
+      if (
+        !assembly ||
+        (assembly.userData?.kind !== 'KUO_AV_ASSEMBLY' &&
+          assembly.userData?.kind !== 'KUO_AV_DOBLE_ASSEMBLY')
+      )
+        return false;
+
+      // Asegurar siempre nivel de piso en Y = 0
+      assembly.position.y = 0;
+      assembly.updateMatrixWorld(true);
+
+      const activeBox = new THREE.Box3().setFromObject(assembly);
+      const SNAP_THRESHOLD_M = 0.25; // 250 mm de tolerancia para snap lateral
+      let bestCandidate = null;
+      let minDistance = Infinity;
+
+      scene.traverse((node) => {
+        if (!node || node === assembly) return;
+        const isOtherKuoOrDesk =
+          (node.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+            node.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
+            node.userData?.kind === 'KONCISA_PLUS_ASSEMBLY') &&
+          node.userData?.instanceId !== assembly.userData?.instanceId &&
+          !isDescendantOf(node, assembly) &&
+          !isDescendantOf(assembly, node);
+
+        if (!isOtherKuoOrDesk) return;
+
+        const targetBox = new THREE.Box3().setFromObject(node);
+
+        // 1. Probar Snap Lateral Derecho (Active a la derecha de Target)
+        const distRight = Math.abs(activeBox.min.x - targetBox.max.x);
+        const zAlignRight = Math.abs(activeBox.min.z - targetBox.min.z);
+        if (distRight <= SNAP_THRESHOLD_M && zAlignRight <= SNAP_THRESHOLD_M) {
+          const totalDist = distRight + zAlignRight;
+          if (totalDist < minDistance) {
+            minDistance = totalDist;
+            bestCandidate = {
+              target: node,
+              targetBox,
+              delta: new THREE.Vector3(
+                targetBox.max.x - activeBox.min.x,
+                0,
+                targetBox.min.z - activeBox.min.z
+              ),
+              type: 'LATERAL_RIGHT',
+            };
+          }
+        }
+
+        // 2. Probar Snap Lateral Izquierdo (Active a la izquierda de Target)
+        const distLeft = Math.abs(activeBox.max.x - targetBox.min.x);
+        const zAlignLeft = Math.abs(activeBox.min.z - targetBox.min.z);
+        if (distLeft <= SNAP_THRESHOLD_M && zAlignLeft <= SNAP_THRESHOLD_M) {
+          const totalDist = distLeft + zAlignLeft;
+          if (totalDist < minDistance) {
+            minDistance = totalDist;
+            bestCandidate = {
+              target: node,
+              targetBox,
+              delta: new THREE.Vector3(
+                targetBox.min.x - activeBox.max.x,
+                0,
+                targetBox.min.z - activeBox.min.z
+              ),
+              type: 'LATERAL_LEFT',
+            };
+          }
+        }
+
+        // 3. Probar Snap Enfrentado en Z (Frente a frente)
+        const distFront = Math.abs(activeBox.min.z - targetBox.max.z);
+        const xAlignFront = Math.abs(activeBox.min.x - targetBox.min.x);
+        if (distFront <= SNAP_THRESHOLD_M && xAlignFront <= SNAP_THRESHOLD_M) {
+          const totalDist = distFront + xAlignFront;
+          if (totalDist < minDistance) {
+            minDistance = totalDist;
+            bestCandidate = {
+              target: node,
+              targetBox,
+              delta: new THREE.Vector3(
+                targetBox.min.x - activeBox.min.x,
+                0,
+                targetBox.max.z - activeBox.min.z
+              ),
+              type: 'FACE_TO_FACE',
+            };
+          }
+        }
+
+        // 4. Probar Snap Perpendicular / Unión en L (90 grados)
+        const rotActive = THREE.MathUtils.euclideanModulo(assembly.rotation.y, Math.PI * 2);
+        const rotTarget = THREE.MathUtils.euclideanModulo(node.rotation.y, Math.PI * 2);
+        const diffAngle = THREE.MathUtils.euclideanModulo(Math.abs(rotActive - rotTarget), Math.PI);
+        const isPerp = Math.abs(diffAngle - Math.PI / 2) < 0.25 || Math.abs(diffAngle - (3 * Math.PI) / 2) < 0.25;
+
+        if (isPerp) {
+          // Búsqueda de contacto entre bordes en disposición perpendicular
+          const centerDist = activeBox.getCenter(new THREE.Vector3()).distanceTo(targetBox.getCenter(new THREE.Vector3()));
+          const maxDimActive = activeBox.getSize(new THREE.Vector3()).length();
+          const maxDimTarget = targetBox.getSize(new THREE.Vector3()).length();
+          if (centerDist <= (maxDimActive + maxDimTarget) * 0.6) {
+            const dMinX = Math.abs(activeBox.min.x - targetBox.max.x);
+            const dMaxX = Math.abs(activeBox.max.x - targetBox.min.x);
+            const dMinZ = Math.abs(activeBox.min.z - targetBox.max.z);
+            const dMaxZ = Math.abs(activeBox.max.z - targetBox.min.z);
+            const minEdgeDist = Math.min(dMinX, dMaxX, dMinZ, dMaxZ);
+            if (minEdgeDist <= SNAP_THRESHOLD_M && minEdgeDist < minDistance) {
+              minDistance = minEdgeDist;
+              let deltaPerp = new THREE.Vector3(0, 0, 0);
+              if (minEdgeDist === dMinX) deltaPerp.x = targetBox.max.x - activeBox.min.x;
+              else if (minEdgeDist === dMaxX) deltaPerp.x = targetBox.min.x - activeBox.max.x;
+              else if (minEdgeDist === dMinZ) deltaPerp.z = targetBox.max.z - activeBox.min.z;
+              else if (minEdgeDist === dMaxZ) deltaPerp.z = targetBox.min.z - activeBox.max.z;
+
+              bestCandidate = {
+                target: node,
+                targetBox,
+                delta: deltaPerp,
+                type: 'PERPENDICULAR_L',
+                isPerpendicular: true,
+              };
+            }
+          }
+        }
+      });
+
+      if (bestCandidate) {
+        // Ajuste angular magnético: enderezar al múltiplo de 90° más cercano si está alineado
+        const nearestAngle = Math.round(assembly.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
+        if (Math.abs(assembly.rotation.y - nearestAngle) < 0.15) {
+          assembly.rotation.y = nearestAngle;
+        }
+
+        assembly.position.add(bestCandidate.delta);
+        assembly.position.y = 0;
+        assembly.updateMatrixWorld(true);
+
+        const offsetLocal = {
+          x: assembly.position.x - bestCandidate.target.position.x,
+          y: 0,
+          z: assembly.position.z - bestCandidate.target.position.z,
+        };
+
+        assembly.userData.attachment = {
+          targetAssemblyId: bestCandidate.target.userData?.instanceId || bestCandidate.target.uuid,
+          mode: bestCandidate.isPerpendicular ? 'BENCH_PERPENDICULAR' : 'BENCH_LATERAL',
+          offsetLocal,
+        };
+
+        // Unión magnética bidireccional
+        if (!bestCandidate.target.userData.attachedNeighbors) {
+          bestCandidate.target.userData.attachedNeighbors = new Set();
+        }
+        bestCandidate.target.userData.attachedNeighbors.add(
+          assembly.userData?.instanceId || assembly.uuid
+        );
+
+        return true;
+      } else {
+        if (assembly.position.y !== 0) {
+          assembly.position.y = 0;
+          assembly.updateMatrixWorld(true);
+        }
+        assembly.userData.attachment = null;
+        return false;
+      }
+    }
+
+    function checkAndApplyKuoAVLUnion(assembly) {
+      if (!assembly || assembly.userData?.kind !== 'KUO_AV_DOBLE_ASSEMBLY') return;
+      const instId = assembly.userData?.instanceId;
+      if (!instId) return;
+
+      assembly.updateMatrixWorld(true);
+      const widthMm = Number(assembly.userData?.config?.anchoMm || 1200);
+      const halfWidthM = (widthMm / 2) / 1000;
+      const leftWorld = new THREE.Vector3(-halfWidthM, 0, 0).applyMatrix4(assembly.matrixWorld);
+      const rightWorld = new THREE.Vector3(halfWidthM, 0, 0).applyMatrix4(assembly.matrixWorld);
+
+      let foundPerpNeighbor = null;
+      let minPerpDist = Infinity;
+      let meetingSide = null;
+
+      scene.traverse((node) => {
+        if (!node || node === assembly) return;
+        const isOtherDesk =
+          (node.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+            node.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
+            node.userData?.kind === 'KONCISA_PLUS_ASSEMBLY') &&
+          node.userData?.instanceId !== instId &&
+          !isDescendantOf(node, assembly) &&
+          !isDescendantOf(assembly, node);
+
+        if (!isOtherDesk) return;
+
+        const rotA = THREE.MathUtils.euclideanModulo(assembly.rotation.y, Math.PI * 2);
+        const rotB = THREE.MathUtils.euclideanModulo(node.rotation.y, Math.PI * 2);
+        const diffAngle = THREE.MathUtils.euclideanModulo(Math.abs(rotA - rotB), Math.PI);
+        const isPerp =
+          Math.abs(diffAngle - Math.PI / 2) < 0.25 || Math.abs(diffAngle - (3 * Math.PI) / 2) < 0.25;
+
+        if (!isPerp) return;
+
+        const targetBox = new THREE.Box3().setFromObject(node);
+        const distLeft = targetBox.distanceToPoint(leftWorld);
+        const distRight = targetBox.distanceToPoint(rightWorld);
+        const closestDist = Math.min(distLeft, distRight);
+
+        if (closestDist < 0.45 && closestDist < minPerpDist) {
+          minPerpDist = closestDist;
+          foundPerpNeighbor = node;
+          meetingSide = distLeft <= distRight ? 'LEFT' : 'RIGHT';
+        }
+      });
+
+      const currConfig = assembly.userData?.config || {};
+
+      if (foundPerpNeighbor && meetingSide === 'LEFT') {
+        if (currConfig.pieIzquierdo !== false || currConfig.paralesIzquierdos !== false) {
+          void swapKuoAVDobleVariant(instId, {
+            pieIzquierdo: false,
+            paralesIzquierdos: false,
+            pieDerecho: true,
+            paralesDerechos: true,
+          });
+        }
+      } else if (foundPerpNeighbor && meetingSide === 'RIGHT') {
+        if (currConfig.pieDerecho !== false || currConfig.paralesDerechos !== false) {
+          void swapKuoAVDobleVariant(instId, {
+            pieIzquierdo: true,
+            paralesIzquierdos: true,
+            pieDerecho: false,
+            paralesDerechos: false,
+          });
+        }
+      } else if (!foundPerpNeighbor) {
+        if (currConfig.pieIzquierdo === false || currConfig.pieDerecho === false) {
+          void swapKuoAVDobleVariant(instId, {
+            pieIzquierdo: true,
+            paralesIzquierdos: true,
+            pieDerecho: true,
+            paralesDerechos: true,
+          });
+        }
+      }
+    }
+
+    function snapActivePart(applyVariantSwap = false) {
+      if (!activePart) return;
+
+      if (
+        activePart.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+        activePart.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
+        activePart.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY'
+      ) {
+        if (activePart.userData?.kind !== 'KUO_AV_PANTALLA_ASSEMBLY') {
+          snapKuoAVAssembly(activePart, applyVariantSwap);
+        }
+        if (selectionHelper) selectionHelper.update();
+        return;
+      }
+
+      if (!snapActive) return;
 
       const activeCode = activePart.userData.code;
       const activeMeta = catalogCache.get(activeCode)?.meta;
@@ -2218,7 +2646,9 @@ export default function ThreeCanvas({
     }
 
     async function loadExistingGlb(possibleSrcs) {
-      for (const src of possibleSrcs) {
+      if (!possibleSrcs) return null;
+      const srcs = Array.isArray(possibleSrcs) ? possibleSrcs : [possibleSrcs];
+      for (const src of srcs) {
         try {
           const res = await fetch(src, { method: 'GET' });
 
@@ -2938,6 +3368,591 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function addLink(config = {}) {
+      if (readOnly) return;
+
+      let result;
+      try {
+        result = await createLinkInstance({
+          config,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[addLink] Error al crear la credenza Link:', error);
+        return;
+      }
+
+      if (!result) {
+        // Tipo no disponible — el builder ya emitió el warn
+        return;
+      }
+
+      const { object, partRecord } = result;
+
+      object.position.set(Math.max(0, parts.length * 1.6), 0, 0);
+      object.updateMatrixWorld(true);
+
+      scene.add(object);
+      parts.push(partRecord);
+      pickables.push(object);
+
+      setActivePart(object);
+      emitBOM();
+
+      if (parts.length === 1) frameObject(object);
+      refreshFloorAndGrid();
+    }
+
+    async function swapLinkVariant(instanceId, nextConfig = {}) {
+      if (readOnly) return;
+
+      const found = parts.find(({ obj }) => {
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      });
+
+      if (!found?.obj) {
+        console.warn('[swapLinkVariant] No se encontró la pieza Link:', instanceId);
+        return;
+      }
+
+      const oldObj = found.obj;
+      // Preserve current position/rotation/scale
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+      const savedScale = oldObj.scale.clone();
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      // Extract existing config from userData and merge with nextConfig
+      const currentConfig = {
+        tipoKey: oldObj.userData?.tipoKey || '2_archivos',
+        entrega: oldObj.userData?.entrega || 'DER',
+        ancho:   oldObj.userData?.ancho   || 120,
+        instanceId: oldObj.userData?.instanceId || instanceId,
+        groupId: oldObj.userData?.groupId,
+      };
+
+      const targetConfig = { ...currentConfig, ...nextConfig };
+
+      let result;
+      try {
+        result = await createLinkInstance({
+          config: targetConfig,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[swapLinkVariant] Error al intercambiar credenza Link:', error);
+        return;
+      }
+
+      if (!result) return; // Tipo no disponible
+
+      const { object: newObj, partRecord } = result;
+
+      // Sincronizar el estado del floating editor (PropertiesPopup)
+      Object.assign(oldObj.userData, newObj.userData);
+
+      // Restore position/rotation/scale
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.scale.copy(savedScale);
+      newObj.updateMatrixWorld(true);
+
+      removePartObject(oldObj);
+
+      if (parentGroup) {
+        parentGroup.add(newObj);
+      } else {
+        scene.add(newObj);
+      }
+
+      parts.push(partRecord);
+      pickables.push(newObj);
+
+      setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
+    async function addKuoGo(config = {}) {
+      if (readOnly) return;
+      let result;
+      try {
+        result = await createKuoGoInstance({
+          config,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[addKuoGo] Error al crear Kuo Go:', error);
+        return;
+      }
+      if (!result) return;
+
+      const { object, partRecord } = result;
+      object.position.set(Math.max(0, parts.length * 1.6), 0, 0);
+      object.updateMatrixWorld(true);
+      scene.add(object);
+      parts.push(partRecord);
+      pickables.push(object);
+      setActivePart(object);
+      emitBOM();
+      if (parts.length === 1) frameObject(object);
+      refreshFloorAndGrid();
+    }
+
+    async function swapKuoGoVariant(instanceId, nextConfig = {}) {
+      if (readOnly) return;
+      console.log('[swapKuoGoVariant] START', { instanceId, nextConfig });
+      const found = parts.find(({ obj }) => obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId);
+      if (!found?.obj) {
+        console.warn('[swapKuoGoVariant] No se encontró el objeto KuoGo con instanceId:', instanceId);
+        return;
+      }
+      const oldObj = found.obj;
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+      const savedScale = oldObj.scale.clone();
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      const currentConfig = {
+        tipoKey: oldObj.userData?.tipoKey || 'Kume200000',
+        espesor: oldObj.userData?.espesor || 'Espesor Formica 18',
+        especial: oldObj.userData?.especial || false,
+        instanceId: oldObj.userData?.instanceId || instanceId,
+        groupId: oldObj.userData?.groupId,
+      };
+      const targetConfig = { ...currentConfig, ...nextConfig };
+
+      let result;
+      try {
+        result = await createKuoGoInstance({ config: targetConfig, loadGlb: loadExistingGlb, country: countryRef.current });
+      } catch (error) {
+        console.error('[swapKuoGoVariant] Error en createKuoGoInstance:', error);
+        return;
+      }
+      if (!result) {
+        console.warn('[swapKuoGoVariant] createKuoGoInstance devolvió null');
+        return;
+      }
+      const { object: newObj, partRecord } = result;
+      console.log('[swapKuoGoVariant] Nuevo objeto creado:', newObj.userData);
+
+      // Sincronizar el estado del floating editor (PropertiesPopup)
+      Object.assign(oldObj.userData, newObj.userData);
+
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.scale.copy(savedScale);
+      newObj.updateMatrixWorld(true);
+      removePartObject(oldObj);
+      if (parentGroup) parentGroup.add(newObj);
+      else scene.add(newObj);
+      parts.push(partRecord);
+      pickables.push(newObj);
+      setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
+    async function addKuoAV(config = {}) {
+      if (readOnly) return;
+      const countKuo = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_ASSEMBLY').length;
+      let result;
+      try {
+        result = await createKuoAVInstance({
+          config,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[addKuoAV] Error al crear Kuo AV:', error);
+        return;
+      }
+      if (!result) return;
+
+      const { object, partRecord } = result;
+      object.position.set(countKuo * 1.6, 0, 0);
+      object.updateMatrixWorld(true);
+      scene.add(object);
+      parts.push(partRecord);
+      pickables.push(object);
+      setActivePart(object);
+      emitBOM();
+      if (parts.length === 1) frameObject(object);
+      refreshFloorAndGrid();
+    }
+
+    async function swapKuoAVVariant(instanceId, nextConfig = {}) {
+      if (readOnly) return;
+      console.log('[KUO PARAM DEBUG] swapKuoAVVariant START', { instanceId, nextConfig });
+      const found = parts.find(
+        ({ obj }) =>
+          obj?.userData?.instanceId === instanceId ||
+          obj?.userData?.parentAssemblyId === instanceId ||
+          obj?.userData?.groupId === instanceId ||
+          obj?.uuid === instanceId
+      );
+      if (!found?.obj) {
+        console.warn('[swapKuoAVVariant] No se encontró el objeto Kuo AV con instanceId:', instanceId);
+        return;
+      }
+      const oldObj = getRootPartObject(found.obj) || found.obj;
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+      const savedScale = oldObj.scale.clone();
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      const currentConfig = {
+        ...(oldObj.userData?.config || {}),
+        instanceId: oldObj.userData?.instanceId || instanceId,
+        groupId: oldObj.userData?.groupId,
+      };
+      const targetConfig = { ...currentConfig, ...nextConfig };
+
+      console.log('[KUO PARAM DEBUG] Antes:', {
+        width: currentConfig.anchoMm,
+        depth: currentConfig.profundidadMm,
+        height: currentConfig.alturaMm,
+        thickness: currentConfig.thickMm,
+      });
+      console.log('[KUO PARAM DEBUG] Después del cambio:', {
+        width: targetConfig.anchoMm,
+        depth: targetConfig.profundidadMm,
+        height: targetConfig.alturaMm,
+        thickness: targetConfig.thickMm,
+      });
+
+      let result;
+      try {
+        result = await createKuoAVInstance({
+          config: targetConfig,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[swapKuoAVVariant] Error en createKuoAVInstance:', error);
+        return;
+      }
+      if (!result) {
+        console.warn('[swapKuoAVVariant] createKuoAVInstance devolvió null');
+        return;
+      }
+      const { object: newObj, partRecord, built } = result;
+
+      console.log('[KUO PARAM DEBUG] buildKuoAV recibe:', {
+        width: built?.config?.anchoMm,
+        depth: built?.config?.profundidadMm,
+        height: built?.config?.alturaMm,
+        thickness: built?.config?.thickMm,
+      });
+      console.log('[KUO PARAM DEBUG] Resultado parts:', built?.parts?.length);
+
+      // Sincronizar estado en userData
+      Object.assign(oldObj.userData, newObj.userData);
+
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.scale.copy(savedScale);
+      newObj.updateMatrixWorld(true);
+      removePartObject(oldObj);
+      if (parentGroup) parentGroup.add(newObj);
+      else scene.add(newObj);
+      parts.push(partRecord);
+      pickables.push(newObj);
+      setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+
+      // Sincronizar PropertiesPopup
+      onFloatingEditorRequest?.({
+        open: true,
+        x: 120,
+        y: 120,
+        part: {
+          code: newObj.userData?.codigoPT || newObj.userData?.code || null,
+          kind: newObj.userData?.kind || 'KUO_AV_ASSEMBLY',
+          meta: newObj.userData?.meta || null,
+          groupId: newObj.userData?.groupId || null,
+          groupName: newObj.userData?.groupName || null,
+          logicalCode: newObj.userData?.logicalCode || null,
+          instanceId: newObj.userData?.instanceId || instanceId,
+          description: newObj.userData?.description || null,
+          config: newObj.userData?.config || targetConfig,
+          userData: newObj.userData || null,
+          parentAssemblyId: newObj.userData?.parentAssemblyId || null,
+        },
+      });
+
+      const selectedBeam = built?.parts?.find((p) => p.type === 'viga')?.model?.src || 'N/A';
+      const selectedDuct = built?.parts?.find((p) => p.type === 'ducto')?.model?.src || 'N/A';
+
+      console.log(
+        `[KUO PARAM]\nwidth: ${targetConfig.anchoMm}\nselected beam: ${selectedBeam}\nselected duct: ${selectedDuct}\nassembly rebuilt: true`
+      );
+    }
+
+    async function addKuoAVDoble(config = {}) {
+      if (readOnly) return;
+      const countKuoDoble = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY').length;
+      let result;
+      try {
+        result = await createKuoAVDobleInstance({
+          config,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[addKuoAVDoble] Error al crear Puesto Doble Kuo AV:', error);
+        return;
+      }
+      if (!result) return;
+
+      const { object, partRecord } = result;
+      if (config.position) {
+        if (Array.isArray(config.position)) {
+          object.position.fromArray(config.position);
+        } else {
+          object.position.copy(config.position);
+        }
+      } else {
+        object.position.set(countKuoDoble * 1.6, 0, 0);
+      }
+      object.updateMatrixWorld(true);
+      scene.add(object);
+      parts.push(partRecord);
+      pickables.push(object);
+
+      object.children.forEach((child) => {
+        if (child.userData?.isPartRoot) {
+          parts.push({
+            id: child.userData.instanceId,
+            code: child.userData.codigoPT || child.userData.code,
+            obj: child,
+            kind: child.userData.kind,
+            type: child.userData.type,
+            name: child.userData.name,
+          });
+          pickables.push(child);
+        }
+      });
+
+      setActivePart(object);
+      emitBOM();
+      if (parts.length === 1) frameObject(object);
+      refreshFloorAndGrid();
+    }
+
+    async function swapKuoAVDobleVariant(instanceId, nextConfig = {}) {
+      if (readOnly) return;
+      console.log('[KUO DOUBLE PARAM] swapKuoAVDobleVariant START', { instanceId, nextConfig });
+      const found = parts.find(
+        ({ obj }) =>
+          obj?.userData?.instanceId === instanceId ||
+          obj?.userData?.parentAssemblyId === instanceId ||
+          obj?.userData?.groupId === instanceId ||
+          obj?.uuid === instanceId
+      );
+      if (!found?.obj) {
+        console.warn('[swapKuoAVDobleVariant] No se encontró el objeto con instanceId:', instanceId);
+        return;
+      }
+      const oldObj = getRootPartObject(found.obj) || found.obj;
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+      const savedScale = oldObj.scale.clone();
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      const currentConfig = oldObj.userData?.config || {};
+      const targetConfig = {
+        ...currentConfig,
+        ...nextConfig,
+        instanceId,
+        groupId: oldObj.userData?.groupId || instanceId,
+      };
+
+      let result;
+      try {
+        result = await createKuoAVDobleInstance({
+          config: targetConfig,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[swapKuoAVDobleVariant] Error en createKuoAVDobleInstance:', error);
+        return;
+      }
+      if (!result) {
+        console.warn('[swapKuoAVDobleVariant] createKuoAVDobleInstance devolvió null');
+        return;
+      }
+      const { object: newObj, partRecord } = result;
+
+      // Limpiar hijos anteriores de parts y pickables
+      const oldChildIds = new Set(
+        oldObj.children?.map((c) => c.userData?.instanceId).filter(Boolean) || []
+      );
+      for (let i = parts.length - 1; i >= 0; i--) {
+        if (oldChildIds.has(parts[i].obj?.userData?.instanceId)) {
+          parts.splice(i, 1);
+        }
+      }
+      for (let i = pickables.length - 1; i >= 0; i--) {
+        if (oldChildIds.has(pickables[i].userData?.instanceId)) {
+          pickables.splice(i, 1);
+        }
+      }
+
+      Object.assign(oldObj.userData, newObj.userData);
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.scale.copy(savedScale);
+      newObj.updateMatrixWorld(true);
+      removePartObject(oldObj);
+      if (parentGroup) parentGroup.add(newObj);
+      else scene.add(newObj);
+      parts.push(partRecord);
+      pickables.push(newObj);
+
+      newObj.children.forEach((child) => {
+        if (child.userData?.isPartRoot) {
+          parts.push({
+            id: child.userData.instanceId,
+            code: child.userData.codigoPT || child.userData.code,
+            obj: child,
+            kind: child.userData.kind,
+            type: child.userData.type,
+            name: child.userData.name,
+          });
+          pickables.push(child);
+        }
+      });
+      setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+
+      onFloatingEditorRequest?.({
+        open: true,
+        x: 120,
+        y: 120,
+        part: {
+          code: newObj.userData?.codigoPT || newObj.userData?.code || null,
+          kind: newObj.userData?.kind || 'KUO_AV_DOBLE_ASSEMBLY',
+          meta: newObj.userData?.meta || null,
+          groupId: newObj.userData?.groupId || null,
+          groupName: newObj.userData?.groupName || null,
+          logicalCode: newObj.userData?.logicalCode || null,
+          instanceId: newObj.userData?.instanceId || instanceId,
+          description: newObj.userData?.description || null,
+          config: newObj.userData?.config || targetConfig,
+          userData: newObj.userData || null,
+          parentAssemblyId: newObj.userData?.parentAssemblyId || null,
+        },
+      });
+    }
+
+    async function addKuoAVPantalla(config = {}) {
+      if (readOnly) return;
+      const countPan = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY').length;
+      let result;
+      try {
+        result = await createKuoAVPantallaInstance({
+          config,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[addKuoAVPantalla] Error al crear Pantalla Kuo AV:', error);
+        return;
+      }
+      if (!result) return;
+
+      const { object, partRecord } = result;
+      if (config.position) {
+        if (Array.isArray(config.position)) {
+          object.position.fromArray(config.position);
+        } else {
+          object.position.copy(config.position);
+        }
+      } else {
+        // Posicionar a un lado libre elevado a la altura de mesa para no superponerse
+        let spawnX = 0;
+        let spawnZ = 0;
+        const physicalObjects = parts.map(({ obj }) => obj).filter(Boolean);
+        if (physicalObjects.length > 0) {
+          const sceneBox = new THREE.Box3();
+          physicalObjects.forEach((obj) => {
+            sceneBox.expandByObject(obj);
+          });
+          if (Number.isFinite(sceneBox.max.x)) {
+            spawnX = sceneBox.max.x + 1.0;
+          }
+        }
+        const defaultY = config.tipo === 'FRONTAL_PERIMETRAL' ? 0.632 : 0.462;
+        object.position.set(spawnX, defaultY, spawnZ);
+      }
+      object.updateMatrixWorld(true);
+      scene.add(object);
+      parts.push(partRecord);
+      pickables.push(object);
+
+      setActivePart(object);
+      emitBOM();
+      if (parts.length === 1) frameObject(object);
+      refreshFloorAndGrid();
+    }
+
+    async function swapKuoAVPantallaVariant(instanceId, nextConfig = {}) {
+      if (readOnly) return;
+      const found = parts.find(
+        ({ obj }) =>
+          obj?.userData?.instanceId === instanceId ||
+          obj?.uuid === instanceId
+      );
+      if (!found?.obj) return;
+      const oldObj = getRootPartObject(found.obj) || found.obj;
+      const savedPos = oldObj.position.clone();
+      const savedRot = oldObj.rotation.clone();
+      const savedScale = oldObj.scale.clone();
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      const currentConfig = oldObj.userData?.config || {};
+      const targetConfig = {
+        ...currentConfig,
+        ...nextConfig,
+        instanceId,
+      };
+
+      let result;
+      try {
+        result = await createKuoAVPantallaInstance({
+          config: targetConfig,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
+      } catch (error) {
+        console.error('[swapKuoAVPantallaVariant] Error:', error);
+        return;
+      }
+      if (!result) return;
+
+      const { object: newObj, partRecord } = result;
+      Object.assign(oldObj.userData, newObj.userData);
+      newObj.position.copy(savedPos);
+      newObj.rotation.copy(savedRot);
+      newObj.scale.copy(savedScale);
+      newObj.updateMatrixWorld(true);
+      removePartObject(oldObj);
+      if (parentGroup) parentGroup.add(newObj);
+      else scene.add(newObj);
+      parts.push(partRecord);
+      pickables.push(newObj);
+      setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
       if (readOnly) return;
 
@@ -3581,6 +4596,16 @@ export default function ThreeCanvas({
       // Quitar registros internos del objeto y de todos sus hijos registrados.
       removePartsRecordsUnder(root);
       removePickablesUnder(root);
+
+      // Si otros ensambles estaban apoyados/pegados sobre este objeto eliminado, desvincularlos (Requirement 17)
+      const deletedInstanceId = root.userData?.instanceId;
+      if (deletedInstanceId) {
+        parts.forEach(({ obj: otherObj }) => {
+          if (otherObj?.userData?.attachment?.targetAssemblyId === deletedInstanceId) {
+            otherObj.userData.attachment = null;
+          }
+        });
+      }
 
       // Si la selección activa era este objeto o algo dentro de él, limpiar selección.
       if (activePart === root || isDescendantOf(activePart, root)) {
@@ -4335,6 +5360,8 @@ export default function ThreeCanvas({
           MEPAL_TEK_SOCIAL: addMepalTekSocial,
           CLAK: addClak,
           EDUK: addEduk,
+          KUO_AV: addKuoAV,
+          KUO_AV_ASSEMBLY: addKuoAV,
         };
         const creator = creators[normalizedKind] || addCatalogItem;
         await creator(code);
@@ -4368,6 +5395,16 @@ export default function ThreeCanvas({
       addClak,
       addEduk,
       addZen,
+      addLink,
+      addKuoGo,
+      addKuoAV,
+      addKuoAVDoble,
+      addKuoAVPantalla,
+      swapLinkVariant,
+      swapKuoGoVariant,
+      swapKuoAVVariant,
+      swapKuoAVDobleVariant,
+      swapKuoAVPantallaVariant,
       swapMepalSaludVariant,
       swapClakVariant,
       swapAlmacenamientoVariant,
@@ -4538,8 +5575,40 @@ export default function ThreeCanvas({
         obj.position.x += dx;
         obj.position.y += dy;
         obj.position.z += dz;
+        if (obj.userData?.kind === 'KUO_AV_ASSEMBLY') {
+          obj.position.y = 0;
+        }
         obj.updateMatrixWorld(true);
       });
+
+      // Mover ensambles anexos vinculados (attachments)
+      const movingId = target.userData?.instanceId;
+      if (movingId) {
+        parts.forEach(({ obj }) => {
+          if (
+            obj &&
+            obj !== target &&
+            obj.userData?.attachment?.targetAssemblyId === movingId
+          ) {
+            const off = obj.userData.attachment.offsetLocal;
+            if (off) {
+              obj.position.set(
+                target.position.x + off.x,
+                0,
+                target.position.z + off.z
+              );
+              obj.updateMatrixWorld(true);
+            }
+          }
+        });
+      }
+
+      if (target.userData?.kind === 'KUO_AV_ASSEMBLY') {
+        console.log('[KUO INTERACTION]');
+        console.log('SYNC 2D → 3D');
+        console.log(`instanceId: ${target.userData?.instanceId}`);
+        console.log(`position: [${(target.position.x * 1000).toFixed(1)}, 0, ${(target.position.z * 1000).toFixed(1)}]`);
+      }
 
       if (selectionHelper) selectionHelper.update();
       refreshFloorAndGrid();
@@ -4883,6 +5952,17 @@ export default function ThreeCanvas({
       const targets = dedupeMovementTargets(actualTargets);
       if (!targets.length) return false;
 
+      targets.forEach((obj) => {
+        if (obj.userData?.kind === 'KUO_AV_ASSEMBLY') {
+          if (obj.userData.attachment) {
+            obj.userData.attachment = null;
+          }
+          console.log('[KUO INTERACTION]');
+          console.log('2D DRAG START');
+          console.log(`instanceId: ${obj.userData?.instanceId}`);
+        }
+      });
+
       moveSession2D = {
         targets,
         before: captureMoveState(targets),
@@ -4893,9 +5973,19 @@ export default function ThreeCanvas({
     function endMove2D() {
       if (!moveSession2D) return false;
       const { targets, before } = moveSession2D;
+      snapActivePart();
       const after = captureMoveState(targets);
       moveSession2D = null;
       pushMoveHistory(before, after);
+
+      targets.forEach((obj) => {
+        if (obj.userData?.kind === 'KUO_AV_ASSEMBLY') {
+          console.log('[KUO INTERACTION]');
+          console.log('DRAG END');
+          console.log(`instanceId: ${obj.userData?.instanceId}`);
+          console.log(`position: [${(obj.position.x * 1000).toFixed(1)}, 0, ${(obj.position.z * 1000).toFixed(1)}]`);
+        }
+      });
       return true;
     }
 
@@ -5286,6 +6376,7 @@ export default function ThreeCanvas({
 
     function endRotation() {
       if (!rotationSession) return false;
+      const targets = rotationSession.targets || [];
       const before = rotationSession.historyBefore;
       const after = captureRotationState(rotationSession.targets);
       rotationSession = null;
@@ -5298,6 +6389,12 @@ export default function ThreeCanvas({
           after,
         });
       }
+
+      targets.forEach(({ obj }) => {
+        if (obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
+          checkAndApplyKuoAVLUnion(obj);
+        }
+      });
 
       updateRotationHandle();
       return true;
@@ -5325,6 +6422,9 @@ export default function ThreeCanvas({
       if (!Number.isFinite(radians) || !beginRotation({ sourceId })) return false;
       applyRotationDelta(radians);
       endRotation();
+      if (activePart?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
+        checkAndApplyKuoAVLUnion(activePart);
+      }
       return true;
     }
 
@@ -7605,6 +8705,67 @@ export default function ThreeCanvas({
         }
       }
 
+      // ===== INTERACCIÓN CON MARCADORES VISUALES DE EXTENSIÓN CET (KUO AV) =====
+      if (kuoAVSnapMarkersGroup.visible && activePart) {
+        const markerHits = raycaster.intersectObjects(kuoAVSnapMarkersGroup.children, true);
+        if (markerHits.length > 0) {
+          const hitMarker = markerHits[0].object;
+          const snapType = hitMarker.userData?.snapType;
+          const assembly =
+            activePart.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
+            activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
+              ? activePart
+              : getKoncisaAssemblyObject(activePart) || activePart;
+          const cfg = assembly.userData?.config || {};
+          const deskWidthM = (cfg.anchoMm || 1200) / 1000;
+          const angle = assembly.rotation.y || 0;
+
+          if (snapType === 'EXTENSION_DER') {
+            const offset = new THREE.Vector3(deskWidthM, 0, 0).applyAxisAngle(
+              new THREE.Vector3(0, 1, 0),
+              angle
+            );
+            const targetPos = assembly.position.clone().add(offset);
+            void addKuoAVDoble({
+              ...cfg,
+              tipoPuesto: 'EXTENSION_DER',
+              rotation: angle,
+              position: targetPos,
+            });
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          } else if (snapType === 'EXTENSION_IZQ') {
+            const offset = new THREE.Vector3(-deskWidthM, 0, 0).applyAxisAngle(
+              new THREE.Vector3(0, 1, 0),
+              angle
+            );
+            const targetPos = assembly.position.clone().add(offset);
+            void addKuoAVDoble({
+              ...cfg,
+              tipoPuesto: 'EXTENSION_IZQ',
+              rotation: angle,
+              position: targetPos,
+            });
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          } else if (snapType === 'CENTER') {
+            // Rotar 90° alrededor del centro
+            const newAngle = (angle + Math.PI / 2) % (Math.PI * 2);
+            assembly.rotation.y = newAngle;
+            assembly.updateMatrixWorld(true);
+            checkAndApplyKuoAVLUnion(assembly);
+            updateKuoAVSnapMarkers();
+            if (selectionHelper) selectionHelper.update();
+            emitBOM();
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+        }
+      }
+
       if (!pickables.length) return;
 
       const hits = raycaster.intersectObjects(pickables, true);
@@ -7615,31 +8776,27 @@ export default function ThreeCanvas({
       if (!root) return;
 
       const rootId = root.userData?.instanceId || root.uuid;
-      const selectionTargetIds = resolveSelectionTargets(hitObj);
-      const currentSelectedSet = new Set(selectedIds3D);
-      const targetIsSelected = selectionTargetIds.every((id) => currentSelectedSet.has(id));
       const wantsToggle = e.ctrlKey || e.metaKey;
+      const targetIsSelected = selectedIds3D.includes(rootId);
       const preserveSelection =
-        !wantsToggle && targetIsSelected && selectedIds3D.length > selectionTargetIds.length;
+        !wantsToggle && targetIsSelected && selectedIds3D.length > 1;
       let dragIds;
 
       if (preserveSelection) {
         dragIds = selectedIds3D;
       } else if (wantsToggle) {
         const nextIds = new Set(selectedIds3D);
-        selectionTargetIds.forEach((id) => {
-          if (targetIsSelected) nextIds.delete(id);
-          else nextIds.add(id);
-        });
+        if (targetIsSelected) nextIds.delete(rootId);
+        else nextIds.add(rootId);
         dragIds = Array.from(nextIds);
       } else {
-        dragIds = selectionTargetIds;
+        dragIds = [rootId];
       }
 
       setActivePart(root, {
         toggle: wantsToggle,
         preserve: preserveSelection,
-        targetIds: selectionTargetIds,
+        targetIds: dragIds,
       });
 
       if (transformToolRef.current === 'rotate') {
@@ -7667,7 +8824,10 @@ export default function ThreeCanvas({
           groupName: root.userData?.groupName || null,
           logicalCode: root.userData?.logicalCode || null,
           instanceId: root.userData?.instanceId || null,
-          description: root.userData?.description || null,
+          description: root.userData?.description || root.userData?.name || null,
+          config: root.userData?.config || null,
+          userData: root.userData || null,
+          parentAssemblyId: root.userData?.parentAssemblyId || null,
           showGrid: root.userData?.showGrid !== false,
           mepalVariant: root.userData?.mepalVariant || 'normal',
           almacenVariant: root.userData?.almacenVariant || null,
@@ -7677,15 +8837,68 @@ export default function ThreeCanvas({
       });
 
       const isAssemblyRoot =
-        root?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || root?.userData?.type === 'koncisa-plus';
+        root?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ||
+        root?.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+        root?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
+        root?.userData?.type === 'koncisa-plus';
 
-      //if (moveAsGroup && root?.userData?.groupId) {
-      if (moveAsGroupRef.current && root?.userData?.groupId && !isAssemblyRoot) {
-        const grouped = getGroupedObjects(root);
-        dragGroupStartRef.current = grouped.map((obj) => ({
-          obj,
-          position: obj.position.clone(),
-        }));
+      if (moveAsGroupRef.current && (root?.userData?.groupId || root?.userData?.parentAssemblyId || isAssemblyRoot)) {
+        const assembly = isAssemblyRoot ? root : getKoncisaAssemblyObject(root) || root;
+        if (assembly) {
+          const physicalObjects = parts.map(({ obj }) => obj).filter(Boolean);
+
+          // Encontrar todas las mesas acopladas magnéticamente en el cluster
+          const clusterAssemblies = new Set([assembly]);
+          let changed = true;
+          while (changed) {
+            changed = false;
+            physicalObjects.forEach((candidate) => {
+              const candAssembly =
+                getKoncisaAssemblyObject(candidate) ||
+                (candidate.userData?.kind?.includes('ASSEMBLY') ? candidate : null);
+              if (!candAssembly || clusterAssemblies.has(candAssembly)) return;
+
+              for (const clAss of clusterAssemblies) {
+                const clInstId = clAss.userData?.instanceId || clAss.uuid;
+                const candInstId = candAssembly.userData?.instanceId || candAssembly.uuid;
+                if (
+                  candAssembly.userData?.attachment?.targetAssemblyId === clInstId ||
+                  clAss.userData?.attachment?.targetAssemblyId === candInstId ||
+                  clAss.userData?.attachedNeighbors?.has(candInstId) ||
+                  candAssembly.userData?.attachedNeighbors?.has(clInstId)
+                ) {
+                  clusterAssemblies.add(candAssembly);
+                  changed = true;
+                  break;
+                }
+              }
+            });
+          }
+
+          const assemblyIds = new Set();
+          clusterAssemblies.forEach((ass) => {
+            if (ass.userData?.instanceId) assemblyIds.add(ass.userData.instanceId);
+            if (ass.userData?.code) assemblyIds.add(ass.userData.code);
+            assemblyIds.add(ass.uuid);
+          });
+
+          const members = physicalObjects.filter(
+            (candidate) =>
+              clusterAssemblies.has(candidate) ||
+              [...clusterAssemblies].some((ass) => isDescendantOf(candidate, ass)) ||
+              assemblyIds.has(candidate.userData?.parentAssemblyId)
+          );
+          dragGroupStartRef.current = members.map((obj) => ({
+            obj,
+            position: obj.position.clone(),
+          }));
+        } else {
+          const grouped = getGroupedObjects(root);
+          dragGroupStartRef.current = grouped.map((obj) => ({
+            obj,
+            position: obj.position.clone(),
+          }));
+        }
       } else {
         dragGroupStartRef.current = null;
       }
@@ -7708,21 +8921,43 @@ export default function ThreeCanvas({
       }
 
       // ---- DRAG ----
-      if (!dragIds.includes(rootId)) return;
+      let dragTargets = [];
+      if (moveAsGroupRef.current && dragGroupStartRef.current && dragGroupStartRef.current.length > 0) {
+        dragTargets = dragGroupStartRef.current.map((item) => item.obj);
+      } else {
+        const dragIdSet = new Set(dragIds);
+        const dragCandidates = parts
+          .map(({ obj }) => obj)
+          .filter((obj) => dragIdSet.has(obj?.userData?.instanceId || obj?.uuid));
+        const dragCandidateSet = new Set(dragCandidates);
+        dragTargets = dragCandidates.filter((obj) => {
+          let ancestor = obj.parent;
+          while (ancestor) {
+            if (dragCandidateSet.has(ancestor)) return false;
+            ancestor = ancestor.parent;
+          }
+          return true;
+        });
 
-      const dragIdSet = new Set(dragIds);
-      const dragCandidates = parts
-        .map(({ obj }) => obj)
-        .filter((obj) => dragIdSet.has(obj?.userData?.instanceId || obj?.uuid));
-      const dragCandidateSet = new Set(dragCandidates);
-      const dragTargets = dragCandidates.filter((obj) => {
-        let ancestor = obj.parent;
-        while (ancestor) {
-          if (dragCandidateSet.has(ancestor)) return false;
-          ancestor = ancestor.parent;
+        if (!dragTargets.length && root) {
+          dragTargets = [root];
         }
-        return true;
-      });
+
+        // Si se mueve en modo individual, separar de las conexiones magnéticas del banco
+        dragTargets.forEach((targetObj) => {
+          const targetAssembly =
+            targetObj.userData?.kind?.includes('ASSEMBLY')
+              ? targetObj
+              : getKoncisaAssemblyObject(targetObj);
+          if (targetAssembly) {
+            targetAssembly.userData.attachment = null;
+            if (targetAssembly.userData.attachedNeighbors) {
+              targetAssembly.userData.attachedNeighbors.clear();
+            }
+          }
+        });
+      }
+
       if (!dragTargets.length || dragTargets.some((obj) => obj.userData?.lockedMovement)) return;
 
       dragPlane.set(new THREE.Vector3(0, 1, 0), -root.position.y);
@@ -7738,6 +8973,42 @@ export default function ThreeCanvas({
         })),
       };
       isDragging = true;
+
+      if (root.userData?.kind === 'KUO_AV_ASSEMBLY') {
+        if (root.userData?.attachment) {
+          root.userData.attachment = null;
+        }
+
+        console.log('[KUO FINAL DRAG]');
+        console.log(`pointerDown: true`);
+        console.log(`clickedObject: ${hitObj.name || hitObj.userData?.code || 'mesh'}`);
+        console.log(`rootObject: ${root.name || 'assembly'}`);
+        console.log(`instanceId: ${root.userData?.instanceId}`);
+        console.log(`groupId: ${root.userData?.groupId}`);
+        console.log(`dragStart: true`);
+        console.log(`position: [${(root.position.x * 1000).toFixed(1)}, ${(root.position.y * 1000).toFixed(1)}, ${(root.position.z * 1000).toFixed(1)}]`);
+
+        console.log('\n[KUO DRAG TARGET]');
+        console.log(`clickedObject: ${hitObj.name || hitObj.userData?.code || 'mesh'}`);
+        console.log(`rootObject: ${root.name || 'assembly'}`);
+        console.log(`rootKind: ${root.userData?.kind}`);
+        console.log(`instanceId: ${root.userData?.instanceId}`);
+        console.log(`groupId: ${root.userData?.groupId}`);
+        console.log(`dragTarget: ${root.name || 'assembly'}`);
+        console.log(`dragTargetKind: ${root.userData?.kind}`);
+        console.log(`dragTargetParent: ${root.parent?.type || 'Scene'}`);
+
+        console.log('\n[KUO INTERACTION]');
+        console.log('POINTER DOWN');
+        console.log(`clickedObject: ${hitObj.name || hitObj.userData?.code || 'mesh'}`);
+        console.log(`rootObject: ${root.userData?.kind}`);
+        console.log(`instanceId: ${root.userData?.instanceId}`);
+
+        console.log('\n[KUO INTERACTION]');
+        console.log('DRAG START');
+        console.log(`instanceId: ${root.userData?.instanceId}`);
+        console.log(`position: [${(root.position.x * 1000).toFixed(1)}, ${(root.position.y * 1000).toFixed(1)}, ${(root.position.z * 1000).toFixed(1)}]`);
+      }
 
       controls.enabled = false;
       renderer.domElement.setPointerCapture?.(e.pointerId);
@@ -7788,11 +9059,69 @@ export default function ThreeCanvas({
         if (dragSession3D) {
           const delta = dragPoint.clone().sub(dragSession3D.pointerStart);
           delta.y = 0;
+          const posBefore = activePart.position.clone();
           dragSession3D.initialPositions.forEach(({ obj, worldPosition }) => {
             setObjectWorldPosition(obj, worldPosition.clone().add(delta));
+            if (obj.userData?.kind === 'KUO_AV_ASSEMBLY') {
+              obj.position.y = 0;
+              obj.updateMatrixWorld(true);
+            }
           });
+
+          if (activePart.userData?.kind === 'KUO_AV_ASSEMBLY') {
+            console.log('[KUO FINAL DRAG]');
+            console.log(`dragMove: true`);
+            console.log(`instanceId: ${activePart.userData?.instanceId}`);
+            console.log(`oldPosition: [${(posBefore.x * 1000).toFixed(1)}, 0.0, ${(posBefore.z * 1000).toFixed(1)}]`);
+            console.log(`newPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+            console.log(`positionApplied: true`);
+            console.log(`actualPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+
+            console.log('\n[KUO WORLD DEBUG]');
+            console.log(`floorPosition: [${floorMeshRef.current?.position.x.toFixed(1)}, ${floorMeshRef.current?.position.y.toFixed(1)}, ${floorMeshRef.current?.position.z.toFixed(1)}]`);
+            console.log(`gridPosition: [${gridHelperRef.current?.position.x.toFixed(1)}, ${gridHelperRef.current?.position.y.toFixed(1)}, ${gridHelperRef.current?.position.z.toFixed(1)}]`);
+
+            console.log('\n[KUO DRAG POSITION]');
+            console.log(`instanceId: ${activePart.userData?.instanceId}`);
+            console.log(`oldPosition: [${(posBefore.x * 1000).toFixed(1)}, 0.0, ${(posBefore.z * 1000).toFixed(1)}]`);
+            console.log(`newPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+
+            console.log('\n[KUO INTERACTION]');
+            console.log('DRAG MOVE');
+            console.log(`instanceId: ${activePart.userData?.instanceId}`);
+            console.log(`x: ${(activePart.position.x * 1000).toFixed(1)}`);
+            console.log(`y: ${(activePart.position.y * 1000).toFixed(1)}`);
+            console.log(`z: ${(activePart.position.z * 1000).toFixed(1)}`);
+
+            console.log('\n[KUO INTERACTION]');
+            console.log('SYNC 3D → 2D');
+            console.log(`instanceId: ${activePart.userData?.instanceId}`);
+            console.log(`position: [${(activePart.position.x * 1000).toFixed(1)}, ${(activePart.position.y * 1000).toFixed(1)}, ${(activePart.position.z * 1000).toFixed(1)}]`);
+
+            // Si este ensamble tiene otros ensambles pegados encima, moverlos juntos
+            const movingId = activePart.userData?.instanceId;
+            if (movingId) {
+              parts.forEach(({ obj }) => {
+                if (
+                  obj &&
+                  obj !== activePart &&
+                  obj.userData?.attachment?.targetAssemblyId === movingId
+                ) {
+                  const off = obj.userData.attachment.offsetLocal;
+                  if (off) {
+                    obj.position.set(
+                      activePart.position.x + off.x,
+                      0,
+                      activePart.position.z + off.z
+                    );
+                    obj.updateMatrixWorld(true);
+                  }
+                }
+              });
+            }
+          }
+
           if (selectionHelper) selectionHelper.update();
-          refreshFloorAndGrid();
           return;
         }
 
@@ -7815,6 +9144,38 @@ export default function ThreeCanvas({
           activePart.updateMatrixWorld(true);
         }
 
+        if (activePart.userData?.kind === 'KUO_AV_ASSEMBLY') {
+          console.log('[KUO DRAG 05] POINTER MOVE');
+          console.log(
+            `[KUO DRAG MOVE]\ninstanceId: ${activePart.userData?.instanceId}\nposition: [${(activePart.position.x * 1000).toFixed(1)}, ${(activePart.position.y * 1000).toFixed(1)}, ${(activePart.position.z * 1000).toFixed(1)}]\nx: ${(activePart.position.x * 1000).toFixed(1)}\ny: ${(activePart.position.y * 1000).toFixed(1)}\nz: ${(activePart.position.z * 1000).toFixed(1)}`
+          );
+          console.log(
+            `[KUO DRAG 06] POSITION UPDATED -> [${(activePart.position.x * 1000).toFixed(1)}, 0, ${(activePart.position.z * 1000).toFixed(1)}]`
+          );
+
+          // Si este ensamble tiene otros ensambles pegados encima, moverlos juntos
+          const movingId = activePart.userData?.instanceId;
+          if (movingId) {
+            parts.forEach(({ obj }) => {
+              if (
+                obj &&
+                obj !== activePart &&
+                obj.userData?.attachment?.targetAssemblyId === movingId
+              ) {
+                const off = obj.userData.attachment.offsetLocal;
+                if (off) {
+                  obj.position.set(
+                    activePart.position.x + off.x,
+                    activePart.position.y + off.y,
+                    activePart.position.z + off.z
+                  );
+                  obj.updateMatrixWorld(true);
+                }
+              }
+            });
+          }
+        }
+
         if (selectionHelper) selectionHelper.update();
       }
       refreshFloorAndGrid();
@@ -7830,6 +9191,7 @@ export default function ThreeCanvas({
         isRotating3D = false;
         endRotation();
         controls.enabled = true;
+        snapActivePart(true);
         try {
           renderer.domElement.releasePointerCapture?.(e.pointerId);
         } catch (err) {
@@ -7863,7 +9225,7 @@ export default function ThreeCanvas({
       dragRootStartRef.current = null;
       const activeLocalBeforeSnap = activePart?.position.clone();
       const activeWorldBeforeSnap = activePart?.getWorldPosition(new THREE.Vector3());
-      snapActivePart();
+      snapActivePart(true);
       if (completedDragSession && activeLocalBeforeSnap && activeWorldBeforeSnap && activePart) {
         const snapDelta = activePart
           .getWorldPosition(new THREE.Vector3())
@@ -7877,6 +9239,150 @@ export default function ThreeCanvas({
           });
         }
       }
+
+      // Ajuste magnético interactivo de Pantalla al arrastrarla en el 3D
+      if (
+        activePart?.userData?.role === 'PANTALLA' ||
+        activePart?.userData?.type === 'pantalla' ||
+        activePart?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY'
+      ) {
+        // 1. Si es parte interna de un Puesto Doble
+        const parentAss = getKoncisaAssemblyObject(activePart);
+        if (parentAss && parentAss.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' && parentAss !== activePart) {
+          const worldPos = activePart.getWorldPosition(new THREE.Vector3());
+          const localPos = parentAss.worldToLocal(worldPos);
+          let newPos = 'CENTRAL';
+          if (localPos.z > 0.2) {
+            newPos = 'FRONTAL';
+          } else if (localPos.z < -0.2) {
+            newPos = 'POSTERIOR';
+          }
+          const instId = parentAss.userData?.instanceId || parentAss.uuid;
+          if (instId) {
+            void swapKuoAVDobleVariant(instId, { pantallaPosicion: newPos, pantalla: true });
+          }
+        } else if (activePart?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY') {
+          // 2. Si es una Pantalla Flotante / Independiente, buscar mesa cercana para acoplarse
+          const panWorld = activePart.getWorldPosition(new THREE.Vector3());
+          const isPerimetralScreen =
+            activePart.userData?.config?.tipo === 'FRONTAL_PERIMETRAL';
+          let nearestDesk = null;
+          let minDeskDist = Infinity;
+
+          parts.forEach(({ obj }) => {
+            if (!obj || obj === activePart) return;
+
+            const isDouble = obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY';
+            const isSingle = obj.userData?.kind === 'KUO_AV_ASSEMBLY';
+
+            // Si es pantalla Frontal Perimetral, acepta Puesto Doble Y Puesto Perimetral
+            // Si es pantalla normal (FMT o Vidrio Doble), solo acepta Puesto Doble
+            if (isDouble || (isPerimetralScreen && isSingle)) {
+              const deskPos = obj.getWorldPosition(new THREE.Vector3());
+              const d = new THREE.Vector2(panWorld.x - deskPos.x, panWorld.z - deskPos.z).length();
+              if (d < 1.8 && d < minDeskDist) {
+                minDeskDist = d;
+                nearestDesk = obj;
+              }
+            }
+          });
+
+          if (nearestDesk) {
+            // Acople magnético sobre la mesa compatible
+            activePart.rotation.y = nearestDesk.rotation.y;
+            const deskPos = nearestDesk.position.clone();
+            const isSingle = nearestDesk.userData?.kind === 'KUO_AV_ASSEMBLY';
+
+            if (isSingle) {
+              // En Puesto Perimetral, la pantalla siempre queda al lado de los tomas (borde posterior)
+              const depthMm = nearestDesk.userData?.config?.profundidadMm || 600;
+              const halfDepthM = depthMm / 2000;
+              const offsetZ = -halfDepthM;
+              const offsetY = 0.632;
+
+              activePart.position.set(deskPos.x, deskPos.y + offsetY, deskPos.z + offsetZ);
+              activePart.updateMatrixWorld(true);
+
+              activePart.userData.attachment = {
+                targetAssemblyId: nearestDesk.userData?.instanceId || nearestDesk.uuid,
+                mode: 'PERIMETRAL_SCREEN_ATTACHMENT',
+                offsetLocal: {
+                  x: 0,
+                  y: offsetY,
+                  z: offsetZ,
+                },
+              };
+            } else {
+              // En Puesto Doble, ranura Central, Frontal o Posterior
+              const depthMm = nearestDesk.userData?.config?.profundidadMm || 600;
+              const halfDepthM = depthMm / 2000;
+              const gapM = 0.025;
+
+              const localZ = panWorld.z - deskPos.z;
+              let offsetZ = 0;
+              const offsetY = isPerimetralScreen ? 0.632 : 0.452;
+
+              if (localZ > 0.2) {
+                offsetZ = (halfDepthM * 2 + gapM);
+              } else if (localZ < -0.2) {
+                offsetZ = -(halfDepthM * 2 + gapM);
+              } else {
+                offsetZ = 0; // Centro exacto en la ranura
+              }
+
+              activePart.position.set(deskPos.x, deskPos.y + offsetY, deskPos.z + offsetZ);
+              activePart.updateMatrixWorld(true);
+
+              activePart.userData.attachment = {
+                targetAssemblyId: nearestDesk.userData?.instanceId || nearestDesk.uuid,
+                mode: 'DESK_SCREEN_ATTACHMENT',
+                offsetLocal: {
+                  x: 0,
+                  y: offsetY,
+                  z: offsetZ,
+                },
+              };
+            }
+
+            if (!nearestDesk.userData.attachedNeighbors) {
+              nearestDesk.userData.attachedNeighbors = new Set();
+            }
+            nearestDesk.userData.attachedNeighbors.add(
+              activePart.userData?.instanceId || activePart.uuid
+            );
+          } else {
+            // Sin mesa compatible cerca: permanece a altura de mesa sin acoples
+            activePart.position.y = isPerimetralScreen ? 0.632 : 0.462;
+            activePart.updateMatrixWorld(true);
+            activePart.userData.attachment = null;
+          }
+        }
+      }
+
+      parts.forEach(({ obj }) => {
+        if (obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
+          checkAndApplyKuoAVLUnion(obj);
+        }
+      });
+
+      if (activePart?.userData?.kind === 'KUO_AV_ASSEMBLY' && activeLocalBeforeSnap) {
+        console.log('[KUO FINAL DRAG]');
+        console.log(`dragEnd: true`);
+        console.log(`instanceId: ${activePart.userData?.instanceId}`);
+        console.log(`finalPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+        console.log(`world: { floorPosition: [0.0, 0.0, 0.0], gridPosition: [0.0, 0.0, 0.0] }`);
+        console.log(`controls: { enabled: true }`);
+
+        console.log('\n[KUO DRAG END]');
+        console.log(`instanceId: ${activePart.userData?.instanceId}`);
+        console.log(`finalPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+
+        console.log('\n[KUO INTERACTION]');
+        console.log('DRAG END');
+        console.log(`instanceId: ${activePart.userData?.instanceId}`);
+        console.log(`position: [${(activePart.position.x * 1000).toFixed(1)}, ${(activePart.position.y * 1000).toFixed(1)}, ${(activePart.position.z * 1000).toFixed(1)}]`);
+      }
+
       if (completedDragSession) {
         const before = completedDragSession.initialPositions.map(({ obj, localPosition }) =>
           createMoveSnapshot(obj, localPosition)
@@ -7937,8 +9443,7 @@ export default function ThreeCanvas({
       additionalSelectionHelpers.forEach((helper) => helper.update());
       updateRotationHandle();
       updateEdukTableHandles();
-
-      if (!isDragging) snapActivePart();
+      updateKuoAVSnapMarkers();
 
       renderer.render(scene, camera);
       rafId = requestAnimationFrame(animate);

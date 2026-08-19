@@ -6,6 +6,10 @@ import MepalSaludProperties from './MepalSaludProperties';
 import ClakProperties from './ClakProperties';
 import AlmacenamientoProperties from './AlmacenamientoProperties';
 import EdukProperties, { isEdukShelfEditablePart } from './EdukProperties';
+import LinkProperties, { isLinkEditablePart } from './LinkProperties';
+import KuoGoProperties, { isKuoGoEditablePart } from './KuoGoProperties';
+import KuoAVProperties, { isKuoAVEditablePart } from './KuoAVProperties';
+import KuoAVDobleProperties, { isKuoAVDobleEditablePart } from './KuoAVDobleProperties';
 import { isClakPuffVariantPart } from './clakPuffVariants';
 import { sectionStyle } from './shared/PropertyStyles';
 import PropertyHeader from './shared/PropertyHeader';
@@ -53,6 +57,10 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isAlmacenamientoPart(part) ||
     isEdukShelfEditablePart(part) ||
     isClakPuffVariantPart(part) ||
+    isLinkEditablePart(part) ||
+    isKuoGoEditablePart(part) ||
+    isKuoAVEditablePart(part) ||
+    isKuoAVDobleEditablePart(part) ||
     isFloor;
 
   const popupLeft = Math.min(x + 12, window.innerWidth - 310);
@@ -99,6 +107,14 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       <AlmacenamientoProperties part={part} api={api} onClose={onClose} />
 
       <EdukProperties part={part} api={api} onClose={onClose} />
+
+      <LinkProperties part={part} api={api} onClose={onClose} />
+
+      <KuoGoProperties part={part} api={api} onClose={onClose} />
+
+      <KuoAVProperties part={part} api={api} onClose={onClose} />
+
+      <KuoAVDobleProperties part={part} api={api} onClose={onClose} />
 
       {isFloor && (
         <div style={sectionStyle}>
