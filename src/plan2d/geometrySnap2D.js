@@ -3,9 +3,13 @@ import { buildFootprintWorldGeometry } from './footprintGeometry2D.js';
 export const SNAP_TYPES = Object.freeze({
   VERTEX: 'VERTEX',
   ENDPOINT: 'ENDPOINT',
+  CORNER: 'CORNER',
+  INTERSECTION: 'INTERSECTION',
   MIDPOINT: 'MIDPOINT',
+  FACE_MIDPOINT: 'FACE_MIDPOINT',
   CENTER: 'CENTER',
   SEGMENT: 'SEGMENT',
+  PERPENDICULAR: 'PERPENDICULAR',
 });
 
 export const PLACEMENT_SNAP_TYPES = Object.freeze({
@@ -19,7 +23,10 @@ export const PLACEMENT_SNAP_TYPES = Object.freeze({
 export const SNAP_LABELS = Object.freeze({
   [SNAP_TYPES.VERTEX]: 'Vértice detectado',
   [SNAP_TYPES.ENDPOINT]: 'Extremo detectado',
+  [SNAP_TYPES.CORNER]: 'Esquina detectada',
+  [SNAP_TYPES.INTERSECTION]: 'Intersección detectada',
   [SNAP_TYPES.MIDPOINT]: 'Punto medio detectado',
+  [SNAP_TYPES.FACE_MIDPOINT]: 'Centro de cara detectado',
   [SNAP_TYPES.CENTER]: 'Centro detectado',
   [SNAP_TYPES.SEGMENT]: 'Segmento detectado',
   [PLACEMENT_SNAP_TYPES.VERTEX_TO_VERTEX]: 'Vértices coincidentes',
@@ -32,9 +39,13 @@ export const SNAP_LABELS = Object.freeze({
 export const DEFAULT_SNAP_CONFIG = Object.freeze({
   vertex: true,
   endpoint: true,
+  corner: true,
+  intersection: true,
   midpoint: true,
+  faceMidpoint: true,
   center: true,
   segment: true,
+  perpendicular: false,
   edgeAlignment: true,
   vertexToVertex: true,
   centerToCenter: true,
@@ -54,11 +65,15 @@ export function normalizeSnapConfig(config = {}) {
 }
 
 const SNAP_PRIORITY = Object.freeze({
-  [SNAP_TYPES.VERTEX]: 0,
-  [SNAP_TYPES.ENDPOINT]: 1,
-  [SNAP_TYPES.MIDPOINT]: 2,
+  [SNAP_TYPES.ENDPOINT]: 0,
+  [SNAP_TYPES.VERTEX]: 1,
+  [SNAP_TYPES.CORNER]: 1,
+  [SNAP_TYPES.INTERSECTION]: 2,
   [SNAP_TYPES.CENTER]: 3,
-  [SNAP_TYPES.SEGMENT]: 4,
+  [SNAP_TYPES.MIDPOINT]: 4,
+  [SNAP_TYPES.FACE_MIDPOINT]: 5,
+  [SNAP_TYPES.SEGMENT]: 6,
+  [SNAP_TYPES.PERPENDICULAR]: 7,
 });
 
 function isFinitePoint(point) {
@@ -69,9 +84,13 @@ function isSnapTypeEnabled(type, config) {
   const settingByType = {
     [SNAP_TYPES.VERTEX]: 'vertex',
     [SNAP_TYPES.ENDPOINT]: 'endpoint',
+    [SNAP_TYPES.CORNER]: 'corner',
+    [SNAP_TYPES.INTERSECTION]: 'intersection',
     [SNAP_TYPES.MIDPOINT]: 'midpoint',
+    [SNAP_TYPES.FACE_MIDPOINT]: 'faceMidpoint',
     [SNAP_TYPES.CENTER]: 'center',
     [SNAP_TYPES.SEGMENT]: 'segment',
+    [SNAP_TYPES.PERPENDICULAR]: 'perpendicular',
   };
   return config[settingByType[type]] !== false;
 }
@@ -162,7 +181,7 @@ export function resolveSnapPoint({
   const config = normalizeSnapConfig(requestedConfig);
   let best = null;
 
-  const consider = (type, point, sourceId, feature = null) => {
+  const consider = (type, point, sourceId, feature = null, candidateData = {}) => {
     if (!isSnapTypeEnabled(type, config)) return;
     if (!isFinitePoint(point)) return;
     const worldDistance = Math.hypot(point.x - worldPoint.x, point.z - worldPoint.z);
@@ -178,6 +197,10 @@ export function resolveSnapPoint({
         type,
         point: { x: point.x, z: point.z },
         sourceId,
+        id: candidateData.id || null,
+        sourceType: candidateData.sourceType || null,
+        sourceSegmentId: candidateData.sourceSegmentId || null,
+        metadata: candidateData.metadata ? { ...candidateData.metadata } : null,
         feature: feature ? { ...feature } : null,
         distancePx,
         priority,
@@ -186,26 +209,38 @@ export function resolveSnapPoint({
   };
 
   (geometry?.points || []).forEach((candidate) => {
-    consider(candidate.type, candidate.point, candidate.sourceId, candidate.feature);
+    consider(candidate.type, candidate.point, candidate.sourceId, candidate.feature, candidate);
   });
   (geometry?.segments || []).forEach((segment) => {
     const edgeIndex = segment.feature?.edgeIndex;
-    consider(segment.endpointType || SNAP_TYPES.ENDPOINT, segment.a, segment.sourceId, {
-      kind: SNAP_TYPES.ENDPOINT,
-      edgeIndex,
-      endpointIndex: 0,
-    });
-    consider(segment.endpointType || SNAP_TYPES.ENDPOINT, segment.b, segment.sourceId, {
-      kind: SNAP_TYPES.ENDPOINT,
-      edgeIndex,
-      endpointIndex: 1,
-    });
+    if (segment.endpointType !== false) {
+      consider(
+        segment.endpointType || SNAP_TYPES.ENDPOINT,
+        segment.a,
+        segment.sourceId,
+        { kind: SNAP_TYPES.ENDPOINT, edgeIndex, endpointIndex: 0 },
+        segment
+      );
+      consider(
+        segment.endpointType || SNAP_TYPES.ENDPOINT,
+        segment.b,
+        segment.sourceId,
+        { kind: SNAP_TYPES.ENDPOINT, edgeIndex, endpointIndex: 1 },
+        segment
+      );
+    }
     const segmentPoint = projectPointToSegment(worldPoint, segment.a, segment.b);
-    consider(segment.type || SNAP_TYPES.SEGMENT, segmentPoint, segment.sourceId, {
-      ...(segment.feature || {}),
-      kind: SNAP_TYPES.SEGMENT,
-      t: resolveSegmentParameter(segmentPoint, segment.a, segment.b),
-    });
+    consider(
+      segment.type || SNAP_TYPES.SEGMENT,
+      segmentPoint,
+      segment.sourceId,
+      {
+        ...(segment.feature || {}),
+        kind: SNAP_TYPES.SEGMENT,
+        t: resolveSegmentParameter(segmentPoint, segment.a, segment.b),
+      },
+      segment
+    );
   });
 
   if (!best) {

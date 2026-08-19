@@ -224,7 +224,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         diameterMm: 80,
         x: baseX,
         y: 740, //altura grommet
-        z: -300 + 230,
+        z: -70,
         rotY: 0,
       });
 
@@ -233,7 +233,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         diameterMm: 80,
         x: baseX,
         y: 740, //altura grommet
-        z: 300 - 230,
+        z: 70,
         rotY: Math.PI,
       });
     }
@@ -369,6 +369,7 @@ export function getDuctosConfig({
   anchoRealMm,
   hasDuct = true,
   ductModes = [],
+  side = 'LEFT',
 }) {
   const out = [];
   if (!hasDuct) return out;
@@ -395,46 +396,87 @@ export function getDuctosConfig({
     // Inicio del módulo
     const moduleStartX = baseX - largoRealMm / 2;
 
+    //const currentSide = String(ductSides[i] || side || 'RIGHT').toUpperCase();
+    //console.log('currentSide: ', currentSide);
+
     // Centro del ducto, arrancando desde el inicio
     const ductCenterX = moduleStartX + ductLengthMm / 2;
-
     let ductX = baseX;
     let ductY = 510;
     let ductZ = -116;
     let ductRotY = 0;
 
-    if (tipoModulo === 'terminal') {
-      ductX = baseX - 335; //-335
-      ductY = 510;
-      if (anchoRealMm == 600) {
-        ductZ = -116;
-      } else {
-        ductZ = -anchoRealMm / 2 + 55 + 128;
+    if (tipoPuesto === 'sencillo') {
+      if (tipoModulo === 'terminal') {
+        ductX = baseX - 335; //-335
+        ductY = 510;
+        if (anchoRealMm == 600) {
+          ductZ = -116;
+        } else {
+          ductZ = -anchoRealMm / 2 + 55 + 128;
+        }
+
+        ductRotY = 0;
       }
 
-      ductRotY = 0;
+      if (tipoModulo === 'intermedio') {
+        ductX = moduleStartX;
+        ductY = 510;
+        if (anchoRealMm == 600) {
+          ductZ = -116;
+        } else {
+          ductZ = -anchoRealMm / 2 + 55 + 128;
+        }
+        ductRotY = 0;
+      }
+
+      if (tipoModulo === 'individual') {
+        ductX = baseX - 692 / 2;
+        ductY = 510;
+        if (anchoRealMm == 600) {
+          ductZ = -116;
+        } else {
+          ductZ = -anchoRealMm / 2 + 55 + 128;
+        }
+        ductRotY = 0;
+      }
     }
 
-    if (tipoModulo === 'intermedio') {
-      ductX = moduleStartX;
-      ductY = 510;
-      if (anchoRealMm == 600) {
-        ductZ = -116;
-      } else {
-        ductZ = -anchoRealMm / 2 + 55 + 128;
-      }
-      ductRotY = 0;
-    }
+    if (tipoPuesto === 'doble') {
+      if (tipoModulo === 'terminal') {
+        console.log('side: ', side);
+        if (side === 'LEFT') {
+          ductX = 74;
+          ductY = 510;
+          ductZ = 129;
 
-    if (tipoModulo === 'individual') {
-      ductX = baseX - 692 / 2;
-      ductY = 510;
-      if (anchoRealMm == 600) {
-        ductZ = -116;
-      } else {
-        ductZ = -anchoRealMm / 2 + 55 + 128;
+          ductRotY = 0;
+        } else {
+          ductX = 0; //-335
+          ductY = 510;
+          ductZ = 0;
+
+          ductRotY = 0;
+        }
       }
-      ductRotY = 0;
+
+      if (tipoModulo === 'intermedio') {
+        ductX = moduleStartX;
+        ductY = 510;
+        if (anchoRealMm == 600) {
+          ductZ = -116;
+        } else {
+          ductZ = -anchoRealMm / 2 + 55 + 128;
+        }
+        ductRotY = 0;
+      }
+
+      if (tipoModulo === 'individual') {
+        ductX = baseX - 692 / 2;
+        ductY = 509;
+        ductZ = 129;
+        ductRotY = 0;
+      }
     }
     //console.log('anchoRealMm: ', largoRealMm);
     //console.log('anchoRealMm: ', anchoRealMm);
@@ -450,7 +492,7 @@ export function getDuctosConfig({
       z: ductZ,
 
       rotX: 0,
-      rotY: 0,
+      rotY: ductRotY,
       rotZ: 0,
       side: 'LEFT',
     });

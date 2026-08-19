@@ -9,6 +9,10 @@ import {
   is2DDetailEnabled,
   normalizeDetailed2DIds,
 } from '../plan2d/detailSelection2D.js';
+import { buildColumnGeometry2D } from '../core/architecture/columns/columnGeometry2D.js';
+import { COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition.js';
+import { buildWallGeometry2D } from '../core/architecture/walls/wallGeometry2D.js';
+import { buildDoorGeometry2D, splitWallSegmentIntervals } from '../core/architecture/openings/doorGeometry2D.js';
 
 /**
  * Exporta planta 2D a DXF:
@@ -17,19 +21,26 @@ import {
  */
 export function generatePlanDxf({
   walls = [],
+  columns = [],
+  openings = [],
   partsSnapshot = [],
   detailed2DIds = [],
   layers = {
     walls: 'WALLS',
+    columns: 'COLUMNS',
+    doors: 'DOORS',
     parts: 'PARTS',
     text: 'TEXT',
   },
 } = {}) {
   const d = new Drawing();
   const detailIds = normalizeDetailed2DIds(detailed2DIds);
+  const doorLayer = layers.doors || 'DOORS';
 
   // Capas
   d.addLayer(layers.walls, Drawing.ACI.BLUE, 'CONTINUOUS');
+  d.addLayer(layers.columns, Drawing.ACI.MAGENTA, 'CONTINUOUS');
+  d.addLayer(doorLayer, Drawing.ACI.CYAN, 'CONTINUOUS');
   d.addLayer(layers.parts, Drawing.ACI.GREEN, 'CONTINUOUS');
   d.addLayer(layers.text, Drawing.ACI.WHITE, 'CONTINUOUS');
 
@@ -50,9 +61,32 @@ export function generatePlanDxf({
 
   // 1) Muros
   for (const w of walls || []) {
-    const pts = w?.points || [];
-    if (pts.length < 2) continue;
-    addPolyline(pts, layers.walls);
+    const geometry = buildWallGeometry2D(w);
+    geometry.segmentsGeometry.forEach((segment) => {
+      const segmentOpenings = openings.filter((opening) => opening.wallId === w.id && opening.segmentId === segment.segmentId && opening.visible !== false && buildDoorGeometry2D(opening, walls, openings)?.valid);
+      const pieces = segmentOpenings.length ? splitWallSegmentIntervals(segment, segmentOpenings) : [{ a: segment.start, b: segment.end }];
+      pieces.forEach((piece) => addPolyline([piece.a, piece.b], layers.walls));
+    });
+  }
+
+  for (const opening of openings || []) {
+    if (opening?.visible === false) continue;
+    const geometry = buildDoorGeometry2D(opening, walls, openings);
+    if (!geometry?.valid) continue;
+    d.setActiveLayer(doorLayer);
+    d.drawLine(geometry.hinge.x, geometry.hinge.z, geometry.openEnd.x, geometry.openEnd.z);
+    d.drawArc(geometry.arc.center.x, geometry.arc.center.z, geometry.arc.radius, geometry.arc.startAngle * 180 / Math.PI, geometry.arc.endAngle * 180 / Math.PI);
+  }
+
+  for (const column of columns || []) {
+    if (column?.visible === false) continue;
+    const geometry = buildColumnGeometry2D(column);
+    d.setActiveLayer(layers.columns);
+    if (geometry.shape === COLUMN_SHAPES.CIRCLE) {
+      d.drawCircle(geometry.center.x, geometry.center.z, geometry.radius);
+    } else {
+      addPolyline(geometry.polygon, layers.columns, true);
+    }
   }
 
   // 2) Piezas

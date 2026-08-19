@@ -34,6 +34,9 @@ import {
   hasDetailedFootprint2DCacheEntry,
 } from '../plan2d/extractDetailedFootprint2D';
 import { get2DDetailKey } from '../plan2d/detailSelection2D';
+import { buildWallsGeometry3D } from '../core/architecture/walls/wallGeometry3D';
+import { buildColumnGeometry3D } from '../core/architecture/columns/columnGeometry3D';
+import { buildDoorGeometry2D } from '../core/architecture/openings/doorGeometry2D';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
@@ -133,6 +136,8 @@ export default function ThreeCanvas({
   onSelectionChange,
   onBOMChange,
   walls = [],
+  columns = [],
+  openings = [],
   readOnly = false,
   materialsByCode,
   catalogByCode,
@@ -144,6 +149,13 @@ export default function ThreeCanvas({
 
   // ✅ NUEVO: referencia al group de muros (para reconstruir sin romper hooks/zoom/2D)
   const wallsGroupRef = useRef(null);
+  const columnsGroupRef = useRef(null);
+  const architectureWallsRef = useRef(walls);
+  const architectureColumnsRef = useRef(columns);
+  const architectureOpeningsRef = useRef(openings);
+  architectureWallsRef.current = walls;
+  architectureColumnsRef.current = columns;
+  architectureOpeningsRef.current = openings;
 
   const floorMeshRef = useRef(null);
   const gridHelperRef = useRef(null);
@@ -270,6 +282,11 @@ export default function ThreeCanvas({
     wallsGroup.name = 'WALLS_GROUP';
     scene.add(wallsGroup);
     wallsGroupRef.current = wallsGroup;
+
+    const columnsGroup = new THREE.Group();
+    columnsGroup.name = 'COLUMNS_GROUP';
+    scene.add(columnsGroup);
+    columnsGroupRef.current = columnsGroup;
 
     // ====== State / Cache ======
     const loader = new GLTFLoader();
@@ -4757,7 +4774,9 @@ export default function ThreeCanvas({
       exportDXF: ({ detailed2DIds = [] } = {}) => {
         const snap = getPartsSnapshot2D({ detailed2DIds });
         exportPlanToDXF({
-          walls,
+          walls: architectureWallsRef.current,
+          columns: architectureColumnsRef.current,
+          openings: architectureOpeningsRef.current,
           partsSnapshot: snap,
           detailed2DIds,
           fileName: 'proyecto.dxf',
@@ -11040,6 +11059,15 @@ export default function ThreeCanvas({
         }
         wallsGroupRef.current = null;
       }
+      if (columnsGroupRef.current) {
+        while (columnsGroupRef.current.children.length) {
+          const child = columnsGroupRef.current.children.at(-1);
+          columnsGroupRef.current.remove(child);
+          child.geometry?.dispose?.();
+          child.material?.dispose?.();
+        }
+        columnsGroupRef.current = null;
+      }
 
       controls.dispose();
       rotationRing.geometry.dispose();
@@ -11085,40 +11113,73 @@ export default function ThreeCanvas({
     }
 
     const matBase = new THREE.MeshStandardMaterial({ color: 0xdddddd });
-    const hDefault = 2.4;
-    const tDefault = 0.1;
 
-    for (const w of walls || []) {
-      const pts = w?.points || [];
-      if (pts.length < 2) continue;
+    const wallsGeometry = buildWallsGeometry3D(walls, { openings });
+    for (const segment of wallsGeometry.segmentsGeometry) {
+      if (segment.length < 0.001) continue;
+      const geom = new THREE.BoxGeometry(segment.length, segment.height, segment.thickness);
+      const mesh = new THREE.Mesh(geom, matBase.clone());
 
-      const height = w.height ?? hDefault;
-      const thickness = w.thickness ?? tDefault;
+      mesh.name = segment.segmentId;
+      // centro del segmento, apoyado en el piso
+      mesh.position.set(segment.center.x, segment.center.y, segment.center.z);
+      mesh.rotation.y = segment.rotationY;
+      mesh.userData.kind = 'WALL';
+      mesh.userData.wallId = segment.wallId;
+      mesh.userData.segmentId = segment.segmentId;
 
-      for (let i = 0; i < pts.length - 1; i++) {
-        const a = pts[i];
-        const b = pts[i + 1];
-
-        const dx = b.x - a.x;
-        const dz = b.z - a.z;
-        const len = Math.sqrt(dx * dx + dz * dz);
-        if (len < 0.001) continue;
-
-        const geom = new THREE.BoxGeometry(len, height, thickness);
-        const mesh = new THREE.Mesh(geom, matBase.clone());
-
-        mesh.name = `WALL_SEG_${w.id}_${i}`;
-        // centro del segmento, apoyado en el piso
-        mesh.position.set((a.x + b.x) / 2, height / 2, (a.z + b.z) / 2);
-        mesh.rotation.y = Math.atan2(dz, dx);
-        mesh.userData.kind = 'WALL';
-        mesh.userData.wallId = w.id;
-
-        group.add(mesh);
-      }
+      group.add(mesh);
+    }
+    for (const opening of openings || []) {
+      if (opening?.visible === false) continue;
+      const doorGeometry = buildDoorGeometry2D(opening, walls, openings);
+      if (!doorGeometry?.valid) continue;
+      const dx = doorGeometry.openEnd.x - doorGeometry.hinge.x;
+      const dz = doorGeometry.openEnd.z - doorGeometry.hinge.z;
+      const length = Math.hypot(dx, dz);
+      const geometry = new THREE.BoxGeometry(length, opening.height, 0.04);
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0x8b5a2b }));
+      mesh.name = `DOOR_${opening.id}`;
+      mesh.position.set(
+        (doorGeometry.hinge.x + doorGeometry.openEnd.x) / 2,
+        (walls.find((wall) => wall.id === opening.wallId)?.baseElevation || 0) + opening.sillHeight + opening.height / 2,
+        (doorGeometry.hinge.z + doorGeometry.openEnd.z) / 2
+      );
+      mesh.rotation.y = Math.atan2(dz, dx);
+      mesh.userData.kind = 'DOOR';
+      mesh.userData.openingId = opening.id;
+      mesh.userData.wallId = opening.wallId;
+      group.add(mesh);
     }
     refreshFloorAndGridRef.current?.();
-  }, [walls]);
+  }, [walls, openings]);
+
+  useEffect(() => {
+    const group = columnsGroupRef.current;
+    if (!group) return;
+    while (group.children.length) {
+      const child = group.children.at(-1);
+      group.remove(child);
+      child.geometry?.dispose?.();
+      child.material?.dispose?.();
+    }
+
+    for (const column of columns || []) {
+      if (column?.visible === false) continue;
+      const descriptor = buildColumnGeometry3D(column);
+      const geometry = descriptor.geometryType === 'CYLINDER'
+        ? new THREE.CylinderGeometry(descriptor.diameter / 2, descriptor.diameter / 2, descriptor.height, 32)
+        : new THREE.BoxGeometry(descriptor.width, descriptor.height, descriptor.depth);
+      const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xb7b7b7 }));
+      mesh.name = `COLUMN_${column.id}`;
+      mesh.position.set(descriptor.center.x, descriptor.center.y, descriptor.center.z);
+      mesh.rotation.y = descriptor.rotationY;
+      mesh.userData.kind = 'COLUMN';
+      mesh.userData.columnId = column.id;
+      group.add(mesh);
+    }
+    refreshFloorAndGridRef.current?.();
+  }, [columns]);
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
 }

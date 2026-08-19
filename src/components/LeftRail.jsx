@@ -4,6 +4,7 @@ export default function LeftRail({ active, onChange }) {
     { id: 'catalog', label: 'Catálogo', icon: '📦' },
     { id: 'typologies', label: 'Tipologías', icon: '🧩' },
     { id: 'walls', label: 'Muros', icon: '🧱' },
+    { id: 'columns', label: 'Columnas', icon: '▣' },
     { id: 'openings', label: 'Puertas/Ventanas', icon: '🚪' },
     { id: 'materials', label: 'Materiales', icon: '🎨' },
     { id: 'plans', label: 'Planos', icon: '🗺️' },
