@@ -104,28 +104,38 @@ export function getMilaAssemblyRoot(object) {
   if (!object) return null;
 
   let curr = object;
-  while (curr && curr.parent && curr !== curr.parent) {
+  while (curr && curr.parent && curr.parent.type !== 'Scene' && curr !== curr.parent) {
+    const r = String(curr.userData?.meta?.role || curr.userData?.role || '').toLowerCase();
     if (
       curr.userData?.kind === 'MILA_ASSEMBLY' ||
       curr.userData?.kind === 'MILA_GIRO_SURFACE' ||
       curr.userData?.type === 'mila' ||
       curr.userData?.type === 'MILA_GIRO_SURFACE' ||
-      curr.userData?.meta?.role === 'giro-surface'
+      r === 'giro-surface' ||
+      r === 'armrest-left' ||
+      r === 'armrest-right' ||
+      r === 'armrest-center' ||
+      r === 'screen'
     ) {
       return curr;
     }
     curr = curr.parent;
   }
 
+  const role = String(curr?.userData?.meta?.role || curr?.userData?.role || '').toLowerCase();
   if (
-    object.userData?.kind === 'MILA_ASSEMBLY' ||
-    object.userData?.kind === 'MILA_GIRO_SURFACE' ||
-    object.userData?.type === 'mila' ||
-    object.userData?.type === 'MILA_GIRO_SURFACE' ||
-    object.userData?.meta?.role === 'giro-surface' ||
-    String(object.userData?.line || '').toUpperCase() === 'MILA'
+    curr?.userData?.kind === 'MILA_ASSEMBLY' ||
+    curr?.userData?.kind === 'MILA_GIRO_SURFACE' ||
+    curr?.userData?.type === 'mila' ||
+    curr?.userData?.type === 'MILA_GIRO_SURFACE' ||
+    role === 'giro-surface' ||
+    role === 'armrest-left' ||
+    role === 'armrest-right' ||
+    role === 'armrest-center' ||
+    role === 'screen' ||
+    String(curr?.userData?.line || '').toUpperCase() === 'MILA'
   ) {
-    return object;
+    return curr;
   }
 
   const parentAssemblyId =

@@ -867,6 +867,7 @@ export default function ThreeCanvas({
       const allAccessories = [];
       scene.children.forEach((node) => {
         if (node === targetObj) return;
+        const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
         if (
           node.userData?.kind === 'MILA_ASSEMBLY' ||
           node.userData?.type === 'mila'
@@ -887,34 +888,111 @@ export default function ThreeCanvas({
           allAccessories.push(node);
         }
       });
-      const allSceneObjects = [...allAssemblies, ...allGiroSurfaces];
+      const allSceneObjects = [...allAssemblies, ...allGiroSurfaces, ...allAccessories];
 
-      // Verificar si los puertos están ocupados (ya conectados a otra pieza en la escena)
-      const isLeftOccupied = !isDragging && isMilaPortOccupied(connectors.worldLeft, targetObj, allSceneObjects);
-      const isRightOccupied = !isDragging && isMilaPortOccupied(connectors.worldRight, targetObj, allSceneObjects);
+      const pLeft = connectors.ports?.left;
+      const pRight = connectors.ports?.right;
+      const pCenter = connectors.ports?.center;
+      const pScreen = connectors.ports?.screen;
 
-      milaLeftConnector.position.copy(connectors.worldLeft);
-      if (connectors.normalLeft) {
-        milaLeftConnector.quaternion.setFromUnitVectors(
-          new THREE.Vector3(1, 0, 0),
-          connectors.normalLeft
-        );
+      let isLeftOccupied = true;
+      let isRightOccupied = true;
+
+      if (connectors.isAccessory) {
+        if (connectors.accessoryRole === 'armrest-left') {
+          if (pRight) {
+            milaRightConnector.position.copy(pRight.worldPos);
+            if (pRight.worldNormal) {
+              milaRightConnector.quaternion.setFromUnitVectors(
+                new THREE.Vector3(1, 0, 0),
+                pRight.worldNormal
+              );
+            }
+            milaRightConnector.visible = true;
+          } else {
+            milaRightConnector.visible = false;
+          }
+          milaLeftConnector.visible = false;
+        } else if (connectors.accessoryRole === 'armrest-right') {
+          if (pLeft) {
+            milaLeftConnector.position.copy(pLeft.worldPos);
+            if (pLeft.worldNormal) {
+              milaLeftConnector.quaternion.setFromUnitVectors(
+                new THREE.Vector3(1, 0, 0),
+                pLeft.worldNormal
+              );
+            }
+            milaLeftConnector.visible = true;
+          } else {
+            milaLeftConnector.visible = false;
+          }
+          milaRightConnector.visible = false;
+        } else if (connectors.accessoryRole === 'armrest-center') {
+          if (pCenter) {
+            milaLeftConnector.position.copy(pCenter.worldPos);
+            if (pCenter.worldNormal) {
+              milaLeftConnector.quaternion.setFromUnitVectors(
+                new THREE.Vector3(1, 0, 0),
+                pCenter.worldNormal
+              );
+            }
+            milaLeftConnector.visible = true;
+          }
+          milaRightConnector.visible = false;
+        } else if (connectors.accessoryRole === 'screen') {
+          if (pScreen) {
+            milaLeftConnector.position.copy(pScreen.worldPos);
+            if (pScreen.worldNormal) {
+              milaLeftConnector.quaternion.setFromUnitVectors(
+                new THREE.Vector3(1, 0, 0),
+                pScreen.worldNormal
+              );
+            }
+            milaLeftConnector.visible = true;
+          }
+          milaRightConnector.visible = false;
+        }
       } else {
-        milaLeftConnector.rotation.set(0, connectors.yaw, 0);
-      }
-      milaLeftConnector.visible = !isLeftOccupied;
+        isLeftOccupied =
+          !isDragging &&
+          (pLeft?.isOccupied || isMilaPortOccupied(pLeft?.worldPos, targetObj, allSceneObjects));
+        isRightOccupied =
+          !isDragging &&
+          (pRight?.isOccupied || isMilaPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
 
-      milaRightConnector.position.copy(connectors.worldRight);
-      if (connectors.normalRight) {
-        milaRightConnector.quaternion.setFromUnitVectors(
-          new THREE.Vector3(1, 0, 0),
-          connectors.normalRight
-        );
-      } else {
-        const rightYaw = connectors.isGiro ? connectors.yaw - connectors.angleRad : connectors.yaw;
-        milaRightConnector.rotation.set(0, rightYaw, 0);
+        if (pLeft) {
+          milaLeftConnector.position.copy(pLeft.worldPos);
+          if (pLeft.worldNormal) {
+            milaLeftConnector.quaternion.setFromUnitVectors(
+              new THREE.Vector3(1, 0, 0),
+              pLeft.worldNormal
+            );
+          } else {
+            milaLeftConnector.rotation.set(0, connectors.yaw, 0);
+          }
+          milaLeftConnector.visible = !isLeftOccupied;
+        } else {
+          milaLeftConnector.visible = false;
+        }
+
+        if (pRight) {
+          milaRightConnector.position.copy(pRight.worldPos);
+          if (pRight.worldNormal) {
+            milaRightConnector.quaternion.setFromUnitVectors(
+              new THREE.Vector3(1, 0, 0),
+              pRight.worldNormal
+            );
+          } else {
+            const rightYaw = connectors.isGiro
+              ? connectors.yaw - connectors.angleRad
+              : connectors.yaw;
+            milaRightConnector.rotation.set(0, rightYaw, 0);
+          }
+          milaRightConnector.visible = !isRightOccupied;
+        } else {
+          milaRightConnector.visible = false;
+        }
       }
-      milaRightConnector.visible = !isRightOccupied;
 
       let isSnapCandidate = false;
       if (isDragging) {
@@ -10485,15 +10563,13 @@ export default function ThreeCanvas({
         return;
       }
 
-      const isAssemblyRoot =
-        root?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ||
+      const isKuoAssemblyRoot =
         root?.userData?.kind === 'KUO_AV_ASSEMBLY' ||
-        root?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-        root?.userData?.type === 'koncisa-plus';
+        root?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY';
 
-      if (moveAsGroupRef.current && (root?.userData?.groupId || root?.userData?.parentAssemblyId || isAssemblyRoot)) {
-        const assembly = isAssemblyRoot ? root : getKoncisaAssemblyObject(root) || root;
-        if (assembly) {
+      if (moveAsGroupRef.current && (root?.userData?.groupId || root?.userData?.parentAssemblyId || isKuoAssemblyRoot)) {
+        if (isKuoAssemblyRoot) {
+          const assembly = root;
           const physicalObjects = parts.map(({ obj }) => obj).filter(Boolean);
 
           // Encontrar todas las mesas acopladas magnéticamente en el cluster
@@ -10503,8 +10579,7 @@ export default function ThreeCanvas({
             changed = false;
             physicalObjects.forEach((candidate) => {
               const candAssembly =
-                getKoncisaAssemblyObject(candidate) ||
-                (candidate.userData?.kind?.includes('ASSEMBLY') ? candidate : null);
+                candidate.userData?.kind?.includes('ASSEMBLY') ? candidate : null;
               if (!candAssembly || clusterAssemblies.has(candAssembly)) return;
 
               for (const clAss of clusterAssemblies) {
@@ -10826,6 +10901,7 @@ export default function ThreeCanvas({
         if (node === targetObj) return;
         if (activeGroupId && node.userData?.groupId === activeGroupId) return;
 
+        const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
         if (
           node.userData?.kind === 'MILA_ASSEMBLY' ||
           node.userData?.type === 'mila'
