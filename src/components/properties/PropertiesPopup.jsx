@@ -10,6 +10,11 @@ import LinkProperties, { isLinkEditablePart } from './LinkProperties';
 import KuoGoProperties, { isKuoGoEditablePart } from './KuoGoProperties';
 import KuoAVProperties, { isKuoAVEditablePart } from './KuoAVProperties';
 import KuoAVDobleProperties, { isKuoAVDobleEditablePart } from './KuoAVDobleProperties';
+import MilaProperties, {
+  isMilaEditablePart,
+  MilaGiroProperties,
+  isMilaGiroEditablePart,
+} from './MilaProperties';
 import { isClakPuffVariantPart } from './clakPuffVariants';
 import { sectionStyle } from './shared/PropertyStyles';
 import PropertyHeader from './shared/PropertyHeader';
@@ -61,6 +66,8 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isKuoGoEditablePart(part) ||
     isKuoAVEditablePart(part) ||
     isKuoAVDobleEditablePart(part) ||
+    isMilaEditablePart(part) ||
+    isMilaGiroEditablePart(part) ||
     isFloor;
 
   const popupLeft = Math.min(x + 12, window.innerWidth - 310);
@@ -116,6 +123,10 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
 
       <KuoAVDobleProperties part={part} api={api} onClose={onClose} />
 
+      <MilaProperties part={part} api={api} onClose={onClose} />
+
+      <MilaGiroProperties part={part} api={api} onClose={onClose} />
+
       {isFloor && (
         <div style={sectionStyle}>
           <label
@@ -137,6 +148,31 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
               }}
             />
             Mostrar cuadrícula
+          </label>
+
+          <label
+            style={{
+              display: 'grid',
+              gap: 6,
+              marginTop: 12,
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            Tamaño de cuadrícula
+            <select
+              value={String(part?.gridSize || 0.1)}
+              onChange={(e) => {
+                api?.updateFloorVisualOptions?.({
+                  gridSize: Number(e.target.value),
+                });
+              }}
+            >
+              <option value="0.1">0.10 m</option>
+              <option value="0.25">0.25 m</option>
+              <option value="0.5">0.50 m</option>
+              <option value="1">1.00 m</option>
+            </select>
           </label>
         </div>
       )}

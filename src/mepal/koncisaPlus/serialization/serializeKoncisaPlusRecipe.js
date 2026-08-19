@@ -277,6 +277,20 @@ export function serializeKoncisaPlusRecipe({ assembly, physicalParts = [] } = {}
       dimensions: captureDimensions(object),
       transform: getRelativeTransform(assembly, object),
       metadata,
+      state:
+        toSerializable({
+          subtype: userData.subtype || null,
+          material: userData.material || null,
+          materialBase: userData.materialBase || null,
+          materialCode: userData.materialCode || null,
+          finishCode: userData.finishCode || null,
+          finishLabel: userData.finishLabel || null,
+          edgeFinish: userData.edgeFinish || null,
+          canto: userData.canto || null,
+          privacyPanelFinishId: userData.privacyPanelFinishId || null,
+          ductCovers: userData.ductCovers || null,
+          transformPatch: userData.transformPatch || null,
+        }) || {},
       relationship: {
         attachment: isDescendantOf(object, assembly) ? 'INTERNAL' : 'EXTERNAL',
         parentKey: parentObject ? resolveComponentKey(parentObject) : null,

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 
 const DEFAULT_ACCEPT =
   '.svg,.png,.jpg,.jpeg,.pdf,.dwg,.dxf,application/pdf,image/svg+xml,image/png,image/jpeg';
@@ -15,11 +15,15 @@ function detectPlanType(file) {
   return 'unknown';
 }
 
-export default function Plan2DUploader({ onLoadFile, accept = DEFAULT_ACCEPT }) {
+const Plan2DUploader = forwardRef(function Plan2DUploader(
+  { onLoadFile, accept = DEFAULT_ACCEPT, hideButton = false },
+  forwardedRef
+) {
   const ref = useRef(null);
   const [error, setError] = useState('');
 
   const pick = () => ref.current?.click();
+  useImperativeHandle(forwardedRef, () => ({ open: pick }), []);
 
   const onChange = (e) => {
     const file = e.target.files?.[0];
@@ -57,7 +61,8 @@ export default function Plan2DUploader({ onLoadFile, accept = DEFAULT_ACCEPT }) 
         onChange={onChange}
       />
 
-      <button
+      {!hideButton ? <button
+        type="button"
         onClick={pick}
         style={{
           padding: '8px 12px',
@@ -70,9 +75,11 @@ export default function Plan2DUploader({ onLoadFile, accept = DEFAULT_ACCEPT }) 
         title="Carga SVG, PNG, JPG, PDF, DWG o DXF"
       >
         + Cargar plano 2D
-      </button>
+      </button> : null}
 
-      <div style={{ fontSize: 12, opacity: 0.75 }}>Formatos: SVG, PNG, JPG, PDF, DWG, DXF</div>
+      {!hideButton ? (
+        <div style={{ fontSize: 12, opacity: 0.75 }}>Formatos: SVG, PNG, JPG, PDF, DWG, DXF</div>
+      ) : null}
 
       {error ? (
         <div
@@ -90,4 +97,6 @@ export default function Plan2DUploader({ onLoadFile, accept = DEFAULT_ACCEPT }) 
       ) : null}
     </div>
   );
-}
+});
+
+export default Plan2DUploader;

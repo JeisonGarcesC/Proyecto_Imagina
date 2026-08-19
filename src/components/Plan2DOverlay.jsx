@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { buildSnapGeometry, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
 import {
   createDimension2D,
@@ -11,22 +11,49 @@ import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
 import {
+  drawFurnitureFootprint2D,
+  FURNITURE_2D_RENDER_MODES,
+} from '../plan2d/furnitureRenderer2D';
+import { hitTestFootprint2D } from '../plan2d/footprintGeometry2D';
+import {
+  collectSelected2DDetailKeys,
+  is2DDetailEnabled,
+  updateDetailed2DIds,
+} from '../plan2d/detailSelection2D';
+import {
   classifySelectionWindow,
   collectSelectionCandidates,
   SELECTION_WINDOW_TYPES,
 } from '../plan2d/selectionGeometry2D';
 import { HISTORY_ACTION_TYPES } from '../history/historyManager';
 import {
-  getEdukWidthInfoByCode,
-} from '../mepal/eduk/products/edukShelfHeightDefinition';
+  documentPointToWorld,
+  getPlanWorldBounds,
+  worldPointToDocument,
+} from '../core/plans/utils/planTransform';
+import { drawVectorPlan2D } from '../core/plans/renderers/vectorPlanRenderer2D';
+import { getEdukWidthInfoByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
+import { createWallDefinition } from '../core/architecture/walls/wallDefinition';
+import { selectWallAtPoint } from '../core/architecture/walls/wallInteraction2D';
+import { buildJoinedWallsGeometry2D, getJoinedWallGeometry } from '../core/architecture/walls/wallJoins2D';
+import { createColumnDefinition, COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition';
+import { buildColumnGeometry2D } from '../core/architecture/columns/columnGeometry2D';
+import { selectColumnAtPoint } from '../core/architecture/columns/columnInteraction2D';
+import { buildArchitectureSnapGeometry } from '../core/architecture/snapping/architectureSnapGeometry2D';
+import { createDoorDefinition, validateDoorPlacement } from '../core/architecture/openings/doorDefinition';
+import { buildDoorGeometry2D, buildWallSegmentPolygons2D, projectPointToWallSegment } from '../core/architecture/openings/doorGeometry2D';
+import { selectOpeningAtPoint } from '../core/architecture/openings/openingInteraction2D';
 
-const MIN_ZOOM = 20;
+//Zoom escalas del 2d
+const MIN_ZOOM = 2;
 const MAX_ZOOM = 50_000;
 const ZOOM_FACTOR = 0.0015;
 const MEASURE_SNAP_TOLERANCE_PX = 10;
+const ARCHITECTURE_SNAP_TOLERANCE_PX = 10;
 const VARIANT_HANDLE_HIT_RADIUS_PX = 14;
 const VARIANT_HANDLE_STEP_PX = 26;
 const VARIANT_HANDLE_DEADZONE_PX = 8;
+const CALIBRATION_UNIT_TO_METERS = Object.freeze({ mm: 0.001, cm: 0.01, m: 1 });
 
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
@@ -73,6 +100,12 @@ function fmtMeasure(m) {
 
   const m2 = Math.round(m * 100) / 100;
   return `${m2.toFixed(2)} m`;
+}
+
+function formatDocumentDistance(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '';
+  return Number(number.toPrecision(7)).toString();
 }
 
 function drawMeasureLine(ctx, x1, y1, x2, y2, label, opts = {}) {
@@ -163,20 +196,43 @@ function createDimensionSnapReference(resolved) {
   };
 }
 
+const EMPTY_DETAILED_2D_IDS = new Set();
+
 export default function Plan2DOverlay({
   historyApi,
   getSnapshot,
   selectedIds = [],
+  detailed2DIds = EMPTY_DETAILED_2D_IDS,
+  onDetailed2DIdsChange,
   moveAsGroup = false,
   onPickIds,
   resolveSelectionTargetIds,
   onPickId,
   walls = [],
   wallMode = false,
+  selectedWallId = null,
+  onSelectWall,
   wallHeight = 2.4,
   wallThickness = 0.1,
   onAddWall,
   onSetWalls,
+  columns = [],
+  columnMode = 'NONE',
+  columnShape = COLUMN_SHAPES.RECTANGLE,
+  columnWidth = 0.3,
+  columnDepth = 0.3,
+  columnDiameter = 0.3,
+  columnHeight = 2.4,
+  selectedColumnId = null,
+  onSelectColumn,
+  onAddColumn,
+  openings = [],
+  openingMode = 'NONE',
+  doorWidth = 0.9,
+  doorHeight = 2.1,
+  selectedOpeningId = null,
+  onSelectOpening,
+  onAddOpening,
   width = '100%',
   height = 220,
   defaultVisible = true,
@@ -190,6 +246,12 @@ export default function Plan2DOverlay({
     offsetZ: 0,
     opacity: 0.35,
   },
+  plan2DDefinition = null,
+  planEditMode = false,
+  onPlanPositionChange,
+  onPlan2DRasterChange,
+  calibrationRequestId = 0,
+  onPlanCalibrationChange,
   onPlan2DTransformChange,
   onMovePart2D,
   onMoveParts2D,
@@ -286,6 +348,7 @@ export default function Plan2DOverlay({
   const [scaleMode, setScaleMode] = useState(false);
   const [scaleStartPx, setScaleStartPx] = useState(null);
   const [scaleHoverPx, setScaleHoverPx] = useState(null);
+  const [calibrationDraft, setCalibrationDraft] = useState(null);
 
   const [dragPieceId, setDragPieceId] = useState(null);
   const [hoveredMovablePieceId, setHoveredMovablePieceId] = useState(null);
@@ -301,40 +364,88 @@ export default function Plan2DOverlay({
   const [isRotatingPiece, setIsRotatingPiece] = useState(false);
 
   const planImageRef = useRef(null);
+  const planDragRef = useRef(null);
+  const [isPlanHovered, setIsPlanHovered] = useState(false);
+  const [isPlanDragging, setIsPlanDragging] = useState(false);
+  const onPlan2DRasterChangeRef = useRef(onPlan2DRasterChange);
+  onPlan2DRasterChangeRef.current = onPlan2DRasterChange;
+
+  const getRuntimePlan = useCallback(() => {
+    const img = planImageRef.current;
+    const widthPx = img?.naturalWidth || img?.width || plan2DDefinition?.raster?.widthPx || 0;
+    const heightPx = img?.naturalHeight || img?.height || plan2DDefinition?.raster?.heightPx || 0;
+    const {
+      metersPerPixel = 0.01,
+      offsetX = 0,
+      offsetZ = 0,
+      rotation = 0,
+      scale = 1,
+      opacity = 0.35,
+    } = plan2DTransform || {};
+
+    return {
+      ...(plan2DDefinition || {}),
+      raster: { widthPx, heightPx },
+      transform: {
+        ...(plan2DDefinition?.transform || {}),
+        position: { x: offsetX, z: offsetZ },
+        rotation,
+        scale,
+      },
+      calibration: {
+        ...(plan2DDefinition?.calibration || {}),
+        metersPerDocumentUnit: metersPerPixel,
+      },
+      opacity,
+    };
+  }, [plan2DDefinition, plan2DTransform]);
 
   const canvasToPlanPixel = useCallback(
-    (mx, my, canvasW, canvasH) => {
-      const img = planImageRef.current;
-      if (!img) return null;
-
-      const { s, cx, cz } = viewRef.current;
-      const { metersPerPixel = 0.01, offsetX = 0, offsetZ = 0 } = plan2DTransform || {};
-
-      const drawW = img.width * metersPerPixel * s;
-      const drawH = img.height * metersPerPixel * s;
-
+    (mx, my) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return null;
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width || canvas.width;
+      const height = rect.height || canvas.height;
+      const { cx, cz, s } = viewRef.current;
       const sign = invertZ ? -1 : 1;
-
-      const px = (offsetX - cx) * s + canvasW / 2;
-      const py = sign * (offsetZ - cz) * s + canvasH / 2;
-
-      const localX = mx - px;
-      const localY = my - py;
-
-      if (localX < 0 || localY < 0 || localX > drawW || localY > drawH) {
+      const worldPoint = {
+        x: (mx - width / 2) / s + cx,
+        z: ((my - height / 2) / s) * sign + cz,
+      };
+      const runtimePlan = getRuntimePlan();
+      const documentPoint = worldPointToDocument(worldPoint, runtimePlan);
+      const isVector = runtimePlan.renderType === 'VECTOR';
+      const bounds = runtimePlan.vector?.bounds;
+      const minX = isVector ? Number(bounds?.minX) : 0;
+      const minY = isVector ? Number(bounds?.minY) : 0;
+      const maxX = isVector ? Number(bounds?.maxX) : Number(runtimePlan.raster?.widthPx);
+      const maxY = isVector ? Number(bounds?.maxY) : Number(runtimePlan.raster?.heightPx);
+      if (
+        ![minX, minY, maxX, maxY].every(Number.isFinite) ||
+        documentPoint.x < minX ||
+        documentPoint.y < minY ||
+        documentPoint.x > maxX ||
+        documentPoint.y > maxY
+      ) {
         return null;
       }
 
-      const imgX = (localX / drawW) * img.width;
-      const imgY = (localY / drawH) * img.height;
-
-      return { x: imgX, y: imgY };
+      return documentPoint;
     },
-    [plan2DTransform, invertZ]
+    [getRuntimePlan, invertZ]
+  );
+
+  const canInteractWithPlan = Boolean(
+    plan2DDefinition &&
+    plan2DVisible &&
+    (plan2DDefinition.renderType === 'VECTOR' || planImageRef.current) &&
+    planEditMode &&
+    plan2DDefinition.locked === false
   );
 
   useEffect(() => {
-    if (!plan2DSrc) {
+    if (!plan2DSrc || plan2DDefinition?.renderType === 'VECTOR') {
       planImageRef.current = null;
       return;
     }
@@ -342,25 +453,64 @@ export default function Plan2DOverlay({
     const img = new Image();
     img.onload = () => {
       planImageRef.current = img;
+      onPlan2DRasterChangeRef.current?.({
+        widthPx: img.naturalWidth || img.width,
+        heightPx: img.naturalHeight || img.height,
+      });
     };
     img.onerror = () => {
       console.error('No se pudo cargar el plano 2D:', plan2DSrc);
       planImageRef.current = null;
     };
     img.src = plan2DSrc;
-  }, [plan2DSrc]);
+  }, [plan2DSrc, plan2DDefinition?.renderType]);
+
+  useEffect(() => {
+    setScaleStartPx(null);
+    setScaleHoverPx(null);
+    setCalibrationDraft(null);
+    setScaleMode(false);
+  }, [plan2DSrc, plan2DDefinition?.id]);
+
+  useEffect(() => {
+    if (!calibrationRequestId || (!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR')) return;
+    setCalibrationDraft(null);
+    setScaleStartPx(null);
+    setScaleHoverPx(null);
+    setScaleMode(true);
+    setMeasureMode(false);
+    setMeasureStart(null);
+    setMeasureHover(null);
+    setMeasureSnap(null);
+  }, [calibrationRequestId, plan2DSrc, plan2DDefinition?.renderType]);
 
   const isWallDrawMode = wallMode === true || wallMode === 'DRAW';
 
   const canvasRef = useRef(null);
 
+  useEffect(() => {
+    if (canInteractWithPlan) return;
+
+    const session = planDragRef.current;
+    planDragRef.current = null;
+    setIsPlanDragging(false);
+    setIsPlanHovered(false);
+
+    if (session && canvasRef.current?.hasPointerCapture?.(session.pointerId)) {
+      canvasRef.current.releasePointerCapture(session.pointerId);
+    }
+  }, [canInteractWithPlan]);
+
   // visible toggle
   const [visible, setVisible] = useState(defaultVisible);
   const [viewMode, setViewMode] = useState('normal');
+  const latestSnapshotRef = useRef([]);
 
   // draft muros
   const [draftPts, setDraftPts] = useState([]); // [{x,z}...]
   const [mouseWorld, setMouseWorld] = useState(null);
+  const [architectureSnap, setArchitectureSnap] = useState(null);
+  const [doorPreview, setDoorPreview] = useState(null);
 
   // View transform (pan/zoom)
   const viewRef = useRef({
@@ -405,14 +555,23 @@ export default function Plan2DOverlay({
     }
 
     // 2) Muros existentes
-    for (const wall of walls || []) {
-      const pts = wall?.points || [];
-      for (const pt of pts) {
-        minX = Math.min(minX, pt.x);
-        maxX = Math.max(maxX, pt.x);
-        minZ = Math.min(minZ, pt.z);
-        maxZ = Math.max(maxZ, pt.z);
-      }
+    const joinedWallsBounds = buildJoinedWallsGeometry2D(walls);
+    for (const wallGeometry of joinedWallsBounds.wallGeometries) {
+      const wallBounds = wallGeometry.bounds;
+      if (!wallBounds) continue;
+      minX = Math.min(minX, wallBounds.minX);
+      maxX = Math.max(maxX, wallBounds.maxX);
+      minZ = Math.min(minZ, wallBounds.minZ);
+      maxZ = Math.max(maxZ, wallBounds.maxZ);
+    }
+
+    for (const column of columns || []) {
+      if (column?.visible === false) continue;
+      const columnBounds = buildColumnGeometry2D(column).bounds;
+      minX = Math.min(minX, columnBounds.minX);
+      maxX = Math.max(maxX, columnBounds.maxX);
+      minZ = Math.min(minZ, columnBounds.minZ);
+      maxZ = Math.max(maxZ, columnBounds.maxZ);
     }
 
     // 3) Muro en construcción
@@ -432,25 +591,12 @@ export default function Plan2DOverlay({
     }
 
     // 5) Plano importado (SVG / PDF convertido / imagen)
-    if (plan2DVisible && planImageRef.current) {
-      const img = planImageRef.current;
-      const { metersPerPixel = 0.01, offsetX = 0, offsetZ = 0 } = plan2DTransform || {};
-
-      // OJO:
-      // en tu draw actual el plano se dibuja desde (offsetX, offsetZ)
-      // usando la esquina superior izquierda como ancla.
-      const planWidthM = img.width * metersPerPixel;
-      const planHeightM = img.height * metersPerPixel;
-
-      const planMinX = offsetX;
-      const planMaxX = offsetX + planWidthM;
-      const planMinZ = offsetZ;
-      const planMaxZ = offsetZ + planHeightM;
-
-      minX = Math.min(minX, planMinX);
-      maxX = Math.max(maxX, planMaxX);
-      minZ = Math.min(minZ, planMinZ);
-      maxZ = Math.max(maxZ, planMaxZ);
+    if (plan2DVisible && (planImageRef.current || plan2DDefinition?.renderType === 'VECTOR')) {
+      const planBounds = getPlanWorldBounds(getRuntimePlan());
+      minX = Math.min(minX, planBounds.minX);
+      maxX = Math.max(maxX, planBounds.maxX);
+      minZ = Math.min(minZ, planBounds.minZ);
+      maxZ = Math.max(maxZ, planBounds.maxZ);
     }
 
     if (!isFinite(minX) || !isFinite(maxX) || !isFinite(minZ) || !isFinite(maxZ)) {
@@ -458,7 +604,7 @@ export default function Plan2DOverlay({
     }
 
     return { minX, maxX, minZ, maxZ, snap };
-  }, [getSnapshot, walls, draftPts, mouseWorld, plan2DVisible, plan2DTransform]);
+  }, [getSnapshot, walls, columns, draftPts, mouseWorld, plan2DVisible, getRuntimePlan]);
 
   const ensureInitializedView = useCallback(() => {
     const b = getAllBounds();
@@ -535,6 +681,30 @@ export default function Plan2DOverlay({
     [invertZ]
   );
 
+  const hitTestPlanAtCanvasPoint = useCallback(
+    (mx, my) => {
+      if (!canInteractWithPlan) return null;
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint) return null;
+      const runtimePlan = getRuntimePlan();
+      const documentPoint = worldPointToDocument(worldPoint, runtimePlan);
+      const isVector = runtimePlan.renderType === 'VECTOR';
+      const bounds = runtimePlan.vector?.bounds;
+      const minX = isVector ? bounds?.minX : 0;
+      const minY = isVector ? bounds?.minY : 0;
+      const maxX = isVector ? bounds?.maxX : runtimePlan.raster?.widthPx;
+      const maxY = isVector ? bounds?.maxY : runtimePlan.raster?.heightPx;
+      const inside =
+        documentPoint.x >= minX &&
+        documentPoint.y >= minY &&
+        documentPoint.x <= maxX &&
+        documentPoint.y <= maxY;
+
+      return inside ? { worldPoint, documentPoint } : null;
+    },
+    [canInteractWithPlan, canvasToWorld, getRuntimePlan]
+  );
+
   const resolveMeasureSnap = useCallback(
     (mx, my) => {
       const worldPoint = canvasToWorld(mx, my);
@@ -579,14 +749,14 @@ export default function Plan2DOverlay({
   const commitWall = useCallback(() => {
     if ((draftPts?.length || 0) < 2) return;
 
-    const wall = {
+    const wall = createWallDefinition({
       id: `WALL_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       points: draftPts,
       height: wallHeight,
       thickness: wallThickness,
-    };
+    });
 
-    onAddWall?.(wall);
+    if (wall) onAddWall?.(wall);
     setDraftPts([]);
     setMouseWorld(null);
   }, [draftPts, wallHeight, wallThickness, onAddWall]);
@@ -614,35 +784,77 @@ export default function Plan2DOverlay({
     ensureInitializedView();
   }, [ensureInitializedView]);
 
-  const pickRectHit = useCallback(
-    (mx, my, p, s) => {
+  const pickFootprintHit = useCallback(
+    (mx, my, p) => {
       const [px, py] = toCanvas(p.x, p.z);
-      const rw = p.w * s;
-      const rd = p.d * s;
-      const ang = -(p.rotY || 0);
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint || !hitTestFootprint2D(p, worldPoint)) return null;
       const dx = mx - px;
       const dy = my - py;
-      const rx = dx * Math.cos(ang) - dy * Math.sin(ang);
-      const ry = dx * Math.sin(ang) + dy * Math.cos(ang);
-
-      if (Math.abs(rx) <= rw / 2 && Math.abs(ry) <= rd / 2) {
-        return rx * rx + ry * ry;
-      }
-
-      return null;
+      return dx * dx + dy * dy;
     },
-    [toCanvas]
+    [toCanvas, canvasToWorld]
   );
+
+  const architectureSnapGeometry = useMemo(
+    () =>
+      buildArchitectureSnapGeometry({
+        walls,
+        columns,
+        furniture: getSnapshot?.() || [],
+      }),
+    [walls, columns, getSnapshot, selectedIds]
+  );
+
+  const resolveArchitectureSnap = useCallback(
+    (mx, my) => {
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint) return null;
+      return resolveSnapPoint({
+        worldPoint,
+        screenPoint: { x: mx, y: my },
+        scale: viewRef.current.s,
+        geometry: architectureSnapGeometry,
+        tolerancePx: ARCHITECTURE_SNAP_TOLERANCE_PX,
+      });
+    },
+    [architectureSnapGeometry, canvasToWorld]
+  );
+
+  const resolveDoorAtCanvasPoint = useCallback((mx, my) => {
+    const worldPoint = canvasToWorld(mx, my);
+    if (!worldPoint) return null;
+    const joined = buildJoinedWallsGeometry2D(walls);
+    let best = null;
+    joined.wallGeometries.forEach((wallGeometry) => wallGeometry.segmentsGeometry.forEach((segment) => {
+      const projection = projectPointToWallSegment(worldPoint, segment);
+      if (!best || projection.distance < best.distance) best = { wallId: wallGeometry.wallId, segment, ...projection };
+    }));
+    const tolerance = 12 / Math.max(viewRef.current.s, Number.EPSILON);
+    if (!best || best.distance > tolerance) return null;
+    const door = createDoorDefinition({ wallId: best.wallId, segmentId: best.segment.segmentId, offset: best.offset, width: doorWidth, height: doorHeight });
+    const validation = validateDoorPlacement(door, walls, openings);
+    return { door, validation, geometry: buildDoorGeometry2D(door, walls, openings) };
+  }, [canvasToWorld, walls, openings, doorWidth, doorHeight]);
+
+  useEffect(() => {
+    if (isWallDrawMode || columnMode === 'PLACE' || openingMode === 'PLACE') return;
+    setArchitectureSnap(null);
+  }, [isWallDrawMode, columnMode, openingMode]);
+
+  useEffect(() => {
+    if (openingMode === 'PLACE') return;
+    setDoorPreview(null);
+  }, [openingMode]);
 
   const pickPartAtCanvasPoint = useCallback(
     (mx, my) => {
       const snap = getAllBounds()?.snap || [];
-      const { s } = viewRef.current;
       let best = null;
       let bestDist = Infinity;
 
       for (const p of snap) {
-        const dist = pickRectHit(mx, my, p, s);
+        const dist = pickFootprintHit(mx, my, p);
         if (dist == null || dist >= bestDist) continue;
         bestDist = dist;
         best = p;
@@ -650,7 +862,7 @@ export default function Plan2DOverlay({
 
       return best;
     },
-    [getAllBounds, pickRectHit]
+    [getAllBounds, pickFootprintHit]
   );
 
   const getSelectionTargetIds = useCallback(
@@ -859,6 +1071,24 @@ export default function Plan2DOverlay({
         return;
       }
 
+      const planDrag = planDragRef.current;
+      if (planDrag?.pointerId === e.pointerId) {
+        if (!canInteractWithPlan) {
+          planDragRef.current = null;
+          setIsPlanDragging(false);
+          return;
+        }
+
+        const worldPoint = canvasToWorld(mx, my);
+        if (!worldPoint) return;
+        onPlanPositionChange?.({
+          x: planDrag.initialPosition.x + worldPoint.x - planDrag.startWorld.x,
+          z: planDrag.initialPosition.z + worldPoint.z - planDrag.startWorld.z,
+        });
+        e.preventDefault();
+        return;
+      }
+
       const variantDrag = variantHandleDragRef.current;
       if (variantDrag?.pointerId === e.pointerId) {
         const projectedDeltaPxRaw =
@@ -888,10 +1118,17 @@ export default function Plan2DOverlay({
         !dragPieceRef.current &&
         !rotationDragRef.current
       ) {
+        const planHit =
+          !measureMode && !scaleMode && !isWallDrawMode ? hitTestPlanAtCanvasPoint(mx, my) : null;
+        setIsPlanHovered(Boolean(planHit));
+        if (planHit) {
+          setHoveredMovablePieceId(null);
+          setHoveredVariantHandleDir(0);
+          return;
+        }
+
         const variantControl = resolveActiveVariantControl2D();
-        const variantDir = variantControl
-          ? pickVariantHandleDirection(mx, my, variantControl)
-          : 0;
+        const variantDir = variantControl ? pickVariantHandleDirection(mx, my, variantControl) : 0;
         if (variantDir !== hoveredVariantHandleDir) {
           setHoveredVariantHandleDir(variantDir);
         }
@@ -1018,9 +1255,21 @@ export default function Plan2DOverlay({
       }
 
       if (isWallDrawMode) {
-        const wpt = canvasToWorld(mx, my);
-        if (!wpt) return;
-        setMouseWorld({ x: wpt.x, z: wpt.z });
+        const resolved = resolveArchitectureSnap(mx, my);
+        if (!resolved) return;
+        setArchitectureSnap(resolved.snapped ? resolved : null);
+        setMouseWorld({ x: resolved.point.x, z: resolved.point.z });
+        return;
+      }
+
+      if (openingMode === 'PLACE') {
+        setDoorPreview(resolveDoorAtCanvasPoint(mx, my));
+        return;
+      }
+
+      if (columnMode === 'PLACE') {
+        const resolved = resolveArchitectureSnap(mx, my);
+        setArchitectureSnap(resolved?.snapped ? resolved : null);
         return;
       }
 
@@ -1034,7 +1283,11 @@ export default function Plan2DOverlay({
       measureMode,
       measureStart,
       isWallDrawMode,
+      columnMode,
       canvasToWorld,
+      resolveArchitectureSnap,
+      openingMode,
+      resolveDoorAtCanvasPoint,
       invertZ,
       scaleMode,
       scaleStartPx,
@@ -1050,6 +1303,10 @@ export default function Plan2DOverlay({
       resolveVariantDragTargetIndex,
       processVariantHandleDragQueue,
       hoveredVariantHandleDir,
+      canInteractWithPlan,
+      canvasToWorld,
+      onPlanPositionChange,
+      hitTestPlanAtCanvasPoint,
     ]
   );
 
@@ -1110,6 +1367,21 @@ export default function Plan2DOverlay({
       const pieceDrag = dragPieceRef.current;
       const rotationDrag = rotationDragRef.current;
       const variantDrag = variantHandleDragRef.current;
+      const planDrag = planDragRef.current;
+
+      if (planDrag?.pointerId === e.pointerId) {
+        planDragRef.current = null;
+        setIsPlanDragging(false);
+        setIsPlanHovered(false);
+        suppressNextClickRef.current = true;
+        dragRef.current.isDown = false;
+        dragRef.current.mode = null;
+        if (canvas?.hasPointerCapture?.(e.pointerId)) {
+          canvas.releasePointerCapture(e.pointerId);
+        }
+        e.preventDefault();
+        return;
+      }
 
       if (variantDrag?.pointerId === e.pointerId) {
         cancelVariantHandleDrag(e.pointerId);
@@ -1134,9 +1406,10 @@ export default function Plan2DOverlay({
           direction: classifySelectionWindow(activeSelectionDrag.startScreen, currentScreen),
         };
         const candidates = collectSelectionCandidates(getSnapshot?.() || [], completedSelection);
-        const resolvedCandidates = resolveSelectionTargetIds?.(candidates, {
-          asGroup: moveAsGroup,
-        }) || candidates;
+        const resolvedCandidates =
+          resolveSelectionTargetIds?.(candidates, {
+            asGroup: moveAsGroup,
+          }) || candidates;
         onPickIds?.(
           applySelectionOperation(selectedIds, resolvedCandidates, completedSelection.operation)
         );
@@ -1282,11 +1555,78 @@ export default function Plan2DOverlay({
       // drag de pieza con botón izquierdo
       if (e.button !== 0) return;
 
+      if (openingMode === 'PLACE') {
+        const preview = resolveDoorAtCanvasPoint(mx, my);
+        setDoorPreview(preview);
+        if (preview?.validation?.valid) onAddOpening?.(preview.door);
+        return;
+      }
+
+      if (openingMode === 'EDIT') {
+        const worldPoint = canvasToWorld(mx, my);
+        const tolerance = 8 / Math.max(viewRef.current.s, Number.EPSILON);
+        onSelectOpening?.(selectOpeningAtPoint(worldPoint, openings, walls, tolerance));
+        setSelectedDimensionId(null);
+        return;
+      }
+
+      if (columnMode === 'PLACE') {
+        const resolved = resolveArchitectureSnap(mx, my);
+        if (!resolved) return;
+        const position = resolved.point;
+        const column = createColumnDefinition({
+          shape: columnShape,
+          position,
+          width: columnWidth,
+          depth: columnDepth,
+          diameter: columnDiameter,
+          height: columnHeight,
+        });
+        if (column) onAddColumn?.(column);
+        return;
+      }
+
+      if (columnMode === 'EDIT') {
+        const worldPoint = canvasToWorld(mx, my);
+        const tolerance = 8 / Math.max(viewRef.current.s, Number.EPSILON);
+        onSelectColumn?.(selectColumnAtPoint(worldPoint, columns, tolerance));
+        setSelectedDimensionId(null);
+        return;
+      }
+
+      if (wallMode === 'EDIT') {
+        const worldPoint = canvasToWorld(mx, my);
+        const tolerance = 8 / Math.max(viewRef.current.s, Number.EPSILON);
+        const wallId = selectWallAtPoint(worldPoint, walls, tolerance);
+        onSelectWall?.(wallId);
+        setSelectedDimensionId(null);
+        return;
+      }
+
+      if (!measureMode && !scaleMode && !isWallDrawMode) {
+        const planHit = hitTestPlanAtCanvasPoint(mx, my);
+        if (planHit) {
+          const runtimePlan = getRuntimePlan();
+          planDragRef.current = {
+            pointerId: e.pointerId,
+            startWorld: planHit.worldPoint,
+            initialPosition: {
+              x: runtimePlan.transform.position.x,
+              z: runtimePlan.transform.position.z,
+            },
+          };
+          setIsPlanDragging(true);
+          setIsPlanHovered(true);
+          setHoveredMovablePieceId(null);
+          canvas.setPointerCapture?.(e.pointerId);
+          e.preventDefault();
+          return;
+        }
+      }
+
       if (!measureMode && !scaleMode && !isWallDrawMode && transformTool === 'move') {
         const variantControl = resolveActiveVariantControl2D();
-        const variantDir = variantControl
-          ? pickVariantHandleDirection(mx, my, variantControl)
-          : 0;
+        const variantDir = variantControl ? pickVariantHandleDirection(mx, my, variantControl) : 0;
 
         if (variantControl && variantDir !== 0) {
           const startIndex = variantControl.currentIndex;
@@ -1475,6 +1815,8 @@ export default function Plan2DOverlay({
       pickVariantHandleDirection,
       resolveVariantDragTargetIndex,
       processVariantHandleDragQueue,
+      hitTestPlanAtCanvasPoint,
+      getRuntimePlan,
     ]
   );
 
@@ -1523,13 +1865,7 @@ export default function Plan2DOverlay({
     if (transformTool !== 'move' || measureMode || scaleMode || isWallDrawMode) {
       cancelVariantHandleDrag();
     }
-  }, [
-    transformTool,
-    measureMode,
-    scaleMode,
-    isWallDrawMode,
-    cancelVariantHandleDrag,
-  ]);
+  }, [transformTool, measureMode, scaleMode, isWallDrawMode, cancelVariantHandleDrag]);
 
   const handleClick = useCallback(
     (e) => {
@@ -1559,26 +1895,23 @@ export default function Plan2DOverlay({
         }
 
         const end = p;
-        
 
-        const pixelDistance = Math.hypot(end.x - scaleStartPx.x, end.y - scaleStartPx.y);
+        const sourceDistance = Math.hypot(end.x - scaleStartPx.x, end.y - scaleStartPx.y);
 
-        if (pixelDistance > 1) {
-          const input = window.prompt('Distancia real entre los dos puntos (en metros):', '1.00');
-          const realMeters = Number(String(input || '').replace(',', '.'));
-
-          if (Number.isFinite(realMeters) && realMeters > 0) {
-            const newMetersPerPixel = realMeters / pixelDistance;
-
-            onPlan2DTransformChange?.((prev) => ({
-              ...prev,
-              metersPerPixel: newMetersPerPixel,
-            }));
-          }
+        if (sourceDistance > Number.EPSILON) {
+          setCalibrationDraft({
+            sourceDistance,
+            points: {
+              a: { x: scaleStartPx.x, y: scaleStartPx.y },
+              b: { x: end.x, y: end.y },
+            },
+            value: '1',
+            unit: plan2DDefinition?.calibration?.inputUnit || 'm',
+          });
         }
 
         setScaleStartPx(null);
-        
+
         setScaleHoverPx(null);
         setScaleMode(false);
         return;
@@ -1641,9 +1974,10 @@ export default function Plan2DOverlay({
 
       // MUROS
       if (isWallDrawMode) {
-        const wpt = canvasToWorld(mx, my);
-        if (!wpt) return;
-        setDraftPts((prev) => [...prev, { x: wpt.x, z: wpt.z }]);
+        const resolved = resolveArchitectureSnap(mx, my);
+        if (!resolved) return;
+        setArchitectureSnap(resolved.snapped ? resolved : null);
+        setDraftPts((prev) => [...prev, { x: resolved.point.x, z: resolved.point.z }]);
         return;
       }
 
@@ -1656,13 +1990,11 @@ export default function Plan2DOverlay({
         return;
       }
 
-      const { s } = viewRef.current;
-
       let best = null;
       let bestDist = Infinity;
 
       for (const p of snap) {
-        const dist = pickRectHit(mx, my, p, s);
+        const dist = pickFootprintHit(mx, my, p);
         if (dist == null) continue;
         if (dist < bestDist) {
           bestDist = dist;
@@ -1697,9 +2029,10 @@ export default function Plan2DOverlay({
       measureStart,
       isWallDrawMode,
       canvasToWorld,
+      resolveArchitectureSnap,
       resolveMeasureSnap,
       getAllBounds,
-      pickRectHit,
+      pickFootprintHit,
       getSelectionTargetIds,
       onPickIds,
       selectedIds,
@@ -1707,8 +2040,26 @@ export default function Plan2DOverlay({
       scaleStartPx,
       canvasToPlanPixel,
       onPlan2DTransformChange,
+      plan2DDefinition,
       pickDimensionAtCanvasPoint,
       recordDimensionHistoryAction,
+      wallMode,
+      walls,
+      onSelectWall,
+      columnMode,
+      columnShape,
+      columnWidth,
+      columnDepth,
+      columnDiameter,
+      columnHeight,
+      columns,
+      onAddColumn,
+      onSelectColumn,
+      openingMode,
+      resolveDoorAtCanvasPoint,
+      onAddOpening,
+      onSelectOpening,
+      openings,
     ]
   );
 
@@ -1726,6 +2077,13 @@ export default function Plan2DOverlay({
       const key = ev.key?.toLowerCase?.();
 
       if (ev.key === 'Escape') {
+        if (scaleMode || calibrationDraft) {
+          setScaleMode(false);
+          setScaleStartPx(null);
+          setScaleHoverPx(null);
+          setCalibrationDraft(null);
+          return;
+        }
         if (measureMode) {
           clearMeasureDraft();
           return;
@@ -1791,6 +2149,8 @@ export default function Plan2DOverlay({
     selectedDimensionId,
     dimensions,
     recordDimensionHistoryAction,
+    scaleMode,
+    calibrationDraft,
   ]);
 
   useEffect(() => {
@@ -1833,7 +2193,12 @@ export default function Plan2DOverlay({
       // si no hay view init, intenta
       if (!viewRef.current.initialized) ensureInitializedView();
 
-      const snap = (getSnapshot?.() || []).filter(Boolean);
+      const snap = (
+        getSnapshot?.({
+          detailed2DIds: Array.from(detailed2DIds),
+        }) || []
+      ).filter(Boolean);
+      latestSnapshotRef.current = snap;
       const snapGeometry = buildSnapGeometry(snap);
       const { s, cx, cz } = viewRef.current;
 
@@ -1854,29 +2219,32 @@ export default function Plan2DOverlay({
       // Plano 2D de fondo
       if (plan2DVisible && planImageRef.current) {
         const img = planImageRef.current;
-
-        const {
-          metersPerPixel = 0.01,
-          offsetX = 0,
-          offsetZ = 0,
-          opacity = 0.35,
-        } = plan2DTransform || {};
-
-        // ancho/alto del plano en canvas a partir de escala mundo
-        const drawW = img.width * metersPerPixel * s;
-        const drawH = img.height * metersPerPixel * s;
-
-        // ancla en mundo
-        const px = (offsetX - cx) * s + w / 2;
-        const py = sign * (offsetZ - cz) * s + h / 2;
+        const runtimePlan = getRuntimePlan();
+        const metersPerDocumentUnit = runtimePlan.calibration.metersPerDocumentUnit;
+        const planScale = runtimePlan.transform.scale || 1;
+        const drawW = img.width * metersPerDocumentUnit * planScale * s;
+        const drawH = img.height * metersPerDocumentUnit * planScale * s;
+        const centerWorld = documentPointToWorld(
+          { x: img.width / 2, y: img.height / 2 },
+          runtimePlan
+        );
+        const [centerX, centerY] = toCanvasLocal(centerWorld.x, centerWorld.z);
 
         ctx.save();
-        ctx.globalAlpha = opacity;
-
-        // dibuja con origen en esquina superior izquierda
-        ctx.drawImage(img, px, py, drawW, drawH);
+        ctx.globalAlpha = runtimePlan.opacity;
+        ctx.translate(centerX, centerY);
+        ctx.rotate(sign * runtimePlan.transform.rotation);
+        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
 
         ctx.restore();
+      }
+
+      if (plan2DVisible && plan2DDefinition?.renderType === 'VECTOR') {
+        drawVectorPlan2D(ctx, getRuntimePlan(), {
+          toCanvas: toCanvasLocal,
+          scale: s,
+          invertZ,
+        });
       }
 
       // borde
@@ -1926,20 +2294,32 @@ export default function Plan2DOverlay({
       // Muros existentes
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
+      const joinedWallsGeometry = buildJoinedWallsGeometry2D(walls);
 
       for (const wall of walls || []) {
+        if (wall?.visible === false) continue;
         const pts = wall?.points || [];
         if (pts.length < 2) continue;
 
-        ctx.beginPath();
-        for (let i = 0; i < pts.length; i++) {
-          const [x, y] = toCanvasLocal(pts[i].x, pts[i].z);
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+        const isSelected = wall.id === selectedWallId;
+        const geometry = getJoinedWallGeometry(joinedWallsGeometry, wall.id);
+        if (!geometry) continue;
+        for (const segment of geometry.segmentsGeometry) {
+          const segmentOpenings = openings.filter((opening) => opening.wallId === wall.id && opening.segmentId === segment.segmentId && validateDoorPlacement(opening, walls, openings).valid);
+          const polygons = segmentOpenings.length ? buildWallSegmentPolygons2D(segment, segmentOpenings) : [segment.polygon];
+          polygons.forEach((polygon) => {
+            ctx.beginPath();
+            polygon.forEach((point, index) => {
+              const [x, y] = toCanvasLocal(point.x, point.z);
+              if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.closePath();
+            ctx.fillStyle = isSelected ? 'rgba(0,145,180,0.32)' : 'rgba(20,20,20,0.32)';
+            ctx.strokeStyle = isSelected ? 'rgba(0,145,180,0.95)' : 'rgba(20,20,20,0.78)';
+            ctx.lineWidth = isSelected ? 3 : 1;
+            ctx.fill(); ctx.stroke();
+          });
         }
-        ctx.strokeStyle = 'rgba(20,20,20,0.78)';
-        ctx.lineWidth = Math.max(1, (wall.thickness || wallThickness) * s);
-        ctx.stroke();
 
         for (let i = 0; i < pts.length - 1; i++) {
           const a = pts[i];
@@ -1950,6 +2330,71 @@ export default function Plan2DOverlay({
           const pixLen = Math.hypot(x2 - x1, y2 - y1);
           if (pixLen > 40) drawDimText(ctx, x1, y1, x2, y2, fmtMeters(len));
         }
+      }
+
+      for (const join of joinedWallsGeometry.joins) {
+        if (!join.patch?.length) continue;
+        const isSelected = join.wallIds.includes(selectedWallId);
+        ctx.beginPath();
+        join.patch.forEach((point, index) => {
+          const [x, y] = toCanvasLocal(point.x, point.z);
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = isSelected ? 'rgba(0,145,180,0.32)' : 'rgba(20,20,20,0.32)';
+        ctx.fill();
+      }
+
+      for (const column of columns || []) {
+        if (column?.visible === false) continue;
+        const geometry = buildColumnGeometry2D(column);
+        const isSelected = column.id === selectedColumnId;
+        ctx.beginPath();
+        if (geometry.shape === COLUMN_SHAPES.CIRCLE) {
+          const [x, y] = toCanvasLocal(geometry.center.x, geometry.center.z);
+          ctx.arc(x, y, geometry.radius * s, 0, Math.PI * 2);
+        } else {
+          geometry.polygon.forEach((point, index) => {
+            const [x, y] = toCanvasLocal(point.x, point.z);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.closePath();
+        }
+        ctx.fillStyle = isSelected ? 'rgba(168,92,0,0.32)' : 'rgba(70,70,70,0.28)';
+        ctx.strokeStyle = isSelected ? 'rgba(190,100,0,0.95)' : 'rgba(35,35,35,0.82)';
+        ctx.lineWidth = isSelected ? 3 : 1;
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      const drawDoorSymbol = (geometry, selected, preview = false) => {
+        if (!geometry) return;
+        const [hx, hy] = toCanvasLocal(geometry.hinge.x, geometry.hinge.z);
+        const [lx, ly] = toCanvasLocal(geometry.openEnd.x, geometry.openEnd.z);
+        const [cx, cy] = toCanvasLocal(geometry.closedEnd.x, geometry.closedEnd.z);
+        ctx.save();
+        ctx.strokeStyle = geometry.valid === false ? '#dc2626' : selected ? '#d97706' : preview ? '#16a34a' : '#505050';
+        ctx.lineWidth = selected ? 3 : 2;
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(lx, ly); ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(hx, hy, geometry.arc.radius * s, Math.atan2(cy - hy, cx - hx), Math.atan2(ly - hy, lx - hx), geometry.arc.counterClockwise !== invertZ);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(hx, hy, 3, 0, Math.PI * 2); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+        ctx.restore();
+      };
+
+      for (const opening of openings || []) {
+        if (opening?.visible === false) continue;
+        drawDoorSymbol(buildDoorGeometry2D(opening, walls, openings), opening.id === selectedOpeningId);
+      }
+      if (openingMode === 'PLACE' && doorPreview?.geometry) {
+        drawDoorSymbol(doorPreview.geometry, false, true);
+        const [tx, ty] = toCanvasLocal(doorPreview.geometry.center.x, doorPreview.geometry.center.z);
+        ctx.fillStyle = doorPreview.validation.valid ? '#166534' : '#b91c1c';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(`${doorWidth.toFixed(2)} m${doorPreview.validation.valid ? '' : ' · no cabe'}`, tx + 10, ty - 10);
       }
 
       // Muro en construcción
@@ -1986,25 +2431,23 @@ export default function Plan2DOverlay({
         }
       }
 
-      if (scaleMode && scaleStartPx && scaleHoverPx && planImageRef.current) {
-        const img = planImageRef.current;
-        const { s, cx, cz } = viewRef.current;
-        const { metersPerPixel = 0.01, offsetX = 0, offsetZ = 0 } = plan2DTransform || {};
+      if (scaleMode && scaleStartPx && scaleHoverPx) {
+        const runtimePlan = getRuntimePlan();
+        const startWorld = documentPointToWorld(scaleStartPx, runtimePlan);
+        const hoverWorld = documentPointToWorld(scaleHoverPx, runtimePlan);
+        const [x1, y1] = toCanvasLocal(startWorld.x, startWorld.z);
+        const [x2, y2] = toCanvasLocal(hoverWorld.x, hoverWorld.z);
 
-        const drawW = img.width * metersPerPixel * s;
-        const drawH = img.height * metersPerPixel * s;
+        const sourceLength = Math.hypot(
+          scaleHoverPx.x - scaleStartPx.x,
+          scaleHoverPx.y - scaleStartPx.y
+        );
+        const sourceLabel =
+          getRuntimePlan().renderType === 'VECTOR'
+            ? `${formatDocumentDistance(sourceLength)} unidades`
+            : `${Math.round(sourceLength)} px`;
 
-        const baseX = (offsetX - cx) * s + w / 2;
-        const baseY = sign * (offsetZ - cz) * s + h / 2;
-
-        const x1 = baseX + (scaleStartPx.x / img.width) * drawW;
-        const y1 = baseY + (scaleStartPx.y / img.height) * drawH;
-        const x2 = baseX + (scaleHoverPx.x / img.width) * drawW;
-        const y2 = baseY + (scaleHoverPx.y / img.height) * drawH;
-
-        const pxLen = Math.hypot(scaleHoverPx.x - scaleStartPx.x, scaleHoverPx.y - scaleStartPx.y);
-
-        drawMeasureLine(ctx, x1, y1, x2, y2, `${Math.round(pxLen)} px`, {
+        drawMeasureLine(ctx, x1, y1, x2, y2, sourceLabel, {
           preview: true,
         });
       }
@@ -2014,9 +2457,6 @@ export default function Plan2DOverlay({
 
       for (const p of snap) {
         const [px, py] = toCanvasLocal(p.x, p.z);
-        const rw = p.w * s;
-        const rd = p.d * s;
-
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(-(p.rotY || 0));
@@ -2027,8 +2467,13 @@ export default function Plan2DOverlay({
         ctx.strokeStyle = isSel ? 'rgba(56, 194, 212, 0.95)' : 'rgba(0,0,0,0.30)';
         ctx.lineWidth = isSel ? 2.2 : 1;
 
-        ctx.beginPath();
-        ctx.rect(-rw / 2, -rd / 2, rw, rd);
+        drawFurnitureFootprint2D(ctx, p, {
+          scale: s,
+          invertZ,
+          mode: is2DDetailEnabled(p, detailed2DIds)
+            ? FURNITURE_2D_RENDER_MODES.DETAILED
+            : FURNITURE_2D_RENDER_MODES.NORMAL,
+        });
         ctx.fill();
         ctx.stroke();
 
@@ -2041,9 +2486,7 @@ export default function Plan2DOverlay({
       }
 
       const activeVariantControl = resolveActiveVariantControl2D(snap);
-      if (
-        activeVariantControl?.type === 'EDUK_WIDTH'
-      ) {
+      if (activeVariantControl?.type === 'EDUK_WIDTH') {
         const { handles, center, axis, type } = activeVariantControl;
 
         ctx.save();
@@ -2198,6 +2641,38 @@ export default function Plan2DOverlay({
         ctx.restore();
       }
 
+      if (architectureSnap?.snapped && (isWallDrawMode || columnMode === 'PLACE')) {
+        const [snapX, snapY] = toCanvasLocal(architectureSnap.point.x, architectureSnap.point.z);
+        const label = SNAP_LABELS[architectureSnap.type] || 'Punto detectado';
+        ctx.save();
+        ctx.strokeStyle = 'rgba(22, 163, 74, 1)';
+        ctx.fillStyle = 'rgba(220, 252, 231, 0.96)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(snapX, snapY, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(snapX - 9, snapY);
+        ctx.lineTo(snapX + 9, snapY);
+        ctx.moveTo(snapX, snapY - 9);
+        ctx.lineTo(snapX, snapY + 9);
+        ctx.stroke();
+        ctx.font = '12px sans-serif';
+        const labelWidth = ctx.measureText(label).width + 12;
+        const labelX = Math.min(w - labelWidth - 4, snapX + 12);
+        const labelY = Math.max(18, snapY - 12);
+        ctx.fillStyle = 'rgba(255,255,255,0.96)';
+        ctx.fillRect(labelX, labelY - 15, labelWidth, 20);
+        ctx.strokeStyle = 'rgba(22, 163, 74, 0.75)';
+        ctx.strokeRect(labelX, labelY - 15, labelWidth, 20);
+        ctx.fillStyle = 'rgba(21, 128, 61, 1)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, labelX + 6, labelY - 5);
+        ctx.restore();
+      }
+
       if (selectionDrag) {
         const startX = selectionDrag.startScreen.x;
         const startY = selectionDrag.startScreen.y;
@@ -2243,10 +2718,18 @@ export default function Plan2DOverlay({
     measureStart,
     measureHover,
     measureSnap,
+    architectureSnap,
+    columnMode,
+    openings,
+    openingMode,
+    doorPreview,
+    selectedOpeningId,
+    doorWidth,
     dimensions,
     selectedDimensionId,
     selectionDrag,
     plan2DTransform,
+    getRuntimePlan,
     scaleMode,
     scaleStartPx,
     scaleHoverPx,
@@ -2254,7 +2737,15 @@ export default function Plan2DOverlay({
     resolveActiveVariantControl2D,
     hoveredVariantHandleDir,
     isVariantHandleDragging,
+    detailed2DIds,
   ]);
+
+  const selectedDetailKeys = collectSelected2DDetailKeys(
+    selectedIds,
+    latestSnapshotRef.current
+  );
+  const selectedAreDetailed =
+    selectedDetailKeys.length > 0 && selectedDetailKeys.every((key) => detailed2DIds.has(key));
 
   if (!visible) {
     return (
@@ -2292,9 +2783,7 @@ export default function Plan2DOverlay({
       }}
     >
       {/* barra superior */}
-      <div
-        className="plan2d-overlay__controls"
-      >
+      <div className="plan2d-overlay__controls">
         <span
           aria-live="polite"
           style={{
@@ -2322,6 +2811,39 @@ export default function Plan2DOverlay({
           title="Fit (F)"
         >
           Fit
+        </button>
+
+        <button
+          type="button"
+          disabled={!selectedDetailKeys.length}
+          onClick={() =>
+            onDetailed2DIdsChange?.(
+              updateDetailed2DIds(detailed2DIds, selectedDetailKeys, !selectedAreDetailed)
+            )
+          }
+          aria-pressed={selectedAreDetailed}
+          title={
+            selectedDetailKeys.length
+              ? 'Alternar representación 2D de la selección'
+              : 'Seleccione uno o varios objetos'
+          }
+          style={{
+            padding: '6px 10px',
+            borderRadius: 10,
+            border: '1px solid rgba(0,0,0,0.14)',
+            background:
+              selectedAreDetailed
+                ? 'rgba(37, 99, 235, 0.14)'
+                : 'rgba(255,255,255,0.92)',
+            color:
+              selectedAreDetailed
+                ? 'rgba(30, 64, 175, 1)'
+                : 'inherit',
+            cursor: selectedDetailKeys.length ? 'pointer' : 'not-allowed',
+            opacity: selectedDetailKeys.length ? 1 : 0.55,
+          }}
+        >
+          {selectedAreDetailed ? 'Vista normal 2D' : 'Vista detallada 2D'}
         </button>
 
         {viewMode !== 'normal' && (
@@ -2404,8 +2926,9 @@ export default function Plan2DOverlay({
           onClick={() => {
             const next = !scaleMode;
             setScaleMode(next);
+            setCalibrationDraft(null);
             setScaleStartPx(null);
-            
+
             setScaleHoverPx(null);
             if (next) {
               setMeasureMode(false);
@@ -2414,17 +2937,25 @@ export default function Plan2DOverlay({
               setMeasureSnap(null);
             }
           }}
-          disabled={!plan2DSrc || isWallDrawMode}
+          disabled={(!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR') || isWallDrawMode}
           style={{
             padding: '6px 10px',
             borderRadius: 10,
             border: '1px solid rgba(0,0,0,0.14)',
             background: scaleMode ? 'rgba(16, 185, 129, 0.16)' : 'rgba(255,255,255,0.92)',
             color: scaleMode ? 'rgba(6, 95, 70, 1)' : 'inherit',
-            cursor: !plan2DSrc || isWallDrawMode ? 'not-allowed' : 'pointer',
-            opacity: !plan2DSrc || isWallDrawMode ? 0.6 : 1,
+            cursor:
+              (!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR') || isWallDrawMode
+                ? 'not-allowed'
+                : 'pointer',
+            opacity:
+              (!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR') || isWallDrawMode ? 0.6 : 1,
           }}
-          title={!plan2DSrc ? 'Carga un plano primero' : 'Calibrar escala del plano'}
+          title={
+            !plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR'
+              ? 'Carga un plano primero'
+              : 'Calibrar escala del plano'
+          }
         >
           Escala
         </button>
@@ -2489,6 +3020,90 @@ export default function Plan2DOverlay({
           Ocultar
         </button>
       </div>
+
+      {calibrationDraft ? (
+        <section
+          aria-label="Confirmar calibración del plano"
+          style={{
+            position: 'absolute',
+            top: 54,
+            right: 12,
+            zIndex: 35,
+            width: 260,
+            display: 'grid',
+            gap: 9,
+            padding: 12,
+            border: '1px solid rgba(0,0,0,0.18)',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.98)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.16)',
+            fontSize: 12,
+          }}
+        >
+          <strong>Distancia real</strong>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 72px', gap: 8 }}>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={calibrationDraft.value}
+              onChange={(event) =>
+                setCalibrationDraft((current) => ({ ...current, value: event.target.value }))
+              }
+            />
+            <select
+              value={calibrationDraft.unit}
+              onChange={(event) =>
+                setCalibrationDraft((current) => ({ ...current, unit: event.target.value }))
+              }
+            >
+              <option value="mm">mm</option>
+              <option value="cm">cm</option>
+              <option value="m">m</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => {
+                const enteredValue = Number(String(calibrationDraft.value || '').replace(',', '.'));
+                const unitFactor = CALIBRATION_UNIT_TO_METERS[calibrationDraft.unit];
+                const realDistanceMeters = enteredValue * unitFactor;
+                if (!Number.isFinite(realDistanceMeters) || realDistanceMeters <= 0) return;
+
+                const calibration = {
+                  metersPerDocumentUnit: realDistanceMeters / calibrationDraft.sourceDistance,
+                  sourceDistance: calibrationDraft.sourceDistance,
+                  realDistanceMeters,
+                  units: plan2DDefinition?.renderType === 'VECTOR' ? 'dxf-unit' : 'px',
+                  inputUnit: calibrationDraft.unit,
+                  points: calibrationDraft.points,
+                  source: 'MANUAL',
+                  originalMetersPerDocumentUnit:
+                    plan2DDefinition?.calibration?.originalMetersPerDocumentUnit ??
+                    (plan2DDefinition?.vector?.units?.detected
+                      ? plan2DDefinition.vector.units.metersPerUnit
+                      : null),
+                };
+                if (onPlanCalibrationChange) {
+                  onPlanCalibrationChange(calibration);
+                } else {
+                  onPlan2DTransformChange?.((current) => ({
+                    ...current,
+                    metersPerPixel: calibration.metersPerDocumentUnit,
+                    scale: 1,
+                  }));
+                }
+                setCalibrationDraft(null);
+              }}
+            >
+              Confirmar
+            </button>
+            <button type="button" onClick={() => setCalibrationDraft(null)}>
+              Cancelar
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {selectedDimension && (
         <section
@@ -2638,19 +3253,23 @@ export default function Plan2DOverlay({
           cursor:
             measureMode || isWallDrawMode || scaleMode || selectionDrag
               ? 'crosshair'
-              : isVariantHandleDragging
+              : isPlanDragging
                 ? 'grabbing'
-                : hoveredVariantHandleDir
-                  ? 'pointer'
-              : isRotatingPiece
-                ? 'grabbing'
-                : transformTool === 'rotate'
-                  ? 'default'
-              : dragPieceId
-                ? 'grabbing'
-                : hoveredMovablePieceId
+                : isPlanHovered
                   ? 'grab'
-                  : 'default',
+                  : isVariantHandleDragging
+                    ? 'grabbing'
+                    : hoveredVariantHandleDir
+                      ? 'pointer'
+                      : isRotatingPiece
+                        ? 'grabbing'
+                        : transformTool === 'rotate'
+                          ? 'default'
+                          : dragPieceId
+                            ? 'grabbing'
+                            : hoveredMovablePieceId
+                              ? 'grab'
+                              : 'default',
         }}
         onClick={handleClick}
         onPointerMove={handlePointerMove}
@@ -2659,6 +3278,11 @@ export default function Plan2DOverlay({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={(event) => {
+          if (planDragRef.current?.pointerId === event.pointerId) {
+            planDragRef.current = null;
+            setIsPlanDragging(false);
+            setIsPlanHovered(false);
+          }
           cancelVariantHandleDrag(event.pointerId);
           cancelSelectionDrag(event.pointerId);
           cancelDimensionTextDrag(event.pointerId);
@@ -2670,8 +3294,10 @@ export default function Plan2DOverlay({
             !selectionDragRef.current &&
             !dragPieceRef.current &&
             !rotationDragRef.current &&
+            !planDragRef.current &&
             !dragRef.current.isDown
           ) {
+            setIsPlanHovered(false);
             setHoveredMovablePieceId(null);
             setHoveredVariantHandleDir(0);
           }

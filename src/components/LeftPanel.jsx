@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadTipologiasDetalle } from '../services/tipologiasDetalle';
 import {
   loadChairsPriceList,
@@ -13,6 +13,7 @@ import { loadMepalTekSocialItems } from '../mepal/tekSocial/catalog/tekSocialLoa
 import { loadZenCatalog } from '../mepal/zen/catalog/zenCatalogLoader';
 import { loadClakItems } from '../services/clakLoader';
 import { loadEdukItems } from '../mepal/eduk/catalog/edukLoader';
+import { loadMoreaItems } from '../services/moreaLoader';
 import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
@@ -20,6 +21,9 @@ import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/create
 import LinkPanel from './LinkPanel';
 import KuoGoPanel from './KuoGoPanel';
 import KuoAVPanel from './KuoAVPanel';
+import MilaPanel from './MilaPanel';
+import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
+import { createMilaGiroInstance } from '../mepal/mila/factories/createMilaGiroInstance';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,
@@ -28,6 +32,11 @@ import {
 } from './properties/clakPuffVariants';
 import { getEdukVariantGroupByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
+import PlanProperties from '../core/plans/components/PlanProperties';
+import WallProperties from '../core/architecture/walls/components/WallProperties';
+import ColumnProperties from '../core/architecture/columns/components/ColumnProperties';
+import { COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition';
+import DoorProperties from '../core/architecture/openings/components/DoorProperties';
 
 const typologyImageCache = new Map();
 export const IMAGE_FOLDER_SETS = {
@@ -43,6 +52,7 @@ export const IMAGE_FOLDER_SETS = {
   mepalSalud: ['MepalSalud'],
   tekSocial: ['Mepal TekSocial'],
   link: ['Link/Credenza EXE'],
+  morea: ['Morea'],
 };
 
 export function CardImage({
@@ -235,6 +245,20 @@ function EdukCardImage({ codigo, title }) {
   );
 }
 
+function MoreaCardImage({ codigo, title }) {
+  return (
+    <CardImage
+      assetName={codigo}
+      title={title}
+      imageFolders={IMAGE_FOLDER_SETS.morea}
+      imageFit="contain"
+      imageHeight={120}
+      imagePadding={8}
+      imageBackground="#ffffff"
+    />
+  );
+}
+
 export default function LeftPanel({
   section,
   threeApiRef,
@@ -270,15 +294,58 @@ export default function LeftPanel({
   setWallHeight,
   wallThickness,
   setWallThickness,
+  selectedWall,
+  onWallChange,
+  onDeleteWall,
+  onCloseWallProperties,
   onClearWalls,
   onUndoLastWall,
+  columnMode,
+  setColumnMode,
+  columnShape,
+  setColumnShape,
+  columnWidth,
+  setColumnWidth,
+  columnDepth,
+  setColumnDepth,
+  columnDiameter,
+  setColumnDiameter,
+  columnHeight,
+  setColumnHeight,
+  selectedColumn,
+  onColumnChange,
+  onDeleteColumn,
+  onCloseColumnProperties,
+  onClearColumns,
+  openingMode,
+  setOpeningMode,
+  doorWidth,
+  setDoorWidth,
+  doorHeight,
+  setDoorHeight,
+  selectedOpening,
+  onOpeningChange,
+  onDeleteOpening,
+  onCloseOpeningProperties,
+  onClearOpenings,
   // otros
   Plan2DUploader,
   handleLoadPlan2D,
-  plan2DVisible,
-  setPlan2DVisible,
+  planDefinition,
+  planEditMode,
+  onPlanEditModeChange,
+  onPlanVisibleChange,
+  onPlanLockedChange,
+  onPlanOpacityChange,
+  onPlanPositionChange,
+  onPlanRotationChange,
+  onVectorLayerChange,
+  onResetDxfScale,
+  onPlanRecalibrate,
+  onDeletePlan,
   setSurfaceOpen,
 }) {
+  const planUploaderRef = useRef(null);
   const [qCatalog, setQCatalog] = useState('');
   const [qTyp, setQTyp] = useState('');
   const [tipologias, setTipologias] = useState([]);
@@ -328,6 +395,11 @@ export default function LeftPanel({
   const [edukItems, setEdukItems] = useState([]);
   const [edukReady, setEdukReady] = useState(false);
   const [showEdukVariants, setShowEdukVariants] = useState(false);
+
+  // MOREA states
+  const [qMorea, setQMorea] = useState('');
+  const [moreaItems, setMoreaItems] = useState([]);
+  const [moreaReady, setMoreaReady] = useState(false);
 
   // ZEN ALMACENAMIENTO states
   const [qAlmacen, setQAlmacen] = useState('');
@@ -887,7 +959,7 @@ export default function LeftPanel({
       const matchesEspesor =
         !espesorFilter ||
         String(it?.raw?.espesor ?? '').replace(',', '.') ===
-          String(espesorFilter).replace(',', '.');
+        String(espesorFilter).replace(',', '.');
 
       return (
         matchesSearch && matchesCategory && matchesProfundidad && matchesLongitud && matchesEspesor
@@ -1203,6 +1275,22 @@ export default function LeftPanel({
   }, [edukItems, qEduk, showEdukVariants]);
 
   // ================================
+  // Filtrado de MOREA
+  // ================================
+  const moreaFiltered = useMemo(() => {
+    const q = String(qMorea || '')
+      .trim()
+      .toLowerCase();
+    if (!q) return moreaItems || [];
+    return (moreaItems || []).filter((it) => {
+      const code = String(it?.codigoPT ?? '').toLowerCase();
+      const title = String(it?.title ?? '').toLowerCase();
+      const subtitle = String(it?.subtitle ?? '').toLowerCase();
+      return code.includes(q) || title.includes(q) || subtitle.includes(q);
+    });
+  }, [moreaItems, qMorea]);
+
+  // ================================
   // Filtrado ZEN ALMACENAMIENTO
   // ================================
   const almacenFiltered = useMemo(() => {
@@ -1231,6 +1319,24 @@ export default function LeftPanel({
     });
     return out;
   }, [almacenFiltered]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const items = await loadMoreaItems();
+        if (!alive) return;
+        setMoreaItems(items);
+        setMoreaReady(true);
+      } catch (err) {
+        console.error('Error cargando Morea:', err);
+        if (alive) setMoreaReady(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -1457,6 +1563,24 @@ export default function LeftPanel({
         />
       )}
 
+      {section === 'mila' && (
+        <MilaPanel
+          onCreate={async (config) => {
+            const api = threeApiRef.current;
+            if (!api) {
+              alert('El visor 3D aún no está listo.');
+              return;
+            }
+
+            if (config?.type === 'giro') {
+              await createMilaGiroInstance({ api, config });
+            } else {
+              await createMilaInstance({ api, config });
+            }
+          }}
+        />
+      )}
+
       {/* ======================= MUROS ======================= */}
       {section === 'walls' && (
         <>
@@ -1534,6 +1658,58 @@ export default function LeftPanel({
               <button onClick={onUndoLastWall}>Deshacer</button>
               <button onClick={onClearWalls}>Borrar muros</button>
             </div>
+
+            {wallMode === 'EDIT' && selectedWall && (
+              <WallProperties
+                wall={selectedWall}
+                onChange={onWallChange}
+                onDelete={onDeleteWall}
+                onClose={onCloseWallProperties}
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {section === 'columns' && (
+        <>
+          <h3 style={{ margin: '0 0 12px 0' }}>Columnas</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>Modo</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => setColumnMode('NONE')} style={btnMini(columnMode === 'NONE')}>Ninguno</button>
+                <button type="button" onClick={() => setColumnMode('PLACE')} style={btnMini(columnMode === 'PLACE')}>Colocar</button>
+                <button type="button" onClick={() => setColumnMode('EDIT')} style={btnMini(columnMode === 'EDIT')}>Editar</button>
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
+                En “Colocar”: haz clic en el plano para crear una columna.
+              </div>
+            </div>
+
+            <label style={lab}>
+              Forma
+              <select value={columnShape} onChange={(event) => setColumnShape(event.target.value)} style={inp}>
+                <option value={COLUMN_SHAPES.RECTANGLE}>Rectangular</option>
+                <option value={COLUMN_SHAPES.CIRCLE}>Circular</option>
+              </select>
+            </label>
+
+            {columnShape === COLUMN_SHAPES.RECTANGLE ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label style={lab}>Ancho (m)<input type="number" step="0.01" value={columnWidth} onChange={(event) => setColumnWidth(Number(event.target.value))} style={inp} /></label>
+                <label style={lab}>Profundidad (m)<input type="number" step="0.01" value={columnDepth} onChange={(event) => setColumnDepth(Number(event.target.value))} style={inp} /></label>
+              </div>
+            ) : (
+              <label style={lab}>Diámetro (m)<input type="number" step="0.01" value={columnDiameter} onChange={(event) => setColumnDiameter(Number(event.target.value))} style={inp} /></label>
+            )}
+
+            <label style={lab}>Altura (m)<input type="number" step="0.05" value={columnHeight} onChange={(event) => setColumnHeight(Number(event.target.value))} style={inp} /></label>
+            <button type="button" onClick={onClearColumns}>Borrar columnas</button>
+
+            {columnMode === 'EDIT' && selectedColumn && (
+              <ColumnProperties column={selectedColumn} onChange={onColumnChange} onDelete={onDeleteColumn} onClose={onCloseColumnProperties} />
+            )}
           </div>
         </>
       )}
@@ -1541,18 +1717,18 @@ export default function LeftPanel({
       {/* ======================= PUERTAS/VENTANAS ======================= */}
       {section === 'openings' && (
         <>
-          <h3 style={{ margin: '0 0 12px 0' }}>Puertas y Ventanas</h3>
-          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
-            Próximo: librería de aperturas para insertar en muros.
-          </div>
-
-          <div style={{ display: 'grid', gap: 8 }}>
-            <button disabled style={disabledCard}>
-              🚪 Puerta estándar (próximo)
-            </button>
-            <button disabled style={disabledCard}>
-              🪟 Ventana estándar (próximo)
-            </button>
+          <h3 style={{ margin: '0 0 12px 0' }}>Puertas</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => setOpeningMode('NONE')} style={btnMini(openingMode === 'NONE')}>Ninguno</button>
+              <button type="button" onClick={() => setOpeningMode('PLACE')} style={btnMini(openingMode === 'PLACE')}>Colocar</button>
+              <button type="button" onClick={() => setOpeningMode('EDIT')} style={btnMini(openingMode === 'EDIT')}>Editar</button>
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.75 }}>En “Colocar”, mueve el cursor sobre un segmento de muro y haz clic.</div>
+            <label style={lab}>Ancho (m)<input type="number" min="0.1" step="0.05" value={doorWidth} onChange={(e) => setDoorWidth(Number(e.target.value))} style={inp} /></label>
+            <label style={lab}>Altura (m)<input type="number" min="0.1" step="0.05" value={doorHeight} onChange={(e) => setDoorHeight(Number(e.target.value))} style={inp} /></label>
+            <button type="button" onClick={onClearOpenings}>Borrar puertas</button>
+            {openingMode === 'EDIT' && selectedOpening && <DoorProperties door={selectedOpening} onChange={onOpeningChange} onDelete={onDeleteOpening} onClose={onCloseOpeningProperties} />}
           </div>
         </>
       )}
@@ -1753,21 +1929,31 @@ export default function LeftPanel({
         <>
           <h3 style={{ margin: '0 0 12px 0' }}>Planos</h3>
 
-          {Plan2DUploader ? <Plan2DUploader onLoadFile={handleLoadPlan2D} /> : null}
+          {Plan2DUploader ? (
+            <Plan2DUploader
+              ref={planUploaderRef}
+              hideButton={Boolean(planDefinition)}
+              onLoadFile={(file, meta) =>
+                handleLoadPlan2D?.(file, meta, { replace: Boolean(planDefinition) })
+              }
+            />
+          ) : null}
 
-          <button
-            onClick={() => setPlan2DVisible((v) => !v)}
-            style={{
-              marginTop: 10,
-              padding: '8px 12px',
-              borderRadius: 10,
-              border: '1px solid #ddd',
-              cursor: 'pointer',
-              fontWeight: 700,
-            }}
-          >
-            {plan2DVisible ? 'Ocultar plano' : 'Mostrar plano'}
-          </button>
+          <PlanProperties
+            plan={planDefinition}
+            planEditMode={planEditMode}
+            onPlanEditModeChange={onPlanEditModeChange}
+            onVisibleChange={onPlanVisibleChange}
+            onLockedChange={onPlanLockedChange}
+            onOpacityChange={onPlanOpacityChange}
+            onPositionChange={onPlanPositionChange}
+            onRotationChange={onPlanRotationChange}
+            onVectorLayerChange={onVectorLayerChange}
+            onResetDxfScale={onResetDxfScale}
+            onRecalibrate={onPlanRecalibrate}
+            onReplaceFile={() => planUploaderRef.current?.open?.()}
+            onDelete={onDeletePlan}
+          />
         </>
       )}
 
@@ -2157,6 +2343,70 @@ export default function LeftPanel({
           {officeAccessoriesReady && officeAccessoriesFiltered.length === 0 && (
             <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
               No hay accesorios disponibles. Agrega entradas a officeAccessories.json
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ======================= MOREA ======================= */}
+      {section === 'morea' && (
+        <>
+          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
+            Morea
+          </h1>
+
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Selecciona un producto Morea para verlo en el menú de la librería.
+          </div>
+
+          <input
+            value={qMorea}
+            onChange={(e) => setQMorea(e.target.value)}
+            placeholder="Buscar por código o descripción..."
+            style={{
+              width: '100%',
+              padding: 10,
+              borderRadius: 10,
+              border: '1px solid #e5e7eb',
+              marginBottom: 10,
+              outline: 'none',
+            }}
+          />
+
+          {!moreaReady && <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Morea...</div>}
+
+          <div style={{ display: 'grid', gap: 8 }}>
+            {moreaFiltered.map((it) => (
+              <button
+                key={String(it.codigoPT)}
+                disabled={readOnly}
+                onClick={() => !readOnly && alert('La lógica de inserción de Morea se añadirá cuando esté lista la regla de fabricación.')}
+                style={cardBtn(readOnly)}
+              >
+                <MoreaCardImage codigo={it.codigoPT} title={it.title || it.codigoPT} />
+                <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                  {it.codigoPT}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    opacity: 0.85,
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {it.title || it.codigoPT}
+                </div>
+                {it.subtitle ? (
+                  <div style={{ fontSize: 11, opacity: 0.65 }}>{it.subtitle}</div>
+                ) : null}
+              </button>
+            ))}
+          </div>
+
+          {moreaReady && moreaFiltered.length === 0 && (
+            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
+              No hay productos disponibles. Agrega entradas a morea.json.
             </div>
           )}
         </>

@@ -224,7 +224,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         diameterMm: 80,
         x: baseX,
         y: 740, //altura grommet
-        z: -300,
+        z: -70,
         rotY: 0,
       });
 
@@ -233,7 +233,7 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
         diameterMm: 80,
         x: baseX,
         y: 740, //altura grommet
-        z: 300,
+        z: 70,
         rotY: Math.PI,
       });
     }
@@ -259,14 +259,17 @@ export function getPasacablesConfig({
 
     if (tipoPuesto === 'sencillo') {
       let z = 0;
-      if (position === 'LEFT') z = -300;
-      if (position === 'RIGHT') z = 300;
+      let mover = baseX - 50 + 62;
+      console.log('position pasacable: ', position);
+
+      if (position === 'LEFT') mover = -494;
+      if (position === 'RIGHT') mover = 517;
 
       out.push({
         index: i,
-        x: baseX,
-        y: 740, //altura Pasacable
-        z,
+        x: baseX - 50 + mover,
+        y: 690, //altura Pasacable
+        z: -180 - 45,
         rotY: 0,
       });
     }
@@ -274,28 +277,33 @@ export function getPasacablesConfig({
     if (tipoPuesto === 'doble') {
       switch (position) {
         case 'CENTER':
-          out.push({ index: `${i}_f`, x: baseX, y: 740, z: -300, rotY: 0 });
-          out.push({ index: `${i}_b`, x: baseX, y: 740, z: 300, rotY: Math.PI });
+          out.push({ index: `${i}_f`, x: baseX - 38, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_b`, x: baseX + 38, y: 690, z: 111, rotY: Math.PI });
           break;
 
         case 'LEFT_RIGHT':
-          out.push({ index: `${i}_l`, x: baseX, y: 740, z: -300, rotY: 0 });
-          out.push({ index: `${i}_r`, x: baseX, y: 740, z: 300, rotY: Math.PI });
+          out.push({ index: `${i}_l`, x: baseX - 544, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_r`, x: baseX + 555, y: 690, z: 111, rotY: Math.PI });
+          break;
+
+        case 'RIGHT_LEFT':
+          out.push({ index: `${i}_l`, x: baseX + 479, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_r`, x: baseX - 468, y: 690, z: 111, rotY: Math.PI });
           break;
 
         case 'LEFT_LEFT':
-          out.push({ index: `${i}_l1`, x: baseX, y: 740, z: -300, rotY: 0 });
-          out.push({ index: `${i}_l2`, x: baseX, y: 740, z: -300, rotY: Math.PI });
+          out.push({ index: `${i}_l1`, x: baseX - 544, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_l2`, x: baseX - 468, y: 690, z: 111, rotY: Math.PI });
           break;
 
         case 'RIGHT_RIGHT':
-          out.push({ index: `${i}_r1`, x: baseX, y: 740, z: 300, rotY: 0 });
-          out.push({ index: `${i}_r2`, x: baseX, y: 740, z: 300, rotY: Math.PI });
+          out.push({ index: `${i}_r1`, x: baseX + 479, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_r2`, x: baseX + 555, y: 690, z: 111, rotY: Math.PI });
           break;
 
         default:
-          out.push({ index: `${i}_f`, x: baseX, y: 740, z: -300, rotY: 0 });
-          out.push({ index: `${i}_b`, x: baseX, y: 740, z: 300, rotY: Math.PI });
+          out.push({ index: `${i}_f`, x: baseX - 38, y: 690, z: -111, rotY: 0 });
+          out.push({ index: `${i}_b`, x: baseX + 38, y: 690, z: 111, rotY: Math.PI });
           break;
       }
     }
@@ -361,6 +369,7 @@ export function getDuctosConfig({
   anchoRealMm,
   hasDuct = true,
   ductModes = [],
+  side = 'LEFT',
 }) {
   const out = [];
   if (!hasDuct) return out;
@@ -387,46 +396,83 @@ export function getDuctosConfig({
     // Inicio del módulo
     const moduleStartX = baseX - largoRealMm / 2;
 
+    //const currentSide = String(ductSides[i] || side || 'RIGHT').toUpperCase();
+    //console.log('currentSide: ', currentSide);
+
     // Centro del ducto, arrancando desde el inicio
     const ductCenterX = moduleStartX + ductLengthMm / 2;
-
     let ductX = baseX;
     let ductY = 510;
     let ductZ = -116;
     let ductRotY = 0;
 
-    if (tipoModulo === 'terminal') {
-      ductX = baseX - 335; //-335
-      ductY = 510;
-      if (anchoRealMm == 600) {
-        ductZ = -116;
-      } else {
-        ductZ = -anchoRealMm / 2 + 55 + 128;
+    if (tipoPuesto === 'sencillo') {
+      if (tipoModulo === 'terminal') {
+        ductX = baseX - 335; //-335
+        ductY = 510;
+        if (anchoRealMm == 600) {
+          ductZ = -116;
+        } else {
+          ductZ = -anchoRealMm / 2 + 55 + 128;
+        }
+
+        ductRotY = 0;
       }
 
-      ductRotY = 0;
+      if (tipoModulo === 'intermedio') {
+        ductX = moduleStartX;
+        ductY = 510;
+        if (anchoRealMm == 600) {
+          ductZ = -116;
+        } else {
+          ductZ = -anchoRealMm / 2 + 55 + 128;
+        }
+        ductRotY = 0;
+      }
+
+      if (tipoModulo === 'individual') {
+        ductX = baseX - 692 / 2;
+        ductY = 510;
+        if (anchoRealMm == 600) {
+          ductZ = -116;
+        } else {
+          ductZ = -anchoRealMm / 2 + 55 + 128;
+        }
+        ductRotY = 0;
+      }
     }
 
-    if (tipoModulo === 'intermedio') {
-      ductX = moduleStartX;
-      ductY = 510;
-      if (anchoRealMm == 600) {
-        ductZ = -116;
-      } else {
-        ductZ = -anchoRealMm / 2 + 55 + 128;
-      }
-      ductRotY = 0;
-    }
+    if (tipoPuesto === 'doble') {
+      if (tipoModulo === 'terminal') {
+        console.log('side: ', side);
+        if (side === 'LEFT') {
+          ductX = -160 - 442;
+          ductY = 510;
+          ductZ = 129;
 
-    if (tipoModulo === 'individual') {
-      ductX = baseX - 692 / 2;
-      ductY = 510;
-      if (anchoRealMm == 600) {
-        ductZ = -116;
-      } else {
-        ductZ = -anchoRealMm / 2 + 55 + 128;
+          ductRotY = 0;
+        } else {
+          ductX = 0; //-335
+          ductY = 510;
+          ductZ = 129;
+
+          ductRotY = 0;
+        }
       }
-      ductRotY = 0;
+
+      if (tipoModulo === 'intermedio') {
+        ductX = moduleStartX;
+        ductY = 510;
+        ductZ = 129;
+        ductRotY = 0;
+      }
+
+      if (tipoModulo === 'individual') {
+        ductX = baseX - 692 / 2;
+        ductY = 509;
+        ductZ = 129;
+        ductRotY = 0;
+      }
     }
     //console.log('anchoRealMm: ', largoRealMm);
     //console.log('anchoRealMm: ', anchoRealMm);
@@ -442,7 +488,7 @@ export function getDuctosConfig({
       z: ductZ,
 
       rotX: 0,
-      rotY: 0,
+      rotY: ductRotY,
       rotZ: 0,
       side: 'LEFT',
     });

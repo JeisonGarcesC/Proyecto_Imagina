@@ -1,3 +1,5 @@
+import { buildFootprintWorldGeometry, pointInPolygon2D } from './footprintGeometry2D.js';
+
 export const SELECTION_WINDOW_TYPES = Object.freeze({
   WINDOW: 'WINDOW',
   CROSSING: 'CROSSING',
@@ -67,20 +69,6 @@ function segmentsIntersect(a, b, c, d) {
   );
 }
 
-function pointInsidePolygon(point, polygon) {
-  let inside = false;
-  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
-    const a = polygon[index];
-    const b = polygon[previous];
-    if (pointOnSegment(point, a, b)) return true;
-    const crosses =
-      a.z > point.z !== b.z > point.z &&
-      point.x < ((b.x - a.x) * (point.z - a.z)) / (b.z - a.z) + a.x;
-    if (crosses) inside = !inside;
-  }
-  return inside;
-}
-
 function getWindowPolygon(bounds) {
   return [
     { x: bounds.minX, z: bounds.minZ },
@@ -102,34 +90,7 @@ export function classifySelectionWindow(startScreen, currentScreen) {
 }
 
 export function buildSelectionPolygon(part) {
-  const centerX = Number(part?.x);
-  const centerZ = Number(part?.z);
-  const width = Math.abs(Number(part?.w));
-  const depth = Math.abs(Number(part?.d));
-  const rotation = Number(part?.rotY) || 0;
-  if (
-    !Number.isFinite(centerX) ||
-    !Number.isFinite(centerZ) ||
-    !Number.isFinite(width) ||
-    !Number.isFinite(depth)
-  ) {
-    return [];
-  }
-
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
-  const cosine = Math.cos(rotation);
-  const sine = Math.sin(rotation);
-
-  return [
-    { x: -halfWidth, z: -halfDepth },
-    { x: halfWidth, z: -halfDepth },
-    { x: halfWidth, z: halfDepth },
-    { x: -halfWidth, z: halfDepth },
-  ].map((point) => ({
-    x: centerX + point.x * cosine - point.z * sine,
-    z: centerZ + point.x * sine + point.z * cosine,
-  }));
+  return buildFootprintWorldGeometry(part)?.vertices || [];
 }
 
 export function isWindowSelection(polygon, selectionWindow) {
@@ -143,7 +104,7 @@ export function intersectsCrossingSelection(polygon, selectionWindow) {
   if (polygon.some((point) => pointInsideBounds(point, bounds))) return true;
 
   const windowPolygon = getWindowPolygon(bounds);
-  if (windowPolygon.some((point) => pointInsidePolygon(point, polygon))) return true;
+  if (windowPolygon.some((point) => pointInPolygon2D(point, polygon))) return true;
 
   return polygon.some((start, index) => {
     const end = polygon[(index + 1) % polygon.length];

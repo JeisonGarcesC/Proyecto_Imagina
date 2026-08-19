@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  LOCKED
+}
+
+enum PermissionEffect {
+  ALLOW
+  DENY
+}
+
+enum DeviceStatus {
+  ACTIVE
+  REVOKED
+  LOST
+}
+
+model User {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  username            String                   @unique @db.VarChar(64)
+  email               String                   @unique @db.VarChar(254)
+  displayName         String                   @db.VarChar(160)
+  passwordHash        String
+  status              UserStatus               @default(ACTIVE)
+  tokenVersion        Int                      @default(1)
+  permissionVersion   Int                      @default(1)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  lastLoginAt         DateTime?
+  roles               UserRole[]
+  permissionOverrides UserPermissionOverride[]
+  devices             Device[]
+  refreshSessions     RefreshSession[]
+  offlineGrants       OfflineGrant[]
+  auditEvents         AuditLog[]               @relation("AuditActor")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique @db.VarChar(64)
+  name        String           @db.VarChar(120)
+  description String?
+  system      Boolean          @default(false)
+  enabled     Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id            String                   @id @default(uuid()) @db.Uuid
+  key           String                   @unique @db.VarChar(120)
+  description   String
+  module        String                   @db.VarChar(64)
+  roles         RolePermission[]
+  userOverrides UserPermissionOverride[]
+}
+
+model UserRole {
+  userId String @db.Uuid
+  roleId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model UserPermissionOverride {
+  userId       String           @db.Uuid
+  permissionId String           @db.Uuid
+  effect       PermissionEffect
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission       @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@index([permissionId])
+}
+
+model Device {
+  id                  String           @id @default(uuid()) @db.Uuid
+  userId              String           @db.Uuid
+  deviceId            String           @unique @db.VarChar(128)
+  name                String           @db.VarChar(160)
+  platform            String           @db.VarChar(80)
+  publicKeyThumbprint String?          @unique @db.VarChar(255)
+  status              DeviceStatus     @default(ACTIVE)
+  enrolledAt          DateTime         @default(now())
+  lastSeenAt          DateTime?
+  revokedAt           DateTime?
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshSessions     RefreshSession[]
+  offlineGrants       OfflineGrant[]
+  auditEvents         AuditLog[]       @relation("AuditDevice")
+
+  @@index([userId])
+}
+
+model RefreshSession {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  deviceId         String?   @db.Uuid
+  refreshTokenHash String    @unique
+  tokenVersion     Int
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  lastUsedAt       DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device           Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([expiresAt])
+}
+
+model OfflineGrant {
+  id                String    @id @default(uuid()) @db.Uuid
+  grantId           String    @unique @db.VarChar(128)
+  userId            String    @db.Uuid
+  deviceId          String    @db.Uuid
+  issuedAt          DateTime  @default(now())
+  notBefore         DateTime
+  validUntil        DateTime
+  permissionVersion Int
+  revokedAt         DateTime?
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device            Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([validUntil])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  actorUserId   String?  @db.Uuid
+  actorDeviceId String?  @db.Uuid
+  action        String   @db.VarChar(120)
+  targetType    String   @db.VarChar(80)
+  targetId      String?  @db.VarChar(160)
+  before        Json?
+  after         Json?
+  ip            String?  @db.VarChar(64)
+  userAgent     String?
+  createdAt     DateTime @default(now())
+  actorUser     User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorDevice   Device?  @relation("AuditDevice", fields: [actorDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([actorDeviceId])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}

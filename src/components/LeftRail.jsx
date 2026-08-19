@@ -4,6 +4,7 @@ export default function LeftRail({ active, onChange }) {
     { id: 'catalog', label: 'Catálogo', icon: '📦' },
     { id: 'typologies', label: 'Tipologías', icon: '🧩' },
     { id: 'walls', label: 'Muros', icon: '🧱' },
+    { id: 'columns', label: 'Columnas', icon: '▣' },
     { id: 'openings', label: 'Puertas/Ventanas', icon: '🚪' },
     { id: 'materials', label: 'Materiales', icon: '🎨' },
     { id: 'plans', label: 'Planos', icon: '🗺️' },
@@ -67,6 +68,16 @@ export default function LeftRail({ active, onChange }) {
       id: 'link',
       label: 'Link',
       image: '/assets/iconos_imagen/link.png',
+    },
+    {
+      id: 'morea',
+      label: 'Morea',
+      image: '/assets/iconos_imagen/MepalMorea.png',
+    },
+    {
+      id: 'mila',
+      label: 'Mila',
+      image: '/assets/iconos_imagen/MepalMila.png',
     },
   ];
 

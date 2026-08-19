@@ -1,0 +1,10 @@
+[
+  {
+    "id": "morea-demo-01",
+    "codigoPT": "MOREA_001",
+    "title": "Elemento Morea base",
+    "subtitle": "Plantilla inicial de menú",
+    "description": "Producto demo para el menú Morea",
+    "modelSrc": "/assets/models/Morea/placeholder.glb"
+  }
+]
