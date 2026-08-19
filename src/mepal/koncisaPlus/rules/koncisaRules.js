@@ -446,7 +446,7 @@ export function getDuctosConfig({
       if (tipoModulo === 'terminal') {
         console.log('side: ', side);
         if (side === 'LEFT') {
-          ductX = 74;
+          ductX = -160 - 442;
           ductY = 510;
           ductZ = 129;
 
@@ -454,7 +454,7 @@ export function getDuctosConfig({
         } else {
           ductX = 0; //-335
           ductY = 510;
-          ductZ = 0;
+          ductZ = 129;
 
           ductRotY = 0;
         }
@@ -463,11 +463,7 @@ export function getDuctosConfig({
       if (tipoModulo === 'intermedio') {
         ductX = moduleStartX;
         ductY = 510;
-        if (anchoRealMm == 600) {
-          ductZ = -116;
-        } else {
-          ductZ = -anchoRealMm / 2 + 55 + 128;
-        }
+        ductZ = 129;
         ductRotY = 0;
       }
 

@@ -74,6 +74,10 @@ import { resolveKoncisaPedestalReinforcement } from '../mepal/koncisaPlus/rules/
 import { resolveKoncisaDuctSupport } from '../mepal/koncisaPlus/rules/koncisaDuctSupportRules';
 
 import { resolveKoncisaSurfaceCodigoPT } from '../mepal/koncisaPlus/rules/koncisaSurfaceRules';
+import {
+  getEditableKoncisaPartObject,
+  isKoncisaAssemblyRoot,
+} from '../mepal/koncisaPlus/utils/koncisaSelection';
 
 import {
   canAttachKoncisaIntegrationToPart,
@@ -354,6 +358,7 @@ export default function ThreeCanvas({
     // Piezas en escena
     const parts = []; // { code, obj }
     let activePart = null;
+    let activeEditablePart = null;
     let activeSubMesh = null; // ✅ NUEVO: parte exacta del GLB clickeada (Mesh)
 
     // IMPORTANT: solo objetos del catálogo (para click/drag)
@@ -1200,6 +1205,10 @@ export default function ThreeCanvas({
 
     function setActivePart(obj, selectionContext = null) {
       activePart = obj;
+      activeEditablePart =
+        selectionContext?.propertiesTarget ||
+        (isKoncisaAssemblyRoot(obj) ? null : getEditableKoncisaPartObject(obj));
+      obj = activeEditablePart || obj;
       activeSubMesh = null; // ✅ cada vez que cambia selección, reset submesh
       const edukWidthContext =
         obj?.userData?.kind === 'EDUK'
@@ -2409,6 +2418,10 @@ export default function ThreeCanvas({
 
     function getKoncisaAssemblyObject(object) {
       return getAssemblyObject(object);
+    }
+
+    function getActiveEditablePartObject() {
+      return activeEditablePart || getEditableKoncisaPartObject(activePart);
     }
 
     function resolveSelectionTargets(object, { asGroup = moveAsGroupRef.current } = {}) {
@@ -4330,6 +4343,7 @@ export default function ThreeCanvas({
 
       // selección
       activePart = null;
+      activeEditablePart = null;
       if (selectionHelper) {
         scene.remove(selectionHelper);
         selectionHelper = null;
@@ -4463,6 +4477,7 @@ export default function ThreeCanvas({
       // Si la selección activa era este objeto o algo dentro de él, limpiar selección.
       if (activePart === root || isDescendantOf(activePart, root)) {
         activePart = null;
+        activeEditablePart = null;
         activeSubMesh = null;
 
         if (selectionHelper) {
@@ -5247,7 +5262,8 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const root = getRootPartObject(activePart) || activePart;
+      const root = getActiveEditablePartObject();
+      if (!root) return false;
 
       if (root.userData?.type !== 'pantalla' && root.userData?.kind !== 'PRIVACY_PANEL') {
         console.warn('La pieza activa no es una pantalla Koncisa Plus.');
@@ -6643,6 +6659,7 @@ export default function ThreeCanvas({
     function clearSelectionAfterRemoval() {
       selectedIds3D = [];
       activePart = null;
+      activeEditablePart = null;
       activeSubMesh = null;
 
       if (selectionHelper) {
@@ -6686,7 +6703,7 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const costadoObj = getRootPartObject(activePart) || activePart;
+      const costadoObj = getActiveEditablePartObject();
 
       const isCostado =
         costadoObj?.userData?.kind === 'costado' ||
@@ -6871,7 +6888,7 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const pedestalObj = getRootPartObject(activePart) || activePart;
+      const pedestalObj = getActiveEditablePartObject();
 
       const isPedestal =
         pedestalObj?.userData?.kind === 'pedestal' ||
@@ -6964,7 +6981,7 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const costadoObj = getRootPartObject(activePart) || activePart;
+      const costadoObj = getActiveEditablePartObject();
 
       const isCostado =
         costadoObj?.userData?.kind === 'costado' ||
@@ -7562,7 +7579,7 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const selectedObj = getRootPartObject(activePart) || activePart;
+      const selectedObj = getActiveEditablePartObject();
       const selectedMeta = selectedObj?.userData?.meta || {};
 
       const integrationSetId =
@@ -8003,7 +8020,7 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const root = getRootPartObject(activePart) || activePart;
+      const root = getActiveEditablePartObject();
 
       if (!root) return false;
 
@@ -8092,7 +8109,7 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const root = getRootPartObject(activePart) || activePart;
+      const root = getActiveEditablePartObject();
       if (!root) return false;
 
       if (root.userData?.kind !== 'ducto') {
@@ -8396,32 +8413,32 @@ export default function ThreeCanvas({
 
     async function updateSelectedDuctCovers(patch = {}) {
       if (readOnly) return false;
-      if (!activePart) return false;
-      if (activePart.userData?.kind !== 'ducto') return false;
+      const ductObj = getActiveEditablePartObject();
+      if (!ductObj || ductObj.userData?.kind !== 'ducto') return false;
 
-      const tipoModulo = normalizeDuctModuleType(activePart.userData?.meta?.tipoModulo);
-      const currentState = activePart.userData?.ductCovers || defaultDuctCoverState(tipoModulo);
+      const tipoModulo = normalizeDuctModuleType(ductObj.userData?.meta?.tipoModulo);
+      const currentState = ductObj.userData?.ductCovers || defaultDuctCoverState(tipoModulo);
 
       const nextState = normalizeDuctCoverState(tipoModulo, {
         ...currentState,
         ...patch,
       });
 
-      return await syncDuctCovers(activePart, nextState);
+      return await syncDuctCovers(ductObj, nextState);
     }
 
     //////////////
     async function updateSelectedDuctType(newType) {
       if (readOnly) return;
-      if (!activePart) return;
-      if (activePart.userData?.kind !== 'ducto') return;
+      const selectedDuct = getActiveEditablePartObject();
+      if (!selectedDuct || selectedDuct.userData?.kind !== 'ducto') return;
 
       // Normalizar el tipo de módulo
       const normalizedType = String(newType || '')
         .trim()
         .toLowerCase();
 
-      const oldObj = activePart;
+      const oldObj = selectedDuct;
 
       // Información actual del ducto
       const tipoPuesto = oldObj.userData?.meta?.tipoPuesto || 'sencillo';
@@ -8526,7 +8543,8 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const root = getRootPartObject(activePart) || activePart;
+      const root = getActiveEditablePartObject();
+      if (!root) return false;
 
       if (root.userData?.kind !== 'ductoTecho') {
         console.warn('La pieza activa no es un ducto bajante a techo.');
@@ -8598,7 +8616,7 @@ export default function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const root = getRootPartObject(activePart) || activePart;
+      const root = getActiveEditablePartObject();
 
       if (!root) return false;
 
@@ -8845,6 +8863,9 @@ export default function ThreeCanvas({
       const root = getRootPartObject(hitObj);
       if (!root) return;
       if (root.userData?.isFloor) return;
+      const propertiesTarget = isKoncisaAssemblyRoot(root)
+        ? getEditableKoncisaPartObject(hitObj) || root
+        : root;
 
       const rootId = root.userData?.instanceId || root.uuid;
       const selectionTargetIds = resolveSelectionTargets(hitObj);
@@ -8872,6 +8893,7 @@ export default function ThreeCanvas({
         toggle: wantsToggle,
         preserve: preserveSelection,
         targetIds: selectionTargetIds,
+        propertiesTarget,
       });
 
       if (transformToolRef.current === 'rotate') {
@@ -8937,21 +8959,24 @@ export default function ThreeCanvas({
         x: e.clientX,
         y: e.clientY,
         part: {
-          code: root.userData?.codigoPT || root.userData?.code || null,
-          kind: root.userData?.kind || null,
-          line: root.userData?.line || null,
-          meta: root.userData?.meta || null,
-          groupId: root.userData?.groupId || null,
-          groupName: root.userData?.groupName || null,
-          logicalCode: root.userData?.logicalCode || null,
-          instanceId: root.userData?.instanceId || null,
-          description: root.userData?.description || null,
-          showGrid: root.userData?.showGrid !== false,
-          gridSize: root.userData?.isFloor ? root.userData?.gridSize || 0.1 : undefined,
-          mepalVariant: root.userData?.mepalVariant || 'normal',
-          almacenVariant: root.userData?.almacenVariant || null,
-          almacenCategory: root.userData?.almacenCategory || null,
-          almacenVariants: root.userData?.almacenVariants || null,
+          code: propertiesTarget.userData?.codigoPT || propertiesTarget.userData?.code || null,
+          kind: propertiesTarget.userData?.kind || null,
+          line: propertiesTarget.userData?.line || null,
+          meta: propertiesTarget.userData?.meta || null,
+          groupId: propertiesTarget.userData?.groupId || null,
+          groupName: propertiesTarget.userData?.groupName || null,
+          logicalCode: propertiesTarget.userData?.logicalCode || null,
+          instanceId: propertiesTarget.userData?.instanceId || null,
+          description: propertiesTarget.userData?.description || null,
+          ductCovers: propertiesTarget.userData?.ductCovers || null,
+          showGrid: propertiesTarget.userData?.showGrid !== false,
+          gridSize: propertiesTarget.userData?.isFloor
+            ? propertiesTarget.userData?.gridSize || 0.1
+            : undefined,
+          mepalVariant: propertiesTarget.userData?.mepalVariant || 'normal',
+          almacenVariant: propertiesTarget.userData?.almacenVariant || null,
+          almacenCategory: propertiesTarget.userData?.almacenCategory || null,
+          almacenVariants: propertiesTarget.userData?.almacenVariants || null,
           seats: milaSeats,
           clickedSeatIndex: clickedMilaSeatIndex,
         },
@@ -8984,14 +9009,14 @@ export default function ThreeCanvas({
 
       //  Guardar key estable en el root (para persistencia y UI)
       if (activeSubMesh) {
-        const subKey = getMeshPathKey(root, activeSubMesh);
+        const subKey = getMeshPathKey(propertiesTarget, activeSubMesh);
 
-        root.userData.activeSubKey = subKey;
-        root.userData.activeSubName =
+        propertiesTarget.userData.activeSubKey = subKey;
+        propertiesTarget.userData.activeSubName =
           activeSubMesh.name && activeSubMesh.name.trim() ? activeSubMesh.name.trim() : subKey;
       } else {
-        root.userData.activeSubKey = null;
-        root.userData.activeSubName = null;
+        propertiesTarget.userData.activeSubKey = null;
+        propertiesTarget.userData.activeSubName = null;
       }
 
       // ---- DRAG ----
@@ -11706,11 +11731,14 @@ export default function ThreeCanvas({
       if (readOnly) return;
       if (!activePart) return;
 
+      const editablePart = getActiveEditablePartObject() || activePart;
+
       const code = materialCode || null;
       const def = materialDef || null;
 
       const isSurface =
-        activePart.userData?.kind === 'SURFACE' || activePart.userData?.kind === 'FLOOR_VISUAL';
+        editablePart.userData?.kind === 'SURFACE' ||
+        editablePart.userData?.kind === 'FLOOR_VISUAL';
 
       const wantAll = scope === 'ALL';
       const wantGroup = scope === 'GROUP';
@@ -11718,7 +11746,7 @@ export default function ThreeCanvas({
       // ===== CANTO DE SUPERFICIE =====
       // Si se hizo clic en cualquier canto de una superficie,
       // se aplica el material a TODOS los cantos de esa superficie.
-      const root = getRootPartObject(activePart) || activePart;
+      const root = editablePart;
 
       const clickedIsSurfaceEdge =
         activeSubMesh?.userData?.edgeGroupKey === 'SURFACE_EDGE_ALL' ||
@@ -11781,44 +11809,42 @@ export default function ThreeCanvas({
         });
 
         // refresca panel con la pieza activa actual
-        const subKey = activePart.userData?.activeSubKey || null;
-        const finishes = activePart.userData?.finishes || {};
+        const subKey = root.userData?.activeSubKey || null;
+        const finishes = root.userData?.finishes || {};
         const subMaterialCode = subKey ? finishes[subKey]?.materialCode || null : null;
-        const subName = activePart.userData?.activeSubName || null;
+        const subName = root.userData?.activeSubName || null;
 
         onSelectionChange?.({
-          code: activePart.userData.codigoPT || activePart.userData.code,
-          dimMm: activePart.userData?.dim || null,
+          code: root.userData.codigoPT || root.userData.code,
+          dimMm: root.userData?.dim || null,
           dimM:
-            activePart.userData?.dimM ||
-            activePart.userData?.procedural ||
-            activePart.userData?.dimMeters ||
+            root.userData?.dimM || root.userData?.procedural || root.userData?.dimMeters ||
             null,
-          materialCode: activePart.userData?.materialCode || null,
-          materialBase: activePart.userData?.materialBase || null,
-          generico: activePart.userData?.generico || null,
-          genericos: activePart.userData?.genericos || null,
-          line: activePart.userData?.line || null,
+          materialCode: root.userData?.materialCode || null,
+          materialBase: root.userData?.materialBase || null,
+          generico: root.userData?.generico || null,
+          genericos: root.userData?.genericos || null,
+          line: root.userData?.line || null,
 
           // NUEVO PARA PANTALLAS
-          type: activePart.userData?.type || null,
-          subtype: activePart.userData?.subtype || null,
-          material: activePart.userData?.material || null,
-          finishCode: activePart.userData?.finishCode || null,
-          finishLabel: activePart.userData?.finishLabel || null,
-          hasCanto: activePart.userData?.hasCanto || false,
-          hasBacker: activePart.userData?.hasBacker || false,
-          privacyPanelFinishId: activePart.userData?.privacyPanelFinishId || null,
+          type: root.userData?.type || null,
+          subtype: root.userData?.subtype || null,
+          material: root.userData?.material || null,
+          finishCode: root.userData?.finishCode || null,
+          finishLabel: root.userData?.finishLabel || null,
+          hasCanto: root.userData?.hasCanto || false,
+          hasBacker: root.userData?.hasBacker || false,
+          privacyPanelFinishId: root.userData?.privacyPanelFinishId || null,
 
           subKey,
           subName,
           subMaterialCode,
-          kind: activePart.userData?.kind || null,
-          meta: activePart.userData?.meta || null,
-          groupId: activePart.userData?.groupId || null,
-          groupName: activePart.userData?.groupName || null,
-          logicalCode: activePart.userData?.logicalCode || null,
-          instanceId: activePart.userData?.instanceId || null,
+          kind: root.userData?.kind || null,
+          meta: root.userData?.meta || null,
+          groupId: root.userData?.groupId || null,
+          groupName: root.userData?.groupName || null,
+          logicalCode: root.userData?.logicalCode || null,
+          instanceId: root.userData?.instanceId || null,
         });
 
         emitBOM?.();
@@ -11827,30 +11853,30 @@ export default function ThreeCanvas({
 
       // ===== SURFACE / FLOOR =====
       if (isSurface) {
-        activePart.userData.materialCode = code;
+        root.userData.materialCode = code;
         //activePart.userData.materialDef = def;
 
-        applyMaterialToObject3D(activePart, code, def);
-        if (activePart.userData?.isFloor) applyFloorVisualState();
+        applyMaterialToObject3D(root, code, def);
+        if (root.userData?.isFloor) applyFloorVisualState();
 
-        activePart.userData.finishes = null;
-        activePart.userData.activeSubKey = null;
-        activePart.userData.activeSubName = null;
+        root.userData.finishes = null;
+        root.userData.activeSubKey = null;
+        root.userData.activeSubName = null;
 
         onSelectionChange?.({
-          code: activePart.userData.codigoPT || activePart.userData.code,
-          dimMm: activePart.userData?.dim || null,
-          dimM: activePart.userData?.dimM || null,
-          materialCode: activePart.userData?.materialCode ?? null,
-          materialBase: activePart.userData?.materialBase ?? null,
-          generico: activePart.userData?.generico ?? null,
-          line: activePart.userData?.line ?? null,
-          kind: activePart.userData?.kind ?? null,
-          instanceId: activePart.userData?.instanceId ?? null,
-          showGrid: activePart.userData?.isFloor
-            ? activePart.userData?.showGrid !== false
+          code: root.userData.codigoPT || root.userData.code,
+          dimMm: root.userData?.dim || null,
+          dimM: root.userData?.dimM || null,
+          materialCode: root.userData?.materialCode ?? null,
+          materialBase: root.userData?.materialBase ?? null,
+          generico: root.userData?.generico ?? null,
+          line: root.userData?.line ?? null,
+          kind: root.userData?.kind ?? null,
+          instanceId: root.userData?.instanceId ?? null,
+          showGrid: root.userData?.isFloor
+            ? root.userData?.showGrid !== false
             : undefined,
-          gridSize: activePart.userData?.isFloor ? activePart.userData?.gridSize || 0.1 : undefined,
+          gridSize: root.userData?.isFloor ? root.userData?.gridSize || 0.1 : undefined,
           subKey: null,
           subName: null,
           subMaterialCode: null,
@@ -11862,42 +11888,41 @@ export default function ThreeCanvas({
 
       // ===== PART / ALL =====
       if (!wantAll && activeSubMesh?.isMesh) {
-        const subKey =
-          activePart.userData?.activeSubKey || getMeshPathKey(activePart, activeSubMesh);
+        const subKey = root.userData?.activeSubKey || getMeshPathKey(root, activeSubMesh);
 
         activeSubMesh.userData.materialCode = code;
         applyMaterialToMesh(activeSubMesh, code, def);
 
-        activePart.userData.finishes = activePart.userData.finishes || {};
-        activePart.userData.finishes[subKey] = {
+        root.userData.finishes = root.userData.finishes || {};
+        root.userData.finishes[subKey] = {
           materialCode: code,
-          materialBase: activePart.userData?.materialBase || null,
-          subName: activePart.userData?.activeSubName || activeSubMesh.name || subKey,
+          materialBase: root.userData?.materialBase || null,
+          subName: root.userData?.activeSubName || activeSubMesh.name || subKey,
         };
       } else {
-        activePart.userData.materialCode = code;
+        root.userData.materialCode = code;
         //activePart.userData.materialDef = def;
 
-        applyMaterialToObject3D(activePart, code, def);
+        applyMaterialToObject3D(root, code, def);
 
-        activePart.userData.finishes = null;
-        activePart.userData.activeSubKey = null;
-        activePart.userData.activeSubName = null;
+        root.userData.finishes = null;
+        root.userData.activeSubKey = null;
+        root.userData.activeSubName = null;
       }
 
-      const activeSubKey = activePart.userData?.activeSubKey || null;
-      const finishes = activePart.userData?.finishes || {};
+      const activeSubKey = root.userData?.activeSubKey || null;
+      const finishes = root.userData?.finishes || {};
       const subMaterialCode = activeSubKey ? (finishes[activeSubKey]?.materialCode ?? null) : null;
 
       onSelectionChange?.({
-        code: activePart.userData.codigoPT || activePart.userData.code,
-        dimMm: activePart.userData?.dim || null,
-        dimM: activePart.userData?.dimM || null,
-        materialCode: activePart.userData?.materialCode ?? null,
-        materialBase: activePart.userData?.materialBase ?? null,
-        line: activePart.userData?.line ?? null,
+        code: root.userData.codigoPT || root.userData.code,
+        dimMm: root.userData?.dim || null,
+        dimM: root.userData?.dimM || null,
+        materialCode: root.userData?.materialCode ?? null,
+        materialBase: root.userData?.materialBase ?? null,
+        line: root.userData?.line ?? null,
         subKey: activeSubKey,
-        subName: activePart.userData?.activeSubName ?? null,
+        subName: root.userData?.activeSubName ?? null,
         subMaterialCode,
       });
 
