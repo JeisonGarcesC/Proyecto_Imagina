@@ -18,9 +18,13 @@ import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
+import LinkPanel from './LinkPanel';
+import KuoGoPanel from './KuoGoPanel';
+import KuoAVPanel from './KuoAVPanel';
 import MilaPanel from './MilaPanel';
 import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import { createMilaGiroInstance } from '../mepal/mila/factories/createMilaGiroInstance';
+import { createMilaAccessoryInstance } from '../mepal/mila/factories/createMilaAccessoryInstance';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,
@@ -36,7 +40,7 @@ import { COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition';
 import DoorProperties from '../core/architecture/openings/components/DoorProperties';
 
 const typologyImageCache = new Map();
-const IMAGE_FOLDER_SETS = {
+export const IMAGE_FOLDER_SETS = {
   general: ['general'],
   tipologias: ['tipologias'],
   sillas: ['Sillas'],
@@ -48,10 +52,11 @@ const IMAGE_FOLDER_SETS = {
   eduk: ['Eduk'],
   mepalSalud: ['MepalSalud'],
   tekSocial: ['Mepal TekSocial'],
+  link: ['Link/Credenza EXE'],
   morea: ['Morea'],
 };
 
-function CardImage({
+export function CardImage({
   assetName,
   title,
   imageFolders = [],
@@ -1573,6 +1578,8 @@ export default function LeftPanel({
 
             if (config?.type === 'giro') {
               await createMilaGiroInstance({ api, config });
+            } else if (config?.type === 'accessory') {
+              await createMilaAccessoryInstance({ api, config });
             } else {
               await createMilaInstance({ api, config });
             }
@@ -2734,6 +2741,22 @@ export default function LeftPanel({
           </button>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Geometría preliminar. Configuración avanzada pendiente.</div>
         </div>
+      )}
+
+      {/* ======================= LINK ======================= */}
+      {section === 'link' && (
+        <LinkPanel threeApiRef={threeApiRef} />
+      )}
+
+      {/* ======================= KUO GO ======================= */}
+      {section === 'kuoGo' && (
+        <KuoGoPanel threeApiRef={threeApiRef} />
+      )}
+
+      {/* ======================= KUO ALTURA VARIABLE ======================= */}
+      {section === 'kuoAlturaVariable' && (
+        <KuoAVPanel threeApiRef={threeApiRef} />
+      )}
       )}
     </div>
   );

@@ -926,6 +926,7 @@ export default function App() {
         })),
     });
 */
+    if (!allowed.size) return null;
     return Array.from(allowed);
   }, [selectedPart, byCode, materialsAcabado]);
 

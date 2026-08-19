@@ -6,6 +6,10 @@ import MepalSaludProperties from './MepalSaludProperties';
 import ClakProperties from './ClakProperties';
 import AlmacenamientoProperties from './AlmacenamientoProperties';
 import EdukProperties, { isEdukShelfEditablePart } from './EdukProperties';
+import LinkProperties, { isLinkEditablePart } from './LinkProperties';
+import KuoGoProperties, { isKuoGoEditablePart } from './KuoGoProperties';
+import KuoAVProperties, { isKuoAVEditablePart } from './KuoAVProperties';
+import KuoAVDobleProperties, { isKuoAVDobleEditablePart } from './KuoAVDobleProperties';
 import MilaProperties, {
   isMilaEditablePart,
   MilaGiroProperties,
@@ -58,6 +62,10 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isAlmacenamientoPart(part) ||
     isEdukShelfEditablePart(part) ||
     isClakPuffVariantPart(part) ||
+    isLinkEditablePart(part) ||
+    isKuoGoEditablePart(part) ||
+    isKuoAVEditablePart(part) ||
+    isKuoAVDobleEditablePart(part) ||
     isMilaEditablePart(part) ||
     isMilaGiroEditablePart(part) ||
     isFloor;
@@ -106,6 +114,14 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       <AlmacenamientoProperties part={part} api={api} onClose={onClose} />
 
       <EdukProperties part={part} api={api} onClose={onClose} />
+
+      <LinkProperties part={part} api={api} onClose={onClose} />
+
+      <KuoGoProperties part={part} api={api} onClose={onClose} />
+
+      <KuoAVProperties part={part} api={api} onClose={onClose} />
+
+      <KuoAVDobleProperties part={part} api={api} onClose={onClose} />
 
       <MilaProperties part={part} api={api} onClose={onClose} />
 

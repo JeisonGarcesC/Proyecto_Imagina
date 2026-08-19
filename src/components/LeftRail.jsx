@@ -45,14 +45,29 @@ export default function LeftRail({ active, onChange }) {
       image: '/assets/iconos_imagen/Almacenamiento.png',
     },
     {
+      id: 'koncisaPlus',
+      label: 'Koncisa Plus',
+      image: '/assets/iconos_imagen/koncisa2PlussLibrary.png',
+    },
+    {
       id: 'eduk',
       label: 'Eduk',
       image: '/assets/iconos_imagen/Eduk.png',
     },
     {
-      id: 'koncisaPlus',
-      label: 'Koncisa Plus',
-      image: '/assets/iconos_imagen/koncisa2PlussLibrary.png',
+      id: 'kuoAlturaVariable',
+      label: 'Kuo altura Variable',
+      image: '/assets/iconos_imagen/KuoAlturaVariable.png',
+    },
+    {
+      id: 'kuoGo',
+      label: 'Kuo Go',
+      image: '/assets/iconos_imagen/KuoGo.png',
+    },
+    {
+      id: 'link',
+      label: 'Link',
+      image: '/assets/iconos_imagen/link.png',
     },
     { id: 'critterium8', label: 'Critterium 8', icon: '▒' },
     {

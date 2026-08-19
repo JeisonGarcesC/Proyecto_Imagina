@@ -1,4 +1,6 @@
 import {
+  MILA_ACCESSORY_CATALOG,
+  MILA_ACCESSORY_OFFSETS_MM,
   MILA_BUILDER_TUNE,
   MILA_DOUBLE_BUILDER_TUNE,
   MILA_DOUBLE_MODEL_SOURCES,
@@ -6,6 +8,7 @@ import {
   MILA_SINGLE_SEAT_MODE_OFFSETS_MM,
   resolveMilaCenterSupportOffsetMm,
   resolveMilaDoubleCenterSupportOffsetMm,
+  resolveMilaScreenCatalogItem,
 } from '../config/milaTunables.js';
 
 const MILA_VARIANTS = {
@@ -127,6 +130,151 @@ function createMilaSeatPart({
       role: 'seat',
       seatMode: seatSelection.seatMode,
       seatIndex,
+      moduleSpacingMm,
+    },
+  };
+}
+
+export function createMilaArmrestLeftPart({
+  groupId,
+  groupName,
+  variant,
+  moduleSpacingMm,
+}) {
+  const cat = MILA_ACCESSORY_CATALOG.armrestLeft;
+  const offset = MILA_ACCESSORY_OFFSETS_MM.armrestLeft;
+  return {
+    type: 'GLB_PART',
+    subtype: 'armrest-left',
+    line: variant?.line || 'MILA',
+    groupId,
+    groupName,
+    code: cat.code,
+    logicalCode: `${variant?.codePrefix || 'MILA'}_ARMREST_LEFT`,
+    name: `${variant?.label || 'Mila'} apoyabrazos izquierdo`,
+    description: cat.description,
+    prices: cat.prices,
+    model: { src: cat.modelSrc },
+    position: {
+      x: Number(offset.x || 0),
+      y: Number(offset.y || 0),
+      z: Number(offset.z || 0),
+    },
+    rotation: { x: 0, y: 0, z: 0 },
+    meta: {
+      category: variant?.category || 'mila',
+      role: 'armrest-left',
+      moduleSpacingMm,
+    },
+  };
+}
+
+export function createMilaArmrestRightPart({
+  groupId,
+  groupName,
+  variant,
+  quantity,
+  moduleSpacingMm,
+}) {
+  const cat = MILA_ACCESSORY_CATALOG.armrestRight;
+  const offset = MILA_ACCESSORY_OFFSETS_MM.armrestRight;
+  const rightAnchorSeat = Math.max(1, quantity);
+  const rightAnchorX = (rightAnchorSeat - 1) * moduleSpacingMm;
+  return {
+    type: 'GLB_PART',
+    subtype: 'armrest-right',
+    line: variant?.line || 'MILA',
+    groupId,
+    groupName,
+    code: cat.code,
+    logicalCode: `${variant?.codePrefix || 'MILA'}_ARMREST_RIGHT`,
+    name: `${variant?.label || 'Mila'} apoyabrazos derecho`,
+    description: cat.description,
+    prices: cat.prices,
+    model: { src: cat.modelSrc },
+    position: {
+      x: rightAnchorX + 600 + Number(offset.x || 0),
+      y: Number(offset.y || 0),
+      z: Number(offset.z || 0),
+    },
+    rotation: { x: 0, y: 0, z: 0 },
+    meta: {
+      category: variant?.category || 'mila',
+      role: 'armrest-right',
+      quantity,
+      moduleSpacingMm,
+    },
+  };
+}
+
+export function createMilaArmrestCenterPart({
+  groupId,
+  groupName,
+  variant,
+  seamIndex = 1,
+  moduleSpacingMm,
+}) {
+  const cat = MILA_ACCESSORY_CATALOG.armrestCenter;
+  const offset = MILA_ACCESSORY_OFFSETS_MM.armrestCenter;
+  const seamX = seamIndex * moduleSpacingMm;
+  return {
+    type: 'GLB_PART',
+    subtype: 'armrest-center',
+    line: variant?.line || 'MILA',
+    groupId,
+    groupName,
+    code: cat.code,
+    logicalCode: `${variant?.codePrefix || 'MILA'}_ARMREST_CENTER_${seamIndex}`,
+    name: `${variant?.label || 'Mila'} apoyabrazos intermedio ${seamIndex}`,
+    description: cat.description,
+    prices: cat.prices,
+    model: { src: cat.modelSrc },
+    position: {
+      x: seamX + Number(offset.x || 0),
+      y: Number(offset.y || 0),
+      z: Number(offset.z || 0),
+    },
+    rotation: { x: 0, y: 0, z: 0 },
+    meta: {
+      category: variant?.category || 'mila',
+      role: 'armrest-center',
+      seamIndex,
+      moduleSpacingMm,
+    },
+  };
+}
+
+export function createMilaScreenPart({
+  groupId,
+  groupName,
+  variant,
+  quantity,
+  moduleSpacingMm,
+}) {
+  const cat = resolveMilaScreenCatalogItem(quantity);
+  const offset = MILA_ACCESSORY_OFFSETS_MM.screen;
+  return {
+    type: 'GLB_PART',
+    subtype: 'screen',
+    line: variant?.line || 'MILA',
+    groupId,
+    groupName,
+    code: cat.code,
+    logicalCode: `${variant?.codePrefix || 'MILA'}_SCREEN_${quantity}P`,
+    name: `${variant?.label || 'Mila'} ${cat.label}`,
+    description: cat.description,
+    prices: cat.prices,
+    model: { src: cat.modelSrc },
+    position: {
+      x: Number(offset.x || 0),
+      y: Number(offset.y || 0),
+      z: Number(offset.z || 0),
+    },
+    rotation: { x: 0, y: 0, z: 0 },
+    meta: {
+      category: variant?.category || 'mila',
+      role: 'screen',
+      quantity,
       moduleSpacingMm,
     },
   };
@@ -301,6 +449,10 @@ export function buildMila({
   variant = 'single',
   useTable = false,
   useTableGrommet = false,
+  armrestLeft = false,
+  armrestRight = false,
+  armrestCenter = false,
+  hasScreen = false,
 } = {}) {
   const resolvedVariant = resolveMilaVariant(variant);
   const resolvedModuleSpacingMm = moduleSpacingMm ?? resolvedVariant.tune.SEPARACION_ENTRE_PUESTOS_MM;
@@ -338,6 +490,56 @@ export function buildMila({
       variant: resolvedVariant,
     })
   );
+
+  // Accesorios opcionales incluidos en la construcción
+  if (armrestLeft) {
+    parts.push(
+      createMilaArmrestLeftPart({
+        groupId,
+        groupName,
+        variant: resolvedVariant,
+        moduleSpacingMm: resolvedModuleSpacingMm,
+      })
+    );
+  }
+
+  if (armrestRight) {
+    parts.push(
+      createMilaArmrestRightPart({
+        groupId,
+        groupName,
+        variant: resolvedVariant,
+        quantity: normalizedQuantity,
+        moduleSpacingMm: resolvedModuleSpacingMm,
+      })
+    );
+  }
+
+  if (armrestCenter && normalizedQuantity > 1) {
+    for (let seamIndex = 1; seamIndex < normalizedQuantity; seamIndex += 1) {
+      parts.push(
+        createMilaArmrestCenterPart({
+          groupId,
+          groupName,
+          variant: resolvedVariant,
+          seamIndex,
+          moduleSpacingMm: resolvedModuleSpacingMm,
+        })
+      );
+    }
+  }
+
+  if (hasScreen) {
+    parts.push(
+      createMilaScreenPart({
+        groupId,
+        groupName,
+        variant: resolvedVariant,
+        quantity: normalizedQuantity,
+        moduleSpacingMm: resolvedModuleSpacingMm,
+      })
+    );
+  }
 
   return {
     groupId,
