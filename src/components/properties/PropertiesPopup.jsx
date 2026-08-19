@@ -6,6 +6,11 @@ import MepalSaludProperties from './MepalSaludProperties';
 import ClakProperties from './ClakProperties';
 import AlmacenamientoProperties from './AlmacenamientoProperties';
 import EdukProperties, { isEdukShelfEditablePart } from './EdukProperties';
+import MilaProperties, {
+  isMilaEditablePart,
+  MilaGiroProperties,
+  isMilaGiroEditablePart,
+} from './MilaProperties';
 import { isClakPuffVariantPart } from './clakPuffVariants';
 import { sectionStyle } from './shared/PropertyStyles';
 import PropertyHeader from './shared/PropertyHeader';
@@ -53,6 +58,8 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isAlmacenamientoPart(part) ||
     isEdukShelfEditablePart(part) ||
     isClakPuffVariantPart(part) ||
+    isMilaEditablePart(part) ||
+    isMilaGiroEditablePart(part) ||
     isFloor;
 
   const popupLeft = Math.min(x + 12, window.innerWidth - 310);
@@ -99,6 +106,10 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       <AlmacenamientoProperties part={part} api={api} onClose={onClose} />
 
       <EdukProperties part={part} api={api} onClose={onClose} />
+
+      <MilaProperties part={part} api={api} onClose={onClose} />
+
+      <MilaGiroProperties part={part} api={api} onClose={onClose} />
 
       {isFloor && (
         <div style={sectionStyle}>
