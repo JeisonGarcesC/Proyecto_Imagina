@@ -444,17 +444,19 @@ export function getDuctosConfig({
 
     if (tipoPuesto === 'doble') {
       if (tipoModulo === 'terminal') {
-        console.log('side: ', side);
+        //console.log('side: ', side);
         if (side === 'LEFT') {
+          console.log('side left: ', side);
           ductX = -160 - 442;
           ductY = 510;
           ductZ = 129;
 
           ductRotY = 0;
         } else {
-          ductX = 0; //-335
+          console.log('side right: ', side);
+          ductX = 262; //-335
           ductY = 510;
-          ductZ = 129;
+          ductZ = 0;
 
           ductRotY = 0;
         }
