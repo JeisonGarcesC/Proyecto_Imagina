@@ -3,6 +3,7 @@
 function createCostadoAssembly({
   leftLegSrc,
   rightLegSrc,
+  centerBracketSrc,
   leftOffsetMm = {},
   rightOffsetMm = {},
   centerBracketOffsetMm = {},
@@ -353,6 +354,7 @@ export const KONCISA_COSTADO_RULES = {
     codigoPT: '22000132388',
     modelSrc: '/assets/models/koncisaPlus/2KSO328000_120.glb',
 
+    //aqui
     assembly: createCostadoAssembly({
       positioningMode: 'bounded-depth-v1',
 
@@ -365,22 +367,22 @@ export const KONCISA_COSTADO_RULES = {
       leftMinZFromPivotMm: 0,
       leftMaxZFromPivotMm: 0,
       rightMinZFromPivotMm: 0,
-      rightMaxZFromPivotMm: 518,
+      rightMaxZFromPivotMm: 0,
       centerBracketMinZFromPivotMm: 0,
       centerBracketMaxZFromPivotMm: 0,
-      crossbarInsetXMm: 518, //posicion del travesaño
+      crossbarInsetXMm: 0, //posicion del travesaño
 
       rootOffsetMm: {
         x: 0,
         y: 0,
-        z: 0,
+        z: 518,
       },
 
       // Correcciones independientes de cada pieza.
       leftOffsetMm: {
         x: 0,
         y: 0,
-        z: 10.6, //1200
+        z: 10, //1200
       },
 
       rightOffsetMm: {
@@ -407,6 +409,16 @@ export const KONCISA_COSTADO_RULES = {
           y: 685,
           z: 0,
         },
+        /*leftOffsetMm: {
+          x: 0,
+          y: 0,
+          z: 518,
+        },
+        rightOffsetMm: {
+          x: 0,
+          y: 0,
+          z: 518,
+        },*/
       },
     }),
   },

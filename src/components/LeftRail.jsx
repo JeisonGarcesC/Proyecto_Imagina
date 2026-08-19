@@ -54,6 +54,7 @@ export default function LeftRail({ active, onChange }) {
       label: 'Koncisa Plus',
       image: '/assets/iconos_imagen/koncisa2PlussLibrary.png',
     },
+    { id: 'critterium8', label: 'Critterium 8', icon: '▒' },
     {
       id: 'morea',
       label: 'Morea',

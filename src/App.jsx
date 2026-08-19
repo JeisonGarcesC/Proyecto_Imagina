@@ -1248,6 +1248,9 @@ export default function App() {
               onAddEduk={(codigo) =>
                 !readOnly && threeApiRef.current?.addEduk?.(codigo)
               }
+              onAddCritterium8={(config) =>
+                !readOnly && threeApiRef.current?.addCritterium8?.(config)
+              }
               onToggleSnap={() => !readOnly && threeApiRef.current?.toggleSnap?.()}
               onApplyGlobalMaterial={(code, scope = 'ALL') => {
                 if (readOnly) return;

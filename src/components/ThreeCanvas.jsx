@@ -53,6 +53,14 @@ import {
 } from '../mepal/salud/products/saludVariantDefinition';
 import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekSocialInstance';
 import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
+import { createCritterium8Instance } from '../mepal/critterium8/factories/createCritterium8Instance.js';
+import { registerCritterium8Instance } from '../mepal/critterium8/integration/critterium8Registration.js';
+import { disposeCritterium8FrameAssembly3D } from '../mepal/critterium8/renderers/Critterium8FrameRenderer3D.js';
+import {
+  getCritterium8AssemblyRoot,
+  getCritterium8EditablePart,
+  isCritterium8AssemblyRoot,
+} from '../mepal/critterium8/utils/critterium8Selection.js';
 import {
   getZenVariantOptionsByCode,
   normalizeZenVariantCode,
@@ -1208,7 +1216,9 @@ export default function ThreeCanvas({
       activePart = obj;
       activeEditablePart =
         selectionContext?.propertiesTarget ||
-        (isKoncisaAssemblyRoot(obj) ? null : getEditableKoncisaPartObject(obj));
+        (isKoncisaAssemblyRoot(obj) || isCritterium8AssemblyRoot(obj)
+          ? null
+          : getEditableKoncisaPartObject(obj) || getCritterium8EditablePart(obj));
       obj = activeEditablePart || obj;
       activeSubMesh = null; // ✅ cada vez que cambia selección, reset submesh
       const edukWidthContext =
@@ -1318,6 +1328,7 @@ export default function ThreeCanvas({
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
+          if (obj.userData?.kind === 'CRITTERIUM_8_PART') return null;
 
           obj.updateMatrixWorld(true);
 
@@ -1435,6 +1446,7 @@ export default function ThreeCanvas({
 
           obj.updateMatrixWorld(true);
           const attachDetailed = (snapshot) => {
+            if (snapshot?.kind === 'CRITTERIUM_8_ASSEMBLY') return snapshot;
             const detailKey = get2DDetailKey(snapshot);
             if (!detailKey || !requestedDetailKeys.has(detailKey)) return snapshot;
             let detailedFootprint = getDetailedFootprint2DCacheEntry(obj);
@@ -1533,7 +1545,10 @@ export default function ThreeCanvas({
               rotY: Number(worldEuler.y || 0),
 
               kind: obj.userData?.kind || 'PART',
-              footprint: getFootprint2D(obj, { fallbackBounds: b }),
+              footprint:
+                obj.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'
+                  ? obj.userData.footprint2D
+                  : getFootprint2D(obj, { fallbackBounds: b }),
             });
           }
 
@@ -2335,6 +2350,7 @@ export default function ThreeCanvas({
           kind === 'CLAK' ||
           kind === 'EDUK' ||
           kind === 'ALMACENAMIENTO' ||
+          kind === 'CRITTERIUM_8_ASSEMBLY' ||
           kind === 'MILA_ASSEMBLY' ||
           kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
@@ -2389,6 +2405,8 @@ export default function ThreeCanvas({
         if (
           current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ||
           current.userData?.type === 'koncisa-plus' ||
+          current.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' ||
+          current.userData?.type === 'critterium-8' ||
           current.userData?.kind === 'MILA_ASSEMBLY' ||
           current.userData?.type === 'mila' ||
           current.userData?.kind === 'MILA_GIRO_SURFACE' ||
@@ -2417,7 +2435,11 @@ export default function ThreeCanvas({
     }
 
     function getActiveEditablePartObject() {
-      return activeEditablePart || getEditableKoncisaPartObject(activePart);
+      return (
+        activeEditablePart ||
+        getEditableKoncisaPartObject(activePart) ||
+        getCritterium8EditablePart(activePart)
+      );
     }
 
     function resolveSelectionTargets(object, { asGroup = moveAsGroupRef.current } = {}) {
@@ -3474,6 +3496,31 @@ export default function ThreeCanvas({
       return object;
     }
 
+    async function addCritterium8(config = {}, options = {}) {
+      if (readOnly) return null;
+      let instance;
+      try {
+        instance = await createCritterium8Instance({ ...config, transform: options.transform });
+      } catch (error) {
+        console.error('[Critterium 8] No se pudo crear la instancia.', error);
+        return null;
+      }
+
+      const { assembly } = registerCritterium8Instance({
+        instance,
+        parent: options?.parentGroup || scene,
+        partsRegistry: parts,
+        pickables,
+      });
+      assembly.updateMatrixWorld(true);
+      setActivePart(assembly);
+      recordCreateObjects({ objects: [assembly] });
+      emitBOM();
+      if (parts.length === assembly.children.length + 1) frameObject(assembly);
+      refreshFloorAndGrid();
+      return instance;
+    }
+
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
       if (readOnly) return;
 
@@ -4322,7 +4369,11 @@ export default function ThreeCanvas({
 
     function clearProject() {
       const koncisaAssemblies = new Set();
+      const critteriumAssemblies = new Set();
+      const critteriumObjects = new Set();
       parts.forEach(({ obj }) => {
+        const critteriumAssembly = getCritterium8AssemblyRoot(obj);
+        if (critteriumAssembly) critteriumAssemblies.add(critteriumAssembly);
         let current = obj?.parent || null;
         while (current) {
           if (current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY') {
@@ -4332,15 +4383,24 @@ export default function ThreeCanvas({
           current = current.parent || null;
         }
       });
+      critteriumAssemblies.forEach((assembly) => {
+        assembly.traverse((object) => critteriumObjects.add(object));
+      });
 
       // remover objetos de escena
       for (const p of parts) {
+        if (critteriumObjects.has(p.obj)) continue;
         if (p.obj?.parent) p.obj.parent.remove(p.obj);
         else scene.remove(p.obj);
       }
       koncisaAssemblies.forEach((assembly) => {
         if (assembly.parent) assembly.parent.remove(assembly);
         else scene.remove(assembly);
+      });
+      critteriumAssemblies.forEach((assembly) => {
+        if (assembly.parent) assembly.parent.remove(assembly);
+        else scene.remove(assembly);
+        disposeCritterium8FrameAssembly3D(assembly);
       });
       parts.length = 0;
 
@@ -4366,6 +4426,10 @@ export default function ThreeCanvas({
     function disposeObject3D(root) {
       if (!root) return;
       if (root.userData?.isFloor) return;
+      if (root.userData?.kind === 'CRITTERIUM_8_ASSEMBLY') {
+        disposeCritterium8FrameAssembly3D(root);
+        return;
+      }
       root.traverse?.((n) => {
         // geometría
         if (n.geometry?.dispose) n.geometry.dispose();
@@ -5579,6 +5643,7 @@ export default function ThreeCanvas({
       addClak,
       addEduk,
       addZen,
+      addCritterium8,
       swapMilaSeatVariant,
       swapMilaGiroGrommet,
       swapMepalSaludVariant,
@@ -6008,6 +6073,10 @@ export default function ThreeCanvas({
     function copySelection() {
       const targets = resolveCopyTargets();
       if (!targets.length) return null;
+      if (targets.some((target) => getCritterium8AssemblyRoot(target))) {
+        console.warn('[Critterium 8] Copy/Paste estará disponible en una fase posterior.');
+        return null;
+      }
       return setClipboard(serializeCopyTargets(targets));
     }
 
@@ -8878,7 +8947,9 @@ export default function ThreeCanvas({
       if (root.userData?.isFloor) return;
       const propertiesTarget = isKoncisaAssemblyRoot(root)
         ? getEditableKoncisaPartObject(hitObj) || root
-        : root;
+        : isCritterium8AssemblyRoot(root)
+          ? getCritterium8EditablePart(hitObj) || root
+          : root;
 
       const rootId = root.userData?.instanceId || root.uuid;
       const selectionTargetIds = resolveSelectionTargets(hitObj);
