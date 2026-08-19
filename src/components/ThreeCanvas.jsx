@@ -176,7 +176,9 @@ function normalizeMilaSeatMode(mode) {
 }
 
 function resolveMilaSeatModeByCode(code) {
-  const normalizedCode = String(code || '').trim().toUpperCase();
+  const normalizedCode = String(code || '')
+    .trim()
+    .toUpperCase();
   if (
     normalizedCode === 'TKSSU165000' ||
     normalizedCode === '22000130198' ||
@@ -625,7 +627,7 @@ export default function ThreeCanvas({
     function updateKuoAVSnapMarkers() {
       const assembly =
         activePart?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-        activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
+          activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
           ? activePart
           : getKoncisaAssemblyObject(activePart);
 
@@ -861,10 +863,7 @@ export default function ThreeCanvas({
       const allGiroSurfaces = [];
       scene.children.forEach((node) => {
         if (node === targetObj) return;
-        if (
-          node.userData?.kind === 'MILA_ASSEMBLY' ||
-          node.userData?.type === 'mila'
-        ) {
+        if (node.userData?.kind === 'MILA_ASSEMBLY' || node.userData?.type === 'mila') {
           allAssemblies.push(node);
         } else if (
           node.userData?.kind === 'MILA_GIRO_SURFACE' ||
@@ -877,8 +876,10 @@ export default function ThreeCanvas({
       const allSceneObjects = [...allAssemblies, ...allGiroSurfaces];
 
       // Verificar si los puertos están ocupados (ya conectados a otra pieza en la escena)
-      const isLeftOccupied = !isDragging && isMilaPortOccupied(connectors.worldLeft, targetObj, allSceneObjects);
-      const isRightOccupied = !isDragging && isMilaPortOccupied(connectors.worldRight, targetObj, allSceneObjects);
+      const isLeftOccupied =
+        !isDragging && isMilaPortOccupied(connectors.worldLeft, targetObj, allSceneObjects);
+      const isRightOccupied =
+        !isDragging && isMilaPortOccupied(connectors.worldRight, targetObj, allSceneObjects);
 
       milaLeftConnector.position.copy(connectors.worldLeft);
       if (connectors.normalLeft) {
@@ -1522,10 +1523,7 @@ export default function ThreeCanvas({
 
     function getPartsSnapshot2D(options = {}) {
       const requestedDetailKeys = new Set(options?.detailed2DIds || []);
-      let detailedGenerationBudget = Math.max(
-        0,
-        Number(options?.detailedGenerationBudget) || 2
-      );
+      let detailedGenerationBudget = Math.max(0, Number(options?.detailedGenerationBudget) || 2);
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
@@ -1726,9 +1724,7 @@ export default function ThreeCanvas({
       );
       const rawObj =
         found?.obj ||
-        scene.children.find(
-          (child) => (child?.userData?.instanceId || child?.uuid) === instanceId
-        );
+        scene.children.find((child) => (child?.userData?.instanceId || child?.uuid) === instanceId);
       if (rawObj) {
         const root = getRootPartObject(rawObj) || rawObj;
         setActivePart(root);
@@ -1742,9 +1738,7 @@ export default function ThreeCanvas({
       );
       const rawObj =
         found?.obj ||
-        scene.children.find(
-          (child) => (child?.userData?.instanceId || child?.uuid) === instanceId
-        );
+        scene.children.find((child) => (child?.userData?.instanceId || child?.uuid) === instanceId);
       if (!rawObj || rawObj.userData?.lockedMovement) return false;
 
       const obj = getAssemblyObject(rawObj) || rawObj;
@@ -2375,8 +2369,13 @@ export default function ThreeCanvas({
           const useGrommet = Boolean(obj.userData?.useGrommet ?? obj.userData?.meta?.useGrommet);
 
           const def = MILA_GIRO_DEFINITIONS[angleDeg] || MILA_GIRO_DEFINITIONS[60];
-          const surfaceCode = String(def?.code || obj.userData?.codigoPT || obj.userData?.code || '');
-          const surfaceDesc = def?.description || obj.userData?.description || `${def?.label || 'Superficie Giro'} Mila`;
+          const surfaceCode = String(
+            def?.code || obj.userData?.codigoPT || obj.userData?.code || ''
+          );
+          const surfaceDesc =
+            def?.description ||
+            obj.userData?.description ||
+            `${def?.label || 'Superficie Giro'} Mila`;
           const surfacePrices = def?.prices || obj.userData?.prices || undefined;
 
           if (surfaceCode) {
@@ -2572,10 +2571,7 @@ export default function ThreeCanvas({
       let matchedAssembly = null;
       scene.traverse((candidate) => {
         if (matchedAssembly) return;
-        const candidateIds = [
-          candidate.userData?.instanceId,
-          candidate.uuid,
-        ];
+        const candidateIds = [candidate.userData?.instanceId, candidate.uuid];
         if (candidateIds.includes(parentAssemblyId)) matchedAssembly = candidate;
       });
       return matchedAssembly;
@@ -2607,7 +2603,9 @@ export default function ThreeCanvas({
         const assemblyIds = new Set(
           [assembly.userData?.instanceId, assembly.userData?.code, assembly.uuid].filter(Boolean)
         );
-        const descendants = physicalObjects.filter((candidate) => isDescendantOf(candidate, assembly));
+        const descendants = physicalObjects.filter((candidate) =>
+          isDescendantOf(candidate, assembly)
+        );
         const linkedMembers = physicalObjects.filter((candidate) =>
           assemblyIds.has(candidate.userData?.parentAssemblyId)
         );
@@ -3965,7 +3963,7 @@ export default function ThreeCanvas({
       const currentConfig = {
         tipoKey: oldObj.userData?.tipoKey || '2_archivos',
         entrega: oldObj.userData?.entrega || 'DER',
-        ancho:   oldObj.userData?.ancho   || 120,
+        ancho: oldObj.userData?.ancho || 120,
         instanceId: oldObj.userData?.instanceId || instanceId,
         groupId: oldObj.userData?.groupId,
       };
@@ -4590,7 +4588,10 @@ export default function ThreeCanvas({
         String(meta.role || '').toLowerCase() === 'seat';
 
       if (!isMilaSimpleSeat) {
-        console.warn('[swapMilaSeatVariant] La pieza no es un puesto editable de Mila simple:', instanceId);
+        console.warn(
+          '[swapMilaSeatVariant] La pieza no es un puesto editable de Mila simple:',
+          instanceId
+        );
         return;
       }
 
@@ -4605,12 +4606,19 @@ export default function ThreeCanvas({
         const loader = new GLTFLoader();
         gltf = await loader.loadAsync(nextVariant.modelSrc);
       } catch (loadErr) {
-        console.error('[swapMilaSeatVariant] Error cargando GLB destino:', nextVariant.modelSrc, loadErr);
+        console.error(
+          '[swapMilaSeatVariant] Error cargando GLB destino:',
+          nextVariant.modelSrc,
+          loadErr
+        );
         return;
       }
 
       if (!gltf?.scene) {
-        console.error('[swapMilaSeatVariant] No se pudo parsear el GLB destino:', nextVariant.modelSrc);
+        console.error(
+          '[swapMilaSeatVariant] No se pudo parsear el GLB destino:',
+          nextVariant.modelSrc
+        );
         return;
       }
 
@@ -5653,7 +5661,8 @@ export default function ThreeCanvas({
           internalCode: codigoPT,
           instanceId: entity.instanceId || mesh.uuid,
           generico: entity.metadata?.generico || item?.generico || item?.raw?.generico || null,
-          materialBase: entity.materialBase || item?.materialBase || item?.raw?.material || 'LAMINA',
+          materialBase:
+            entity.materialBase || item?.materialBase || item?.raw?.material || 'LAMINA',
           materialCode: entity.materialCode || null,
           finishes: null,
           activeSubKey: null,
@@ -6007,7 +6016,8 @@ export default function ThreeCanvas({
       }
 
       emitBOM();
-      if (legacyResult.failed.length) console.warn('[loadProject] Carga legacy parcial:', legacyResult);
+      if (legacyResult.failed.length)
+        console.warn('[loadProject] Carga legacy parcial:', legacyResult);
       return legacyResult;
     }
 
@@ -9148,8 +9158,10 @@ export default function ThreeCanvas({
 
       if (!isCurrentlyRotated) {
         console.log('Rotando ducto 180.');
-        root.position.x = 0.34; // ajustar posición cuando está rotado en x esta en metros
-        root.position.z = -0.258; // ajustar posición cuando está rotado en y esta en metros
+        //root.position.x = 0.34; // ajustar posición cuando está rotado en x esta en metros
+        root.position.x = 0.613; // ajustar posición cuando está rotado en x esta en metros
+        //root.position.z = -0.258; // ajustar posición cuando está rotado en y esta en metros
+        root.position.z = -0.129;
         root.userData.ductRotated180 = true;
       } else {
         console.log('no 180 grados');
@@ -9962,7 +9974,7 @@ export default function ThreeCanvas({
           const snapType = hitMarker.userData?.snapType;
           const assembly =
             activePart.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-            activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
+              activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
               ? activePart
               : getKoncisaAssemblyObject(activePart) || activePart;
           const cfg = assembly.userData?.config || {};
@@ -10496,10 +10508,7 @@ export default function ThreeCanvas({
         if (node === targetObj) return;
         if (activeGroupId && node.userData?.groupId === activeGroupId) return;
 
-        if (
-          node.userData?.kind === 'MILA_ASSEMBLY' ||
-          node.userData?.type === 'mila'
-        ) {
+        if (node.userData?.kind === 'MILA_ASSEMBLY' || node.userData?.type === 'mila') {
           allAssemblies.push(node);
         } else if (
           node.userData?.kind === 'MILA_GIRO_SURFACE' ||
@@ -10612,7 +10621,12 @@ export default function ThreeCanvas({
           activeLocalBeforeSnap = activePart?.position.clone();
           const activeWorldBeforeSnap = activePart?.getWorldPosition(new THREE.Vector3());
           snapActivePart(true);
-          if (completedDragSession && activeLocalBeforeSnap && activeWorldBeforeSnap && activePart) {
+          if (
+            completedDragSession &&
+            activeLocalBeforeSnap &&
+            activeWorldBeforeSnap &&
+            activePart
+          ) {
             const snapDelta = activePart
               .getWorldPosition(new THREE.Vector3())
               .sub(activeWorldBeforeSnap);
@@ -10774,7 +10788,9 @@ export default function ThreeCanvas({
           const before = completedDragSession.initialPositions.map(({ obj, localPosition }) =>
             createMoveSnapshot(obj, localPosition)
           );
-          const after = captureMoveState(completedDragSession.initialPositions.map(({ obj }) => obj));
+          const after = captureMoveState(
+            completedDragSession.initialPositions.map(({ obj }) => obj)
+          );
           pushMoveHistory(before, after);
         }
       }
@@ -13221,8 +13237,7 @@ export default function ThreeCanvas({
       const def = materialDef || null;
 
       const isSurface =
-        editablePart.userData?.kind === 'SURFACE' ||
-        editablePart.userData?.kind === 'FLOOR_VISUAL';
+        editablePart.userData?.kind === 'SURFACE' || editablePart.userData?.kind === 'FLOOR_VISUAL';
 
       const wantAll = scope === 'ALL';
       const wantGroup = scope === 'GROUP';
@@ -13302,8 +13317,7 @@ export default function ThreeCanvas({
           code: root.userData.codigoPT || root.userData.code,
           dimMm: root.userData?.dim || null,
           dimM:
-            root.userData?.dimM || root.userData?.procedural || root.userData?.dimMeters ||
-            null,
+            root.userData?.dimM || root.userData?.procedural || root.userData?.dimMeters || null,
           materialCode: root.userData?.materialCode || null,
           materialBase: root.userData?.materialBase || null,
           generico: root.userData?.generico || null,
@@ -13357,9 +13371,7 @@ export default function ThreeCanvas({
           line: root.userData?.line ?? null,
           kind: root.userData?.kind ?? null,
           instanceId: root.userData?.instanceId ?? null,
-          showGrid: root.userData?.isFloor
-            ? root.userData?.showGrid !== false
-            : undefined,
+          showGrid: root.userData?.isFloor ? root.userData?.showGrid !== false : undefined,
           gridSize: root.userData?.isFloor ? root.userData?.gridSize || 0.1 : undefined,
           subKey: null,
           subName: null,
@@ -13451,60 +13463,60 @@ export default function ThreeCanvas({
       }
 
       const floor = {
-          showGrid: floorMeshRef.current?.userData?.showGrid !== false,
-          gridSize: floorMeshRef.current?.userData?.gridSize || 0.1,
-          materialCode: floorMeshRef.current?.userData?.materialCode || null,
-        };
+        showGrid: floorMeshRef.current?.userData?.showGrid !== false,
+        gridSize: floorMeshRef.current?.userData?.gridSize || 0.1,
+        materialCode: floorMeshRef.current?.userData?.materialCode || null,
+      };
       const cameraState = {
-          position: camera.position.toArray(),
-          target: controls.target.toArray(),
-        };
+        position: camera.position.toArray(),
+        target: controls.target.toArray(),
+      };
       const legacyParts = parts.map(({ code, obj }) => {
-          const codigoPT = obj.userData?.codigoPT || code;
+        const codigoPT = obj.userData?.codigoPT || code;
 
-          const entry = {
-            codigoPT,
-            transform: {
-              position: obj.position.toArray(),
-              rotation: [obj.rotation.x, obj.rotation.y, obj.rotation.z],
-              scale: obj.scale.toArray(),
-            },
+        const entry = {
+          codigoPT,
+          transform: {
+            position: obj.position.toArray(),
+            rotation: [obj.rotation.x, obj.rotation.y, obj.rotation.z],
+            scale: obj.scale.toArray(),
+          },
+        };
+
+        // Superficie paramétrica
+        if (obj.userData?.kind === 'SURFACE' && obj.userData?.dim) {
+          entry.kind = 'SURFACE';
+          entry.surface = {
+            line: obj.userData?.line || null,
+            dimMm: obj.userData?.dim,
           };
+        }
 
-          // Superficie paramétrica
-          if (obj.userData?.kind === 'SURFACE' && obj.userData?.dim) {
-            entry.kind = 'SURFACE';
-            entry.surface = {
-              line: obj.userData?.line || null,
-              dimMm: obj.userData?.dim,
-            };
-          }
+        // Compat: procedural viejo
+        if (obj.userData?.procedural) {
+          entry.procedural = obj.userData.procedural;
+        }
 
-          // Compat: procedural viejo
-          if (obj.userData?.procedural) {
-            entry.procedural = obj.userData.procedural;
-          }
+        // Material global (si se aplicó al objeto completo)
+        entry.materialBase = obj.userData?.materialBase ?? null;
+        entry.materialCode = obj.userData?.materialCode ?? null;
 
-          // Material global (si se aplicó al objeto completo)
-          entry.materialBase = obj.userData?.materialBase ?? null;
-          entry.materialCode = obj.userData?.materialCode ?? null;
+        const isSurface = obj.userData?.kind === 'SURFACE';
 
-          const isSurface = obj.userData?.kind === 'SURFACE';
+        if (isSurface) {
+          // SURFACE = material global únicamente
+          entry.finishes = null;
+          entry.activeSubKey = null;
+          entry.activeSubName = null;
+        } else {
+          // Tipologías/GLB = sub-acabados
+          entry.finishes = collectFinishesFromObject(obj);
+          entry.activeSubKey = obj.userData?.activeSubKey ?? null;
+          entry.activeSubName = obj.userData?.activeSubName ?? null;
+        }
 
-          if (isSurface) {
-            // SURFACE = material global únicamente
-            entry.finishes = null;
-            entry.activeSubKey = null;
-            entry.activeSubName = null;
-          } else {
-            // Tipologías/GLB = sub-acabados
-            entry.finishes = collectFinishesFromObject(obj);
-            entry.activeSubKey = obj.userData?.activeSubKey ?? null;
-            entry.activeSubName = obj.userData?.activeSubName ?? null;
-          }
-
-          return entry;
-        });
+        return entry;
+      });
 
       return buildVersionedProject({
         parts,
@@ -13631,7 +13643,9 @@ export default function ThreeCanvas({
       mesh.name = `DOOR_${opening.id}`;
       mesh.position.set(
         (doorGeometry.hinge.x + doorGeometry.openEnd.x) / 2,
-        (walls.find((wall) => wall.id === opening.wallId)?.baseElevation || 0) + opening.sillHeight + opening.height / 2,
+        (walls.find((wall) => wall.id === opening.wallId)?.baseElevation || 0) +
+        opening.sillHeight +
+        opening.height / 2,
         (doorGeometry.hinge.z + doorGeometry.openEnd.z) / 2
       );
       mesh.rotation.y = Math.atan2(dz, dx);
@@ -13656,9 +13670,15 @@ export default function ThreeCanvas({
     for (const column of columns || []) {
       if (column?.visible === false) continue;
       const descriptor = buildColumnGeometry3D(column);
-      const geometry = descriptor.geometryType === 'CYLINDER'
-        ? new THREE.CylinderGeometry(descriptor.diameter / 2, descriptor.diameter / 2, descriptor.height, 32)
-        : new THREE.BoxGeometry(descriptor.width, descriptor.height, descriptor.depth);
+      const geometry =
+        descriptor.geometryType === 'CYLINDER'
+          ? new THREE.CylinderGeometry(
+            descriptor.diameter / 2,
+            descriptor.diameter / 2,
+            descriptor.height,
+            32
+          )
+          : new THREE.BoxGeometry(descriptor.width, descriptor.height, descriptor.depth);
       const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xb7b7b7 }));
       mesh.name = `COLUMN_${column.id}`;
       mesh.position.set(descriptor.center.x, descriptor.center.y, descriptor.center.z);
