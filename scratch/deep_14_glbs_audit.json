@@ -1,0 +1,1192 @@
+[
+  {
+    "file": "KUAC1040000_120.glb",
+    "sizeBytes": 519872,
+    "sizeMm": {
+      "x": 58.8,
+      "y": 96.53,
+      "z": 1141.96
+    },
+    "bboxMinMm": {
+      "x": -4.4,
+      "y": -8.25,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 54.4,
+      "y": 88.28,
+      "z": 1141.96
+    },
+    "centerMm": {
+      "x": 25,
+      "y": 40.01,
+      "z": 570.98
+    },
+    "nodeCount": 4,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1"
+      },
+      {
+        "name": "3",
+        "mesh": 0
+      },
+      {
+        "name": "4",
+        "mesh": 1
+      }
+    ],
+    "meshCount": 2,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUAC1040000_74.glb",
+    "sizeBytes": 518808,
+    "sizeMm": {
+      "x": 58.77,
+      "y": 96.47,
+      "z": 694.96
+    },
+    "bboxMinMm": {
+      "x": -4.4,
+      "y": -8.25,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 54.37,
+      "y": 88.22,
+      "z": 694.96
+    },
+    "centerMm": {
+      "x": 24.98,
+      "y": 39.98,
+      "z": 347.48
+    },
+    "nodeCount": 4,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1"
+      },
+      {
+        "name": "3",
+        "mesh": 0
+      },
+      {
+        "name": "4",
+        "mesh": 1
+      }
+    ],
+    "meshCount": 2,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUAC1040000_74Doble.glb",
+    "sizeBytes": 518808,
+    "sizeMm": {
+      "x": 48.73,
+      "y": 79.97,
+      "z": 576.14
+    },
+    "bboxMinMm": {
+      "x": -3.65,
+      "y": -32.84,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 45.08,
+      "y": 47.13,
+      "z": 576.14
+    },
+    "centerMm": {
+      "x": 20.72,
+      "y": 7.14,
+      "z": 288.07
+    },
+    "nodeCount": 4,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1"
+      },
+      {
+        "name": "3",
+        "mesh": 0
+      },
+      {
+        "name": "4",
+        "mesh": 1
+      }
+    ],
+    "meshCount": 2,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUAC650000.glb",
+    "sizeBytes": 939780,
+    "sizeMm": {
+      "x": 70.04,
+      "y": 161.33,
+      "z": 626.59
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0.15
+    },
+    "bboxMaxMm": {
+      "x": 70.04,
+      "y": 161.33,
+      "z": 626.74
+    },
+    "centerMm": {
+      "x": 35.02,
+      "y": 80.67,
+      "z": 313.45
+    },
+    "nodeCount": 3,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1_14"
+      },
+      {
+        "name": "2",
+        "mesh": 0
+      }
+    ],
+    "meshCount": 1,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUSO420000_120.glb",
+    "sizeBytes": 169256,
+    "sizeMm": {
+      "x": 1195.98,
+      "y": 499.99,
+      "z": 50.03
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 1195.98,
+      "y": 499.99,
+      "z": 50.03
+    },
+    "centerMm": {
+      "x": 597.99,
+      "y": 250,
+      "z": 25.02
+    },
+    "nodeCount": 4,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1.2"
+      },
+      {
+        "name": "3",
+        "mesh": 0
+      },
+      {
+        "name": "4",
+        "mesh": 1
+      }
+    ],
+    "meshCount": 2,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUSO420000_150.glb",
+    "sizeBytes": 156092,
+    "sizeMm": {
+      "x": 1496.03,
+      "y": 500.02,
+      "z": 50
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 1496.03,
+      "y": 500.02,
+      "z": 50
+    },
+    "centerMm": {
+      "x": 748.02,
+      "y": 250.01,
+      "z": 25
+    },
+    "nodeCount": 4,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1.2"
+      },
+      {
+        "name": "3",
+        "mesh": 0
+      },
+      {
+        "name": "4",
+        "mesh": 1
+      }
+    ],
+    "meshCount": 2,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUSO420000_165.glb",
+    "sizeBytes": 156232,
+    "sizeMm": {
+      "x": 1646.04,
+      "y": 499.99,
+      "z": 50
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 1646.04,
+      "y": 499.99,
+      "z": 50
+    },
+    "centerMm": {
+      "x": 823.02,
+      "y": 249.99,
+      "z": 25
+    },
+    "nodeCount": 4,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1.2"
+      },
+      {
+        "name": "3",
+        "mesh": 0
+      },
+      {
+        "name": "4",
+        "mesh": 1
+      }
+    ],
+    "meshCount": 2,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUSO820000_120.glb",
+    "sizeBytes": 680092,
+    "sizeMm": {
+      "x": 82.29,
+      "y": 1226.04,
+      "z": 453.94
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 82.29,
+      "y": 1226.04,
+      "z": 453.94
+    },
+    "centerMm": {
+      "x": 41.15,
+      "y": 613.02,
+      "z": 226.97
+    },
+    "nodeCount": 37,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1"
+      },
+      {
+        "name": "10",
+        "mesh": 0
+      },
+      {
+        "name": "11",
+        "mesh": 1
+      },
+      {
+        "name": "12",
+        "mesh": 2
+      },
+      {
+        "name": "13",
+        "mesh": 3
+      },
+      {
+        "name": "14",
+        "mesh": 4
+      },
+      {
+        "name": "15",
+        "mesh": 5
+      },
+      {
+        "name": "16",
+        "mesh": 6
+      },
+      {
+        "name": "9",
+        "mesh": 7
+      },
+      {
+        "name": "1_12"
+      },
+      {
+        "name": "18",
+        "mesh": 8
+      },
+      {
+        "name": "19",
+        "mesh": 9
+      },
+      {
+        "name": "20",
+        "mesh": 10
+      },
+      {
+        "name": "21",
+        "mesh": 11
+      },
+      {
+        "name": "22",
+        "mesh": 12
+      },
+      {
+        "name": "23",
+        "mesh": 13
+      },
+      {
+        "name": "24",
+        "mesh": 14
+      },
+      {
+        "name": "25",
+        "mesh": 15
+      },
+      {
+        "name": "26",
+        "mesh": 16
+      },
+      {
+        "name": "27",
+        "mesh": 17
+      },
+      {
+        "name": "28",
+        "mesh": 18
+      },
+      {
+        "name": "29",
+        "mesh": 19
+      },
+      {
+        "name": "30",
+        "mesh": 20
+      },
+      {
+        "name": "31",
+        "mesh": 21
+      },
+      {
+        "name": "32",
+        "mesh": 22
+      },
+      {
+        "name": "33",
+        "mesh": 23
+      },
+      {
+        "name": "34",
+        "mesh": 24
+      },
+      {
+        "name": "2"
+      },
+      {
+        "name": "10",
+        "mesh": 25
+      },
+      {
+        "name": "11",
+        "mesh": 26
+      },
+      {
+        "name": "12",
+        "mesh": 27
+      },
+      {
+        "name": "13",
+        "mesh": 28
+      },
+      {
+        "name": "14",
+        "mesh": 29
+      },
+      {
+        "name": "15",
+        "mesh": 30
+      },
+      {
+        "name": "16",
+        "mesh": 31
+      },
+      {
+        "name": "9",
+        "mesh": 32
+      }
+    ],
+    "meshCount": 33,
+    "materials": [
+      "unnamed",
+      "unnamed",
+      "unnamed",
+      "transparencyGM",
+      "unnamed",
+      "unnamed"
+    ]
+  },
+  {
+    "file": "KUSO820000_150.glb",
+    "sizeBytes": 568500,
+    "sizeMm": {
+      "x": 82.29,
+      "y": 1525.92,
+      "z": 453.92
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 82.29,
+      "y": 1525.92,
+      "z": 453.92
+    },
+    "centerMm": {
+      "x": 41.15,
+      "y": 762.96,
+      "z": 226.96
+    },
+    "nodeCount": 79,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1"
+      },
+      {
+        "name": "10"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 0
+      },
+      {
+        "name": "11"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 1
+      },
+      {
+        "name": "12"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 2
+      },
+      {
+        "name": "13"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 3
+      },
+      {
+        "name": "14"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 4
+      },
+      {
+        "name": "15"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 5
+      },
+      {
+        "name": "16"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 6
+      },
+      {
+        "name": "9"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 7
+      },
+      {
+        "name": "1_12"
+      },
+      {
+        "name": "10"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 8
+      },
+      {
+        "name": "11"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 9
+      },
+      {
+        "name": "12"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 10
+      },
+      {
+        "name": "13"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 11
+      },
+      {
+        "name": "14"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 12
+      },
+      {
+        "name": "15"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 13
+      },
+      {
+        "name": "16"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 14
+      },
+      {
+        "name": "17"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 15
+      },
+      {
+        "name": "18"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 16
+      },
+      {
+        "name": "2"
+      },
+      {
+        "name": "10"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 17
+      },
+      {
+        "name": "11"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 18
+      },
+      {
+        "name": "12"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 19
+      },
+      {
+        "name": "13"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 20
+      },
+      {
+        "name": "14"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 21
+      },
+      {
+        "name": "15"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 22
+      },
+      {
+        "name": "16"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 23
+      },
+      {
+        "name": "9"
+      },
+      {
+        "name": "0"
+      },
+      {
+        "name": "0",
+        "mesh": 24
+      }
+    ],
+    "meshCount": 25,
+    "materials": [
+      "unnamed",
+      "transparencyGM",
+      "transparencyGM",
+      "Material 1",
+      "Material 1"
+    ]
+  },
+  {
+    "file": "KUSO830000_120.glb",
+    "sizeBytes": 646092,
+    "sizeMm": {
+      "x": 1109.05,
+      "y": 245,
+      "z": 145.87
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 1109.05,
+      "y": 245,
+      "z": 145.87
+    },
+    "centerMm": {
+      "x": 554.53,
+      "y": 122.5,
+      "z": 72.94
+    },
+    "nodeCount": 11,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1.2"
+      },
+      {
+        "name": "10",
+        "mesh": 0
+      },
+      {
+        "name": "11",
+        "mesh": 1
+      },
+      {
+        "name": "12",
+        "mesh": 2
+      },
+      {
+        "name": "13",
+        "mesh": 3
+      },
+      {
+        "name": "14",
+        "mesh": 4
+      },
+      {
+        "name": "15",
+        "mesh": 5
+      },
+      {
+        "name": "16",
+        "mesh": 6
+      },
+      {
+        "name": "17",
+        "mesh": 7
+      },
+      {
+        "name": "18",
+        "mesh": 8
+      }
+    ],
+    "meshCount": 9,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUSO830000_150.glb",
+    "sizeBytes": 675976,
+    "sizeMm": {
+      "x": 1409.05,
+      "y": 245,
+      "z": 145.87
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 1409.05,
+      "y": 245,
+      "z": 145.87
+    },
+    "centerMm": {
+      "x": 704.53,
+      "y": 122.5,
+      "z": 72.94
+    },
+    "nodeCount": 11,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1.2"
+      },
+      {
+        "name": "10",
+        "mesh": 0
+      },
+      {
+        "name": "11",
+        "mesh": 1
+      },
+      {
+        "name": "12",
+        "mesh": 2
+      },
+      {
+        "name": "13",
+        "mesh": 3
+      },
+      {
+        "name": "14",
+        "mesh": 4
+      },
+      {
+        "name": "15",
+        "mesh": 5
+      },
+      {
+        "name": "16",
+        "mesh": 6
+      },
+      {
+        "name": "17",
+        "mesh": 7
+      },
+      {
+        "name": "18",
+        "mesh": 8
+      }
+    ],
+    "meshCount": 9,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "KUSO830000_165.glb",
+    "sizeBytes": 687992,
+    "sizeMm": {
+      "x": 1559.06,
+      "y": 245,
+      "z": 145.87
+    },
+    "bboxMinMm": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 1559.06,
+      "y": 245,
+      "z": 145.87
+    },
+    "centerMm": {
+      "x": 779.53,
+      "y": 122.5,
+      "z": 72.94
+    },
+    "nodeCount": 11,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "1.2"
+      },
+      {
+        "name": "10",
+        "mesh": 0
+      },
+      {
+        "name": "11",
+        "mesh": 1
+      },
+      {
+        "name": "12",
+        "mesh": 2
+      },
+      {
+        "name": "13",
+        "mesh": 3
+      },
+      {
+        "name": "14",
+        "mesh": 4
+      },
+      {
+        "name": "15",
+        "mesh": 5
+      },
+      {
+        "name": "16",
+        "mesh": 6
+      },
+      {
+        "name": "17",
+        "mesh": 7
+      },
+      {
+        "name": "18",
+        "mesh": 8
+      }
+    ],
+    "meshCount": 9,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "LKAC250000.glb",
+    "sizeBytes": 815552,
+    "sizeMm": {
+      "x": 512,
+      "y": 115.5,
+      "z": 33.56
+    },
+    "bboxMinMm": {
+      "x": -255.75,
+      "y": -44.46,
+      "z": -32
+    },
+    "bboxMaxMm": {
+      "x": 256.25,
+      "y": 71.04,
+      "z": 1.56
+    },
+    "centerMm": {
+      "x": 0.25,
+      "y": 13.29,
+      "z": -15.22
+    },
+    "nodeCount": 15,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "3"
+      },
+      {
+        "name": "10"
+      },
+      {
+        "name": "0",
+        "mesh": 0
+      },
+      {
+        "name": "6"
+      },
+      {
+        "name": "0",
+        "mesh": 1
+      },
+      {
+        "name": "7"
+      },
+      {
+        "name": "0",
+        "mesh": 2
+      },
+      {
+        "name": "8"
+      },
+      {
+        "name": "0",
+        "mesh": 3
+      },
+      {
+        "name": "9"
+      },
+      {
+        "name": "0",
+        "mesh": 4
+      },
+      {
+        "name": "3_1"
+      },
+      {
+        "name": "2"
+      },
+      {
+        "name": "0",
+        "mesh": 5
+      }
+    ],
+    "meshCount": 6,
+    "materials": [
+      "Material 1",
+      "transparencyGM"
+    ]
+  },
+  {
+    "file": "LKAC250000_DOBLE.glb",
+    "sizeBytes": 1616832,
+    "sizeMm": {
+      "x": 512,
+      "y": 257,
+      "z": 33.53
+    },
+    "bboxMinMm": {
+      "x": -256,
+      "y": -128.5,
+      "z": 0
+    },
+    "bboxMaxMm": {
+      "x": 256,
+      "y": 128.5,
+      "z": 33.53
+    },
+    "centerMm": {
+      "x": 0,
+      "y": 0,
+      "z": 16.76
+    },
+    "nodeCount": 15,
+    "nodes": [
+      {
+        "name": "0"
+      },
+      {
+        "name": "3"
+      },
+      {
+        "name": "11",
+        "mesh": 0
+      },
+      {
+        "name": "12",
+        "mesh": 1
+      },
+      {
+        "name": "13",
+        "mesh": 2
+      },
+      {
+        "name": "14",
+        "mesh": 3
+      },
+      {
+        "name": "15",
+        "mesh": 4
+      },
+      {
+        "name": "16",
+        "mesh": 5
+      },
+      {
+        "name": "17",
+        "mesh": 6
+      },
+      {
+        "name": "18",
+        "mesh": 7
+      },
+      {
+        "name": "19",
+        "mesh": 8
+      },
+      {
+        "name": "20",
+        "mesh": 9
+      },
+      {
+        "name": "3_1"
+      },
+      {
+        "name": "3",
+        "mesh": 10
+      },
+      {
+        "name": "4",
+        "mesh": 11
+      }
+    ],
+    "meshCount": 12,
+    "materials": [
+      "unnamed",
+      "transparencyGM",
+      "unnamed"
+    ]
+  }
+]

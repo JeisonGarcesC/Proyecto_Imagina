@@ -18,6 +18,9 @@ import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
+import LinkPanel from './LinkPanel';
+import KuoGoPanel from './KuoGoPanel';
+import KuoAVPanel from './KuoAVPanel';
 import MilaPanel from './MilaPanel';
 import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import { createMilaGiroInstance } from '../mepal/mila/factories/createMilaGiroInstance';
@@ -31,9 +34,13 @@ import {
 import { getEdukVariantGroupByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
 import PlanProperties from '../core/plans/components/PlanProperties';
+import WallProperties from '../core/architecture/walls/components/WallProperties';
+import ColumnProperties from '../core/architecture/columns/components/ColumnProperties';
+import { COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition';
+import DoorProperties from '../core/architecture/openings/components/DoorProperties';
 
 const typologyImageCache = new Map();
-const IMAGE_FOLDER_SETS = {
+export const IMAGE_FOLDER_SETS = {
   general: ['general'],
   tipologias: ['tipologias'],
   sillas: ['Sillas'],
@@ -45,10 +52,11 @@ const IMAGE_FOLDER_SETS = {
   eduk: ['Eduk'],
   mepalSalud: ['MepalSalud'],
   tekSocial: ['Mepal TekSocial'],
+  link: ['Link/Credenza EXE'],
   morea: ['Morea'],
 };
 
-function CardImage({
+export function CardImage({
   assetName,
   title,
   imageFolders = [],
@@ -287,8 +295,40 @@ export default function LeftPanel({
   setWallHeight,
   wallThickness,
   setWallThickness,
+  selectedWall,
+  onWallChange,
+  onDeleteWall,
+  onCloseWallProperties,
   onClearWalls,
   onUndoLastWall,
+  columnMode,
+  setColumnMode,
+  columnShape,
+  setColumnShape,
+  columnWidth,
+  setColumnWidth,
+  columnDepth,
+  setColumnDepth,
+  columnDiameter,
+  setColumnDiameter,
+  columnHeight,
+  setColumnHeight,
+  selectedColumn,
+  onColumnChange,
+  onDeleteColumn,
+  onCloseColumnProperties,
+  onClearColumns,
+  openingMode,
+  setOpeningMode,
+  doorWidth,
+  setDoorWidth,
+  doorHeight,
+  setDoorHeight,
+  selectedOpening,
+  onOpeningChange,
+  onDeleteOpening,
+  onCloseOpeningProperties,
+  onClearOpenings,
   // otros
   Plan2DUploader,
   handleLoadPlan2D,
@@ -1621,6 +1661,58 @@ export default function LeftPanel({
               <button onClick={onUndoLastWall}>Deshacer</button>
               <button onClick={onClearWalls}>Borrar muros</button>
             </div>
+
+            {wallMode === 'EDIT' && selectedWall && (
+              <WallProperties
+                wall={selectedWall}
+                onChange={onWallChange}
+                onDelete={onDeleteWall}
+                onClose={onCloseWallProperties}
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {section === 'columns' && (
+        <>
+          <h3 style={{ margin: '0 0 12px 0' }}>Columnas</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>Modo</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => setColumnMode('NONE')} style={btnMini(columnMode === 'NONE')}>Ninguno</button>
+                <button type="button" onClick={() => setColumnMode('PLACE')} style={btnMini(columnMode === 'PLACE')}>Colocar</button>
+                <button type="button" onClick={() => setColumnMode('EDIT')} style={btnMini(columnMode === 'EDIT')}>Editar</button>
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
+                En “Colocar”: haz clic en el plano para crear una columna.
+              </div>
+            </div>
+
+            <label style={lab}>
+              Forma
+              <select value={columnShape} onChange={(event) => setColumnShape(event.target.value)} style={inp}>
+                <option value={COLUMN_SHAPES.RECTANGLE}>Rectangular</option>
+                <option value={COLUMN_SHAPES.CIRCLE}>Circular</option>
+              </select>
+            </label>
+
+            {columnShape === COLUMN_SHAPES.RECTANGLE ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label style={lab}>Ancho (m)<input type="number" step="0.01" value={columnWidth} onChange={(event) => setColumnWidth(Number(event.target.value))} style={inp} /></label>
+                <label style={lab}>Profundidad (m)<input type="number" step="0.01" value={columnDepth} onChange={(event) => setColumnDepth(Number(event.target.value))} style={inp} /></label>
+              </div>
+            ) : (
+              <label style={lab}>Diámetro (m)<input type="number" step="0.01" value={columnDiameter} onChange={(event) => setColumnDiameter(Number(event.target.value))} style={inp} /></label>
+            )}
+
+            <label style={lab}>Altura (m)<input type="number" step="0.05" value={columnHeight} onChange={(event) => setColumnHeight(Number(event.target.value))} style={inp} /></label>
+            <button type="button" onClick={onClearColumns}>Borrar columnas</button>
+
+            {columnMode === 'EDIT' && selectedColumn && (
+              <ColumnProperties column={selectedColumn} onChange={onColumnChange} onDelete={onDeleteColumn} onClose={onCloseColumnProperties} />
+            )}
           </div>
         </>
       )}
@@ -1628,18 +1720,18 @@ export default function LeftPanel({
       {/* ======================= PUERTAS/VENTANAS ======================= */}
       {section === 'openings' && (
         <>
-          <h3 style={{ margin: '0 0 12px 0' }}>Puertas y Ventanas</h3>
-          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
-            Próximo: librería de aperturas para insertar en muros.
-          </div>
-
-          <div style={{ display: 'grid', gap: 8 }}>
-            <button disabled style={disabledCard}>
-              🚪 Puerta estándar (próximo)
-            </button>
-            <button disabled style={disabledCard}>
-              🪟 Ventana estándar (próximo)
-            </button>
+          <h3 style={{ margin: '0 0 12px 0' }}>Puertas</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => setOpeningMode('NONE')} style={btnMini(openingMode === 'NONE')}>Ninguno</button>
+              <button type="button" onClick={() => setOpeningMode('PLACE')} style={btnMini(openingMode === 'PLACE')}>Colocar</button>
+              <button type="button" onClick={() => setOpeningMode('EDIT')} style={btnMini(openingMode === 'EDIT')}>Editar</button>
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.75 }}>En “Colocar”, mueve el cursor sobre un segmento de muro y haz clic.</div>
+            <label style={lab}>Ancho (m)<input type="number" min="0.1" step="0.05" value={doorWidth} onChange={(e) => setDoorWidth(Number(e.target.value))} style={inp} /></label>
+            <label style={lab}>Altura (m)<input type="number" min="0.1" step="0.05" value={doorHeight} onChange={(e) => setDoorHeight(Number(e.target.value))} style={inp} /></label>
+            <button type="button" onClick={onClearOpenings}>Borrar puertas</button>
+            {openingMode === 'EDIT' && selectedOpening && <DoorProperties door={selectedOpening} onChange={onOpeningChange} onDelete={onDeleteOpening} onClose={onCloseOpeningProperties} />}
           </div>
         </>
       )}
@@ -2619,6 +2711,21 @@ export default function LeftPanel({
             </div>
           )}
         </>
+      )}
+
+      {/* ======================= LINK ======================= */}
+      {section === 'link' && (
+        <LinkPanel threeApiRef={threeApiRef} />
+      )}
+
+      {/* ======================= KUO GO ======================= */}
+      {section === 'kuoGo' && (
+        <KuoGoPanel threeApiRef={threeApiRef} />
+      )}
+
+      {/* ======================= KUO ALTURA VARIABLE ======================= */}
+      {section === 'kuoAlturaVariable' && (
+        <KuoAVPanel threeApiRef={threeApiRef} />
       )}
     </div>
   );

@@ -13,6 +13,7 @@
     "server:dev": "node --watch server/src/server.js",
     "server:start": "node server/src/server.js",
     "server:test": "node --test server/test",
+    "test:walls": "node --test test/walls.test.js test/columns.test.js test/architectureSnap.test.js test/openings.test.js",
     "db:generate": "prisma generate --schema server/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema server/prisma/schema.prisma",
     "db:migrate:dev": "prisma migrate dev --schema server/prisma/schema.prisma",
@@ -51,6 +52,6 @@
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "prisma": "^6.19.3",
-    "vite": "^7.2.4"
+    "vite": "^7.3.6"
   }
 }

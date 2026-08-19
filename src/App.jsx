@@ -39,6 +39,17 @@ import { getPlanAsset, savePlanAsset } from './core/plans/storage/planAssetStore
 import { loadDxfPlan } from './core/plans/loaders/dxfPlanLoader';
 import { createDxfCalibration, resolveDxfUnitSelection } from './core/plans/utils/dxfUnits';
 import DxfUnitSelector from './core/plans/components/DxfUnitSelector';
+import { normalizeWallDefinition, updateWallDefinition } from './core/architecture/walls/wallDefinition';
+import { deserializeWalls, serializeWalls } from './core/architecture/walls/wallPersistence';
+import {
+  COLUMN_SHAPES,
+  normalizeColumnDefinition,
+  updateColumnDefinition,
+} from './core/architecture/columns/columnDefinition';
+import { deserializeColumns, serializeColumns } from './core/architecture/columns/columnPersistence';
+import { createDoorDefinition, updateDoorDefinition, validateDoorPlacement } from './core/architecture/openings/doorDefinition';
+import { deserializeOpenings, serializeOpenings } from './core/architecture/openings/openingPersistence';
+import { deleteOpeningsForWall } from './core/architecture/openings/openingInteraction2D';
 
 import { exportProjectPPT } from './exports/exportPPT';
 
@@ -220,6 +231,107 @@ export default function App() {
   const [wallHeight, setWallHeight] = useState(2.4);
   const [wallThickness, setWallThickness] = useState(0.1);
   const [walls, setWalls] = useState([]);
+  const [selectedWallId, setSelectedWallId] = useState(null);
+  const selectedWall = useMemo(
+    () => walls.find((wall) => wall.id === selectedWallId) || null,
+    [walls, selectedWallId]
+  );
+
+  const handleWallModeChange = (nextMode) => {
+    setWallMode(nextMode);
+    if (nextMode !== 'EDIT') setSelectedWallId(null);
+    if (nextMode !== 'NONE') {
+      setColumnMode('NONE');
+      setSelectedColumnId(null);
+      setOpeningMode('NONE');
+      setSelectedOpeningId(null);
+    }
+  };
+
+  const handleWallChange = (patch) => {
+    if (!selectedWallId) return;
+    setWalls((currentWalls) =>
+      currentWalls.map((wall) =>
+        wall.id === selectedWallId ? updateWallDefinition(wall, patch) || wall : wall
+      )
+    );
+  };
+
+  const handleDeleteWall = () => {
+    if (!selectedWall || selectedWall.locked) return;
+    setWalls((currentWalls) => currentWalls.filter((wall) => wall.id !== selectedWall.id));
+    setOpenings((current) => deleteOpeningsForWall(current, selectedWall.id));
+    setSelectedOpeningId(null);
+    setSelectedWallId(null);
+  };
+  const [columns, setColumns] = useState([]);
+  const [columnMode, setColumnMode] = useState('NONE');
+  const [columnShape, setColumnShape] = useState(COLUMN_SHAPES.RECTANGLE);
+  const [columnWidth, setColumnWidth] = useState(0.3);
+  const [columnDepth, setColumnDepth] = useState(0.3);
+  const [columnDiameter, setColumnDiameter] = useState(0.3);
+  const [columnHeight, setColumnHeight] = useState(2.4);
+  const [selectedColumnId, setSelectedColumnId] = useState(null);
+  const selectedColumn = useMemo(
+    () => columns.find((column) => column.id === selectedColumnId) || null,
+    [columns, selectedColumnId]
+  );
+
+  const handleColumnModeChange = (nextMode) => {
+    setColumnMode(nextMode);
+    if (nextMode !== 'EDIT') setSelectedColumnId(null);
+    if (nextMode !== 'NONE') {
+      handleWallModeChange('NONE');
+      setOpeningMode('NONE');
+      setSelectedOpeningId(null);
+    }
+  };
+
+  const handleColumnChange = (patch) => {
+    if (!selectedColumnId) return;
+    setColumns((current) => current.map((column) =>
+      column.id === selectedColumnId ? updateColumnDefinition(column, patch) || column : column
+    ));
+  };
+
+  const handleDeleteColumn = () => {
+    if (!selectedColumn || selectedColumn.locked) return;
+    setColumns((current) => current.filter((column) => column.id !== selectedColumn.id));
+    setSelectedColumnId(null);
+  };
+  const [openings, setOpenings] = useState([]);
+  const [openingMode, setOpeningMode] = useState('NONE');
+  const [doorWidth, setDoorWidth] = useState(0.9);
+  const [doorHeight, setDoorHeight] = useState(2.1);
+  const [selectedOpeningId, setSelectedOpeningId] = useState(null);
+  const selectedOpening = useMemo(
+    () => openings.find((opening) => opening.id === selectedOpeningId) || null,
+    [openings, selectedOpeningId]
+  );
+
+  const handleOpeningModeChange = (nextMode) => {
+    setOpeningMode(nextMode);
+    if (nextMode !== 'EDIT') setSelectedOpeningId(null);
+    if (nextMode !== 'NONE') {
+      setWallMode('NONE'); setSelectedWallId(null);
+      setColumnMode('NONE'); setSelectedColumnId(null);
+    }
+  };
+
+  const handleOpeningChange = (patch) => {
+    if (!selectedOpeningId) return;
+    setOpenings((current) => current.map((opening) =>
+      opening.id === selectedOpeningId
+        ? updateDoorDefinition(opening, patch, { walls, openings: current }) || opening
+        : opening
+    ));
+  };
+
+  const handleDeleteOpening = () => {
+    if (!selectedOpening || selectedOpening.locked) return;
+    setOpenings((current) => current.filter((opening) => opening.id !== selectedOpening.id));
+    setSelectedOpeningId(null);
+  };
   const [selectedIds, setSelectedIds] = useState([]);
   const [moveAsGroup, setMoveAsGroup] = useState(true);
   const [surfaceOpen, setSurfaceOpen] = useState(false);
@@ -316,24 +428,24 @@ export default function App() {
     const detailIds = Array.from(detailed2DIds);
     const parts =
       threeApiRef.current?.getPartsSnapshot2D?.({ detailed2DIds: detailIds }) || [];
-    return { parts, walls, detailed2DIds: detailIds };
+    return { parts, walls, columns, openings, detailed2DIds: detailIds };
   };
 
   const exportPlanSvg = () => {
-    const { parts, walls, detailed2DIds: detailIds } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
+    const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
+    const svg = generatePlanSvg({ parts, walls, columns, openings, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
     downloadTextFile('planta_2d.svg', svg, 'image/svg+xml');
   };
 
   const exportPlanPng = async () => {
-    const { parts, walls, detailed2DIds: detailIds } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
+    const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
+    const svg = generatePlanSvg({ parts, walls, columns, openings, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
     await exportSvgToPng(svg, { scale: 2, filename: 'planta_2d.png' });
   };
 
   const exportPlanPdf = () => {
-    const { parts, walls, detailed2DIds: detailIds } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
+    const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
+    const svg = generatePlanSvg({ parts, walls, columns, openings, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
     printSvgAsPdf(svg, { title: 'Planta 2D' });
   };
 
@@ -565,6 +677,12 @@ export default function App() {
     return {
       ...project,
       plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
+      architecture: {
+        ...(project.architecture || {}),
+        walls: serializeWalls(walls),
+        columns: serializeColumns(columns),
+        openings: serializeOpenings(openings),
+      },
     };
   };
 
@@ -655,6 +773,12 @@ export default function App() {
 
   const loadProjectData = async (project) => {
     setDetailed2DIds(new Set());
+    setSelectedWallId(null);
+    setWalls(deserializeWalls(project));
+    setSelectedColumnId(null);
+    setColumns(deserializeColumns(project));
+    setSelectedOpeningId(null);
+    setOpenings(deserializeOpenings(project));
     await restorePlan2DFromProject(project);
     return threeApiRef.current?.loadProject?.(project);
   };
@@ -802,6 +926,7 @@ export default function App() {
         })),
     });
 */
+    if (!allowed.size) return null;
     return Array.from(allowed);
   }, [selectedPart, byCode, materialsAcabado]);
 
@@ -960,6 +1085,10 @@ export default function App() {
         onLogout={logout}
         onNewProject={() => {
           setDetailed2DIds(new Set());
+          setSelectedWallId(null);
+          setWalls([]);
+          setSelectedColumnId(null);
+          setColumns([]);
           threeApiRef.current?.clearProject?.();
         }}
         getProjectData={buildProjectData}
@@ -1146,13 +1275,61 @@ export default function App() {
               }
               onDeletePlan={handleDeletePlan2D}
               wallMode={wallMode}
-              setWallMode={setWallMode}
+              setWallMode={handleWallModeChange}
               wallHeight={wallHeight}
               setWallHeight={setWallHeight}
               wallThickness={wallThickness}
               setWallThickness={setWallThickness}
-              onUndoLastWall={() => setWalls((prev) => prev.slice(0, -1))}
-              onClearWalls={() => setWalls([])}
+              selectedWall={selectedWall}
+              onWallChange={handleWallChange}
+              onDeleteWall={handleDeleteWall}
+              onCloseWallProperties={() => setSelectedWallId(null)}
+              onUndoLastWall={() => {
+                setWalls((prev) => {
+                  const removedWallId = prev.at(-1)?.id;
+                  if (removedWallId) setOpenings((current) => deleteOpeningsForWall(current, removedWallId));
+                  return prev.slice(0, -1);
+                });
+                setSelectedWallId(null);
+                setSelectedOpeningId(null);
+              }}
+              onClearWalls={() => {
+                setWalls([]);
+                setOpenings([]);
+                setSelectedWallId(null);
+                setSelectedOpeningId(null);
+              }}
+              columnMode={columnMode}
+              setColumnMode={handleColumnModeChange}
+              columnShape={columnShape}
+              setColumnShape={setColumnShape}
+              columnWidth={columnWidth}
+              setColumnWidth={setColumnWidth}
+              columnDepth={columnDepth}
+              setColumnDepth={setColumnDepth}
+              columnDiameter={columnDiameter}
+              setColumnDiameter={setColumnDiameter}
+              columnHeight={columnHeight}
+              setColumnHeight={setColumnHeight}
+              selectedColumn={selectedColumn}
+              onColumnChange={handleColumnChange}
+              onDeleteColumn={handleDeleteColumn}
+              onCloseColumnProperties={() => setSelectedColumnId(null)}
+              onClearColumns={() => {
+                setColumns([]);
+                setSelectedColumnId(null);
+              }}
+              openingMode={openingMode}
+              setOpeningMode={handleOpeningModeChange}
+              doorWidth={doorWidth}
+              setDoorWidth={setDoorWidth}
+              doorHeight={doorHeight}
+              setDoorHeight={setDoorHeight}
+              selectedOpening={selectedOpening}
+              onOpeningChange={handleOpeningChange}
+              onDeleteOpening={handleDeleteOpening}
+              onCloseOpeningProperties={() => setSelectedOpeningId(null)}
+              onClearOpenings={() => { setOpenings([]); setSelectedOpeningId(null); }}
             />
           </div>
 
@@ -1185,7 +1362,9 @@ export default function App() {
           </div>
 
           <ThreeCanvas
-            walls={walls}
+          walls={walls}
+          columns={columns}
+          openings={openings}
             readOnly={readOnly}
             materialsByCode={materialsByCode}
             catalogByCode={byCode}
@@ -1314,10 +1493,40 @@ export default function App() {
               threeApiRef.current?.getRotationState?.({ sourceId: id }) || null
             }
             walls={walls}
+            columns={columns}
+            openings={openings}
             wallMode={wallMode}
+            selectedWallId={selectedWallId}
+            onSelectWall={setSelectedWallId}
+            columnMode={columnMode}
+            columnShape={columnShape}
+            columnWidth={columnWidth}
+            columnDepth={columnDepth}
+            columnDiameter={columnDiameter}
+            columnHeight={columnHeight}
+            selectedColumnId={selectedColumnId}
+            onSelectColumn={setSelectedColumnId}
+            onAddColumn={(column) => {
+              const normalized = normalizeColumnDefinition(column);
+              if (normalized) setColumns((current) => [...current, normalized]);
+            }}
+            openingMode={openingMode}
+            doorWidth={doorWidth}
+            doorHeight={doorHeight}
+            selectedOpeningId={selectedOpeningId}
+            onSelectOpening={setSelectedOpeningId}
+            onAddOpening={(opening) => {
+              const normalized = createDoorDefinition(opening);
+              if (normalized && validateDoorPlacement(normalized, walls, openings).valid) {
+                setOpenings((current) => [...current, normalized]);
+              }
+            }}
             wallHeight={wallHeight}
             wallThickness={wallThickness}
-            onAddWall={(wall) => setWalls((prev) => [...prev, wall])}
+            onAddWall={(wall) => {
+              const normalizedWall = normalizeWallDefinition(wall);
+              if (normalizedWall) setWalls((prev) => [...prev, normalizedWall]);
+            }}
             onSetWalls={setWalls}
             height={240}
             invertZ={false}
