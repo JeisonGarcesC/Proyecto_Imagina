@@ -460,15 +460,6 @@ export function resolveMilaAssemblyConnectors(object) {
       worldPos: worldRight,
       worldNormal: normalRight,
     },
-    screen: {
-      id: 'screen',
-      portType: 'screen',
-      isOccupied: hasScreen,
-      localPos: localScreen,
-      localNormal: localNormalScreen,
-      worldPos: worldScreen,
-      worldNormal: normalScreen,
-    },
   };
 
   // Puertos intermedios para apoyabrazos centrales (si tiene 2 o más puestos)

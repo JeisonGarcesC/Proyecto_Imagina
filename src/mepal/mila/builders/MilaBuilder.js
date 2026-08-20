@@ -19,7 +19,7 @@ const MILA_VARIANTS = {
     groupName: 'Mila',
     label: 'Mila',
     line: 'MILA',
-    seatCode: 'TKSSI011000-W-SEAT',
+    seatCode: '22000127935',
     tableSeatCode: '22000130198',
     tableSeatGrommetCode: '22000130198',
     legCode: '22000127142',
@@ -118,6 +118,14 @@ function createMilaSeatPart({
     code: seatSelection.seatCode,
     logicalCode: `${variant.codePrefix}_SEAT_${seatIndex + 1}`,
     name: `${variant.label} ${seatSelection.seatLabel} ${seatIndex + 1}`,
+    description:
+      seatSelection.seatMode === 'table' || seatSelection.seatMode === 'tableGrommet'
+        ? 'Mesa Mila'
+        : 'Silla Mila 1 puesto',
+    prices:
+      seatSelection.seatMode === 'table' || seatSelection.seatMode === 'tableGrommet'
+        ? { CO: 820000, USD: 115, EUC: 220 }
+        : { CO: 1166550, USD: 154, EUC: 305 },
     model: { src: seatSelection.seatModelSrc },
     position: {
       x: offsetX + Number(seatSelection.seatOffsetMm?.x || 0),

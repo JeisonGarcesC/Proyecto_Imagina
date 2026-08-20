@@ -2760,7 +2760,6 @@ export default function LeftPanel({
       {section === 'kuoAlturaVariable' && (
         <KuoAVPanel threeApiRef={threeApiRef} />
       )}
-      )}
     </div>
   );
 }

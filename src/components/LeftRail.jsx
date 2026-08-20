@@ -110,6 +110,7 @@ export default function LeftRail({ active, onChange }) {
             style={{
               width: '100%',
               height: 42,
+              flexShrink: 0,
               padding: 0,
               borderRadius: 10,
               border: isActive ? '1px solid #2d2d2d' : '1px solid #d8d8d8',
