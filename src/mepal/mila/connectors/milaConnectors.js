@@ -1,6 +1,6 @@
 // src/mepal/mila/connectors/milaConnectors.js
 import * as THREE from 'three';
-import { MILA_GIRO_CONNECTOR_TUNE } from '../config/milaGiroTunables.js';
+import { MILA_GIRO_CONNECTOR_TUNE, MILA_GIRO_TUNE } from '../config/milaGiroTunables.js';
 import { MILA_ACCESSORY_OFFSETS_MM } from '../config/milaTunables.js';
 
 export const MILA_CONNECTOR_CONFIG = {
@@ -124,6 +124,15 @@ export function getMilaAssemblyRoot(object) {
 
   const role = String(curr?.userData?.meta?.role || curr?.userData?.role || '').toLowerCase();
   if (
+    curr?.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+    curr?.userData?.type === 'mila-panel-divisor' ||
+    role === 'panel-divisor' ||
+    role === 'booth-table'
+  ) {
+    return null;
+  }
+
+  if (
     curr?.userData?.kind === 'MILA_ASSEMBLY' ||
     curr?.userData?.kind === 'MILA_GIRO_SURFACE' ||
     curr?.userData?.type === 'mila' ||
@@ -152,7 +161,15 @@ export function getMilaAssemblyRoot(object) {
         found = node;
       }
     });
-    if (found) return found;
+    if (found) {
+      if (
+        found.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+        found.userData?.type === 'mila-panel-divisor'
+      ) {
+        return null;
+      }
+      return found;
+    }
   }
 
   return null;
@@ -166,6 +183,13 @@ export function resolveMilaAssemblyConnectors(object) {
 
   const targetObj = getMilaAssemblyRoot(object);
   if (!targetObj) return null;
+
+  if (
+    targetObj.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+    targetObj.userData?.type === 'mila-panel-divisor'
+  ) {
+    return null;
+  }
 
   const role = String(targetObj.userData?.meta?.role || targetObj.userData?.role || '').toLowerCase();
 
@@ -636,9 +660,17 @@ export function findBestMilaConnectorSnap({
             .applyAxisAngle(new THREE.Vector3(0, 1, 0), requiredYaw);
 
           const isAccessorySnap = Boolean(activeConnectors.isAccessory || targetConnectors.isAccessory);
-          const targetPosY = isAccessorySnap
-            ? (activeConnectors.isAccessory ? targetObj.position.y : activeAssembly.position.y)
-            : (tgtPort.worldPos.y - rotatedOffset.y);
+          const isGiroSnap = Boolean(activeConnectors.isGiro || targetConnectors.isGiro);
+          const giroDropM = (Number(MILA_GIRO_TUNE?.CONNECTED_Y_OFFSET_MM) || 0) / 1000;
+
+          let targetPosY;
+          if (isAccessorySnap) {
+            targetPosY = activeConnectors.isAccessory ? targetObj.position.y : activeAssembly.position.y;
+          } else if (isGiroSnap) {
+            targetPosY = (tgtPort.worldPos.y - rotatedOffset.y) + (activeConnectors.isGiro ? giroDropM : 0);
+          } else {
+            targetPosY = tgtPort.worldPos.y - rotatedOffset.y;
+          }
 
           const targetPos = new THREE.Vector3(
             tgtPort.worldPos.x - rotatedOffset.x,

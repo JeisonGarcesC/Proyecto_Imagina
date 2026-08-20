@@ -73,6 +73,13 @@ export default function MilaPanel({ onCreate }) {
   // Estado Accesorio Individual
   const [selectedAccessory, setSelectedAccessory] = useState('armrest-left');
 
+  // Estado Panel Divisor (Booth)
+  const [panelTableSize, setPanelTableSize] = useState('90');
+  const [panelSeatsLeft, setPanelSeatsLeft] = useState(0);
+  const [panelScreenLeft, setPanelScreenLeft] = useState('no');
+  const [panelSeatsRight, setPanelSeatsRight] = useState(0);
+  const [panelScreenRight, setPanelScreenRight] = useState('no');
+
   const isSingle = selectedVariant === 'single';
   const tableEnabled = isSingle && useTable === 'si';
 
@@ -100,6 +107,16 @@ export default function MilaPanel({ onCreate }) {
     onCreate?.({
       type: 'accessory',
       accessoryType: selectedAccessory,
+    });
+
+  const handleCreatePanelDivisor = () =>
+    onCreate?.({
+      type: 'panel-divisor',
+      tableSize: panelTableSize,
+      seatsLeft: panelSeatsLeft,
+      screenLeft: panelSeatsLeft > 0 && panelScreenLeft === 'si',
+      seatsRight: panelSeatsRight,
+      screenRight: panelSeatsRight > 0 && panelScreenRight === 'si',
     });
 
   return (
@@ -315,6 +332,99 @@ export default function MilaPanel({ onCreate }) {
         }}
       >
         Agregar accesorio
+      </button>
+
+      {/* ─── SEPARADOR PANEL DIVISOR (BOOTH) ─── */}
+      {renderDivider('Panel Divisor')}
+
+      {/* ─── SECCIÓN PANEL DIVISOR (BOOTH) ─── */}
+      <div>
+        <label>Mesa central</label>
+        <select
+          value={panelTableSize}
+          onChange={(e) => setPanelTableSize(e.target.value)}
+          style={{ width: '100%' }}
+        >
+          <option value="90">Mesa 90 cm</option>
+          <option value="150">Mesa 150 cm</option>
+          <option value="0">Sin mesa</option>
+        </select>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div>
+          <label style={{ fontSize: 11 }}>Puestos Izq.</label>
+          <select
+            value={panelSeatsLeft}
+            onChange={(e) => setPanelSeatsLeft(Number(e.target.value))}
+            style={{ width: '100%' }}
+          >
+            <option value="1">1 Puesto</option>
+            <option value="2">2 Puestos</option>
+            <option value="3">3 Puestos</option>
+            <option value="4">4 Puestos</option>
+            <option value="0">Ninguno</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11 }}>Pantalla Izq.</label>
+          <select
+            value={panelScreenLeft}
+            onChange={(e) => setPanelScreenLeft(e.target.value)}
+            style={{ width: '100%' }}
+            disabled={panelSeatsLeft === 0}
+          >
+            {yesNoOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div>
+          <label style={{ fontSize: 11 }}>Puestos Der.</label>
+          <select
+            value={panelSeatsRight}
+            onChange={(e) => setPanelSeatsRight(Number(e.target.value))}
+            style={{ width: '100%' }}
+          >
+            <option value="1">1 Puesto</option>
+            <option value="2">2 Puestos</option>
+            <option value="3">3 Puestos</option>
+            <option value="4">4 Puestos</option>
+            <option value="0">Ninguno</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 11 }}>Pantalla Der.</label>
+          <select
+            value={panelScreenRight}
+            onChange={(e) => setPanelScreenRight(e.target.value)}
+            style={{ width: '100%' }}
+            disabled={panelSeatsRight === 0}
+          >
+            {yesNoOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleCreatePanelDivisor}
+        style={{
+          padding: '8px 12px',
+          fontWeight: 'bold',
+          background: '#7c3aed',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 6,
+          cursor: 'pointer',
+        }}
+      >
+        Crear panel divisor
       </button>
     </div>
   );

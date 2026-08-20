@@ -13,13 +13,14 @@
 // ─────────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────────
-// ALTURA GLOBAL DE SPAWN
+// ALTURA GLOBAL DE SPAWN Y CONEXIÓN
 // ─────────────────────────────────────────────────────────────────────────────────
 export const MILA_GIRO_TUNE = {
   // Altura de aparición de la superficie de giro en el mundo 3D (en milímetros).
-  // Con SPAWN_Y_MM = 110mm (0.11m) + bracket Y 30mm (0.03m) = 0.14m en mundo,
-  // coincidiendo perfectamente con la altura de las platinas y conectores de las sillas Mila (0.14m).
-  SPAWN_Y_MM: 250,
+  SPAWN_Y_MM: 150,
+  // Ajuste / desfase de altura cuando la superficie de giro se acopla a una silla Mila (en milímetros).
+  // Negativo = más abajo al conectarse.
+  CONNECTED_Y_OFFSET_MM: -70,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────

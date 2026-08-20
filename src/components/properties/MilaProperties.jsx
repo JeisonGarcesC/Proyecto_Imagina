@@ -17,6 +17,38 @@ function resolveMilaModeFromPart(part) {
   return MILA_SINGLE_SEAT_CODE_TO_MODE[normalized] || 'chair';
 }
 
+const MILA_ACCESSORY_CODES = new Set([
+  '22000127151',
+  '22000110791',
+  '22000127825',
+  '22000127826',
+  '22000127827',
+  '22000127828',
+]);
+
+export function isMilaAccessoryPart(part) {
+  if (!part) return false;
+  const role = String(
+    part.role ||
+    part.meta?.role ||
+    part.userData?.role ||
+    part.userData?.meta?.role ||
+    ''
+  ).toLowerCase();
+  const code = String(part.code || part.codigoPT || '').toUpperCase();
+  return (
+    role === 'armrest-left' ||
+    role === 'armrest-right' ||
+    role === 'armrest-center' ||
+    role === 'screen' ||
+    role === 'accessory' ||
+    MILA_ACCESSORY_CODES.has(code) ||
+    code.startsWith('TKSSI140000') ||
+    code.startsWith('TKSSI090000') ||
+    code.startsWith('TKSPN070000')
+  );
+}
+
 export function isMilaGiroEditablePart(part) {
   if (!part) return false;
   const code = String(part.code || part.codigoPT || '');
@@ -31,11 +63,25 @@ export function isMilaGiroEditablePart(part) {
 
 export function isMilaEditablePart(part) {
   if (!part) return false;
-  // Excluir Superficies de Giro (tienen su propio panel con selector de Grommet)
+  // Excluir Panel Divisor (Booth)
+  if (
+    part.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+    part.type === 'mila-panel-divisor' ||
+    ['panel-divisor', 'booth-table', 'screen-izq', 'screen-der'].includes(
+      String(part.role || part.meta?.role || part.userData?.role || part.userData?.meta?.role || '').toLowerCase()
+    )
+  ) {
+    return false;
+  }
+  // Excluir Superficies de Giro
   if (isMilaGiroEditablePart(part)) {
     return false;
   }
-  // Solo Mila simple (excluir Mila Doble)
+  // Excluir Accesorios
+  if (isMilaAccessoryPart(part)) {
+    return false;
+  }
+  // Excluir Mila Doble
   if (
     part.line === 'MILA_DOUBLE' ||
     part.category === 'mila-double' ||
@@ -44,11 +90,30 @@ export function isMilaEditablePart(part) {
   ) {
     return false;
   }
-  return (
-    part.line === 'MILA' ||
-    part.kind === 'MILA_ASSEMBLY' ||
-    (part.kind === 'GLB_PART' && part.line === 'MILA')
-  );
+
+  if (Array.isArray(part.seats) && part.seats.length > 0) {
+    return true;
+  }
+
+  const role = String(
+    part.role ||
+    part.meta?.role ||
+    part.userData?.role ||
+    part.userData?.meta?.role ||
+    ''
+  ).toLowerCase();
+
+  const code = String(part.code || part.codigoPT || '').toUpperCase();
+  const isSeatCode =
+    code.startsWith('TKSSI011000') ||
+    code.startsWith('TKSSU165000') ||
+    ['22000127935', '22000127936', '22000130198', '22000130199'].includes(code);
+
+  if (part.kind === 'MILA_ASSEMBLY' || part.type === 'mila') {
+    return true;
+  }
+
+  return role === 'seat' || isSeatCode;
 }
 
 export function MilaGiroProperties({ part, api, onClose }) {
