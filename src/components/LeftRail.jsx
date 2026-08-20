@@ -69,6 +69,7 @@ export default function LeftRail({ active, onChange }) {
       label: 'Link',
       image: '/assets/iconos_imagen/link.png',
     },
+    { id: 'critterium8', label: 'Critterium 8', icon: '▒' },
     {
       id: 'morea',
       label: 'Morea',

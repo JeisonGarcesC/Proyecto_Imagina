@@ -91,11 +91,13 @@ export function rebuildCritterium8FrameComposition(frame = {}, previousCompositi
 }
 
 export function applyGrowthModuleToComposition(frame = {}, composition, { moduleCount = 1 } = {}) {
-  const transition = validateCritterium8GrowthTransition({ baseHeightCm: composition?.heightCm ?? frame.heightCm, moduleCount });
+  const baseFrameHeightCm = Number(composition?.baseFrameHeightCm ?? composition?.heightCm ?? frame.heightCm);
+  const transition = validateCritterium8GrowthTransition({ baseHeightCm: baseFrameHeightCm, moduleCount });
   const moduleValidation = validateCritterium8GrowthModule({ widthCm: frame.widthCm });
   const errors = [...transition.errors, ...moduleValidation.errors];
   if (errors.length) return { valid: false, errors, composition };
   const next = buildCritterium8FrameComposition({ ...frame, heightCm: transition.targetHeightCm, compositionMode: 'MODULAR' });
-  next.growthModules = Array.from({ length: Number(moduleCount) }, (_, index) => ({ index, heightCm: 38, code: moduleValidation.catalogEntry.code, source: 'MAPA_PRODUCTO' }));
+  next.baseFrameHeightCm = baseFrameHeightCm;
+  next.growthModules = Array.from({ length: Number(moduleCount) }, (_, index) => ({ index, startCm: baseFrameHeightCm + index * 38, endCm: baseFrameHeightCm + (index + 1) * 38, heightCm: 38, code: moduleValidation.catalogEntry.code, source: 'MAPA_PRODUCTO' }));
   return { valid: true, errors: [], composition: next };
 }

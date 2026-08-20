@@ -1,6 +1,7 @@
 // src/components/PropertiesPanel.jsx
 import { useEffect, useMemo, useState } from 'react';
 import './PropertiesPanel.css';
+import Critterium8Properties from '../mepal/critterium8/properties/Critterium8Properties.jsx';
 
 import {
   KONCISA_PRIVACY_PANEL_FINISH_OPTIONS,
@@ -93,6 +94,10 @@ export default function PropertiesPanel({
 
   //para poner el acabado por grupos
   const canApplyGroup = !!part?.groupId;
+
+  if (part?.critterium8 || part?.critterium8Sequence) {
+    return <Critterium8Properties part={part} api={api} readOnly={readOnly} />;
+  }
 
   return (
     <div className="pp-shell">

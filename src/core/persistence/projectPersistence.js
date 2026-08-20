@@ -1,4 +1,4 @@
-import { PROJECT_SCHEMA_VERSION, serializeProjectEntities } from './entitySerializers';
+import { PROJECT_SCHEMA_VERSION, serializeProjectEntities } from './entitySerializers.js';
 
 export function buildVersionedProject({ parts, collectFinishes, floor, camera, legacyParts }) {
   const { entities, skipped } = serializeProjectEntities(parts, { collectFinishes });

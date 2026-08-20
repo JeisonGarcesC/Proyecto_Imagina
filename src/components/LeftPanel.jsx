@@ -288,6 +288,7 @@ export default function LeftPanel({
   onAddMepalTekSocial,
   onAddClak,
   onAddEduk,
+  onAddCritterium8,
   onToggleSnap,
   // muros
   wallMode,
@@ -397,6 +398,8 @@ export default function LeftPanel({
   const [edukItems, setEdukItems] = useState([]);
   const [edukReady, setEdukReady] = useState(false);
   const [showEdukVariants, setShowEdukVariants] = useState(false);
+  const [critteriumWidthCm, setCritteriumWidthCm] = useState(90);
+  const [critteriumHeightCm, setCritteriumHeightCm] = useState(128);
 
   // MOREA states
   const [qMorea, setQMorea] = useState('');
@@ -2716,6 +2719,33 @@ export default function LeftPanel({
         </>
       )}
 
+      {section === 'critterium8' && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <h3 style={{ margin: 0 }}>Critterium 8</h3>
+          <label style={lab}>
+            Ancho (cm)
+            <select value={critteriumWidthCm} onChange={(event) => setCritteriumWidthCm(Number(event.target.value))} style={inp}>
+              {[30, 45, 60, 75, 90, 120].map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          <label style={lab}>
+            Altura (cm)
+            <select value={critteriumHeightCm} onChange={(event) => setCritteriumHeightCm(Number(event.target.value))} style={inp}>
+              {[90, 110, 128, 166, 204].map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={readOnly}
+            onClick={() => onAddCritterium8?.({ widthCm: critteriumWidthCm, heightCm: critteriumHeightCm, compositionMode: 'MODULAR' })}
+            style={cardBtn(readOnly)}
+          >
+            Agregar Critterium 8
+          </button>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Geometría preliminar. Configuración avanzada pendiente.</div>
+        </div>
+      )}
+
       {/* ======================= LINK ======================= */}
       {section === 'link' && (
         <LinkPanel threeApiRef={threeApiRef} />
@@ -2729,6 +2759,7 @@ export default function LeftPanel({
       {/* ======================= KUO ALTURA VARIABLE ======================= */}
       {section === 'kuoAlturaVariable' && (
         <KuoAVPanel threeApiRef={threeApiRef} />
+      )}
       )}
     </div>
   );
