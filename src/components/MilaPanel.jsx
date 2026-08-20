@@ -75,10 +75,8 @@ export default function MilaPanel({ onCreate }) {
 
   // Estado Panel Divisor (Booth)
   const [panelTableSize, setPanelTableSize] = useState('90');
-  const [panelSeatsLeft, setPanelSeatsLeft] = useState(0);
-  const [panelScreenLeft, setPanelScreenLeft] = useState('no');
-  const [panelSeatsRight, setPanelSeatsRight] = useState(0);
-  const [panelScreenRight, setPanelScreenRight] = useState('no');
+  const [panelScreenLeftSize, setPanelScreenLeftSize] = useState(0);
+  const [panelScreenRightSize, setPanelScreenRightSize] = useState(0);
 
   const isSingle = selectedVariant === 'single';
   const tableEnabled = isSingle && useTable === 'si';
@@ -113,10 +111,10 @@ export default function MilaPanel({ onCreate }) {
     onCreate?.({
       type: 'panel-divisor',
       tableSize: panelTableSize,
-      seatsLeft: panelSeatsLeft,
-      screenLeft: panelSeatsLeft > 0 && panelScreenLeft === 'si',
-      seatsRight: panelSeatsRight,
-      screenRight: panelSeatsRight > 0 && panelScreenRight === 'si',
+      seatsLeft: panelScreenLeftSize,
+      screenLeft: panelScreenLeftSize > 0,
+      seatsRight: panelScreenRightSize,
+      screenRight: panelScreenRightSize > 0,
     });
 
   return (
@@ -353,60 +351,31 @@ export default function MilaPanel({ onCreate }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div>
-          <label style={{ fontSize: 11 }}>Puestos Izq.</label>
-          <select
-            value={panelSeatsLeft}
-            onChange={(e) => setPanelSeatsLeft(Number(e.target.value))}
-            style={{ width: '100%' }}
-          >
-            <option value="1">1 Puesto</option>
-            <option value="2">2 Puestos</option>
-            <option value="3">3 Puestos</option>
-            <option value="4">4 Puestos</option>
-            <option value="0">Ninguno</option>
-          </select>
-        </div>
-        <div>
           <label style={{ fontSize: 11 }}>Pantalla Izq.</label>
           <select
-            value={panelScreenLeft}
-            onChange={(e) => setPanelScreenLeft(e.target.value)}
-            style={{ width: '100%' }}
-            disabled={panelSeatsLeft === 0}
-          >
-            {yesNoOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <div>
-          <label style={{ fontSize: 11 }}>Puestos Der.</label>
-          <select
-            value={panelSeatsRight}
-            onChange={(e) => setPanelSeatsRight(Number(e.target.value))}
+            value={panelScreenLeftSize}
+            onChange={(e) => setPanelScreenLeftSize(Number(e.target.value))}
             style={{ width: '100%' }}
           >
-            <option value="1">1 Puesto</option>
-            <option value="2">2 Puestos</option>
-            <option value="3">3 Puestos</option>
-            <option value="4">4 Puestos</option>
-            <option value="0">Ninguno</option>
+            <option value="0">Ninguna</option>
+            <option value="1">Para 1 Puesto</option>
+            <option value="2">Para 2 Puestos</option>
+            <option value="3">Para 3 Puestos</option>
+            <option value="4">Para 4 Puestos</option>
           </select>
         </div>
         <div>
           <label style={{ fontSize: 11 }}>Pantalla Der.</label>
           <select
-            value={panelScreenRight}
-            onChange={(e) => setPanelScreenRight(e.target.value)}
+            value={panelScreenRightSize}
+            onChange={(e) => setPanelScreenRightSize(Number(e.target.value))}
             style={{ width: '100%' }}
-            disabled={panelSeatsRight === 0}
           >
-            {yesNoOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
+            <option value="0">Ninguna</option>
+            <option value="1">Para 1 Puesto</option>
+            <option value="2">Para 2 Puestos</option>
+            <option value="3">Para 3 Puestos</option>
+            <option value="4">Para 4 Puestos</option>
           </select>
         </div>
       </div>

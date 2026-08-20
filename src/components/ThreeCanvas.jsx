@@ -2114,7 +2114,17 @@ export default function ThreeCanvas({
         }
 
         // Si es una pieza hija de un ensamblaje, la raíz ya procesó el BOM
-        if (obj.userData?.parentAssemblyId) {
+        // Excepto para piezas de Mila cuyos ensamblajes no procesan el BOM directamente en la raíz
+        const isMilaPart =
+          obj.userData?.line === 'MILA' ||
+          obj.userData?.line === 'MILA_DOUBLE' ||
+          obj.userData?.category === 'mila' ||
+          obj.userData?.category === 'mila-double' ||
+          obj.userData?.meta?.category === 'mila' ||
+          obj.userData?.meta?.line === 'MILA' ||
+          (obj.userData?.kind && String(obj.userData.kind).startsWith('MILA'));
+
+        if (obj.userData?.parentAssemblyId && !isMilaPart) {
           continue;
         }
 
@@ -2478,48 +2488,37 @@ export default function ThreeCanvas({
             addRow(
               '22000127935',
               2,
-              null,
+              'Asiento madera Mila',
               null,
               groupId,
               groupName,
-              undefined,
+              { CO: 1166550, USD: 154, EUC: 305 },
               null,
               `${groupInstanceId}_SEAT`
             );
             addRow(
               '22000127980',
               1,
-              null,
+              'Espaldar doble Mila',
               null,
               groupId,
               groupName,
-              undefined,
+              { CO: 1540000, USD: 215, EUC: 415 },
               null,
               `${groupInstanceId}_BACK`
             );
           } else {
-            // Mila simple: 1 asiento madera + 1 espaldar madera
+            // Mila simple: 1 asiento madera
             addRow(
-              '22000127935',
+              obj.userData?.code || '22000127935',
               1,
-              null,
-              null,
+              obj.userData?.description || 'Silla Mila 1 puesto',
+              obj.userData?.unitPrice || null,
               groupId,
               groupName,
-              undefined,
+              obj.userData?.prices || { CO: 1166550, USD: 154, EUC: 305 },
               null,
-              `${groupInstanceId}_SEAT`
-            );
-            addRow(
-              '22000127936',
-              1,
-              null,
-              null,
-              groupId,
-              groupName,
-              undefined,
-              null,
-              `${groupInstanceId}_BACK`
+              groupInstanceId
             );
           }
           continue;

@@ -32,6 +32,7 @@ export function buildMilaPanelDivisor({
   const moduleSpacingMm = MILA_PANEL_DIVISOR_OFFSETS_MM.seatModuleSpacingMm; // 600 mm
   const screenBaseYMm = 210; // Altura de montaje de pantallas acústicas (no pegadas al piso)
   const seatForwardZMm = 465; // Desfase hacia adelante para que el espaldar no choque con el panel trasero
+  const panelBackFaceXMm = 47; // La cara posterior real del panel central (el GLB tiene offset interno de 47mm en X)
 
   // ─────────────────────────────────────────────────────────
   // 1. PANEL CENTRAL ACÚSTICO (TKSPN100000)
@@ -62,16 +63,17 @@ export function buildMilaPanelDivisor({
 
   // ─────────────────────────────────────────────────────────
   // 2. MESA CENTRAL (TKSSU090000_90 / 150)
-  // Centrada en Z = 0 (va de Z = -450mm a Z = +450mm)
+  // Centrada en Z = 0 (va de Z = -450mm a Z = +450mm) y pegada a la pared del panel (X = 0mm)
   // ─────────────────────────────────────────────────────────
   const numTableSize = Number(tableSize);
   if (numTableSize === 90 || numTableSize === 150) {
     const tableCat = numTableSize === 150 ? MILA_PANEL_DIVISOR_CATALOG.table150 : MILA_PANEL_DIVISOR_CATALOG.table90;
     const tableLengthMm = numTableSize === 150 ? 1500 : 900;
-    // La mesa es trapezoidal: el lado plano con los herrajes grises y el grommet
-    // se acopla contra la pared en X = 87mm y centrada exactamente en Z = 0
-    const tableXM = panelThicknessMm + tableLengthMm; // 87 + 900 = 987 mm (o 1587 mm)
-    const tableZM = -450; // mm
+    // La mesa es trapezoidal: los herrajes grises de acople están en Local X = tableLengthMm.
+    // Al posicionar en X = panelBackFaceXMm - tableLengthMm con rotación y = 0, el acople se pega exacto a la pared (X = 0mm)
+    // y la superficie queda centrada en la mitad del panel en Z (de -450mm a +450mm).
+    const tableXM = panelBackFaceXMm - tableLengthMm;
+    const tableZM = 450; // mm (se mapea a Z en el rango [-450, +450], centrado en Z = 0)
 
     parts.push({
       type: 'GLB_PART',
@@ -86,7 +88,7 @@ export function buildMilaPanelDivisor({
       prices: tableCat.prices,
       model: { src: tableCat.modelSrc },
       position: { x: tableXM, y: 0, z: tableZM },
-      rotation: { x: 0, y: Math.PI, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
       meta: {
         category: 'mila',
         role: 'booth-table',
@@ -97,265 +99,25 @@ export function buildMilaPanelDivisor({
   }
 
   // ─────────────────────────────────────────────────────────
-  // 3. PUESTOS SILLAS MILA - LADO IZQUIERDO (Mirando hacia -Z, hacia la mesa)
+  // 3. TAMAÑO LADO IZQUIERDO (Para calcular posición de pantalla)
   // ─────────────────────────────────────────────────────────
   const numSeatsLeft = Math.max(0, Math.min(4, Number(seatsLeft) || 0));
-  if (numSeatsLeft > 0) {
-    const seatCat = MILA_PANEL_DIVISOR_CATALOG.seat;
-    const legCat = MILA_PANEL_DIVISOR_CATALOG.legs;
-    const centerLegCat = MILA_PANEL_DIVISOR_CATALOG.centerSupportLeg;
-    const seatOffsetMm = MILA_SINGLE_SEAT_MODE_OFFSETS_MM[seatModeLeft] || MILA_SINGLE_SEAT_MODE_OFFSETS_MM.chair;
-
-    for (let i = 0; i < numSeatsLeft; i++) {
-      const offsetX = panelThicknessMm + (i + 1) * moduleSpacingMm;
-      parts.push({
-        type: 'GLB_PART',
-        subtype: 'seat-left',
-        line: 'MILA',
-        groupId,
-        groupName,
-        code: seatCat.code,
-        logicalCode: `MILA_BOOTH_SEAT_IZQ_${i + 1}`,
-        name: `Silla Mila puesto ${i + 1} (izq)`,
-        description: seatCat.description,
-        prices: seatCat.prices,
-        model: { src: seatCat.modelSrc },
-        position: {
-          x: offsetX + Number(seatOffsetMm.x || 0),
-          y: screenBaseYMm + Number(seatOffsetMm.y || 0),
-          z: seatForwardZMm + Number(seatOffsetMm.z || 0),
-        },
-        rotation: { x: 0, y: Math.PI, z: 0 },
-        meta: {
-          category: 'mila',
-          role: 'seat',
-          side: 'left',
-          seatIndex: i,
-          seatMode: seatModeLeft,
-          line: 'MILA',
-        },
-      });
-    }
-
-    // Patas soporte izquierdo
-    parts.push({
-      type: 'GLB_PART',
-      subtype: 'legs-left-inner',
-      line: 'MILA',
-      groupId,
-      groupName,
-      code: legCat.code,
-      logicalCode: 'MILA_BOOTH_LEGS_IZQ_INT',
-      name: 'Patas Mila izquierda interior',
-      description: legCat.description,
-      prices: legCat.prices,
-      model: { src: legCat.modelSrc },
-      position: {
-        x: panelThicknessMm + 246,
-        y: 0,
-        z: seatForwardZMm,
-      },
-      rotation: { x: 0, y: Math.PI, z: 0 },
-      meta: {
-        category: 'mila',
-        role: 'legs',
-        side: 'left',
-        line: 'MILA',
-      },
-    });
-
-    if (numSeatsLeft > 1) {
-      parts.push({
-        type: 'GLB_PART',
-        subtype: 'legs-left-outer',
-        line: 'MILA',
-        groupId,
-        groupName,
-        code: legCat.code,
-        logicalCode: 'MILA_BOOTH_LEGS_IZQ_EXT',
-        name: 'Patas Mila izquierda exterior',
-        description: legCat.description,
-        prices: legCat.prices,
-        model: { src: legCat.modelSrc },
-        position: {
-          x: panelThicknessMm + numSeatsLeft * moduleSpacingMm,
-          y: 0,
-          z: seatForwardZMm,
-        },
-        rotation: { x: 0, y: Math.PI, z: 0 },
-        meta: {
-          category: 'mila',
-          role: 'legs',
-          side: 'left',
-          line: 'MILA',
-        },
-      });
-    }
-
-    // Pata intermedia para 3 o 4 sillas
-    if (numSeatsLeft >= 3) {
-      const midSeamMultiplier = numSeatsLeft === 3 ? 1.5 : 2;
-      parts.push({
-        type: 'GLB_PART',
-        subtype: 'legs-left-center',
-        line: 'MILA',
-        groupId,
-        groupName,
-        code: centerLegCat.code,
-        logicalCode: 'MILA_BOOTH_LEGS_IZQ_MID',
-        name: 'Pata intermedia Mila izquierda',
-        description: centerLegCat.description,
-        prices: centerLegCat.prices,
-        model: { src: centerLegCat.modelSrc },
-        position: {
-          x: panelThicknessMm + midSeamMultiplier * moduleSpacingMm + 123,
-          y: 0,
-          z: seatForwardZMm,
-        },
-        rotation: { x: 0, y: Math.PI, z: 0 },
-        meta: {
-          category: 'mila',
-          role: 'legs-center',
-          side: 'left',
-          line: 'MILA',
-        },
-      });
-    }
-  }
 
   // ─────────────────────────────────────────────────────────
-  // 4. PUESTOS SILLAS MILA - LADO DERECHO (Mirando hacia +Z, hacia la mesa)
+  // 4. TAMAÑO LADO DERECHO (Para calcular posición de pantalla)
   // ─────────────────────────────────────────────────────────
   const numSeatsRight = Math.max(0, Math.min(4, Number(seatsRight) || 0));
-  if (numSeatsRight > 0) {
-    const seatCat = MILA_PANEL_DIVISOR_CATALOG.seat;
-    const legCat = MILA_PANEL_DIVISOR_CATALOG.legs;
-    const centerLegCat = MILA_PANEL_DIVISOR_CATALOG.centerSupportLeg;
-    const seatOffsetMm = MILA_SINGLE_SEAT_MODE_OFFSETS_MM[seatModeRight] || MILA_SINGLE_SEAT_MODE_OFFSETS_MM.chair;
 
-    for (let i = 0; i < numSeatsRight; i++) {
-      const offsetX = panelThicknessMm + i * moduleSpacingMm;
-      parts.push({
-        type: 'GLB_PART',
-        subtype: 'seat-right',
-        line: 'MILA',
-        groupId,
-        groupName,
-        code: seatCat.code,
-        logicalCode: `MILA_BOOTH_SEAT_DER_${i + 1}`,
-        name: `Silla Mila puesto ${i + 1} (der)`,
-        description: seatCat.description,
-        prices: seatCat.prices,
-        model: { src: seatCat.modelSrc },
-        position: {
-          x: offsetX + Number(seatOffsetMm.x || 0),
-          y: screenBaseYMm + Number(seatOffsetMm.y || 0),
-          z: -seatForwardZMm + Number(seatOffsetMm.z || 0),
-        },
-        rotation: { x: 0, y: 0, z: 0 },
-        meta: {
-          category: 'mila',
-          role: 'seat',
-          side: 'right',
-          seatIndex: i,
-          seatMode: seatModeRight,
-          line: 'MILA',
-        },
-      });
-    }
-
-    // Patas soporte derecho
-    parts.push({
-      type: 'GLB_PART',
-      subtype: 'legs-right-inner',
-      line: 'MILA',
-      groupId,
-      groupName,
-      code: legCat.code,
-      logicalCode: 'MILA_BOOTH_LEGS_DER_INT',
-      name: 'Patas Mila derecha interior',
-      description: legCat.description,
-      prices: legCat.prices,
-      model: { src: legCat.modelSrc },
-      position: {
-        x: panelThicknessMm,
-        y: 0,
-        z: -seatForwardZMm,
-      },
-      rotation: { x: 0, y: 0, z: 0 },
-      meta: {
-        category: 'mila',
-        role: 'legs',
-        side: 'right',
-        line: 'MILA',
-      },
-    });
-
-    if (numSeatsRight > 1) {
-      parts.push({
-        type: 'GLB_PART',
-        subtype: 'legs-right-outer',
-        line: 'MILA',
-        groupId,
-        groupName,
-        code: legCat.code,
-        logicalCode: 'MILA_BOOTH_LEGS_DER_EXT',
-        name: 'Patas Mila derecha exterior',
-        description: legCat.description,
-        prices: legCat.prices,
-        model: { src: legCat.modelSrc },
-        position: {
-          x: panelThicknessMm + numSeatsRight * moduleSpacingMm - 246,
-          y: 0,
-          z: -seatForwardZMm,
-        },
-        rotation: { x: 0, y: 0, z: 0 },
-        meta: {
-          category: 'mila',
-          role: 'legs',
-          side: 'right',
-          line: 'MILA',
-        },
-      });
-    }
-
-    // Pata intermedia para 3 o 4 sillas
-    if (numSeatsRight >= 3) {
-      const midSeamMultiplier = numSeatsRight === 3 ? 1.5 : 2;
-      parts.push({
-        type: 'GLB_PART',
-        subtype: 'legs-right-center',
-        line: 'MILA',
-        groupId,
-        groupName,
-        code: centerLegCat.code,
-        logicalCode: 'MILA_BOOTH_LEGS_DER_MID',
-        name: 'Pata intermedia Mila derecha',
-        description: centerLegCat.description,
-        prices: centerLegCat.prices,
-        model: { src: centerLegCat.modelSrc },
-        position: {
-          x: panelThicknessMm + midSeamMultiplier * moduleSpacingMm - 123,
-          y: 0,
-          z: -seatForwardZMm,
-        },
-        rotation: { x: 0, y: 0, z: 0 },
-        meta: {
-          category: 'mila',
-          role: 'legs-center',
-          side: 'right',
-          line: 'MILA',
-        },
-      });
-    }
-  }
 
   // ─────────────────────────────────────────────────────────
-  // 5. PANTALLA LATERAL IZQUIERDA (TKSPN090000_..._IZQ)
+  // 5. PANTALLA LATERAL IZQUIERDA
+  // Al estar del lado -X, para que las aletas miren hacia afuera,
+  // usamos el modelo DER rotado 180 grados.
   // ─────────────────────────────────────────────────────────
   if (screenLeft && numSeatsLeft > 0) {
-    const screenCatKey = `screenIzq${numSeatsLeft}P`;
-    const screenCat = MILA_PANEL_DIVISOR_CATALOG[screenCatKey] || MILA_PANEL_DIVISOR_CATALOG.screenIzq1P;
+    // IMPORTANTE: Usar screenDer para el lado izquierdo en -X
+    const screenCatKey = `screenDer${numSeatsLeft}P`;
+    const screenCat = MILA_PANEL_DIVISOR_CATALOG[screenCatKey] || MILA_PANEL_DIVISOR_CATALOG.screenDer1P;
     parts.push({
       type: 'GLB_PART',
       subtype: 'screen-izq',
@@ -363,13 +125,13 @@ export function buildMilaPanelDivisor({
       groupId,
       groupName,
       code: screenCat.code,
-      logicalCode: `MILA_BOOTH_SCREEN_IZQ_${numSeatsLeft}P`,
+      logicalCode: `MILA_BOOTH_SCREEN_IZQ_${numSeatsLeft}P`, // Mantenemos el código lógico IZQ
       name: screenCat.label,
       description: screenCat.description,
       prices: screenCat.prices,
       model: { src: screenCat.modelSrc },
       position: {
-        x: panelThicknessMm + numSeatsLeft * moduleSpacingMm + 32,
+        x: panelBackFaceXMm, // Sin offset, el borde recto queda en 0
         y: screenBaseYMm,
         z: 504,
       },
@@ -385,11 +147,14 @@ export function buildMilaPanelDivisor({
   }
 
   // ─────────────────────────────────────────────────────────
-  // 6. PANTALLA LATERAL DERECHA (TKSPN090000_..._DER)
+  // 6. PANTALLA LATERAL DERECHA
+  // Al estar del lado -X, para que las aletas miren hacia afuera,
+  // usamos el modelo IZQ con rotación 0.
   // ─────────────────────────────────────────────────────────
   if (screenRight && numSeatsRight > 0) {
-    const screenCatKey = `screenDer${numSeatsRight}P`;
-    const screenCat = MILA_PANEL_DIVISOR_CATALOG[screenCatKey] || MILA_PANEL_DIVISOR_CATALOG.screenDer1P;
+    // IMPORTANTE: Usar screenIzq para el lado derecho en -X
+    const screenCatKey = `screenIzq${numSeatsRight}P`;
+    const screenCat = MILA_PANEL_DIVISOR_CATALOG[screenCatKey] || MILA_PANEL_DIVISOR_CATALOG.screenIzq1P;
     parts.push({
       type: 'GLB_PART',
       subtype: 'screen-der',
@@ -397,13 +162,13 @@ export function buildMilaPanelDivisor({
       groupId,
       groupName,
       code: screenCat.code,
-      logicalCode: `MILA_BOOTH_SCREEN_DER_${numSeatsRight}P`,
+      logicalCode: `MILA_BOOTH_SCREEN_DER_${numSeatsRight}P`, // Mantenemos el código lógico DER
       name: screenCat.label,
       description: screenCat.description,
       prices: screenCat.prices,
       model: { src: screenCat.modelSrc },
       position: {
-        x: panelThicknessMm,
+        x: panelBackFaceXMm - (numSeatsRight * moduleSpacingMm + 32),
         y: screenBaseYMm,
         z: -504,
       },
