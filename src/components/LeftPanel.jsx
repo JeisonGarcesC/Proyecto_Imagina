@@ -25,6 +25,7 @@ import MilaPanel from './MilaPanel';
 import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import { createMilaGiroInstance } from '../mepal/mila/factories/createMilaGiroInstance';
 import { createMilaAccessoryInstance } from '../mepal/mila/factories/createMilaAccessoryInstance';
+import { createMilaPanelDivisorInstance } from '../mepal/mila/factories/createMilaPanelDivisorInstance';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,
@@ -1580,6 +1581,8 @@ export default function LeftPanel({
               await createMilaGiroInstance({ api, config });
             } else if (config?.type === 'accessory') {
               await createMilaAccessoryInstance({ api, config });
+            } else if (config?.type === 'panel-divisor') {
+              await createMilaPanelDivisorInstance({ api, config });
             } else {
               await createMilaInstance({ api, config });
             }

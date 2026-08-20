@@ -2673,6 +2673,7 @@ export default function ThreeCanvas({
           kind === 'KUO_AV_ASSEMBLY' ||
           kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
           kind === 'MILA_ASSEMBLY' ||
+          kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
           kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
           return cur;
@@ -2734,6 +2735,8 @@ export default function ThreeCanvas({
           current.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
           current.userData?.kind === 'MILA_ASSEMBLY' ||
           current.userData?.type === 'mila' ||
+          current.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+          current.userData?.type === 'mila-panel-divisor' ||
           current.userData?.kind === 'MILA_GIRO_SURFACE' ||
           current.userData?.type === 'MILA_GIRO_SURFACE' ||
           current.userData?.meta?.role === 'giro-surface'
@@ -5607,6 +5610,133 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function swapMilaAccessoryVariant(instanceId, targetKey) {
+      if (readOnly) return;
+
+      const found = parts.find(
+        ({ obj }) =>
+          obj?.userData?.instanceId === instanceId ||
+          obj?.userData?.meta?.instanceId === instanceId ||
+          obj?.uuid === instanceId
+      );
+
+      if (!found?.obj) {
+        console.warn('[swapMilaAccessoryVariant] No se encontró el accesorio:', instanceId);
+        return;
+      }
+
+      const oldObj = getRootPartObject(found.obj) || found.obj;
+      const savedPos = oldObj.position.clone();
+      const savedQuaternion = oldObj.quaternion.clone();
+      const savedScale = oldObj.scale.clone();
+      const savedUserData = { ...oldObj.userData };
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+
+      let catalogItem = null;
+      let role = null;
+
+      if (targetKey === 'armrestLeft') {
+        catalogItem = MILA_ACCESSORY_CATALOG.armrestLeft;
+        role = 'armrest-left';
+      } else if (targetKey === 'armrestRight') {
+        catalogItem = MILA_ACCESSORY_CATALOG.armrestRight;
+        role = 'armrest-right';
+      } else if (targetKey === 'armrestCenter') {
+        catalogItem = MILA_ACCESSORY_CATALOG.armrestCenter;
+        role = 'armrest-center';
+      } else if (targetKey === 'screen1' || targetKey === 'screen-1' || targetKey === 1) {
+        catalogItem = MILA_ACCESSORY_CATALOG.screen1P;
+        role = 'screen';
+      } else if (targetKey === 'screen2' || targetKey === 'screen-2' || targetKey === 2) {
+        catalogItem = MILA_ACCESSORY_CATALOG.screen2P;
+        role = 'screen';
+      } else if (targetKey === 'screen3' || targetKey === 'screen-3' || targetKey === 3) {
+        catalogItem = MILA_ACCESSORY_CATALOG.screen3P;
+        role = 'screen';
+      } else if (targetKey === 'screen4' || targetKey === 'screen-4' || targetKey === 4) {
+        catalogItem = MILA_ACCESSORY_CATALOG.screen4P;
+        role = 'screen';
+      }
+
+      if (!catalogItem) {
+        console.warn('[swapMilaAccessoryVariant] Variante no encontrada:', targetKey);
+        return;
+      }
+
+      let gltf = null;
+      try {
+        const loader = new GLTFLoader();
+        gltf = await loader.loadAsync(catalogItem.modelSrc);
+      } catch (err) {
+        console.error('[swapMilaAccessoryVariant] Error cargando modelo:', catalogItem.modelSrc, err);
+        return;
+      }
+
+      const newObj = gltf.scene.clone(true);
+      newObj.position.copy(savedPos);
+      newObj.quaternion.copy(savedQuaternion);
+      newObj.scale.copy(savedScale);
+
+      newObj.userData = {
+        ...savedUserData,
+        code: catalogItem.code,
+        codigoPT: catalogItem.code,
+        name: catalogItem.label,
+        description: catalogItem.description,
+        prices: catalogItem.prices,
+        modelSrc: catalogItem.modelSrc,
+        model: { src: catalogItem.modelSrc },
+        meta: {
+          ...(savedUserData.meta || {}),
+          role,
+          category: 'mila',
+          line: 'MILA',
+          isPartRoot: true,
+          instanceId: savedUserData.meta?.instanceId || instanceId,
+        },
+      };
+
+      newObj.traverse((node) => {
+        if (!node) return;
+        node.userData = {
+          ...(node.userData || {}),
+          parentAssemblyId: savedUserData.parentAssemblyId || null,
+          groupId: savedUserData.groupId || null,
+          groupName: savedUserData.groupName || null,
+        };
+
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+          if (node.material) {
+            node.material.depthTest = true;
+            node.material.depthWrite = true;
+            node.material.transparent = false;
+            node.material.needsUpdate = true;
+          }
+        }
+      });
+
+      removePartObject(oldObj);
+      if (parentGroup) parentGroup.add(newObj);
+      else scene.add(newObj);
+
+      parts.push({
+        id: instanceId,
+        code: catalogItem.code,
+        obj: newObj,
+        kind: 'GLB_PART',
+        type: 'GLB_PART',
+        name: catalogItem.label,
+      });
+      pickables.push(newObj);
+
+      setActivePart(newObj);
+      emitBOM();
+      updateMilaConnectors();
+      refreshFloorAndGrid();
+    }
+
     async function swapClakVariant(instanceId, codigo, targetCode) {
       if (readOnly) return;
 
@@ -7288,9 +7418,9 @@ export default function ThreeCanvas({
         isPartRoot: true,
         excludeFromBOM: true,
 
-        kind: 'MILA_ASSEMBLY',
-        type: 'mila',
-        line: 'MILA',
+        kind: config.kind || 'MILA_ASSEMBLY',
+        type: config.type || 'mila',
+        line: config.line || 'MILA',
 
         code: groupId,
         codigoPT: groupId,
@@ -7404,6 +7534,7 @@ export default function ThreeCanvas({
       swapKuoAVPantallaVariant,
       swapMilaSeatVariant,
       swapMilaGiroGrommet,
+      swapMilaAccessoryVariant,
       toggleMilaAccessory,
       swapMepalSaludVariant,
       swapClakVariant,
@@ -10909,9 +11040,14 @@ export default function ThreeCanvas({
       let milaSeats = null;
       let clickedMilaSeatIndex = 0;
       if (
-        root?.userData?.kind === 'MILA_ASSEMBLY' ||
-        root?.userData?.type === 'mila' ||
-        String(root?.userData?.line || '').toUpperCase() === 'MILA'
+        (root?.userData?.kind === 'MILA_ASSEMBLY' ||
+          root?.userData?.type === 'mila' ||
+          String(root?.userData?.line || '').toUpperCase() === 'MILA') &&
+        !['armrest-left', 'armrest-right', 'armrest-center', 'screen', 'giro-surface', 'accessory', 'panel-divisor', 'booth-table', 'screen-izq', 'screen-der'].includes(
+          String(root?.userData?.meta?.role || root?.userData?.role || '').toLowerCase()
+        ) &&
+        root?.userData?.kind !== 'MILA_GIRO_SURFACE' &&
+        root?.userData?.kind !== 'MILA_PANEL_DIVISOR_ASSEMBLY'
       ) {
         let clickedSeat = null;
         let c = hitObj;
@@ -10986,6 +11122,12 @@ export default function ThreeCanvas({
           kind: propertiesTarget.userData?.kind || null,
           line: propertiesTarget.userData?.line || null,
           meta: propertiesTarget.userData?.meta || null,
+          role:
+            propertiesTarget.userData?.role ||
+            propertiesTarget.userData?.meta?.role ||
+            root.userData?.role ||
+            root.userData?.meta?.role ||
+            null,
           groupId: propertiesTarget.userData?.groupId || null,
           groupName: propertiesTarget.userData?.groupName || null,
           logicalCode: propertiesTarget.userData?.logicalCode || null,
@@ -11013,11 +11155,11 @@ export default function ThreeCanvas({
           almacenVariants: propertiesTarget.userData?.almacenVariants || null,
           seats: milaSeats,
           clickedSeatIndex: clickedMilaSeatIndex,
-          armrestLeft: root.userData?._milaArmrestLeft || false,
-          armrestRight: root.userData?._milaArmrestRight || false,
-          armrestCenter: root.userData?._milaArmrestCenter || false,
-          hasScreen: root.userData?._milaHasScreen || false,
-          quantity: root.userData?._milaQuantity || (milaSeats?.length ?? 1),
+          armrestLeft: milaSeats ? root.userData?._milaArmrestLeft || false : undefined,
+          armrestRight: milaSeats ? root.userData?._milaArmrestRight || false : undefined,
+          armrestCenter: milaSeats ? root.userData?._milaArmrestCenter || false : undefined,
+          hasScreen: milaSeats ? root.userData?._milaHasScreen || false : undefined,
+          quantity: milaSeats ? root.userData?._milaQuantity || (milaSeats?.length ?? 1) : undefined,
           assemblyGroupId: root.userData?.groupId || root.userData?.instanceId || root.uuid,
         },
       });
