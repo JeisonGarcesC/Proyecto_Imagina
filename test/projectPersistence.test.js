@@ -4,6 +4,9 @@ import * as THREE from 'three';
 
 import { loadPersistedEntity } from '../src/core/persistence/entityLoaders.js';
 import { serializeProjectEntities } from '../src/core/persistence/entitySerializers.js';
+import { buildVersionedProject } from '../src/core/persistence/projectPersistence.js';
+import { createCritterium8Instance } from '../src/mepal/critterium8/factories/createCritterium8Instance.js';
+import { registerCritterium8Instance } from '../src/mepal/critterium8/integration/critterium8Registration.js';
 
 function vector(values) {
   return { toArray: () => [...values] };
@@ -122,5 +125,100 @@ test('un creator fallido no utiliza otro objeto como fallback', async () => {
       { addClak: () => null }
     ),
     /CREATOR_DID_NOT_RETURN_OBJECT/
+  );
+});
+
+async function createRegisteredCritterium(config, identity = {}) {
+  const scene = new THREE.Scene();
+  const parts = [];
+  const pickables = [];
+  const instance = await createCritterium8Instance({ ...config, ...identity });
+  registerCritterium8Instance({ instance, parent: scene, partsRegistry: parts, pickables });
+  return { instance, parts, pickables, scene };
+}
+
+test('serializa Critterium 8 como una sola entidad lógica sin derivados', async () => {
+  const { instance, parts } = await createRegisteredCritterium(
+    {
+      widthCm: 60,
+      heightCm: 110,
+      compositionMode: 'MODULAR',
+      tiles: [
+        { tileType: 'FORMICA' },
+        { tileType: 'GLASS' },
+        { tileType: 'FABRIC' },
+      ],
+    },
+    { instanceId: 'C8_SAVE_1', assemblyId: 'C8_ASSEMBLY_1', groupId: 'C8_GROUP_1', frameId: 'C8_FRAME_1' }
+  );
+  instance.assembly.position.set(2, 0.5, -3);
+  instance.assembly.rotation.y = Math.PI / 4;
+  instance.assembly.scale.set(1.1, 1.1, 1.1);
+  const { entities } = serializeProjectEntities(parts);
+  assert.equal(entities.length, 1);
+  const entity = entities[0];
+  assert.equal(entity.kind, 'CRITTERIUM_8');
+  assert.equal(entity.instanceId, 'C8_SAVE_1');
+  assert.equal(entity.assemblyId, 'C8_ASSEMBLY_1');
+  assert.equal(entity.groupId, 'C8_GROUP_1');
+  assert.equal(entity.frameId, 'C8_FRAME_1');
+  assert.equal(entity.config.tiles.length, 3);
+  assert.equal('composition' in entity, false);
+  assert.equal('layout' in entity, false);
+  assert.equal('partsDefinition' in entity, false);
+  assert.deepEqual(entity.transform.position, [2, 0.5, -3]);
+  assert.doesNotThrow(() => JSON.stringify(entity));
+});
+
+test('persiste FULL_TILE, floor-to-ceiling y growth modules desde config', async () => {
+  const full = await createRegisteredCritterium({ widthCm: 120, heightCm: 204, compositionMode: 'FULL_TILE', tiles: [{ tileType: 'FORMICA' }] }, { instanceId: 'C8_FULL' });
+  const floor = await createRegisteredCritterium({ widthCm: 90, heightCm: 204, frameMode: 'FLOOR_TO_CEILING', projectHeightCm: 242 }, { instanceId: 'C8_FLOOR' });
+  const growth = await createRegisteredCritterium({ widthCm: 60, heightCm: 90, growthModules: [{ index: 0 }] }, { instanceId: 'C8_GROWTH' });
+  const { entities } = serializeProjectEntities([...full.parts, ...floor.parts, ...growth.parts]);
+  assert.equal(entities.length, 3);
+  assert.equal(entities.find((item) => item.instanceId === 'C8_FULL').config.compositionMode, 'FULL_TILE');
+  assert.equal(entities.find((item) => item.instanceId === 'C8_FLOOR').config.projectHeightCm, 242);
+  assert.equal(entities.find((item) => item.instanceId === 'C8_GROWTH').config.growthModules.length, 1);
+});
+
+test('dispatcher Critterium usa creator especializado y no catálogo', async () => {
+  const expected = { userData: { kind: 'CRITTERIUM_8_ASSEMBLY' } };
+  let received = null;
+  let catalogCalls = 0;
+  const object = await loadPersistedEntity(
+    { kind: 'CRITTERIUM_8', instanceId: 'C8_LOAD', config: { widthCm: 90, heightCm: 128 } },
+    {
+      createCritterium8(entity) { received = entity; return expected; },
+      addCatalogItem() { catalogCalls += 1; },
+    }
+  );
+  assert.equal(object, expected);
+  assert.equal(received.instanceId, 'C8_LOAD');
+  assert.equal(catalogCalls, 0);
+});
+
+test('dos Critterium y productos mixtos conservan entidades independientes', async () => {
+  const first = await createRegisteredCritterium({ widthCm: 90, heightCm: 128 }, { instanceId: 'C8_A' });
+  const second = await createRegisteredCritterium({ widthCm: 120, heightCm: 204, compositionMode: 'FULL_TILE' }, { instanceId: 'C8_B' });
+  const project = buildVersionedProject({
+    parts: [...first.parts, ...second.parts, createPart('CLAK'), createPart('EDUK')],
+    floor: {},
+    camera: {},
+    legacyParts: [],
+  });
+  assert.equal(project.schemaVersion, 2);
+  assert.equal(project.entities.filter((item) => item.kind === 'CRITTERIUM_8').length, 2);
+  assert.equal(project.entities.filter((item) => item.kind === 'CLAK').length, 1);
+  assert.equal(project.entities.filter((item) => item.kind === 'EDUK').length, 1);
+  assert.doesNotThrow(() => JSON.stringify(project));
+});
+
+test('config Critterium inválida propaga fallo especializado', async () => {
+  await assert.rejects(
+    loadPersistedEntity(
+      { kind: 'CRITTERIUM_8', instanceId: 'C8_INVALID', config: { widthCm: 999, heightCm: 111 } },
+      { createCritterium8: () => { const error = new Error('INVALID_FRAME_HEIGHT'); error.diagnostics = [{ code: 'INVALID_FRAME_HEIGHT' }]; throw error; } }
+    ),
+    /INVALID_FRAME_HEIGHT/
   );
 });

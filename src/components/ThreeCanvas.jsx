@@ -60,11 +60,31 @@ import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekS
 import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
 import { createCritterium8Instance } from '../mepal/critterium8/factories/createCritterium8Instance.js';
 import { registerCritterium8Instance } from '../mepal/critterium8/integration/critterium8Registration.js';
+import { rebuildCritterium8Instance } from '../mepal/critterium8/integration/rebuildCritterium8Instance.js';
+import { patchCritterium8TileConfig } from '../mepal/critterium8/integration/critterium8Config.js';
 import { disposeCritterium8FrameAssembly3D } from '../mepal/critterium8/renderers/Critterium8FrameRenderer3D.js';
 import {
+  disposeCritterium8Sequence3D,
+} from '../mepal/critterium8/builders/Critterium8SequenceRenderBuilder.js';
+import {
+  partitionCritterium8Frames,
+  prepareCritterium8Sequence,
+  prepareCritterium8SequenceRebuild,
+  validateFrameAdditionToCritterium8Sequence,
+} from '../mepal/critterium8/integration/critterium8SequenceOperations.js';
+import {
+  registerCritterium8Sequence,
+  replaceCritterium8Sequence,
+  unregisterCritterium8Sequence,
+} from '../mepal/critterium8/integration/critterium8SequenceRegistration.js';
+import {
   getCritterium8AssemblyRoot,
+  getCritterium8EditableTarget,
   getCritterium8EditablePart,
+  getCritterium8FrameAssembly,
+  getCritterium8SequenceRoot,
   isCritterium8AssemblyRoot,
+  isCritterium8SequenceRoot,
 } from '../mepal/critterium8/utils/critterium8Selection.js';
 import {
   getZenVariantOptionsByCode,
@@ -1409,9 +1429,9 @@ export default function ThreeCanvas({
       activePart = obj;
       activeEditablePart =
         selectionContext?.propertiesTarget ||
-        (isKoncisaAssemblyRoot(obj) || isCritterium8AssemblyRoot(obj)
+        (isKoncisaAssemblyRoot(obj) || isCritterium8AssemblyRoot(obj) || isCritterium8SequenceRoot(obj)
           ? null
-          : getEditableKoncisaPartObject(obj) || getCritterium8EditablePart(obj));
+          : getEditableKoncisaPartObject(obj) || getCritterium8EditableTarget(obj));
       obj = activeEditablePart || obj;
       activeSubMesh = null; // ✅ cada vez que cambia selección, reset submesh
       const edukWidthContext =
@@ -1441,6 +1461,9 @@ export default function ThreeCanvas({
       const finishes = obj?.userData?.finishes || {};
       const subMaterialCode = subKey ? finishes[subKey]?.materialCode || null : null;
       const subName = obj?.userData?.activeSubName || null;
+      const critteriumAssembly = getCritterium8AssemblyRoot(activePart) || getCritterium8AssemblyRoot(obj);
+      const critteriumEditablePart = getCritterium8EditablePart(obj);
+      const critteriumSequence = getCritterium8SequenceRoot(activePart) || getCritterium8SequenceRoot(obj);
 
       onSelectionChange?.({
         code: obj.userData.codigoPT || obj.userData.code,
@@ -1490,6 +1513,34 @@ export default function ThreeCanvas({
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
         gridSize: obj.userData?.isFloor ? obj.userData?.gridSize || 0.1 : undefined,
+        critterium8: critteriumAssembly
+          ? {
+              assemblyId: critteriumAssembly.userData?.assemblyId,
+              instanceId: critteriumAssembly.userData?.instanceId,
+              frameId: critteriumAssembly.userData?.frameId,
+              config: critteriumAssembly.userData?.config,
+              composition: critteriumAssembly.userData?.composition,
+              diagnostics: critteriumAssembly.userData?.renderReport?.diagnostics || [],
+              editablePart: critteriumEditablePart
+                ? {
+                    instanceId: critteriumEditablePart.userData?.instanceId,
+                    partId: critteriumEditablePart.userData?.partId,
+                    partType: critteriumEditablePart.userData?.partType,
+                    slotId: critteriumEditablePart.userData?.slotId,
+                    code: critteriumEditablePart.userData?.code,
+                    provisionalGeometry: critteriumEditablePart.userData?.provisionalGeometry === true,
+                  }
+                : null,
+            }
+          : null,
+        critterium8Sequence: critteriumSequence
+          ? {
+              sequenceId: critteriumSequence.userData?.sequenceId,
+              frameIds: [...(critteriumSequence.userData?.frameIds || [])],
+              junctionIds: [...(critteriumSequence.userData?.junctionIds || [])],
+              metadata: { ...(critteriumSequence.userData?.metadata || {}) },
+            }
+          : null,
       });
     }
 
@@ -1525,6 +1576,7 @@ export default function ThreeCanvas({
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
+          if (obj.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') return null;
           if (obj.userData?.kind === 'CRITTERIUM_8_PART') return null;
 
           obj.updateMatrixWorld(true);
@@ -1705,6 +1757,7 @@ export default function ThreeCanvas({
               groupId: obj.userData?.groupId || null,
               assemblyId: obj.userData?.assemblyId || null,
               parentAssemblyId: obj.userData?.parentAssemblyId || null,
+              sequenceId: obj.userData?.parentSequenceId || null,
 
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
@@ -1753,6 +1806,7 @@ export default function ThreeCanvas({
               groupId: obj.userData?.groupId || null,
               assemblyId: obj.userData?.assemblyId || null,
               parentAssemblyId: obj.userData?.parentAssemblyId || null,
+              sequenceId: obj.userData?.parentSequenceId || null,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || code,
 
               x: centerWorld.x,
@@ -2590,6 +2644,8 @@ export default function ThreeCanvas({
 
     // Subir por padres hasta encontrar el objeto que tiene userData.code
     function getRootPartObject(intersectObj) {
+      const sequence = getCritterium8SequenceRoot(intersectObj);
+      if (sequence) return sequence;
       // 1. Si pertenece a un ensamble estructurado (Mila, Koncisa Plus), la raíz es el ensamble completo
       const assembly = getAssemblyObject(intersectObj);
       if (assembly) return assembly;
@@ -2664,6 +2720,8 @@ export default function ThreeCanvas({
     }
 
     function getAssemblyObject(object) {
+      const sequence = getCritterium8SequenceRoot(object);
+      if (sequence) return sequence;
       let current = object;
 
       while (current && current !== scene) {
@@ -4072,6 +4130,257 @@ export default function ThreeCanvas({
       return instance;
     }
 
+    function getSelectedCritterium8Sequence() {
+      return getCritterium8SequenceRoot(activePart) || (isCritterium8SequenceRoot(activePart) ? activePart : null);
+    }
+
+    function selectCritterium8Sequence(sequenceRoot) {
+      syncSelectedIds3D([sequenceRoot.userData.sequenceId]);
+      setActivePart(sequenceRoot, { targetIds: [sequenceRoot.userData.sequenceId] });
+    }
+
+    function createCritterium8SequenceHistoryState(frameAssemblies, groups = []) {
+      return {
+        frames: Array.from(new Set(frameAssemblies || [])),
+        groups: groups.map((group) => ({
+          sequenceId: group.sequenceId,
+          frameAssemblies: Array.from(new Set(group.frameAssemblies || [])),
+          sequence: group.sequence ? JSON.parse(JSON.stringify(group.sequence)) : null,
+        })),
+      };
+    }
+
+    function applyCritterium8SequenceHistoryState(state = {}) {
+      const frames = Array.from(new Set(state.frames || []));
+      const roots = Array.from(new Set(frames.map((frame) => getCritterium8SequenceRoot(frame)).filter(Boolean)));
+      roots.forEach((root) => unregisterCritterium8Sequence({ sequenceRoot: root, partsRegistry: parts, pickables, preserveFrames: true, targetParent: scene }));
+      const created = [];
+      for (const group of state.groups || []) {
+        const prepared = prepareCritterium8Sequence({
+          frameAssemblies: group.frameAssemblies,
+          options: { sequenceId: group.sequenceId },
+          previousSequence: group.sequence,
+        });
+        if (!prepared.success) throw new Error(prepared.reason || 'CRITTERIUM8_SEQUENCE_HISTORY_REBUILD_FAILED');
+        registerCritterium8Sequence({ sequenceRoot: prepared.sequenceRoot, parent: scene, partsRegistry: parts, pickables });
+        created.push(prepared.sequenceRoot);
+      }
+      if (created.length === 1) selectCritterium8Sequence(created[0]);
+      else clearSelectionAfterRemoval();
+      refreshFloorAndGrid();
+      return created;
+    }
+
+    function createCritterium8SequenceFromFrames(frameAssemblies, options = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const before = createCritterium8SequenceHistoryState(frameAssemblies);
+      const prepared = prepareCritterium8Sequence({ frameAssemblies, options });
+      if (!prepared.success) return prepared;
+      registerCritterium8Sequence({ sequenceRoot: prepared.sequenceRoot, parent: scene, partsRegistry: parts, pickables });
+      selectCritterium8Sequence(prepared.sequenceRoot);
+      historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_CREATE,
+        sequenceId: prepared.sequence.id,
+        frameIds: [...prepared.sequence.frameIds],
+        before,
+        after: createCritterium8SequenceHistoryState(frameAssemblies, [{ sequenceId: prepared.sequence.id, frameAssemblies, sequence: prepared.sequence }]),
+      });
+      refreshFloorAndGrid();
+      return prepared;
+    }
+
+    function createCritterium8SequenceFromSelection(options = {}) {
+      const assemblies = Array.from(new Set(selectedIds3D
+        .map((id) => getCritterium8FrameAssembly(findPartById(id)))
+        .filter(Boolean)));
+      return createCritterium8SequenceFromFrames(assemblies, options);
+    }
+
+    function rebuildCritterium8Sequence(sequenceRoot, options = {}) {
+      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot)) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      const frames = sequenceRoot.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY');
+      const before = createCritterium8SequenceHistoryState(frames, [{ sequenceId: sequenceRoot.userData.sequenceId, frameAssemblies: frames, sequence: sequenceRoot.userData.sequence }]);
+      sequenceRoot.userData.metadata = { ...(sequenceRoot.userData.metadata || {}), dirtyConnections: true, dirtyJunctions: true };
+      const prepared = prepareCritterium8SequenceRebuild(sequenceRoot, options);
+      if (!prepared.success) return prepared;
+      const parent = sequenceRoot.parent || scene;
+      replaceCritterium8Sequence({ previousRoot: sequenceRoot, nextRoot: prepared.sequenceRoot, parent, partsRegistry: parts, pickables });
+      selectCritterium8Sequence(prepared.sequenceRoot);
+      if (options.recordHistory !== false) historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REBUILD,
+        sequenceId: prepared.sequence.id,
+        before,
+        after: createCritterium8SequenceHistoryState(frames, [{ sequenceId: prepared.sequence.id, frameAssemblies: frames, sequence: prepared.sequence }]),
+      });
+      refreshFloorAndGrid();
+      return prepared;
+    }
+
+    function rebuildSelectedCritterium8Sequence(options = {}) {
+      return rebuildCritterium8Sequence(getSelectedCritterium8Sequence(), options);
+    }
+
+    function dissolveCritterium8Sequence(sequenceRoot, options = {}) {
+      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot)) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      const sequenceId = sequenceRoot.userData.sequenceId;
+      const frameIds = [...(sequenceRoot.userData.frameIds || [])];
+      const frames = sequenceRoot.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY');
+      const before = createCritterium8SequenceHistoryState(frames, [{ sequenceId, frameAssemblies: frames, sequence: sequenceRoot.userData.sequence }]);
+      const result = unregisterCritterium8Sequence({ sequenceRoot, partsRegistry: parts, pickables, preserveFrames: true, targetParent: sequenceRoot.parent || scene });
+      clearSelectionAfterRemoval();
+      if (options.recordHistory !== false) historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_DISSOLVE, sequenceId, frameIds,
+        before,
+        after: createCritterium8SequenceHistoryState(frames),
+      });
+      refreshFloorAndGrid();
+      return { success: result.removed, frames: result.frames, sequenceId };
+    }
+
+    function dissolveSelectedCritterium8Sequence(options = {}) {
+      return dissolveCritterium8Sequence(getSelectedCritterium8Sequence(), options);
+    }
+
+    function addFrameToCritterium8Sequence(sequenceRoot, frameAssembly, options = {}) {
+      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot)) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      const frame = getCritterium8FrameAssembly(frameAssembly) || frameAssembly;
+      const validation = validateFrameAdditionToCritterium8Sequence(sequenceRoot, frame, options);
+      if (!validation.success) return validation;
+      const existingFrames = validation.frameAssemblies.filter((item) => item !== frame);
+      const before = createCritterium8SequenceHistoryState(validation.frameAssemblies, [{ sequenceId: sequenceRoot.userData.sequenceId, frameAssemblies: existingFrames, sequence: sequenceRoot.userData.sequence }]);
+      const prepared = prepareCritterium8Sequence({
+        frameAssemblies: validation.frameAssemblies,
+        options: { ...options, sequenceId: sequenceRoot.userData.sequenceId },
+        previousSequence: sequenceRoot.userData.sequence,
+      });
+      if (!prepared.success) return prepared;
+      replaceCritterium8Sequence({ previousRoot: sequenceRoot, nextRoot: prepared.sequenceRoot, parent: sequenceRoot.parent || scene, partsRegistry: parts, pickables });
+      selectCritterium8Sequence(prepared.sequenceRoot);
+      historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_ADD_FRAME, sequenceId: prepared.sequence.id, frameId: frame.userData.frameId,
+        before,
+        after: createCritterium8SequenceHistoryState(validation.frameAssemblies, [{ sequenceId: prepared.sequence.id, frameAssemblies: validation.frameAssemblies, sequence: prepared.sequence }]),
+      });
+      refreshFloorAndGrid();
+      return prepared;
+    }
+
+    function addFrameToSelectedCritterium8Sequence(frameOrId, options = {}) {
+      const frame = typeof frameOrId === 'string' ? findPartById(frameOrId) : frameOrId;
+      return addFrameToCritterium8Sequence(getSelectedCritterium8Sequence(), frame, options);
+    }
+
+    function removeFrameFromCritterium8Sequence(sequenceRoot, frameId, options = {}) {
+      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot)) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      const parent = sequenceRoot.parent || scene;
+      const allFrames = sequenceRoot.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY');
+      const removedFrame = allFrames.find((frame) => String(frame.userData.frameId) === String(frameId));
+      if (!removedFrame) return { success: false, reason: 'FRAME_NOT_FOUND_IN_SEQUENCE' };
+      const remaining = allFrames.filter((frame) => frame !== removedFrame);
+      const partitions = partitionCritterium8Frames(remaining, options);
+      const before = createCritterium8SequenceHistoryState(allFrames, [{ sequenceId: sequenceRoot.userData.sequenceId, frameAssemblies: allFrames, sequence: sequenceRoot.userData.sequence }]);
+      unregisterCritterium8Sequence({ sequenceRoot, partsRegistry: parts, pickables, preserveFrames: true, targetParent: parent });
+      const created = [];
+      for (const partition of partitions) {
+        if (!partition.shouldCreateSequence) continue;
+        const nextSequenceId = partitions.length === 1 ? sequenceRoot.userData.sequenceId : partition.sequence.id;
+        const prepared = prepareCritterium8Sequence({
+          frameAssemblies: partition.frameAssemblies,
+          options: { ...options, sequenceId: nextSequenceId },
+          previousSequence: sequenceRoot.userData.sequence,
+        });
+        if (!prepared.success) continue;
+        registerCritterium8Sequence({ sequenceRoot: prepared.sequenceRoot, parent, partsRegistry: parts, pickables });
+        created.push(prepared.sequenceRoot);
+      }
+      clearSelectionAfterRemoval();
+      historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REMOVE_FRAME, sequenceId: sequenceRoot.userData.sequenceId, frameId: removedFrame.userData.frameId,
+        before,
+        after: createCritterium8SequenceHistoryState(allFrames, created.map((root) => ({ sequenceId: root.userData.sequenceId, frameAssemblies: root.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'), sequence: root.userData.sequence }))),
+      });
+      refreshFloorAndGrid();
+      return { success: true, removedFrame, sequenceRoots: created, split: created.length > 1 };
+    }
+
+    function removeFrameFromSelectedCritterium8Sequence(frameId, options = {}) {
+      return removeFrameFromCritterium8Sequence(getSelectedCritterium8Sequence(), frameId, options);
+    }
+
+    const buildCritterium8SequenceFromSelectedFrames = createCritterium8SequenceFromSelection;
+
+    async function rebuildCritterium8Assembly(assembly, patch = {}, options = {}) {
+      if (readOnly || !isCritterium8AssemblyRoot(assembly)) {
+        return { success: false, reason: 'CRITTERIUM8_ASSEMBLY_REQUIRED', diagnostics: [] };
+      }
+      const beforeConfig = JSON.parse(JSON.stringify(assembly.userData.config || {}));
+      const preferredSlotId = options.preferredSlotId ?? activeEditablePart?.userData?.slotId ?? null;
+      const parent = assembly.parent || scene;
+      const previousIndex = parent.children.indexOf(assembly);
+      const prepared = await rebuildCritterium8Instance({ assembly, patch });
+      if (!prepared.success) return prepared;
+
+      removePartObject(assembly, { emitBom: false, disposeResources: true });
+      const { assembly: nextAssembly } = registerCritterium8Instance({
+        instance: prepared.instance,
+        parent,
+        partsRegistry: parts,
+        pickables,
+      });
+      const appendedIndex = parent.children.indexOf(nextAssembly);
+      if (previousIndex >= 0 && appendedIndex >= 0 && previousIndex !== appendedIndex) {
+        parent.children.splice(appendedIndex, 1);
+        parent.children.splice(Math.min(previousIndex, parent.children.length), 0, nextAssembly);
+      }
+      nextAssembly.updateMatrixWorld(true);
+      const nextEditablePart = preferredSlotId
+        ? nextAssembly.children.find((child) => child.userData?.slotId === preferredSlotId) || null
+        : null;
+      syncSelectedIds3D([nextAssembly.userData.instanceId]);
+      setActivePart(nextAssembly, {
+        propertiesTarget: nextEditablePart,
+        targetIds: [nextAssembly.userData.instanceId],
+      });
+      emitBOM();
+      refreshFloorAndGrid();
+
+      if (options.recordHistory !== false && !historyManager.isReplaying) {
+        historyManager.pushAction({
+          type: HISTORY_ACTION_TYPES.CRITTERIUM_8_CONFIG_CHANGE,
+          instanceId: nextAssembly.userData.instanceId,
+          before: beforeConfig,
+          after: JSON.parse(JSON.stringify(nextAssembly.userData.config)),
+        });
+      }
+      return { ...prepared, assembly: nextAssembly };
+    }
+
+    function getSelectedCritterium8Assembly() {
+      return getCritterium8AssemblyRoot(activePart) || (isCritterium8AssemblyRoot(activePart) ? activePart : null);
+    }
+
+    function updateSelectedCritterium8(patch = {}) {
+      const assembly = getSelectedCritterium8Assembly();
+      return rebuildCritterium8Assembly(assembly, patch);
+    }
+
+    function updateSelectedCritterium8Tile(slotId, patch = {}) {
+      const assembly = getSelectedCritterium8Assembly();
+      if (!assembly) return Promise.resolve({ success: false, reason: 'CRITTERIUM8_ASSEMBLY_REQUIRED', diagnostics: [] });
+      const resolved = patchCritterium8TileConfig({
+        config: assembly.userData.config,
+        frameId: assembly.userData.frameId,
+        slotId,
+        patch,
+      });
+      if (!resolved.success) return Promise.resolve(resolved);
+      return rebuildCritterium8Assembly(assembly, { tiles: resolved.config.tiles }, { preferredSlotId: slotId });
+    }
+
+    function rebuildSelectedCritterium8() {
+      return rebuildCritterium8Assembly(getSelectedCritterium8Assembly(), {});
+    }
+
     async function addLink(config = {}) {
       if (readOnly) return;
 
@@ -4655,7 +4964,6 @@ export default function ThreeCanvas({
       setActivePart(newObj);
       emitBOM();
       refreshFloorAndGrid();
-    }
     }
 
     async function swapMepalSaludVariant(instanceId, codigo, targetVariant = 'desplegado') {
@@ -5733,10 +6041,12 @@ export default function ThreeCanvas({
     function clearProject() {
       const koncisaAssemblies = new Set();
       const critteriumAssemblies = new Set();
+      const critteriumSequences = new Set();
       const critteriumObjects = new Set();
       parts.forEach(({ obj }) => {
+        if (obj?.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') critteriumSequences.add(obj);
         const critteriumAssembly = getCritterium8AssemblyRoot(obj);
-        if (critteriumAssembly) critteriumAssemblies.add(critteriumAssembly);
+        if (critteriumAssembly && !getCritterium8SequenceRoot(critteriumAssembly)) critteriumAssemblies.add(critteriumAssembly);
         let current = obj?.parent || null;
         while (current) {
           if (current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY') {
@@ -5748,6 +6058,9 @@ export default function ThreeCanvas({
       });
       critteriumAssemblies.forEach((assembly) => {
         assembly.traverse((object) => critteriumObjects.add(object));
+      });
+      critteriumSequences.forEach((sequenceRoot) => {
+        sequenceRoot.traverse((object) => critteriumObjects.add(object));
       });
 
       // remover objetos de escena
@@ -5764,6 +6077,11 @@ export default function ThreeCanvas({
         if (assembly.parent) assembly.parent.remove(assembly);
         else scene.remove(assembly);
         disposeCritterium8FrameAssembly3D(assembly);
+      });
+      critteriumSequences.forEach((sequenceRoot) => {
+        if (sequenceRoot.parent) sequenceRoot.parent.remove(sequenceRoot);
+        else scene.remove(sequenceRoot);
+        disposeCritterium8Sequence3D(sequenceRoot, { disposeFrames: true });
       });
       parts.length = 0;
 
@@ -5791,6 +6109,10 @@ export default function ThreeCanvas({
       if (root.userData?.isFloor) return;
       if (root.userData?.kind === 'CRITTERIUM_8_ASSEMBLY') {
         disposeCritterium8FrameAssembly3D(root);
+        return;
+      }
+      if (root.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') {
+        disposeCritterium8Sequence3D(root);
         return;
       }
       root.traverse?.((n) => {
@@ -6229,6 +6551,46 @@ export default function ThreeCanvas({
         }
       }
 
+      async function createPersistedCritterium8(entity) {
+        if (!entity?.config || typeof entity.config !== 'object') {
+          throw new Error('CRITTERIUM8_MISSING_CONFIG');
+        }
+        let instance = null;
+        try {
+          instance = await createCritterium8Instance({
+            ...entity.config,
+            instanceId: entity.instanceId,
+            assemblyId: entity.assemblyId || entity.instanceId,
+            groupId: entity.groupId || entity.assemblyId || entity.instanceId,
+            frameId: entity.frameId,
+            transform: entity.transform,
+          });
+          const errors = (instance.diagnostics || []).filter((item) => item.level === 'ERROR');
+          if (errors.length) {
+            const error = new Error(errors[0].code || 'CRITTERIUM8_INVALID_CONFIG');
+            error.diagnostics = errors;
+            throw error;
+          }
+          registerCritterium8Instance({
+            instance,
+            parent: scene,
+            partsRegistry: parts,
+            pickables,
+          });
+          instance.assembly.updateMatrixWorld(true);
+          return instance.assembly;
+        } catch (error) {
+          if (instance?.assembly) {
+            if (instance.assembly.parent) {
+              removePartObject(instance.assembly, { emitBom: false, disposeResources: true });
+            } else {
+              disposeCritterium8FrameAssembly3D(instance.assembly);
+            }
+          }
+          throw error;
+        }
+      }
+
       if (isVersionedEntityProject(project)) {
         const result = { loaded: [], failed: [] };
         const context = {
@@ -6242,6 +6604,7 @@ export default function ThreeCanvas({
           addOfficeAccessory,
           addCatalogItem,
           createKoncisaPlus: createPersistedKoncisaPlus,
+          createCritterium8: createPersistedCritterium8,
         };
 
         for (const [index, entity] of project.entities.entries()) {
@@ -6261,6 +6624,7 @@ export default function ThreeCanvas({
               codigoPT: entity?.codigoPT || null,
               assemblyId: entity?.assemblyId || null,
               reason: error?.message || String(error),
+              diagnostics: Array.isArray(error?.diagnostics) ? error.diagnostics : [],
             };
             result.failed.push(failure);
             console.error('[loadProject] No se pudo cargar entity:', failure, error);
@@ -7021,6 +7385,16 @@ export default function ThreeCanvas({
       addEduk,
       addZen,
       addCritterium8,
+      buildCritterium8SequenceFromSelectedFrames,
+      createCritterium8SequenceFromSelection,
+      createCritterium8SequenceFromFrames,
+      rebuildSelectedCritterium8Sequence,
+      dissolveSelectedCritterium8Sequence,
+      addFrameToSelectedCritterium8Sequence,
+      removeFrameFromSelectedCritterium8Sequence,
+      updateSelectedCritterium8,
+      updateSelectedCritterium8Tile,
+      rebuildSelectedCritterium8,
       addLink,
       addKuoGo,
       addKuoAV,
@@ -7957,6 +8331,23 @@ export default function ThreeCanvas({
           restoreDeletedObjects(action.createdObjects || []);
           selectCreatedHistoryObjects(action.selectionObjects || []);
         }
+      } else if (action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_CONFIG_CHANGE) {
+        const assembly = findPartById(action.instanceId);
+        return rebuildCritterium8Assembly(assembly, state || {}, {
+          recordHistory: false,
+          preferredSlotId: null,
+        }).then((result) => {
+          if (!result?.success) throw new Error(result?.reason || 'CRITTERIUM8_HISTORY_REBUILD_FAILED');
+          return result;
+        });
+      } else if (
+        action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_CREATE ||
+        action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REBUILD ||
+        action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_DISSOLVE ||
+        action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_ADD_FRAME ||
+        action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REMOVE_FRAME
+      ) {
+        applyCritterium8SequenceHistoryState(state || {});
       } else if (dimensionHistoryActionTypes.has(action.type)) {
         if (typeof dimensionHistoryReplayHandler !== 'function') {
           throw new Error('Dimension2D history replay handler is not registered.');
@@ -10483,6 +10874,8 @@ export default function ThreeCanvas({
       if (root.userData?.isFloor) return;
       const propertiesTarget = isKoncisaAssemblyRoot(root)
         ? getEditableKoncisaPartObject(hitObj) || root
+        : isCritterium8SequenceRoot(root)
+          ? getCritterium8EditableTarget(hitObj) || root
         : isCritterium8AssemblyRoot(root)
           ? getCritterium8EditablePart(hitObj) || root
           : root;

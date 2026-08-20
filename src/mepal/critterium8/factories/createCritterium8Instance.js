@@ -47,7 +47,9 @@ export async function createCritterium8Instance(options = {}) {
     growthModules: normalizeGrowthModules(options.growthModules),
     tiles: Array.isArray(options.tiles) ? options.tiles.map((tile) => ({ ...tile })) : [],
   };
-  const frameId = `${instanceId}_FRAME`;
+  const frameId = String(options.frameId || `${instanceId}_FRAME`);
+  const assemblyId = String(options.assemblyId || instanceId);
+  const groupId = String(options.groupId || assemblyId);
   const frame = createCritterium8FrameDefinition({
     id: frameId,
     widthCm: config.widthCm,
@@ -87,9 +89,9 @@ export async function createCritterium8Instance(options = {}) {
     codigoPT: instanceId,
     instanceId,
     frameId,
-    assemblyId: instanceId,
+    assemblyId,
     parentAssemblyId: null,
-    groupId: instanceId,
+    groupId,
     definition,
     composition: serializableComposition,
     layout: serializableLayout,
@@ -111,9 +113,9 @@ export async function createCritterium8Instance(options = {}) {
       code: part?.code || part?.id || child.userData?.partId,
       codigoPT: part?.code || null,
       instanceId: `${instanceId}__${child.userData?.partId || child.id}`,
-      assemblyId: instanceId,
-      parentAssemblyId: instanceId,
-      groupId: instanceId,
+      assemblyId,
+      parentAssemblyId: assemblyId,
+      groupId,
       excludeFromIndependentMove: true,
       excludeFromBOM: true,
     };
@@ -121,9 +123,9 @@ export async function createCritterium8Instance(options = {}) {
       if (descendant === child) return;
       descendant.userData = {
         ...descendant.userData,
-        assemblyId: instanceId,
-        parentAssemblyId: instanceId,
-        groupId: instanceId,
+        assemblyId,
+        parentAssemblyId: assemblyId,
+        groupId,
         excludeFromIndependentMove: true,
         excludeFromBOM: true,
       };

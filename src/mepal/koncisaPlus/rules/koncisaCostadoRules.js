@@ -3,17 +3,28 @@
 function createCostadoAssembly({
   leftLegSrc,
   rightLegSrc,
-  centerBracketSrc,
+  centerBracketSrc = '/assets/models/koncisaPlus/CENTER_BRACKET.glb',
   leftOffsetMm = {},
   rightOffsetMm = {},
   centerBracketOffsetMm = {},
   crossbar = {},
+  crossbars = null,
 }) {
+  const defaultCrossbar = {
+    heightMm: 25.4,
+    depthMm: 50.8,
+    endClearanceMm: 0,
+    offsetMm: {
+      x: 0,
+      y: 685,
+      z: 0,
+    },
+  };
+
   return {
     leftLegSrc,
     rightLegSrc,
-
-    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET.glb',
+    centerBracketSrc,
 
     leftOffsetMm: {
       x: 0,
@@ -36,20 +47,37 @@ function createCostadoAssembly({
       ...centerBracketOffsetMm,
     },
 
+    // Compatibilidad vieja
     crossbar: {
-      heightMm: 25.4,
-      depthMm: 50.8,
-      endClearanceMm: 0,
-
+      ...defaultCrossbar,
+      ...crossbar,
       offsetMm: {
-        x: 0,
-        y: 685,
-        z: 0,
+        ...defaultCrossbar.offsetMm,
         ...(crossbar?.offsetMm || {}),
       },
-
-      ...crossbar,
     },
+
+    // Nueva configuración independiente
+    crossbars: crossbars
+      ? {
+          front: {
+            ...defaultCrossbar,
+            ...(crossbars.front || {}),
+            offsetMm: {
+              ...defaultCrossbar.offsetMm,
+              ...(crossbars.front?.offsetMm || {}),
+            },
+          },
+          back: {
+            ...defaultCrossbar,
+            ...(crossbars.back || {}),
+            offsetMm: {
+              ...defaultCrossbar.offsetMm,
+              ...(crossbars.back?.offsetMm || {}),
+            },
+          },
+        }
+      : null,
   };
 }
 
@@ -354,23 +382,13 @@ export const KONCISA_COSTADO_RULES = {
     codigoPT: '22000132388',
     modelSrc: '/assets/models/koncisaPlus/2KSO328000_120.glb',
 
-    //aqui
     assembly: createCostadoAssembly({
       positioningMode: 'bounded-depth-v1',
 
       rightLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO328000_120.glb',
-
       leftLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO328000_120.glb',
 
       centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
-
-      leftMinZFromPivotMm: 0,
-      leftMaxZFromPivotMm: 0,
-      rightMinZFromPivotMm: 0,
-      rightMaxZFromPivotMm: 0,
-      centerBracketMinZFromPivotMm: 0,
-      centerBracketMaxZFromPivotMm: 0,
-      crossbarInsetXMm: 0, //posicion del travesaño
 
       rootOffsetMm: {
         x: 0,
@@ -378,17 +396,16 @@ export const KONCISA_COSTADO_RULES = {
         z: 518,
       },
 
-      // Correcciones independientes de cada pieza.
       leftOffsetMm: {
         x: 0,
         y: 0,
-        z: 10, //1200
+        z: 10,
       },
 
       rightOffsetMm: {
         x: 0,
-        y: 0, //1140
-        z: 0, //10.6 m
+        y: 0,
+        z: 0,
       },
 
       centerBracketOffsetMm: {
@@ -397,28 +414,28 @@ export const KONCISA_COSTADO_RULES = {
         z: 0,
       },
 
-      crossbar: {
-        heightMm: 25.4,
-        depthMm: 50.8,
-
-        // Se resta a la profundidad real para no invadir las patas.
-        endClearanceMm: 51,
-
-        offsetMm: {
-          x: 0,
-          y: 685,
-          z: 0,
+      crossbars: {
+        front: {
+          heightMm: 25.4,
+          depthMm: 50.8,
+          endClearanceMm: 51,
+          offsetMm: {
+            x: 0,
+            y: 685,
+            z: 0,
+          },
         },
-        /*leftOffsetMm: {
-          x: 0,
-          y: 0,
-          z: 518,
+
+        back: {
+          heightMm: 25.4,
+          depthMm: 50.8,
+          endClearanceMm: 51,
+          offsetMm: {
+            x: 0,
+            y: 685,
+            z: 518,
+          },
         },
-        rightOffsetMm: {
-          x: 0,
-          y: 0,
-          z: 518,
-        },*/
       },
     }),
   },

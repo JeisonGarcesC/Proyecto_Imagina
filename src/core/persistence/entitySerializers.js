@@ -58,6 +58,15 @@ function findKoncisaAssembly(object) {
   return null;
 }
 
+function findCritterium8Assembly(object) {
+  let current = object || null;
+  while (current) {
+    if (current.userData?.kind === 'CRITTERIUM_8_ASSEMBLY') return current;
+    current = current.parent || null;
+  }
+  return null;
+}
+
 function serializeKoncisaAssembly(assembly, physicalParts) {
   const recipe = serializeKoncisaPlusRecipe({ assembly, physicalParts });
   const data = assembly.userData || {};
@@ -88,6 +97,33 @@ function serializeKoncisaAssembly(assembly, physicalParts) {
       layoutType: recipe.product?.layoutType || data.layoutType || null,
       constructorKind: recipe.constructorKind,
       groupName: data.groupName || data.name || 'Koncisa Plus',
+    },
+  };
+}
+
+export function serializeCritterium8Entity(assembly) {
+  const data = assembly?.userData || {};
+  const instanceId = data.instanceId || assembly?.uuid || null;
+  const assemblyId = data.assemblyId || instanceId;
+  const groupId = data.groupId || assemblyId;
+  return {
+    kind: 'CRITTERIUM_8',
+    instanceId,
+    assemblyId,
+    groupId,
+    frameId: data.frameId || `${instanceId}_FRAME`,
+    family: 'CRITTERIUM_8',
+    config: cloneSerializable(data.config || {}),
+    transform: {
+      position: assembly.position.toArray(),
+      quaternion: assembly.quaternion.toArray(),
+      rotation: [assembly.rotation.x, assembly.rotation.y, assembly.rotation.z],
+      scale: assembly.scale.toArray(),
+    },
+    metadata: {
+      provisionalGeometry: Array.isArray(data.renderReport?.diagnostics)
+        ? data.renderReport.diagnostics.some((item) => item.code === 'PROVISIONAL_GEOMETRY')
+        : false,
     },
   };
 }
@@ -149,7 +185,20 @@ export function serializeProjectEntities(parts = [], options = {}) {
   });
 
   parts.forEach((partRecord) => {
-    if (findKoncisaAssembly(partRecord?.obj) || isKoncisaPersistenceObject(partRecord?.obj)) {
+    const assembly = findCritterium8Assembly(partRecord?.obj);
+    if (!assembly) return;
+    const assemblyId = assembly.userData?.assemblyId || assembly.userData?.instanceId || assembly.uuid;
+    if (processedAssemblies.has(assemblyId)) return;
+    processedAssemblies.add(assemblyId);
+    entities.push(serializeCritterium8Entity(assembly));
+  });
+
+  parts.forEach((partRecord) => {
+    if (
+      findKoncisaAssembly(partRecord?.obj) ||
+      findCritterium8Assembly(partRecord?.obj) ||
+      isKoncisaPersistenceObject(partRecord?.obj)
+    ) {
       return;
     }
 
