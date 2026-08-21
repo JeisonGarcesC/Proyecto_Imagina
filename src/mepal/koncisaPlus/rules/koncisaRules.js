@@ -318,8 +318,10 @@ export function getPasacablesConfig({
 // ==============================
 // VIGAS
 // ==============================
-export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
+export function getVigasConfig({ puestos, tipoPuesto, largoRealMm, anchoRealMm }) {
   const out = [];
+  const doubleBeamSeparationMm = Math.max(0, Number(anchoRealMm || 0) / 2 - 29);
+  const doubleBeamOffsetZMm = doubleBeamSeparationMm / 2;
 
   for (let i = 0; i < puestos; i++) {
     const baseX = i * largoRealMm;
@@ -344,7 +346,7 @@ export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
         nominalWidthMm: largoRealMm,
         x: baseX,
         y: 690,
-        z: -200,
+        z: -doubleBeamOffsetZMm,
       });
 
       out.push({
@@ -354,7 +356,7 @@ export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
         nominalWidthMm: largoRealMm,
         x: baseX,
         y: 690,
-        z: 200,
+        z: doubleBeamOffsetZMm,
       });
     }
   }
