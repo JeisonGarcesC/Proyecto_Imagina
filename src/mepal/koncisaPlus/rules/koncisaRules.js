@@ -95,7 +95,10 @@ export function getCostadosConfig({
           depthMm: anchoRealMm,
           x: baseX - largoRealMm / 2 + offsetXIzq,
           y: 0,
-          z: 600,
+          // El ensamble doble ya se construye centrado sobre la profundidad.
+          // Ambos terminales deben compartir el mismo origen Z; el lado derecho
+          // se resuelve mediante su rotación, no mediante una traslación extra.
+          z: 0,
 
           moduleIndex: 0,
           replaceZone: 'LEFT',

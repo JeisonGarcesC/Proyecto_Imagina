@@ -1,12 +1,20 @@
 // src/koncisaPlus/rules/koncisaCostadoRules.js
 
 function createCostadoAssembly({
+  positioningMode = null,
   leftLegSrc,
   rightLegSrc,
   centerBracketSrc = '/assets/models/koncisaPlus/CENTER_BRACKET.glb',
+  rootOffsetMm = {},
   leftOffsetMm = {},
   rightOffsetMm = {},
   centerBracketOffsetMm = {},
+  leftRotation = {},
+  rightRotation = {},
+  centerBracketRotation = {},
+  leftScale = 1,
+  rightScale = 1,
+  centerBracketScale = 1,
   crossbar = {},
   crossbars = null,
 }) {
@@ -22,9 +30,17 @@ function createCostadoAssembly({
   };
 
   return {
+    positioningMode,
     leftLegSrc,
     rightLegSrc,
     centerBracketSrc,
+
+    rootOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...rootOffsetMm,
+    },
 
     leftOffsetMm: {
       x: 0,
@@ -46,6 +62,31 @@ function createCostadoAssembly({
       z: 0,
       ...centerBracketOffsetMm,
     },
+
+    leftRotation: {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...leftRotation,
+    },
+
+    rightRotation: {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...rightRotation,
+    },
+
+    centerBracketRotation: {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...centerBracketRotation,
+    },
+
+    leftScale,
+    rightScale,
+    centerBracketScale,
 
     // Compatibilidad vieja
     crossbar: {
@@ -383,7 +424,10 @@ export const KONCISA_COSTADO_RULES = {
     modelSrc: '/assets/models/koncisaPlus/2KSO328000_120.glb',
 
     assembly: createCostadoAssembly({
-      positioningMode: 'bounded-depth-v1',
+      // Los GLB del costado doble no comparten necesariamente el mismo pivote.
+      // Se posicionan usando sus límites reales para que las patas contacten
+      // exactamente con los extremos del travesaño.
+      positioningMode: 'measured-depth-double-v1',
 
       rightLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO328000_120.glb',
       leftLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO328000_120.glb',
@@ -393,7 +437,7 @@ export const KONCISA_COSTADO_RULES = {
       rootOffsetMm: {
         x: 0,
         y: 0,
-        z: 518,
+        z: 0,
       },
 
       leftOffsetMm: {
@@ -414,27 +458,14 @@ export const KONCISA_COSTADO_RULES = {
         z: 0,
       },
 
-      crossbars: {
-        front: {
-          heightMm: 25.4,
-          depthMm: 50.8,
-          endClearanceMm: 51,
-          offsetMm: {
-            x: 0,
-            y: 685,
-            z: 0,
-          },
-        },
-
-        back: {
-          heightMm: 25.4,
-          depthMm: 50.8,
-          endClearanceMm: 51,
-          offsetMm: {
-            x: 0,
-            y: 685,
-            z: 518,
-          },
+      crossbar: {
+        heightMm: 25.4,
+        depthMm: 50.8,
+        endClearanceMm: 0,
+        offsetMm: {
+          x: 0,
+          y: 685,
+          z: 0,
         },
       },
     }),
