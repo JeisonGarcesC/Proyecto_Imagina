@@ -1991,6 +1991,15 @@ export default function ThreeCanvas({
         return String(value ?? '').trim();
       }
 
+      function belongsToKoncisaPlusAssembly(object) {
+        let current = object?.parent || null;
+        while (current) {
+          if (current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY') return true;
+          current = current.parent || null;
+        }
+        return false;
+      }
+
       function addRow(
         code,
         qtyToAdd,
@@ -2124,7 +2133,9 @@ export default function ThreeCanvas({
           obj.userData?.meta?.line === 'MILA' ||
           (obj.userData?.kind && String(obj.userData.kind).startsWith('MILA'));
 
-        if (obj.userData?.parentAssemblyId && !isMilaPart) {
+        const isKoncisaPart = belongsToKoncisaPlusAssembly(obj);
+
+        if (obj.userData?.parentAssemblyId && !isMilaPart && !isKoncisaPart) {
           continue;
         }
 

@@ -410,7 +410,7 @@ export const KONCISA_COSTADO_RULES = {
 
       centerBracketOffsetMm: {
         x: 0,
-        y: 0,
+        y: 658,
         z: 0,
       },
 
