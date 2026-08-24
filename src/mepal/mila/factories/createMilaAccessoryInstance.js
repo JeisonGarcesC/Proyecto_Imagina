@@ -8,10 +8,10 @@ export const MILA_ACCESSORY_TYPE_OPTIONS = [
   { value: 'armrest-left', label: 'Apoyabrazos izquierdo' },
   { value: 'armrest-right', label: 'Apoyabrazos derecho' },
   { value: 'armrest-center', label: 'Apoyabrazos intermedio' },
-  { value: 'screen-1p', label: 'Pantalla acústica 1 puesto (60 cm)' },
-  { value: 'screen-2p', label: 'Pantalla acústica 2 puestos (120 cm)' },
-  { value: 'screen-3p', label: 'Pantalla acústica 3 puestos (180 cm)' },
-  { value: 'screen-4p', label: 'Pantalla acústica 4 puestos (240 cm)' },
+  { value: 'screen-1p', label: 'Panel terminal 1 puesto (60 cm)' },
+  { value: 'screen-2p', label: 'Panel terminal 2 puestos (120 cm)' },
+  { value: 'screen-3p', label: 'Panel terminal 3 puestos (180 cm)' },
+  { value: 'screen-4p', label: 'Panel terminal 4 puestos (240 cm)' },
 ];
 
 export async function createMilaAccessoryInstance({ api, config = {} }) {

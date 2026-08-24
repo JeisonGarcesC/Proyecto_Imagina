@@ -133,7 +133,7 @@ export const MILA_ACCESSORY_CATALOG = {
   screen1P: {
     code: '22000127825',
     modelCode: 'TKSPN070000_60_W_2P',
-    label: 'Pantalla acústica 1 puesto (60 cm)',
+    label: 'Panel terminal 1 puesto (60 cm)',
     description: 'PANEL ESPALDA TERMINAL TAPIZADO 1 PUESTO TEK SOCIAL (MILA V2) TKSPN070000',
     modelSrc: MILA_ACCESSORY_SOURCES.screen[1],
     prices: { CO: 998550, USD: 140, EUC: 270 },
@@ -141,7 +141,7 @@ export const MILA_ACCESSORY_CATALOG = {
   screen2P: {
     code: '22000127826',
     modelCode: 'TKSPN070000_120_W_2P',
-    label: 'Pantalla acústica 2 puestos (120 cm)',
+    label: 'Panel terminal 2 puestos (120 cm)',
     description: 'PANEL ESPALDA TERMINAL TAPIZADO 2 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000',
     modelSrc: MILA_ACCESSORY_SOURCES.screen[2],
     prices: { CO: 1540000, USD: 215, EUC: 415 },
@@ -149,7 +149,7 @@ export const MILA_ACCESSORY_CATALOG = {
   screen3P: {
     code: '22000127827',
     modelCode: 'TKSPN070000_180_W_2P',
-    label: 'Pantalla acústica 3 puestos (180 cm)',
+    label: 'Panel terminal 3 puestos (180 cm)',
     description: 'PANEL ESPALDA TERMINAL TAPIZADO 3 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000',
     modelSrc: MILA_ACCESSORY_SOURCES.screen[3],
     prices: { CO: 1980000, USD: 275, EUC: 535 },
@@ -157,7 +157,7 @@ export const MILA_ACCESSORY_CATALOG = {
   screen4P: {
     code: '22000127828',
     modelCode: 'TKSPN070000_240_W_2P',
-    label: 'Pantalla acústica 4 puestos (240 cm)',
+    label: 'Panel terminal 4 puestos (240 cm)',
     description: 'PANEL ESPALDA TERMINAL TAPIZADO 4 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000',
     modelSrc: MILA_ACCESSORY_SOURCES.screen[4],
     prices: { CO: 2450000, USD: 340, EUC: 660 },

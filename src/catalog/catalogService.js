@@ -21,7 +21,7 @@ export async function loadCatalogFromXml() {
       // si no, se rellena desde ptsinbom.
       ui: {
         ...it.ui,
-        title: it.ui?.title || ficha?.descripcionLarga || it.codigoPT,
+        title: it.ui?.title || ficha?.descLarga || ficha?.descripcionLarga || it.codigoPT,
         subtitle: it.ui?.subtitle || ficha?.numeroPlano || '',
         tags: it.ui?.tags?.length
           ? it.ui.tags

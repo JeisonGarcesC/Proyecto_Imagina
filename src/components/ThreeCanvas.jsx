@@ -150,6 +150,7 @@ import {
   MILA_SINGLE_SEAT_MODE_OFFSETS_MM,
   resolveMilaScreenCatalogItem,
 } from '../mepal/mila/config/milaTunables';
+import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import {
   createMilaConnectorMesh,
   resolveMilaAssemblyConnectors,
@@ -487,7 +488,12 @@ export default function ThreeCanvas({
 
     const milaLeftConnector = createMilaConnectorMesh({ side: 'left' });
     const milaRightConnector = createMilaConnectorMesh({ side: 'right' });
+    const milaPanelLeftConnector = createMilaConnectorMesh({ side: 'panel-left' });
+    const milaPanelRightConnector = createMilaConnectorMesh({ side: 'panel-right' });
+    milaPanelLeftConnector.visible = false;
+    milaPanelRightConnector.visible = false;
     milaConnectorHandleGroup.add(milaLeftConnector, milaRightConnector);
+    milaConnectorHandleGroup.add(milaPanelLeftConnector, milaPanelRightConnector);
 
     const milaSnapTargetConnector = createMilaConnectorMesh({ side: 'target' });
     milaSnapTargetConnector.visible = false;
@@ -893,6 +899,7 @@ export default function ThreeCanvas({
       const allAssemblies = [];
       const allGiroSurfaces = [];
       const allAccessories = [];
+      const allPanelDivisors = [];
       scene.children.forEach((node) => {
         if (node === targetObj) return;
         const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
@@ -901,6 +908,11 @@ export default function ThreeCanvas({
           node.userData?.type === 'mila'
         ) {
           allAssemblies.push(node);
+        } else if (
+          node.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+          node.userData?.type === 'mila-panel-divisor'
+        ) {
+          allPanelDivisors.push(node);
         } else if (
           node.userData?.kind === 'MILA_GIRO_SURFACE' ||
           node.userData?.type === 'MILA_GIRO_SURFACE' ||
@@ -916,15 +928,62 @@ export default function ThreeCanvas({
           allAccessories.push(node);
         }
       });
-      const allSceneObjects = [...allAssemblies, ...allGiroSurfaces, ...allAccessories];
+      const allSceneObjects = [
+        ...allAssemblies,
+        ...allGiroSurfaces,
+        ...allAccessories,
+        ...allPanelDivisors,
+      ];
 
       const pLeft = connectors.ports?.left;
       const pRight = connectors.ports?.right;
       const pCenter = connectors.ports?.center;
       const pScreen = connectors.ports?.screen;
 
+      const panelPorts = Object.values(connectors.ports || {}).filter(
+        (port) => port?.portType === 'panel-wall'
+      );
+      const panelLeftPorts = panelPorts.filter((port) => port.side === 'left');
+      const panelRightPorts = panelPorts.filter((port) => port.side === 'right');
+      const panelLeftPort = panelLeftPorts.find((port) => Number(port.seatIndex || 0) === 0) || null;
+      const panelRightPort = panelRightPorts.find((port) => Number(port.seatIndex || 0) === 0) || null;
+
       let isLeftOccupied = true;
       let isRightOccupied = true;
+
+      if (connectors.isPanelDivisor) {
+        if (panelLeftPort?.worldPos) {
+          milaPanelLeftConnector.position.copy(panelLeftPort.worldPos);
+          if (panelLeftPort.worldNormal) {
+            milaPanelLeftConnector.quaternion.setFromUnitVectors(
+              new THREE.Vector3(1, 0, 0),
+              panelLeftPort.worldNormal
+            );
+          }
+          milaPanelLeftConnector.visible = true;
+        } else {
+          milaPanelLeftConnector.visible = false;
+        }
+
+        if (panelRightPort?.worldPos) {
+          milaPanelRightConnector.position.copy(panelRightPort.worldPos);
+          if (panelRightPort.worldNormal) {
+            milaPanelRightConnector.quaternion.setFromUnitVectors(
+              new THREE.Vector3(1, 0, 0),
+              panelRightPort.worldNormal
+            );
+          }
+          milaPanelRightConnector.visible = true;
+        } else {
+          milaPanelRightConnector.visible = false;
+        }
+
+        milaLeftConnector.visible = false;
+        milaRightConnector.visible = false;
+      } else {
+        milaPanelLeftConnector.visible = false;
+        milaPanelRightConnector.visible = false;
+      }
 
       if (connectors.isAccessory) {
         if (connectors.accessoryRole === 'armrest-left') {
@@ -1043,12 +1102,16 @@ export default function ThreeCanvas({
         const candidateAccessories = allAccessories.filter(
           (node) => !activeGroupId || node.userData?.groupId !== activeGroupId
         );
+        const candidatePanelDivisors = allPanelDivisors.filter(
+          (node) => !activeGroupId || node.userData?.groupId !== activeGroupId
+        );
 
         const snapResult = findBestMilaConnectorSnap({
           activeAssembly: targetObj,
           allAssemblies: candidateAssemblies,
           allGiroSurfaces: candidateGiroSurfaces,
           allAccessories: candidateAccessories,
+          allPanelDivisors: candidatePanelDivisors,
         });
 
         if (snapResult) {
@@ -1102,11 +1165,25 @@ export default function ThreeCanvas({
           MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
           MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
         );
+        setConnectorMeshColor(
+          milaPanelLeftConnector,
+          MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
+          MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+        );
+        setConnectorMeshColor(
+          milaPanelRightConnector,
+          MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
+          MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+        );
         milaSnapTargetConnector.visible = false;
       }
 
       milaConnectorHandleGroup.visible =
-        milaLeftConnector.visible || milaRightConnector.visible || milaSnapTargetConnector.visible;
+        milaLeftConnector.visible ||
+        milaRightConnector.visible ||
+        milaPanelLeftConnector.visible ||
+        milaPanelRightConnector.visible ||
+        milaSnapTargetConnector.visible;
       milaConnectorHandleGroup.updateMatrixWorld(true);
     }
 
@@ -2499,22 +2576,22 @@ export default function ThreeCanvas({
             addRow(
               '22000127935',
               2,
-              'Asiento madera Mila',
+              null,
               null,
               groupId,
               groupName,
-              { CO: 1166550, USD: 154, EUC: 305 },
+              undefined,
               null,
               `${groupInstanceId}_SEAT`
             );
             addRow(
               '22000127980',
               1,
-              'Espaldar doble Mila',
+              null,
               null,
               groupId,
               groupName,
-              { CO: 1540000, USD: 215, EUC: 415 },
+              undefined,
               null,
               `${groupInstanceId}_BACK`
             );
@@ -2523,13 +2600,24 @@ export default function ThreeCanvas({
             addRow(
               obj.userData?.code || '22000127935',
               1,
-              obj.userData?.description || 'Silla Mila 1 puesto',
+              obj.userData?.chairMeta?.descripcion || obj.userData?.description || null,
               obj.userData?.unitPrice || null,
               groupId,
               groupName,
-              obj.userData?.prices || { CO: 1166550, USD: 154, EUC: 305 },
+              obj.userData?.prices || undefined,
               null,
               groupInstanceId
+            );
+            addRow(
+              '22000127936',
+              1,
+              null,
+              null,
+              groupId,
+              groupName,
+              undefined,
+              null,
+              `${groupInstanceId}_BACK`
             );
           }
           continue;
@@ -7453,8 +7541,10 @@ export default function ThreeCanvas({
 
       pickables.push(group);
 
-      setActivePart(group);
-      emitBOM();
+      if (!config?.silentCreation) {
+        setActivePart(group);
+        emitBOM();
+      }
 
       return group;
     }
@@ -11504,16 +11594,17 @@ export default function ThreeCanvas({
      * resetee la posición o distorsione la rotación.
      */
     function snapMilaAndGiroSurfaces(target) {
-      if (!target) return false;
+      if (!target) return { snapped: false, mergeCandidate: null };
 
       const targetObj = getMilaAssemblyRoot(target);
 
-      if (!targetObj) return false;
+      if (!targetObj) return { snapped: false, mergeCandidate: null };
 
       const activeGroupId = targetObj.userData?.groupId;
       const allAssemblies = [];
       const allGiroSurfaces = [];
       const allAccessories = [];
+      const allPanelDivisors = [];
       scene.children.forEach((node) => {
         if (node === targetObj) return;
         if (activeGroupId && node.userData?.groupId === activeGroupId) return;
@@ -11524,6 +11615,11 @@ export default function ThreeCanvas({
           node.userData?.type === 'mila'
         ) {
           allAssemblies.push(node);
+        } else if (
+          node.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+          node.userData?.type === 'mila-panel-divisor'
+        ) {
+          allPanelDivisors.push(node);
         } else if (
           node.userData?.kind === 'MILA_GIRO_SURFACE' ||
           node.userData?.type === 'MILA_GIRO_SURFACE' ||
@@ -11545,6 +11641,7 @@ export default function ThreeCanvas({
         allAssemblies,
         allGiroSurfaces,
         allAccessories,
+        allPanelDivisors,
       });
 
       if (snapResult && snapResult.targetTransform && snapResult.targetObj) {
@@ -11581,12 +11678,260 @@ export default function ThreeCanvas({
 
         unifyMilaConnectedAssemblies(targetObj, snapResult.targetObj);
         updateMilaConnectors();
-        return true;
+        return {
+          snapped: true,
+          mergeCandidate: {
+            activeObj: targetObj,
+            targetObj: snapResult.targetObj,
+          },
+        };
       }
-      return false;
+      return { snapped: false, mergeCandidate: null };
     }
 
-    function onPointerUp(e) {
+    function isMilaSeatAssemblyRoot(obj) {
+      if (!obj) return false;
+
+      const role = String(obj.userData?.meta?.role || obj.userData?.role || '').toLowerCase();
+      if (
+        role === 'armrest-left' ||
+        role === 'armrest-right' ||
+        role === 'armrest-center' ||
+        role === 'screen' ||
+        role === 'giro-surface' ||
+        role === 'panel-divisor' ||
+        role === 'booth-table' ||
+        role === 'screen-izq' ||
+        role === 'screen-der'
+      ) {
+        return false;
+      }
+
+      if (obj.userData?.kind === 'MILA_GIRO_SURFACE') return false;
+      if (obj.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY') return false;
+      if (obj.userData?.type === 'mila-panel-divisor') return false;
+      if (obj.userData?.type === 'MILA_GIRO_SURFACE') return false;
+
+      return (
+        obj.userData?.kind === 'MILA_ASSEMBLY' ||
+        obj.userData?.type === 'mila' ||
+        String(obj.userData?.line || '').toUpperCase() === 'MILA' ||
+        String(obj.userData?.line || '').toUpperCase() === 'MILA_DOUBLE'
+      );
+    }
+
+    function collectMilaSeatParts(root) {
+      const out = [];
+      if (!root) return out;
+
+      root.traverse((node) => {
+        if (
+          node?.userData?.kind === 'GLB_PART' &&
+          String(node.userData?.meta?.role || '').toLowerCase() === 'seat'
+        ) {
+          out.push(node);
+        }
+      });
+
+      return out;
+    }
+
+    function resolveMilaAssemblyVariant(root) {
+      const variant = String(root?.userData?.config?.variant || '').trim().toLowerCase();
+      if (variant === 'single' || variant === 'double') return variant;
+
+      const line = String(root?.userData?.line || '').trim().toUpperCase();
+      if (line === 'MILA_DOUBLE') return 'double';
+      return 'single';
+    }
+
+    function collectMilaMergeRoots(activeObj, targetObj) {
+      const rootA = getMilaAssemblyRoot(activeObj) || activeObj;
+      const rootB = getMilaAssemblyRoot(targetObj) || targetObj;
+
+      if (!isMilaSeatAssemblyRoot(rootA) || !isMilaSeatAssemblyRoot(rootB)) return [];
+
+      const seedGroupIds = new Set(
+        [rootA.userData?.groupId, rootB.userData?.groupId].filter(
+          (value) => typeof value === 'string' && value.trim()
+        )
+      );
+
+      const allMilaRoots = scene.children.filter((node) => isMilaSeatAssemblyRoot(node));
+      const merged = [];
+      allMilaRoots.forEach((node) => {
+        if (node === rootA || node === rootB) {
+          merged.push(node);
+          return;
+        }
+
+        const gid = node.userData?.groupId;
+        if (gid && seedGroupIds.has(gid)) {
+          merged.push(node);
+        }
+      });
+
+      const unique = [];
+      const seen = new Set();
+      merged.forEach((node) => {
+        const id = node.userData?.instanceId || node.uuid;
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        unique.push(node);
+      });
+
+      return unique;
+    }
+
+    function resolveMilaRecomposeTargetConfig(roots, quantity) {
+      const variants = roots.map((root) => resolveMilaAssemblyVariant(root));
+      const useDouble = variants.includes('double');
+      const variant = useDouble ? 'double' : 'single';
+
+      const seatModes = [];
+      let armrestLeft = false;
+      let armrestRight = false;
+      let armrestCenter = false;
+      let hasScreen = false;
+
+      roots.forEach((root) => {
+        root.traverse((node) => {
+          const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+          if (!role) return;
+
+          if (role === 'seat') {
+            seatModes.push(String(node.userData?.meta?.seatMode || 'chair').trim().toLowerCase());
+            return;
+          }
+          if (role === 'armrest-left') armrestLeft = true;
+          if (role === 'armrest-right') armrestRight = true;
+          if (role === 'armrest-center') armrestCenter = true;
+          if (role === 'screen') hasScreen = true;
+        });
+      });
+
+      const allTableLike =
+        seatModes.length > 0 && seatModes.every((mode) => mode === 'table' || mode === 'tablegrommet');
+      const allTableGrommet = seatModes.length > 0 && seatModes.every((mode) => mode === 'tablegrommet');
+
+      return {
+        type: 'seat',
+        quantity,
+        variant,
+        useTable: variant === 'single' ? allTableLike : false,
+        useTableGrommet: variant === 'single' ? allTableLike && allTableGrommet : false,
+        armrestLeft,
+        armrestRight,
+        armrestCenter: quantity > 1 ? armrestCenter : false,
+        hasScreen,
+      };
+    }
+
+    function resolveProjectedAnchorSeat(roots, yaw) {
+      const xDir = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+      let best = null;
+
+      roots.forEach((root) => {
+        const seats = collectMilaSeatParts(root);
+        seats.forEach((seat) => {
+          const worldPos = seat.getWorldPosition(new THREE.Vector3());
+          const projection = worldPos.dot(xDir);
+          if (!best || projection < best.projection) {
+            best = { worldPos, projection };
+          }
+        });
+      });
+
+      return best?.worldPos?.clone() || null;
+    }
+
+    function alignMilaAssemblyLeftAnchor(assembly, anchorWorldPos, yaw) {
+      if (!assembly || !anchorWorldPos) return;
+
+      assembly.rotation.set(0, yaw, 0);
+      assembly.updateMatrixWorld(true);
+
+      const xDir = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+      const seats = collectMilaSeatParts(assembly);
+      if (!seats.length) return;
+
+      let leftmost = null;
+      seats.forEach((seat) => {
+        const worldPos = seat.getWorldPosition(new THREE.Vector3());
+        const projection = worldPos.dot(xDir);
+        if (!leftmost || projection < leftmost.projection) {
+          leftmost = { worldPos, projection };
+        }
+      });
+
+      if (!leftmost?.worldPos) return;
+
+      const delta = anchorWorldPos.clone().sub(leftmost.worldPos);
+      assembly.position.add(delta);
+      assembly.updateMatrixWorld(true);
+    }
+
+    async function recomposeMilaAssembliesAfterSnap(mergeCandidate) {
+      if (!mergeCandidate?.activeObj || !mergeCandidate?.targetObj) return false;
+
+      const mergeRoots = collectMilaMergeRoots(mergeCandidate.activeObj, mergeCandidate.targetObj);
+      if (mergeRoots.length < 2) return false;
+
+      const totalSeats = mergeRoots.reduce((sum, root) => sum + collectMilaSeatParts(root).length, 0);
+      const clampedQuantity = Math.max(1, Math.min(4, totalSeats));
+
+      if (clampedQuantity <= 1) return false;
+
+      const desiredYaw = Number(mergeCandidate.targetObj?.rotation?.y || mergeRoots[0]?.rotation?.y || 0);
+      const anchorWorldPos = resolveProjectedAnchorSeat(mergeRoots, desiredYaw);
+      const recomposeConfig = resolveMilaRecomposeTargetConfig(mergeRoots, clampedQuantity);
+
+      const api = {
+        createMilaAssemblyGroup,
+        addExternalGlbPart,
+        selectObject: (obj) => {
+          if (obj) setActivePart(obj);
+        },
+      };
+
+      let created = null;
+      try {
+        created = await createMilaInstance({
+          api,
+          config: {
+            ...recomposeConfig,
+            silentCreation: true,
+          },
+          notify: (msg) => console.warn('[MILA RECOMPOSE] ', msg),
+          buildHidden: true,
+          deferReveal: true,
+        });
+      } catch (error) {
+        console.error('[MILA RECOMPOSE] Error recreando ensamblaje:', error);
+        return false;
+      }
+
+      const newAssembly = created?.assembly || null;
+      if (!newAssembly) return false;
+
+      alignMilaAssemblyLeftAnchor(newAssembly, anchorWorldPos, desiredYaw);
+
+      mergeRoots.forEach((root) => {
+        removePartObject(root, { emitBom: false });
+      });
+
+      newAssembly.visible = true;
+      newAssembly.updateMatrixWorld(true);
+
+      setActivePart(newAssembly);
+      emitBOM();
+      refreshFloorAndGrid();
+      updateMilaConnectors();
+
+      return true;
+    }
+
+    async function onPointerUp(e) {
       if (endEdukHandleDrag(e.pointerId)) {
         e.preventDefault();
         return;
@@ -11636,7 +11981,8 @@ export default function ThreeCanvas({
 
       // SOLO ejecutar snap e historial si el usuario REALMENTE arrastró la pieza
       if (didActuallyMove && activePart) {
-        const snappedMila = snapMilaAndGiroSurfaces(activePart);
+        const milaSnapResult = snapMilaAndGiroSurfaces(activePart);
+        const snappedMila = !!milaSnapResult?.snapped;
 
         let activeLocalBeforeSnap = null;
         if (!snappedMila) {
@@ -11814,6 +12160,10 @@ export default function ThreeCanvas({
             completedDragSession.initialPositions.map(({ obj }) => obj)
           );
           pushMoveHistory(before, after);
+        }
+
+        if (milaSnapResult?.mergeCandidate) {
+          await recomposeMilaAssembliesAfterSnap(milaSnapResult.mergeCandidate);
         }
       }
       refreshFloorAndGrid();

@@ -121,7 +121,7 @@ function createMilaSeatPart({
     description:
       seatSelection.seatMode === 'table' || seatSelection.seatMode === 'tableGrommet'
         ? 'Mesa Mila'
-        : 'Silla Mila 1 puesto',
+        : 'ASIENTO ESTRUCTURA MADERA TAPIZADO EN TELA GAMA 1 POLTRONA TEK SOCIAL (MILA V2) TKSSI130000',
     prices:
       seatSelection.seatMode === 'table' || seatSelection.seatMode === 'tableGrommet'
         ? { CO: 820000, USD: 115, EUC: 220 }
