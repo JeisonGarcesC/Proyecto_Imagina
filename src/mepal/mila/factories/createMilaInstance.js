@@ -344,7 +344,14 @@ function alignMilaModule(moduleParts) {
   });
 }
 
-export async function createMilaInstance({ api, config, parent = null, notify = defaultNotify } = {}) {
+export async function createMilaInstance({
+  api,
+  config,
+  parent = null,
+  notify = defaultNotify,
+  buildHidden = false,
+  deferReveal = false,
+} = {}) {
   if (!api) throw new TypeError('createMilaInstance requires the ThreeCanvas API.');
   if (!config || typeof config !== 'object') {
     throw new TypeError('createMilaInstance requires a configuration object.');
@@ -363,6 +370,10 @@ export async function createMilaInstance({ api, config, parent = null, notify = 
   if (!assembly) {
     notify('No se pudo crear el grupo de Mila.');
     return null;
+  }
+
+  if (buildHidden) {
+    assembly.visible = false;
   }
 
   if (parent && assembly.parent !== parent) parent.add?.(assembly);
@@ -407,7 +418,13 @@ export async function createMilaInstance({ api, config, parent = null, notify = 
 
   assembly.updateMatrixWorld?.(true);
 
-  api.selectObject?.(assembly);
+  if (buildHidden && !deferReveal) {
+    assembly.visible = true;
+  }
+
+  if (!deferReveal) {
+    api.selectObject?.(assembly);
+  }
 
   return {
     assembly,

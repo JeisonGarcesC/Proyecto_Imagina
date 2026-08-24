@@ -53,7 +53,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   screenIzq1P: {
     code: '22000127940',
     modelCode: 'TKSPN090000_60_W_2P_IZQ',
-    label: 'Pantalla acústica izquierda 1P (60 cm)',
+    label: 'Panel terminal izquierdo 1P (60 cm)',
     description: 'PANEL TERMINAL IZQUIERDO TAPIZADO TELA GAMA 1 TEK SOCIAL (MILA V2) TKSPN090000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.screens.izq[1],
     prices: { CO: 796950, USD: 105, EUC: 209 },
@@ -61,7 +61,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   screenIzq2P: {
     code: '22000127828',
     modelCode: 'TKSPN090000_120_W_2P_IZQ',
-    label: 'Pantalla acústica izquierda 2P (120 cm)',
+    label: 'Panel terminal izquierdo 2P (120 cm)',
     description: 'PANEL TERMINAL IZQUIERDO TAPIZADO TELA GAMA 2 TEK SOCIAL (MILA V2) TKSPN090000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.screens.izq[2],
     prices: { CO: 864150, USD: 114, EUC: 226 },
@@ -69,7 +69,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   screenIzq3P: {
     code: '22000127940',
     modelCode: 'TKSPN090000_180_W_2P_IZQ',
-    label: 'Pantalla acústica izquierda 3P (180 cm)',
+    label: 'Panel terminal izquierdo 3P (180 cm)',
     description: 'PANEL TERMINAL IZQUIERDO TAPIZADO TELA LANA TEK SOCIAL (MILA V2) TKSPN090000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.screens.izq[3],
     prices: { CO: 1816500, USD: 240, EUC: 479 },
@@ -77,7 +77,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   screenIzq4P: {
     code: '22000127940',
     modelCode: 'TKSPN090000_240_W_2P_IZQ',
-    label: 'Pantalla acústica izquierda 4P (240 cm)',
+    label: 'Panel terminal izquierdo 4P (240 cm)',
     description: 'PANEL TERMINAL IZQUIERDO TAPIZADO 4 PUESTOS TEK SOCIAL TKSPN090000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.screens.izq[4],
     prices: { CO: 2320000, USD: 325, EUC: 625 },
@@ -85,7 +85,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   screenDer1P: {
     code: '22000127939',
     modelCode: 'TKSPN090000_60_W_2P_DER',
-    label: 'Pantalla acústica derecha 1P (60 cm)',
+    label: 'Panel terminal derecho 1P (60 cm)',
     description: 'PANEL TERMINAL DERECHO TAPIZADO TELA GAMA 1 TEK SOCIAL (MILA V2) TKSPN090000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.screens.der[1],
     prices: { CO: 796950, USD: 105, EUC: 209 },
@@ -93,7 +93,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   screenDer2P: {
     code: '22000127827',
     modelCode: 'TKSPN090000_120_W_2P_DER',
-    label: 'Pantalla acústica derecha 2P (120 cm)',
+    label: 'Panel terminal derecho 2P (120 cm)',
     description: 'PANEL TERMINAL DERECHO TAPIZADO TELA GAMA 2 TEK SOCIAL (MILA V2) TKSPN090000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.screens.der[2],
     prices: { CO: 864150, USD: 114, EUC: 226 },
@@ -101,7 +101,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   screenDer3P: {
     code: '22000127939',
     modelCode: 'TKSPN090000_180_W_2P_DER',
-    label: 'Pantalla acústica derecha 3P (180 cm)',
+    label: 'Panel terminal derecho 3P (180 cm)',
     description: 'PANEL TERMINAL DERECHO TAPIZADO TELA LANA TEK SOCIAL (MILA V2) TKSPN090000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.screens.der[3],
     prices: { CO: 1816500, USD: 240, EUC: 479 },
@@ -109,7 +109,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   screenDer4P: {
     code: '22000127939',
     modelCode: 'TKSPN090000_240_W_2P_DER',
-    label: 'Pantalla acústica derecha 4P (240 cm)',
+    label: 'Panel terminal derecho 4P (240 cm)',
     description: 'PANEL TERMINAL DERECHO TAPIZADO 4 PUESTOS TEK SOCIAL TKSPN090000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.screens.der[4],
     prices: { CO: 2320000, USD: 325, EUC: 625 },
@@ -117,7 +117,7 @@ export const MILA_PANEL_DIVISOR_CATALOG = {
   seat: {
     code: '22000127935',
     modelCode: 'TKSSI011000',
-    label: 'Silla Mila 1 puesto',
+    label: 'Asiento Mila 1 puesto',
     description: 'ASIENTO ESTRUCTURA MADERA TAPIZADO EN TELA GAMA 1 POLTRONA TEK SOCIAL (MILA V2) TKSSI130000',
     modelSrc: MILA_PANEL_DIVISOR_SOURCES.seat,
     prices: { CO: 1166550, USD: 154, EUC: 305 },

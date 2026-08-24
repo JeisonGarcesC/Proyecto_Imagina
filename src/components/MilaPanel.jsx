@@ -351,7 +351,7 @@ export default function MilaPanel({ onCreate }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div>
-          <label style={{ fontSize: 11 }}>Pantalla Izq.</label>
+          <label style={{ fontSize: 11 }}>Panel Izq.</label>
           <select
             value={panelScreenLeftSize}
             onChange={(e) => setPanelScreenLeftSize(Number(e.target.value))}
@@ -365,7 +365,7 @@ export default function MilaPanel({ onCreate }) {
           </select>
         </div>
         <div>
-          <label style={{ fontSize: 11 }}>Pantalla Der.</label>
+          <label style={{ fontSize: 11 }}>Panel Der.</label>
           <select
             value={panelScreenRightSize}
             onChange={(e) => setPanelScreenRightSize(Number(e.target.value))}

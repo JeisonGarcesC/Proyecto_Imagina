@@ -13,6 +13,103 @@ export const MILA_CONNECTOR_CONFIG = {
   CORE_COLOR_ACTIVE: 0x059669,
 };
 
+const PANEL_DIVISOR_CONNECTOR_TUNE = {
+  // Acercamiento a pared en X. Más negativo = más pegado a la pared.
+  panelBackFaceXM: -0.02,
+  // Separación real de la cara visible del conector respecto a la pared.
+  // 0.02 = 2 cm.
+  wallInsetM: 0.02,
+  // Solape real de la silla contra la pared para tapar el hueco visual.
+  // 0.02 = 2 cm.
+  panelWallOverlapM: 0.08,
+  moduleSpacingM: 0.6,
+  // Posición base en Z por lado. Más alto en valor absoluto = silla más atrás.
+  sideCenterZM: 0.75,
+  // Empuje adicional hacia atrás para todos los puestos (1-4).
+  seatBackShiftM: 0.06,
+  // Empuje extra solamente cuando son 2-4 puestos.
+  multiSeatBackExtraShiftM: 0,
+};
+
+function clampPanelSeats(value) {
+  return Math.max(0, Math.min(4, Number(value) || 0));
+}
+
+function clampMilaQuantity(value) {
+  return Math.max(1, Math.min(4, Number(value) || 1));
+}
+
+function resolveActiveMilaQuantity(activeAssembly) {
+  return clampMilaQuantity(
+    activeAssembly?.userData?.config?.quantity || activeAssembly?.userData?.quantity || 1
+  );
+}
+
+function resolvePanelSidePorts(targetConnectors, side) {
+  return Object.values(targetConnectors?.ports || {})
+    .filter((port) => port?.portType === 'panel-wall' && port.side === side)
+    .sort((a, b) => Number(a.seatIndex || 0) - Number(b.seatIndex || 0));
+}
+
+function resolvePanelDivisorTargetPort({ targetConnectors, targetPort }) {
+  if (!targetConnectors?.isPanelDivisor || targetPort?.portType !== 'panel-wall') {
+    return targetPort;
+  }
+
+  const sidePorts = resolvePanelSidePorts(targetConnectors, targetPort.side);
+  if (!sidePorts.length) return targetPort;
+
+  // El snap del panel divisor debe usar el mismo puerto visible en pared.
+  return sidePorts.find((port) => Number(port.seatIndex || 0) === 0) || targetPort;
+}
+
+function resolvePanelDivisorPorts(targetObj) {
+  const config = targetObj?.userData?.config || {};
+  // Mostrar conectores en cualquier variante de panel divisor: mínimo 1 por lado.
+  const seatsLeft = Math.max(1, clampPanelSeats(config.seatsLeft));
+  const seatsRight = Math.max(1, clampPanelSeats(config.seatsRight));
+
+  const ports = {};
+
+  const addSidePorts = ({ side, seatCount, zSign }) => {
+    if (seatCount <= 0) return;
+
+    for (let seatIndex = 0; seatIndex < seatCount; seatIndex += 1) {
+      const localPos = new THREE.Vector3(
+        PANEL_DIVISOR_CONNECTOR_TUNE.panelBackFaceXM -
+          PANEL_DIVISOR_CONNECTOR_TUNE.wallInsetM -
+          seatIndex * PANEL_DIVISOR_CONNECTOR_TUNE.moduleSpacingM,
+        0.14,
+        zSign * PANEL_DIVISOR_CONNECTOR_TUNE.sideCenterZM
+      );
+
+      const localNormal = new THREE.Vector3(-1, 0, 0);
+      const worldPos = localPos.clone().applyMatrix4(targetObj.matrixWorld);
+      const worldNormal = localNormal
+        .clone()
+        .applyQuaternion(targetObj.getWorldQuaternion(new THREE.Quaternion()))
+        .normalize();
+
+      const id = `${side}_${seatIndex + 1}`;
+      ports[id] = {
+        id,
+        side,
+        seatIndex,
+        portType: 'panel-wall',
+        localPos,
+        localNormal,
+        worldPos,
+        worldNormal,
+      };
+    }
+  };
+
+  addSidePorts({ side: 'left', seatCount: seatsLeft, zSign: 1 });
+  addSidePorts({ side: 'right', seatCount: seatsRight, zSign: -1 });
+
+  return ports;
+}
+
 /**
  * Helper para obtener el ángulo de rotación Yaw (alrededor de Y) de un vector en Three.js
  */
@@ -123,13 +220,14 @@ export function getMilaAssemblyRoot(object) {
   }
 
   const role = String(curr?.userData?.meta?.role || curr?.userData?.role || '').toLowerCase();
-  if (
+  const isPanelDivisor =
     curr?.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
     curr?.userData?.type === 'mila-panel-divisor' ||
     role === 'panel-divisor' ||
-    role === 'booth-table'
-  ) {
-    return null;
+    role === 'booth-table';
+
+  if (isPanelDivisor) {
+    return curr;
   }
 
   if (
@@ -162,12 +260,6 @@ export function getMilaAssemblyRoot(object) {
       }
     });
     if (found) {
-      if (
-        found.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
-        found.userData?.type === 'mila-panel-divisor'
-      ) {
-        return null;
-      }
       return found;
     }
   }
@@ -184,11 +276,23 @@ export function resolveMilaAssemblyConnectors(object) {
   const targetObj = getMilaAssemblyRoot(object);
   if (!targetObj) return null;
 
-  if (
+  const isPanelDivisor =
     targetObj.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
-    targetObj.userData?.type === 'mila-panel-divisor'
-  ) {
-    return null;
+    targetObj.userData?.type === 'mila-panel-divisor';
+
+  if (isPanelDivisor) {
+    targetObj.updateMatrixWorld(true);
+    const ports = resolvePanelDivisorPorts(targetObj);
+    if (!Object.keys(ports).length) return null;
+
+    return {
+      assembly: targetObj,
+      isGiro: false,
+      isAccessory: false,
+      isPanelDivisor: true,
+      connectorY: 0.14,
+      ports,
+    };
   }
 
   const role = String(targetObj.userData?.meta?.role || targetObj.userData?.role || '').toLowerCase();
@@ -436,7 +540,6 @@ export function resolveMilaAssemblyConnectors(object) {
   const worldLeft = localLeft.clone().applyMatrix4(targetObj.matrixWorld);
   const worldRight = localRight.clone().applyMatrix4(targetObj.matrixWorld);
   const worldScreen = localScreen.clone().applyMatrix4(targetObj.matrixWorld);
-
   const normalLeft = localNormalLeft.clone().applyQuaternion(worldQuaternion).normalize();
   const normalRight = localNormalRight.clone().applyQuaternion(worldQuaternion).normalize();
   const normalScreen = localNormalScreen.clone().applyQuaternion(worldQuaternion).normalize();
@@ -459,6 +562,15 @@ export function resolveMilaAssemblyConnectors(object) {
       localNormal: localNormalRight,
       worldPos: worldRight,
       worldNormal: normalRight,
+    },
+    screen: {
+      id: 'screen',
+      portType: 'screen',
+      isOccupied: hasScreen,
+      localPos: localScreen,
+      localNormal: localNormalScreen,
+      worldPos: worldScreen,
+      worldNormal: normalScreen,
     },
   };
 
@@ -494,10 +606,13 @@ export function resolveMilaAssemblyConnectors(object) {
     hasScreen,
     localLeft,
     localRight,
+    localScreen,
     worldLeft,
     worldRight,
+    worldScreen,
     normalLeft,
     normalRight,
+    normalScreen,
     connectorY: chairConnectorY,
     yaw,
     ports,
@@ -568,8 +683,13 @@ function areMilaPortsCompatible(actPort, tgtPort) {
   }
 
   // Puertos laterales normales (silla izquierda/derecha y superficie de giro izquierda/derecha):
-  const actIsSide = actPort.id === 'left' || actPort.id === 'right' || actPort.portType === 'giro';
-  const tgtIsSide = tgtPort.id === 'left' || tgtPort.id === 'right' || tgtPort.portType === 'giro';
+  const actIsSide =
+    actPort.id === 'left' || actPort.id === 'right' || actPort.portType === 'giro';
+  const tgtIsSide =
+    tgtPort.id === 'left' ||
+    tgtPort.id === 'right' ||
+    tgtPort.portType === 'giro' ||
+    tgtPort.portType === 'panel-wall';
   return actIsSide && tgtIsSide;
 }
 
@@ -582,6 +702,7 @@ export function findBestMilaConnectorSnap({
   allAssemblies = [],
   allGiroSurfaces = [],
   allAccessories = [],
+  allPanelDivisors = [],
   snapRadius = MILA_CONNECTOR_CONFIG.SNAP_RADIUS_M,
 }) {
   if (!activeAssembly) return null;
@@ -590,7 +711,7 @@ export function findBestMilaConnectorSnap({
   if (!activeConnectors || !activeConnectors.ports) return null;
 
   const activeGroupId = activeAssembly.userData?.groupId;
-  const allCandidates = [...allAssemblies, ...allGiroSurfaces, ...allAccessories];
+  const allCandidates = [...allAssemblies, ...allGiroSurfaces, ...allAccessories, ...allPanelDivisors];
 
   let bestSnap = null;
   let minDistance = snapRadius;
@@ -616,19 +737,25 @@ export function findBestMilaConnectorSnap({
       for (const tgtPort of targetPortList) {
         if (tgtPort.isOccupied) continue;
 
+        const effectiveTargetPort = resolvePanelDivisorTargetPort({
+          targetConnectors,
+          targetPort: tgtPort,
+          activeAssembly,
+        });
+
         // Comprobar compatibilidad de roles entre puertos
-        if (!areMilaPortsCompatible(actPort, tgtPort)) {
+        if (!areMilaPortsCompatible(actPort, effectiveTargetPort)) {
           continue;
         }
 
         // Ignorar puertos objetivo ocupados por otra pieza
-        if (isMilaPortOccupied(tgtPort.worldPos, targetObj, allCandidates)) {
+        if (isMilaPortOccupied(effectiveTargetPort.worldPos, targetObj, allCandidates)) {
           continue;
         }
 
         const dist = new THREE.Vector2(
-          actPort.worldPos.x - tgtPort.worldPos.x,
-          actPort.worldPos.z - tgtPort.worldPos.z
+          actPort.worldPos.x - effectiveTargetPort.worldPos.x,
+          actPort.worldPos.z - effectiveTargetPort.worldPos.z
         ).length();
 
         if (dist < minDistance) {
@@ -638,8 +765,8 @@ export function findBestMilaConnectorSnap({
           // hasta que quede opuesto al vector normal del puerto objetivo (normalActiva = -normalObjetivo):
           const Ax = actPort.localNormal.x;
           const Az = actPort.localNormal.z;
-          const Tx = tgtPort.worldNormal.x;
-          const Tz = tgtPort.worldNormal.z;
+          const Tx = effectiveTargetPort.worldNormal.x;
+          const Tz = effectiveTargetPort.worldNormal.z;
 
           const sinAlpha = Ax * Tz - Az * Tx;
           const cosAlpha = -Ax * Tx - Az * Tz;
@@ -652,28 +779,54 @@ export function findBestMilaConnectorSnap({
 
           const isAccessorySnap = Boolean(activeConnectors.isAccessory || targetConnectors.isAccessory);
           const isGiroSnap = Boolean(activeConnectors.isGiro || targetConnectors.isGiro);
+          const isPanelDivisorSnap = Boolean(
+            activeConnectors.isPanelDivisor || targetConnectors.isPanelDivisor
+          );
           const giroDropM = (Number(MILA_GIRO_TUNE?.CONNECTED_Y_OFFSET_MM) || 0) / 1000;
 
           let targetPosY;
           if (isAccessorySnap) {
             targetPosY = activeConnectors.isAccessory ? targetObj.position.y : activeAssembly.position.y;
+          } else if (isPanelDivisorSnap) {
+            // Mantener la altura actual evita que la silla "se hunda" al acoplarse al panel divisor.
+            targetPosY = activeAssembly.position.y;
           } else if (isGiroSnap) {
-            targetPosY = (tgtPort.worldPos.y - rotatedOffset.y) + (activeConnectors.isGiro ? giroDropM : 0);
+            targetPosY = (effectiveTargetPort.worldPos.y - rotatedOffset.y) + (activeConnectors.isGiro ? giroDropM : 0);
           } else {
-            targetPosY = tgtPort.worldPos.y - rotatedOffset.y;
+            targetPosY = effectiveTargetPort.worldPos.y - rotatedOffset.y;
           }
 
           const targetPos = new THREE.Vector3(
-            tgtPort.worldPos.x - rotatedOffset.x,
+            effectiveTargetPort.worldPos.x - rotatedOffset.x,
             Number.isFinite(targetPosY) ? targetPosY : activeAssembly.position.y,
-            tgtPort.worldPos.z - rotatedOffset.z
+            effectiveTargetPort.worldPos.z - rotatedOffset.z
           );
+
+          if (isPanelDivisorSnap && effectiveTargetPort?.side) {
+            const qty = resolveActiveMilaQuantity(activeAssembly);
+            const baseShift = Number(PANEL_DIVISOR_CONNECTOR_TUNE.seatBackShiftM || 0);
+            const multiExtra = qty > 1
+              ? Number(PANEL_DIVISOR_CONNECTOR_TUNE.multiSeatBackExtraShiftM || 0)
+              : 0;
+            const panelSideAxis = new THREE.Vector3(0, 0, 1)
+              .applyQuaternion(targetObj.getWorldQuaternion(new THREE.Quaternion()))
+              .normalize();
+            const sideSign = effectiveTargetPort.side === 'left' ? 1 : -1;
+            // Mueve la silla hacia atrás siguiendo el eje real del panel, no el Z mundial.
+            targetPos.addScaledVector(panelSideAxis, sideSign * (baseShift + multiExtra));
+
+            const wallOverlapM = Number(PANEL_DIVISOR_CONNECTOR_TUNE.panelWallOverlapM || 0);
+            if (wallOverlapM) {
+              // Empuja la silla 2 cm hacia la pared para tapar el hueco visual.
+              targetPos.addScaledVector(effectiveTargetPort.worldNormal, -wallOverlapM);
+            }
+          }
 
           bestSnap = {
             type: 'MILA_SNAP',
             targetObj,
             activeSide: actPort.id,
-            targetSide: tgtPort.id,
+            targetSide: effectiveTargetPort.id,
             distance: dist,
             targetTransform: {
               x: targetPos.x,
@@ -681,8 +834,8 @@ export function findBestMilaConnectorSnap({
               z: targetPos.z,
               rotY: requiredYaw,
             },
-            connectionPoint: tgtPort.worldPos.clone(),
-            targetNormal: tgtPort.worldNormal.clone(),
+            connectionPoint: effectiveTargetPort.worldPos.clone(),
+            targetNormal: effectiveTargetPort.worldNormal.clone(),
             activeNormal: actPort.worldNormal.clone(),
           };
         }
