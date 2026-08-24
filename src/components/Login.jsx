@@ -7,6 +7,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [show, setShow] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const hints = useMemo(
     () => [
@@ -17,10 +18,15 @@ export default function Login() {
     []
   );
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    const res = login(username, password);
-    if (!res.ok) setError(res.error || 'No fue posible iniciar sesión.');
+    setSubmitting(true);
+    try {
+      const res = await login(username, password);
+      if (!res.ok) setError(res.error || 'No fue posible iniciar sesión.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -138,6 +144,7 @@ export default function Login() {
 
           <button
             type="submit"
+            disabled={submitting}
             style={{
               marginTop: 4,
               padding: '10px 12px',
@@ -145,20 +152,23 @@ export default function Login() {
               border: '1px solid #111827',
               background: '#111827',
               color: '#fff',
-              cursor: 'pointer',
+              cursor: submitting ? 'wait' : 'pointer',
               fontWeight: 800,
               letterSpacing: 0.2,
             }}
           >
-            Entrar
+            {submitting ? 'Ingresando...' : 'Entrar'}
           </button>
         </form>
 
         <details style={{ marginTop: 12 }}>
           <summary style={{ cursor: 'pointer', fontSize: 12, opacity: 0.75 }}>
-            Usuarios de prueba
+            Usuarios de desarrollo
           </summary>
           <div style={{ marginTop: 8, display: 'grid', gap: 6, fontSize: 12 }}>
+            <div style={{ opacity: 0.7 }}>
+              Estas credenciales sólo funcionan si los usuarios existen en el backend.
+            </div>
             {hints.map((h) => (
               <div
                 key={h.u}

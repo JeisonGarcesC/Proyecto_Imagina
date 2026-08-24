@@ -1,58 +1,103 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  loginSession,
+  logoutSession,
+  refreshSession,
+  subscribeToSessionInvalidation,
+} from './authApi.js';
 
 const AuthContext = createContext(null);
 
-// ⚠️ Demo/local login (sin backend)
-// Puedes cambiar claves luego o conectarlo a tu API.
-const USERS = [
-  { username: 'admin', password: 'admin123', role: 'administrador', label: 'Administrador' },
-  { username: 'diseno', password: 'diseno123', role: 'diseno', label: 'Diseño' },
-  { username: 'comercial', password: 'comercial123', role: 'comercial', label: 'Comercial' },
-];
+function roleKey(role) {
+  if (typeof role === 'string') return role;
+  return role?.key || role?.name || role?.role || '';
+}
 
-const STORAGE_KEY = 'imagina.auth.user';
+function sessionState(payload) {
+  const roles = Array.isArray(payload?.roles) ? payload.roles : [];
+  const permissions = Array.isArray(payload?.permissions) ? payload.permissions : [];
+  const role = roleKey(roles[0]);
+  const user = payload?.user
+    ? {
+        ...payload.user,
+        role,
+        label: payload.user.displayName || role || payload.user.username,
+      }
+    : null;
+  return { user, roles, permissions };
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [roles, setRoles] = useState([]);
+  const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const clearSession = useCallback(() => {
+    setUser(null);
+    setRoles([]);
+    setPermissions([]);
+  }, []);
+
   useEffect(() => {
+    let active = true;
+    const unsubscribe = subscribeToSessionInvalidation(() => {
+      if (active) clearSession();
+    });
+    refreshSession()
+      .then((payload) => {
+        if (!active) return;
+        const session = sessionState(payload);
+        setUser(session.user);
+        setRoles(session.roles);
+        setPermissions(session.permissions);
+      })
+      .catch(() => {
+        if (active) clearSession();
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [clearSession]);
+
+  const login = useCallback(async (usernameOrEmail, password) => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setUser(JSON.parse(raw));
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
+      const payload = await loginSession(String(usernameOrEmail).trim(), String(password));
+      const session = sessionState(payload);
+      setUser(session.user);
+      setRoles(session.roles);
+      setPermissions(session.permissions);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message || 'No fue posible iniciar sesión.' };
     }
   }, []);
 
-  const login = (username, password) => {
-    const u = USERS.find(
-      (x) => x.username === String(username).trim() && x.password === String(password)
-    );
-    if (!u) return { ok: false, error: 'Usuario o contraseña incorrectos.' };
-
-    const safeUser = { username: u.username, role: u.role, label: u.label };
-    setUser(safeUser);
+  const logout = useCallback(async () => {
+    clearSession();
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(safeUser));
+      await logoutSession();
     } catch {
-      // ignore
+      // La sesión local se limpia incluso si el servidor no está disponible.
     }
-    return { ok: true };
-  };
+  }, [clearSession]);
 
-  const logout = () => {
-    setUser(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-  };
-
-  const value = useMemo(() => ({ user, loading, login, logout }), [user, loading]);
+  const value = useMemo(
+    () => ({
+      user,
+      roles,
+      permissions,
+      loading,
+      isAuthenticated: Boolean(user),
+      login,
+      logout,
+    }),
+    [user, roles, permissions, loading, login, logout]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -65,9 +110,9 @@ export function useAuth() {
 
 export function getRolePermissions(role) {
   const r = String(role || '').toLowerCase();
-  const isAdmin = r === 'administrador' || r === 'admin';
-  const isDesign = r === 'diseno' || r === 'diseño';
-  const isCommercial = r === 'comercial';
+  const isAdmin = ['administrador', 'admin', 'superadmin'].includes(r);
+  const isDesign = ['diseno', 'diseño', 'designer'].includes(r);
+  const isCommercial = ['comercial', 'commercial'].includes(r);
 
   return {
     isAdmin,
