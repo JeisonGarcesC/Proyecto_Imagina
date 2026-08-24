@@ -13915,6 +13915,9 @@ export default function ThreeCanvas({
         rightScale = 1,
         centerBracketScale = 1,
 
+        leftStructuralDepthMm = null,
+        rightStructuralDepthMm = null,
+
         crossbar = {},
       } = assembly;
 
@@ -14040,6 +14043,10 @@ export default function ThreeCanvas({
         forma === 'RECT' &&
         layoutType === 'LEADER' &&
         [600, 650, 700, 750].includes(realDepthMm);
+      const usesMeasuredDoubleDepthPositioning =
+        resolvedPositioningMode === 'measured-depth-double-v1' &&
+        tipoPuesto === 'doble' &&
+        forma === 'RECT';
       const usesBoundedDepthPositioning =
         usesStandardBoundedDepthPositioning || usesLeaderBoundedDepthPositioning;
 
@@ -14094,6 +14101,59 @@ export default function ThreeCanvas({
         crossbarOffsetMm.z = (leftInnerFaceZ + rightInnerFaceZ) / 2;
         bracketPositionMm.z =
           -(resolvedCenterBracketMinZFromPivotMm + resolvedCenterBracketMaxZFromPivotMm) / 2;
+      }
+
+      if (usesMeasuredDoubleDepthPositioning) {
+        // Medimos antes de trasladar los clones. Esto desacopla la receta de los
+        // pivotes con los que fueron exportados los GLB izquierdo y derecho.
+        leftLeg.updateMatrixWorld(true);
+        rightLeg.updateMatrixWorld(true);
+        centerBracket.updateMatrixWorld(true);
+
+        const leftBounds = new THREE.Box3().setFromObject(leftLeg);
+        const rightBounds = new THREE.Box3().setFromObject(rightLeg);
+        const bracketBounds = new THREE.Box3().setFromObject(centerBracket);
+        const boundsAreValid =
+          !leftBounds.isEmpty() && !rightBounds.isEmpty() && !bracketBounds.isEmpty();
+
+        if (boundsAreValid) {
+          const halfDepthM = realDepthMm / 2000;
+          const leftTranslationM =
+            -halfDepthM - leftBounds.min.z + Number(leftOffsetMm?.z || 0) / 1000;
+          const rightTranslationM =
+            halfDepthM - rightBounds.max.z + Number(rightOffsetMm?.z || 0) / 1000;
+
+          leftPositionMm.z = leftTranslationM * 1000;
+          rightPositionMm.z = rightTranslationM * 1000;
+
+          const measuredLeftInnerFaceMm = (leftBounds.max.z + leftTranslationM) * 1000;
+          const measuredRightInnerFaceMm = (rightBounds.min.z + rightTranslationM) * 1000;
+          const resolvedLeftStructuralDepthMm = Number(leftStructuralDepthMm);
+          const resolvedRightStructuralDepthMm = Number(rightStructuralDepthMm);
+          const usesStructuralConnectionDepths =
+            Number.isFinite(resolvedLeftStructuralDepthMm) &&
+            resolvedLeftStructuralDepthMm > 0 &&
+            Number.isFinite(resolvedRightStructuralDepthMm) &&
+            resolvedRightStructuralDepthMm > 0;
+
+          // La geometría auxiliar incluida en algunos GLB no representa el
+          // perfil que recibe el travesaño. Cuando la receta declara el fondo
+          // estructural, calculamos las caras de conexión desde los límites
+          // nominales del puesto y no desde el Box3 visual completo.
+          const leftInnerFaceMm = usesStructuralConnectionDepths
+            ? -realDepthMm / 2 + resolvedLeftStructuralDepthMm
+            : measuredLeftInnerFaceMm;
+          const rightInnerFaceMm = usesStructuralConnectionDepths
+            ? realDepthMm / 2 - resolvedRightStructuralDepthMm
+            : measuredRightInnerFaceMm;
+
+          crossbarLengthMm = Math.max(1, rightInnerFaceMm - leftInnerFaceMm);
+          crossbarOffsetMm.z = (leftInnerFaceMm + rightInnerFaceMm) / 2;
+
+          const bracketCenterZMm = ((bracketBounds.min.z + bracketBounds.max.z) / 2) * 1000;
+          bracketPositionMm.z =
+            crossbarOffsetMm.z - bracketCenterZMm + Number(centerBracketOffsetMm?.z || 0);
+        }
       }
 
       // =====================================================

@@ -95,7 +95,10 @@ export function getCostadosConfig({
           depthMm: anchoRealMm,
           x: baseX - largoRealMm / 2 + offsetXIzq,
           y: 0,
-          z: 600,
+          // El ensamble doble ya se construye centrado sobre la profundidad.
+          // Ambos terminales deben compartir el mismo origen Z; el lado derecho
+          // se resuelve mediante su rotación, no mediante una traslación extra.
+          z: 0,
 
           moduleIndex: 0,
           replaceZone: 'LEFT',
@@ -315,8 +318,10 @@ export function getPasacablesConfig({
 // ==============================
 // VIGAS
 // ==============================
-export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
+export function getVigasConfig({ puestos, tipoPuesto, largoRealMm, anchoRealMm }) {
   const out = [];
+  const doubleBeamSeparationMm = Math.max(0, Number(anchoRealMm || 0) / 2 - 29);
+  const doubleBeamOffsetZMm = doubleBeamSeparationMm / 2;
 
   for (let i = 0; i < puestos; i++) {
     const baseX = i * largoRealMm;
@@ -341,7 +346,7 @@ export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
         nominalWidthMm: largoRealMm,
         x: baseX,
         y: 690,
-        z: -200,
+        z: -doubleBeamOffsetZMm,
       });
 
       out.push({
@@ -351,7 +356,7 @@ export function getVigasConfig({ puestos, tipoPuesto, largoRealMm }) {
         nominalWidthMm: largoRealMm,
         x: baseX,
         y: 690,
-        z: 200,
+        z: doubleBeamOffsetZMm,
       });
     }
   }

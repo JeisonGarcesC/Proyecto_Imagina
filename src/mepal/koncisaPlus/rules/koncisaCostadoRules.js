@@ -1,12 +1,22 @@
 // src/koncisaPlus/rules/koncisaCostadoRules.js
 
 function createCostadoAssembly({
+  positioningMode = null,
   leftLegSrc,
   rightLegSrc,
   centerBracketSrc = '/assets/models/koncisaPlus/CENTER_BRACKET.glb',
+  rootOffsetMm = {},
   leftOffsetMm = {},
   rightOffsetMm = {},
   centerBracketOffsetMm = {},
+  leftRotation = {},
+  rightRotation = {},
+  centerBracketRotation = {},
+  leftScale = 1,
+  rightScale = 1,
+  centerBracketScale = 1,
+  leftStructuralDepthMm = null,
+  rightStructuralDepthMm = null,
   crossbar = {},
   crossbars = null,
 }) {
@@ -22,9 +32,17 @@ function createCostadoAssembly({
   };
 
   return {
+    positioningMode,
     leftLegSrc,
     rightLegSrc,
     centerBracketSrc,
+
+    rootOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...rootOffsetMm,
+    },
 
     leftOffsetMm: {
       x: 0,
@@ -46,6 +64,34 @@ function createCostadoAssembly({
       z: 0,
       ...centerBracketOffsetMm,
     },
+
+    leftRotation: {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...leftRotation,
+    },
+
+    rightRotation: {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...rightRotation,
+    },
+
+    centerBracketRotation: {
+      x: 0,
+      y: 0,
+      z: 0,
+      ...centerBracketRotation,
+    },
+
+    leftScale,
+    rightScale,
+    centerBracketScale,
+
+    leftStructuralDepthMm,
+    rightStructuralDepthMm,
 
     // Compatibilidad vieja
     crossbar: {
@@ -79,6 +125,42 @@ function createCostadoAssembly({
         }
       : null,
   };
+}
+
+function createDoubleRectCostadoAssembly() {
+  return createCostadoAssembly({
+    positioningMode: 'measured-depth-double-v1',
+
+    rightLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO328000_120.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO328000_120.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
+
+    // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
+    // La profundidad real del puesto define únicamente el largo del travesaño.
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+
+    centerBracketOffsetMm: {
+      // Los accesorios dobles se ubican 15 + 25 mm hacia el interior.
+      // El terminal derecho refleja este eje local mediante su rotación.
+      x: 40,
+      y: 658,
+      z: 0,
+    },
+
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+      endClearanceMm: 0,
+      offsetMm: {
+        // Profundidad local hacia el interior del puesto. La rotación del
+        // terminal derecho refleja automáticamente el desplazamiento.
+        x: 30,
+        y: 685,
+        z: 0,
+      },
+    },
+  });
 }
 
 export const KONCISA_COSTADO_RULES = {
@@ -382,73 +464,14 @@ export const KONCISA_COSTADO_RULES = {
     codigoPT: '22000132388',
     modelSrc: '/assets/models/koncisaPlus/2KSO328000_120.glb',
 
-    assembly: createCostadoAssembly({
-      positioningMode: 'bounded-depth-v1',
-
-      rightLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO328000_120.glb',
-      leftLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO328000_120.glb',
-
-      centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
-
-      rootOffsetMm: {
-        x: 0,
-        y: 0,
-        z: 518,
-      },
-
-      leftOffsetMm: {
-        x: 0,
-        y: 0,
-        z: 10,
-      },
-
-      rightOffsetMm: {
-        x: 0,
-        y: 0,
-        z: 0,
-      },
-
-      centerBracketOffsetMm: {
-        x: 0,
-        y: 658,
-        z: 0,
-      },
-
-      crossbars: {
-        front: {
-          heightMm: 25.4,
-          depthMm: 50.8,
-          endClearanceMm: 51,
-          offsetMm: {
-            x: 0,
-            y: 685,
-            z: 0,
-          },
-        },
-
-        back: {
-          heightMm: 25.4,
-          depthMm: 50.8,
-          endClearanceMm: 51,
-          offsetMm: {
-            x: 0,
-            y: 685,
-            z: 518,
-          },
-        },
-      },
-    }),
+    assembly: createDoubleRectCostadoAssembly(),
   },
 
   KONPLUSSPAINTEDLEGTERMINAL_16_150_RECT: {
     codigoPT: '22000132389',
     modelSrc: '/assets/models/koncisaPlus/2KSO328000_150.glb',
 
-    assembly: createCostadoAssembly({
-      leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO330000_60.glb',
-
-      rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO330000_60.glb',
-    }),
+    assembly: createDoubleRectCostadoAssembly(),
   },
 
   // =========================

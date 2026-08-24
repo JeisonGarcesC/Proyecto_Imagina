@@ -350,6 +350,7 @@ export function buildKoncisaPlus(config = {}) {
     puestos,
     tipoPuesto,
     largoRealMm,
+    anchoRealMm,
   });
 
   vigas.forEach((v, index) => {
