@@ -5,6 +5,7 @@ import {
   refreshSession,
   subscribeToSessionInvalidation,
 } from './authApi.js';
+import { shouldRestoreApiSession } from './authRuntime.js';
 
 const AuthContext = createContext(null);
 
@@ -31,12 +32,14 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
+  const [authMode, setAuthMode] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const clearSession = useCallback(() => {
     setUser(null);
     setRoles([]);
     setPermissions([]);
+    setAuthMode(null);
   }, []);
 
   useEffect(() => {
@@ -44,6 +47,15 @@ export function AuthProvider({ children }) {
     const unsubscribe = subscribeToSessionInvalidation(() => {
       if (active) clearSession();
     });
+
+    if (!shouldRestoreApiSession(import.meta.env)) {
+      setLoading(false);
+      return () => {
+        active = false;
+        unsubscribe();
+      };
+    }
+
     refreshSession()
       .then((payload) => {
         if (!active) return;
@@ -51,6 +63,7 @@ export function AuthProvider({ children }) {
         setUser(session.user);
         setRoles(session.roles);
         setPermissions(session.permissions);
+        setAuthMode('api');
       })
       .catch(() => {
         if (active) clearSession();
@@ -71,20 +84,39 @@ export function AuthProvider({ children }) {
       setUser(session.user);
       setRoles(session.roles);
       setPermissions(session.permissions);
+      setAuthMode('api');
       return { ok: true };
     } catch (error) {
       return { ok: false, error: error.message || 'No fue posible iniciar sesión.' };
     }
   }, []);
 
+  const devLogin = useCallback(async (username) => {
+    if (!import.meta.env.DEV) {
+      return { ok: false, error: 'El acceso de desarrollo no está disponible.' };
+    }
+
+    const { createDevSession } = await import('./devAuth.js');
+    const payload = createDevSession(username);
+    if (!payload) return { ok: false, error: 'Usuario de desarrollo no válido.' };
+
+    const session = sessionState(payload);
+    setUser(session.user);
+    setRoles(session.roles);
+    setPermissions(session.permissions);
+    setAuthMode('dev');
+    return { ok: true };
+  }, []);
+
   const logout = useCallback(async () => {
     clearSession();
+    if (authMode === 'dev') return;
     try {
       await logoutSession();
     } catch {
       // La sesión local se limpia incluso si el servidor no está disponible.
     }
-  }, [clearSession]);
+  }, [authMode, clearSession]);
 
   const value = useMemo(
     () => ({
@@ -94,9 +126,10 @@ export function AuthProvider({ children }) {
       loading,
       isAuthenticated: Boolean(user),
       login,
+      devLogin,
       logout,
     }),
-    [user, roles, permissions, loading, login, logout]
+    [user, roles, permissions, loading, login, devLogin, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

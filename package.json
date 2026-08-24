@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "node --test test/authApi.test.js test/authRuntime.test.js test/devAuth.test.js server/test/accessToken.test.js server/test/authMiddleware.test.js server/test/authService.test.js server/test/bootstrapSuperadmin.test.js server/test/lastSuperadminGuard.test.js server/test/passwordService.test.js server/test/permissionResolver.test.js server/test/userDto.test.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "electron .",

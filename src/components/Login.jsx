@@ -2,19 +2,21 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, devLogin } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [show, setShow] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const hints = useMemo(
-    () => [
-      { u: 'admin', p: 'admin123', r: 'Administrador' },
-      { u: 'diseno', p: 'diseno123', r: 'Diseño' },
-      { u: 'comercial', p: 'comercial123', r: 'Comercial' },
-    ],
+  const devUsers = useMemo(
+    () => import.meta.env.DEV
+      ? [
+          { username: 'admin', label: 'Administrador' },
+          { username: 'diseno', label: 'Diseño' },
+          { username: 'comercial', label: 'Comercial' },
+        ]
+      : [],
     []
   );
 
@@ -24,6 +26,17 @@ export default function Login() {
     try {
       const res = await login(username, password);
       if (!res.ok) setError(res.error || 'No fue posible iniciar sesión.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onDevLogin = async (username) => {
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await devLogin(username);
+      if (!res.ok) setError(res.error || 'No fue posible iniciar la sesión de desarrollo.');
     } finally {
       setSubmitting(false);
     }
@@ -161,35 +174,42 @@ export default function Login() {
           </button>
         </form>
 
-        <details style={{ marginTop: 12 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 12, opacity: 0.75 }}>
-            Usuarios de desarrollo
-          </summary>
-          <div style={{ marginTop: 8, display: 'grid', gap: 6, fontSize: 12 }}>
-            <div style={{ opacity: 0.7 }}>
-              Estas credenciales sólo funcionan si los usuarios existen en el backend.
+        {import.meta.env.DEV && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 10,
+              borderRadius: 12,
+              border: '1px dashed #d97706',
+              background: '#fffbeb',
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e' }}>
+              🛠️ Herramientas de desarrollo — DEV ONLY
             </div>
-            {hints.map((h) => (
-              <div
-                key={h.u}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  padding: '8px 10px',
-                  borderRadius: 12,
-                  border: '1px solid #e5e7eb',
-                  background: '#fafafa',
-                }}
-              >
-                <span style={{ fontWeight: 800 }}>{h.r}</span>
-                <span style={{ opacity: 0.85 }}>
-                  {h.u} / {h.p}
-                </span>
-              </div>
-            ))}
+            <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {devUsers.map((devUser) => (
+                <button
+                  key={devUser.username}
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => onDevLogin(devUser.username)}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    border: '1px solid #f59e0b',
+                    background: '#fff',
+                    cursor: submitting ? 'wait' : 'pointer',
+                    fontSize: 12,
+                    fontWeight: 800,
+                  }}
+                >
+                  {devUser.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </details>
+        )}
       </div>
     </div>
   );
