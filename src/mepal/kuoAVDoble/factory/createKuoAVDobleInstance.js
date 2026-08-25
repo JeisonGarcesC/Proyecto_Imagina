@@ -9,6 +9,27 @@ import * as THREE from 'three';
 import { buildKuoAVDoble } from '../builder/KuoAVDobleBuilder.js';
 import { createSurfaceMesh } from '../../../factories/surfaceFactory.js';
 
+function cloneAsset(source) {
+  const clone = source.clone ? source.clone(true) : source;
+  clone.traverse?.((child) => {
+    if (!child.isMesh) return;
+    if (child.geometry?.clone) child.geometry = child.geometry.clone();
+    if (Array.isArray(child.material)) {
+      child.material = child.material.map((material) => material?.clone?.() || material);
+    } else if (child.material?.clone) {
+      child.material = child.material.clone();
+    }
+  });
+  return clone;
+}
+
+function forEachMaterial(object, callback) {
+  const materials = Array.isArray(object.material) ? object.material : [object.material];
+  for (const material of materials) {
+    if (material) callback(material);
+  }
+}
+
 export async function createKuoAVDobleInstance({
   config,
   loadGlb = null,
@@ -114,7 +135,7 @@ export async function createKuoAVDobleInstance({
           const loaded = await loadGlb(candidatePaths);
           const gltfScene = loaded?.scene || loaded?.object || loaded || null;
           if (gltfScene) {
-            partObj = gltfScene.clone ? gltfScene.clone(true) : gltfScene;
+            partObj = cloneAsset(gltfScene);
 
             // Variantes de color en parales, estructura y kit fuente
             if (part.colorVariante) {
@@ -130,10 +151,11 @@ export async function createKuoAVDobleInstance({
                   : 0xffffff;
               partObj.traverse((child) => {
                 if (child.isMesh && child.material) {
-                  child.material = child.material.clone();
-                  child.material.color.setHex(hex);
-                  child.material.roughness = 0.35;
-                  child.material.metalness = 0.1;
+                  forEachMaterial(child, (material) => {
+                    material.color.setHex(hex);
+                    material.roughness = 0.35;
+                    material.metalness = 0.1;
+                  });
                 }
               });
             }
@@ -198,15 +220,15 @@ export async function createKuoAVDobleInstance({
           child.castShadow = true;
           child.receiveShadow = true;
           child.frustumCulled = false;
-          if (child.material) {
-            child.material.depthWrite = true;
-            child.material.depthTest = true;
-            child.material.side = THREE.DoubleSide;
+          forEachMaterial(child, (material) => {
+            material.depthWrite = true;
+            material.depthTest = true;
+            material.side = THREE.DoubleSide;
             if (part.type === 'vertebra') {
-              child.material.transparent = false;
-              child.material.opacity = 1.0;
+              material.transparent = false;
+              material.opacity = 1.0;
             }
-          }
+          });
         }
         child.userData = {
           ...child.userData,

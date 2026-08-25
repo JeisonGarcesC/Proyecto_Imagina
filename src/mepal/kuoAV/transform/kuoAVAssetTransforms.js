@@ -39,7 +39,7 @@ export function resolveTransformKey(part) {
     return 'ductoCableado';
   }
   if (part.role === KUO_AV_PART_ROLES.VERTEBRA || part.type === KUO_AV_PART_TYPES.VERTEBRA) {
-    return 'vertebra';
+    return part.meta?.isLateral ? 'vertebraLateral' : 'vertebraCentral';
   }
   if (part.role === KUO_AV_PART_ROLES.SOCKET_SUPPORT || part.type === KUO_AV_PART_TYPES.SOPORTE_TOMAS) {
     return 'soporteTomas';

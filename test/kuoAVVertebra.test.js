@@ -165,3 +165,21 @@ test('BOM selecciona códigos SAP por ancho, material, color y acabado', () => {
   assert.ok(codes.has('22000116523'));
   assert.equal(codes.has('22000116690'), false);
 });
+
+test('variantes seleccionables de superficie tienen código SAP confirmado', () => {
+  for (const anchoMm of [1200, 1500, 1650]) {
+    for (const profundidadMm of [600, 750]) {
+      const [surface] = buildKuoAVBOM(
+        buildKuoAV({
+          anchoMm,
+          profundidadMm,
+          thickMm: 30,
+          espesorTipo: 'Formica 30',
+          acabadoGrommet: 'NONE',
+        })
+      ).filter((item) => item.type === 'superficie');
+
+      assert.match(surface.code, /^\d{11}$/, `${anchoMm}x${profundidadMm}`);
+    }
+  }
+});

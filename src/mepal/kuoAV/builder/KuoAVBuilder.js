@@ -65,7 +65,14 @@ export function buildKuoAV(config = {}) {
   // Accesorios opcionales con chequeo booleano estricto
   const kitFuente = typeof config.kitFuente === 'boolean' ? config.kitFuente : false;
   const elevarKitFIzquierdo = typeof config.elevarKitFIzquierdo === 'boolean' ? config.elevarKitFIzquierdo : false;
-  const vertebraLateral = typeof config.vertebraLateral === 'boolean' ? config.vertebraLateral : false;
+  const vertebraEnabled =
+    typeof config.vertebraEnabled === 'boolean'
+      ? config.vertebraEnabled
+      : typeof config.vertebraLateral === 'boolean'
+      ? config.vertebraLateral
+      : false;
+  const vertebraLateral =
+    typeof config.vertebraLateral === 'boolean' ? config.vertebraLateral : false;
   const ladoVertebra = config.ladoVertebra === 'der' ? 'der' : 'izq';
   const acabadoGrommet = config.acabadoGrommet || 'ALUMINIUM';
 
@@ -298,8 +305,8 @@ export function buildKuoAV(config = {}) {
   }
 
   // 10. Vértebra Metálica Pasacables (ÚNICAMENTE si vertebraLateral === true)
-  if (vertebraLateral) {
-    const calVert = cal.vertebra;
+  if (vertebraEnabled) {
+    const calVert = vertebraLateral ? cal.vertebraLateral : cal.vertebraCentral;
     const baseVert = calVert?.posicionMm || calVert?.posicionImaginaCanonicaMm || { x: -35.0, y: 25.0, z: -88.7 };
     const vertX = baseVert.x + (calVert?.offsetMm?.x || 0);
     const vertY = baseVert.y + (calVert?.offsetMm?.y || 0);
@@ -310,25 +317,13 @@ export function buildKuoAV(config = {}) {
       groupName,
       alturaMm,
       lado: ladoVertebra,
+      isLateral: vertebraLateral,
       x: vertX,
       y: vertY,
       z: vertZ,
     });
 
-    console.log('[KUO VERTEBRA DEBUG] BUILDER CREATE PART', {
-      vertebraLateral: true,
-      partCreada: true,
-      codigo: vertebraPart.code,
-      glb: vertebraPart.model?.src,
-      position: [vertX, vertY, vertZ],
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1],
-      groupId,
-    });
-
     parts.push(vertebraPart);
-  } else {
-    console.log('[KUO VERTEBRA DEBUG] BUILDER SKIP (vertebraLateral is false)');
   }
 
   // 11. Grommet Pasatapas (si está configurado y no es NONE)
@@ -383,11 +378,14 @@ export function buildKuoAV(config = {}) {
     alturaMm: baseRules.alturaMm,
     thickMm,
     espesor: config.espesor || `Espesor Formica ${thickMm}`,
+    espesorTipo: config.espesorTipo || config.espesor || `Formica ${thickMm}`,
     finishCode,
     canto,
     perforada,
     kitFuente,
+    kitFuenteColor: config.kitFuenteColor || config.acabadoParales || 'Blanco',
     elevarKitFIzquierdo,
+    vertebraEnabled,
     vertebraLateral,
     ladoVertebra,
     acabadoGrommet,

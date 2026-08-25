@@ -60,6 +60,7 @@ export const KUO_AV_GLB_FILES = Object.freeze({
   GROMMET_SIMPLE: 'LKAC250000.glb',
   GROMMET_DOBLE: 'LKAC250000_DOBLE.glb',
   VERTEBRA: 'KUAC650000.glb',
+  VERTEBRA_LATERAL: 'KUAC650000_LAT 1.glb',
 });
 
 /**
@@ -159,6 +160,10 @@ export const KUO_AV_CET_CODES = Object.freeze({
   DUCTO_CABLEADO: 'KUSO860000',
   VERTEBRA: 'KUAC650000',
   BOTONERA_LINAK: 'DPBK06',
+});
+
+export const KUO_AV_SAP_CODES = Object.freeze({
+  VERTEBRA: '22000116690',
 });
 
 /**
@@ -302,7 +307,7 @@ export const KUO_AV_CALIBRATION = {
   // ── 5. Vértebra Metálica Pasacables (KUAC650000.glb) ──
   // Solo se incluye si vertebraLateral === true
   // Orientación corregida según Master CET (RotY 180°)
-  vertebra: {
+  vertebraCentral: {
     codigo: KUO_AV_CET_CODES.VERTEBRA,
     glb: KUO_AV_GLB_FILES.VERTEBRA,
     fuente: 'KuoGo_prueba_01.glb',
@@ -316,7 +321,7 @@ export const KUO_AV_CALIBRATION = {
 
     rotacionDeg: {
       x: 0,
-      y: 180,
+      y: 0,
       z: 0,
     },
 
@@ -326,6 +331,32 @@ export const KUO_AV_CALIBRATION = {
       z: 0,
     },
 
+    escala: {
+      x: 1,
+      y: 1,
+      z: 1,
+    },
+  },
+
+  vertebraLateral: {
+    codigo: KUO_AV_CET_CODES.VERTEBRA,
+    glb: KUO_AV_GLB_FILES.VERTEBRA_LATERAL,
+    fuente: 'CET Designer',
+    posicionMm: {
+      x: -285.0,
+      y: 430.9,
+      z: -248.0,
+    },
+    rotacionDeg: {
+      x: 0,
+      y: 180,
+      z: 0,
+    },
+    offsetMm: {
+      x: 0,
+      y: 0,
+      z: 0,
+    },
     escala: {
       x: 1,
       y: 1,
@@ -574,10 +605,10 @@ export const KUO_AV_TUNABLES = {
   ANCHOS_MM: [1200, 1500, 1650],
 
   /** Fondos estándar iniciales en milímetros */
-  FONDOS_MM: [600, 700, 800],
+  FONDOS_MM: [600, 750],
 
   /** Espesores disponibles para la superficie en milímetros */
-  ESPESORES_MM: [18, 25, 30],
+  ESPESORES_MM: [30],
 
   /** Etiquetas de espesor para compatibilidad con el catálogo */
   ESPESORES_LABELS: [

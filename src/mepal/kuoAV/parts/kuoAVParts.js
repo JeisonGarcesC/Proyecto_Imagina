@@ -5,7 +5,7 @@
 // ruta de GLB real o generador procedural, y metadata de ensamble.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { KUO_AV_TUNABLES } from '../config/kuoAVTunables.js';
+import { KUO_AV_SAP_CODES, KUO_AV_TUNABLES } from '../config/kuoAVTunables.js';
 
 /**
  * Roles estructurales y funcionales de las piezas de KUO AV.
@@ -254,6 +254,7 @@ export function createKuoAVPowerKitPart({
 
     code: KUO_AV_TUNABLES.CET_CODES.KIT_FUENTE,
     logicalCode: `KUAC1040000_${side.toUpperCase()}`,
+    lookupTag: 'KUAC1040000',
     existsInCatalog: true,
     rawCodigoPT: KUO_AV_TUNABLES.CET_CODES.KIT_FUENTE,
 
@@ -342,11 +343,17 @@ export function createKuoAVVertebraPart({
   groupName = null,
   alturaMm = 730,
   lado = 'izq', // 'izq' | 'der'
+  isLateral = false,
   x = 0,
   y = 0,
   z = 0,
   modelSrc = null,
 } = {}) {
+  const lookupTag = isLateral ? 'KUAC650000_ALT_LAT' : 'KUAC650000';
+  const glbFilename = isLateral
+    ? KUO_AV_TUNABLES.GLB_FILES.VERTEBRA_LATERAL
+    : KUO_AV_TUNABLES.GLB_FILES.VERTEBRA;
+
   return {
     type: KUO_AV_PART_TYPES.VERTEBRA,
     subtype: 'pasacables_articulado',
@@ -356,12 +363,13 @@ export function createKuoAVVertebraPart({
     groupId,
     groupName,
 
-    code: KUO_AV_TUNABLES.CET_CODES.VERTEBRA,
-    logicalCode: `KUAC650000_${lado.toUpperCase()}`,
+    code: KUO_AV_SAP_CODES.VERTEBRA,
+    logicalCode: lookupTag,
+    lookupTag,
     existsInCatalog: true,
-    rawCodigoPT: KUO_AV_TUNABLES.CET_CODES.VERTEBRA,
+    rawCodigoPT: KUO_AV_SAP_CODES.VERTEBRA,
 
-    name: `Vértebra Metálica Altura Variable Kuo AV KUAC650000 (${lado.toUpperCase()})`,
+    name: `Vértebra Pasacables Kuo AV ${isLateral ? 'Lateral' : 'Central'} (${lado.toUpperCase()})`,
 
     dimMm: {
       widthMm: 60,
@@ -375,12 +383,15 @@ export function createKuoAVVertebraPart({
 
     model: {
       kind: 'glb',
-      src: modelSrc || `${KUO_AV_TUNABLES.GLB_BASE}${KUO_AV_TUNABLES.GLB_FILES.VERTEBRA}`,
+      src: modelSrc || `${KUO_AV_TUNABLES.GLB_BASE}${glbFilename}`,
     },
 
     meta: {
       category: 'pasacables',
       codigoCET: KUO_AV_TUNABLES.CET_CODES.VERTEBRA,
+      codigoSAP: KUO_AV_SAP_CODES.VERTEBRA,
+      lookupTag,
+      isLateral,
       lado,
       alturaMm,
     },
