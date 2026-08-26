@@ -21,6 +21,7 @@ export async function createMilaAccessoryInstance({ api, config = {} }) {
 
   let item = null;
   let role = 'accessory';
+  let quantity = 1;
 
   if (accessoryType === 'armrest-left') {
     item = MILA_ACCESSORY_CATALOG.armrestLeft;
@@ -34,15 +35,19 @@ export async function createMilaAccessoryInstance({ api, config = {} }) {
   } else if (accessoryType === 'screen-1p' || accessoryType === 'screen-60') {
     item = MILA_ACCESSORY_CATALOG.screen1P;
     role = 'screen';
+    quantity = 1;
   } else if (accessoryType === 'screen-2p' || accessoryType === 'screen-120') {
     item = MILA_ACCESSORY_CATALOG.screen2P;
     role = 'screen';
+    quantity = 2;
   } else if (accessoryType === 'screen-3p' || accessoryType === 'screen-180') {
     item = MILA_ACCESSORY_CATALOG.screen3P;
     role = 'screen';
+    quantity = 3;
   } else if (accessoryType === 'screen-4p' || accessoryType === 'screen-240') {
     item = MILA_ACCESSORY_CATALOG.screen4P;
     role = 'screen';
+    quantity = 4;
   } else {
     item = MILA_ACCESSORY_CATALOG.armrestLeft;
     role = 'armrest-left';
@@ -67,12 +72,14 @@ export async function createMilaAccessoryInstance({ api, config = {} }) {
       category: 'mila',
       line: 'MILA',
       role,
+      quantity,
       isPartRoot: true,
       instanceId,
     },
     extraUserData: {
       prices: item.prices,
       role,
+      quantity,
     },
   });
 

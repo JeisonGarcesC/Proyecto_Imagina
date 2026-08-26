@@ -92,6 +92,8 @@ export const MILA_ACCESSORY_SOURCES = {
     3: '/assets/models/Mila/TKSPN070000_180_W_2P.glb',
     4: '/assets/models/Mila/TKSPN070000_240_W_2P.glb',
   },
+  screenSideLeft: '/assets/models/Mila/panelDivisor/TKSPN090000_60_W_2P_IZQ.glb',
+  screenSideRight: '/assets/models/Mila/panelDivisor/TKSPN090000_60_W_2P_DER.glb',
 };
 
 export const MILA_ACCESSORY_OFFSETS_MM = {
@@ -101,26 +103,27 @@ export const MILA_ACCESSORY_OFFSETS_MM = {
   armrestRight: { x: -36.8, y: 0, z: 0 },
   // Apoyabrazos intermedio: centrado sobre la unión entre 2 puestos (X=-60) y pegado al espaldar (Z=-40)
   armrestCenter: { x: -60, y: 0, z: -80 },
-  // Pantalla envolvente W_2P: envuelve el espaldar y laterales de todo el ensamble
+  // Pantalla envolvente W_2P del puesto integrado:
+  // un solo GLB trasero por cantidad, anclado atrás de la silla.
   screen: { x: 300, y: 0, z: -720 },
 };
 
 export const MILA_ACCESSORY_CATALOG = {
   armrestLeft: {
-    code: '22000127151',
+    code: '22000127937',
     modelCode: 'TKSSI140000_IZQ',
     label: 'Apoyabrazos izquierdo',
-    description: 'BRAZO IZQUIERDO TAPIZADO TEK SOCIAL (MILA V2) TKSSI140000',
+    description: 'APOYA BRAZOS TAPIZADO EN TELA GAMA 1 POLTRONA TEK SOCIAL (MILA V2) TKSSI140000',
     modelSrc: MILA_ACCESSORY_SOURCES.armrestLeft,
-    prices: { CO: 796950, USD: 110, EUC: 215 },
+    prices: { CO: 763350, USD: 106, EUC: 206 },
   },
   armrestRight: {
-    code: '22000127151',
+    code: '22000127937',
     modelCode: 'TKSSI140000_DER',
     label: 'Apoyabrazos derecho',
-    description: 'BRAZO DERECHO TAPIZADO TEK SOCIAL (MILA V2) TKSSI140000',
+    description: 'APOYA BRAZOS TAPIZADO EN TELA GAMA 1 POLTRONA TEK SOCIAL (MILA V2) TKSSI140000',
     modelSrc: MILA_ACCESSORY_SOURCES.armrestRight,
-    prices: { CO: 796950, USD: 110, EUC: 215 },
+    prices: { CO: 763350, USD: 106, EUC: 206 },
   },
   armrestCenter: {
     code: '22000110791',
@@ -131,28 +134,28 @@ export const MILA_ACCESSORY_CATALOG = {
     prices: { CO: 455700, USD: 65, EUC: 125 },
   },
   screen1P: {
-    code: '22000127825',
+    code: '22000127941',
     modelCode: 'TKSPN070000_60_W_2P',
     label: 'Panel terminal 1 puesto (60 cm)',
-    description: 'PANEL ESPALDA TERMINAL TAPIZADO 1 PUESTO TEK SOCIAL (MILA V2) TKSPN070000',
+    description: 'PANEL ESPALDA TERMINAL TAPIZADO 1 PUESTO TELA GAMA 1 TEK SOCIAL (MILA V2) TKSPN070000',
     modelSrc: MILA_ACCESSORY_SOURCES.screen[1],
-    prices: { CO: 998550, USD: 140, EUC: 270 },
+    prices: { CO: 966000, USD: 135, EUC: 261 },
   },
   screen2P: {
-    code: '22000127826',
+    code: '22000129109',
     modelCode: 'TKSPN070000_120_W_2P',
     label: 'Panel terminal 2 puestos (120 cm)',
-    description: 'PANEL ESPALDA TERMINAL TAPIZADO 2 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000',
+    description: 'PANEL ESPALDA TERMINAL TAPIZADO 2 PUESTOS TELA GAMA 1 TEK SOCIAL (MILA V2) TKSPN070000',
     modelSrc: MILA_ACCESSORY_SOURCES.screen[2],
-    prices: { CO: 1540000, USD: 215, EUC: 415 },
+    prices: { CO: 1779750, USD: 215, EUC: 415 },
   },
   screen3P: {
-    code: '22000127827',
+    code: '22000129112',
     modelCode: 'TKSPN070000_180_W_2P',
     label: 'Panel terminal 3 puestos (180 cm)',
-    description: 'PANEL ESPALDA TERMINAL TAPIZADO 3 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000',
+    description: 'PANEL ESPALDA TERMINAL TAPIZADO 3 PUESTOS TELA GAMA 1 TEK SOCIAL (MILA V2) TKSPN070000',
     modelSrc: MILA_ACCESSORY_SOURCES.screen[3],
-    prices: { CO: 1980000, USD: 275, EUC: 535 },
+    prices: { CO: 2669100, USD: 275, EUC: 535 },
   },
   screen4P: {
     code: '22000127828',
@@ -161,6 +164,22 @@ export const MILA_ACCESSORY_CATALOG = {
     description: 'PANEL ESPALDA TERMINAL TAPIZADO 4 PUESTOS TEK SOCIAL (MILA V2) TKSPN070000',
     modelSrc: MILA_ACCESSORY_SOURCES.screen[4],
     prices: { CO: 2450000, USD: 340, EUC: 660 },
+  },
+  screenSideLeft: {
+    code: '22000127940',
+    modelCode: 'TKSPN090000_60_W_2P_IZQ',
+    label: 'Panel terminal izquierdo',
+    description: 'PANEL TERMINAL IZQUIERDO TAPIZADO TELA GAMA 1 TEK SOCIAL (MILA V2) TKSPN090000',
+    modelSrc: MILA_ACCESSORY_SOURCES.screenSideLeft,
+    prices: { CO: 796950, USD: 105, EUC: 209 },
+  },
+  screenSideRight: {
+    code: '22000127939',
+    modelCode: 'TKSPN090000_60_W_2P_DER',
+    label: 'Panel terminal derecho',
+    description: 'PANEL TERMINAL DERECHO TAPIZADO TELA GAMA 1 TEK SOCIAL (MILA V2) TKSPN090000',
+    modelSrc: MILA_ACCESSORY_SOURCES.screenSideRight,
+    prices: { CO: 796950, USD: 105, EUC: 209 },
   },
 };
 
@@ -173,6 +192,28 @@ export function resolveMilaScreenCatalogItem(quantity) {
   const q = Math.max(1, Math.min(4, Math.trunc(Number(quantity) || 1)));
   const key = `screen${q}P`;
   return MILA_ACCESSORY_CATALOG[key] || MILA_ACCESSORY_CATALOG.screen1P;
+}
+
+export function resolveMilaScreenBomBreakdown(quantity) {
+  const q = Math.max(1, Math.min(4, Math.trunc(Number(quantity) || 1)));
+
+  if (q === 4) {
+    return [
+      {
+        code: '22000129109',
+        qty: 2,
+      },
+    ];
+  }
+
+  const item = resolveMilaScreenCatalogItem(q);
+  return [{ code: item.code, qty: 1 }];
+}
+
+export function resolveMilaScreenSideCatalogItem(side = 'left') {
+  return side === 'right'
+    ? MILA_ACCESSORY_CATALOG.screenSideRight
+    : MILA_ACCESSORY_CATALOG.screenSideLeft;
 }
 
 export function resolveMilaBeamSpanRatio(quantity) {

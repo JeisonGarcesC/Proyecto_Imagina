@@ -110,29 +110,18 @@ export default function BOMView({
     // 3) Sort dentro de cada grupo
     const dir = sortDir === 'asc' ? 1 : -1;
 
-    // 4) Agrupa
-    const map = new Map(); // groupKey -> {label, items[]}
-    for (const r of list) {
-      if (!map.has(r.groupKey)) map.set(r.groupKey, { label: r.groupLabel, items: [] });
-      map.get(r.groupKey).items.push(r);
-    }
+    // 4) Mantener todo junto en una sola vista consolidada para que no se separen
+    // vigas, respaldos, paneles laterales ni accesorios dentro de la misma tipología.
+    const groupArr = [
+      {
+        key: 'ALL:CONSOLIDADO',
+        label: qq ? 'RESULTADOS' : 'TODOS',
+        items: list,
+        subtotal: 0,
+      },
+    ];
 
-    // 5) Orden de grupos: tipologías primero, sueltos al final
-    const groupArr = Array.from(map.entries()).map(([key, val]) => ({
-      key,
-      label: val.label,
-      items: val.items,
-      subtotal: 0,
-    }));
-
-    groupArr.sort((a, b) => {
-      const aIsLoose = a.key.startsWith('S:');
-      const bIsLoose = b.key.startsWith('S:');
-      if (aIsLoose !== bIsLoose) return aIsLoose ? 1 : -1;
-      return a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
-    });
-
-    // 6) Sort items dentro de cada grupo
+    // 5) Sort items dentro del bloque consolidado
     for (const g of groupArr) {
       g.items.sort((a, b) => {
         const va = a[sortKey];
@@ -142,7 +131,7 @@ export default function BOMView({
         return safeStr(va).localeCompare(safeStr(vb), 'es', { sensitivity: 'base' }) * dir;
       });
 
-      // 7) Subtotal
+      // 6) Subtotal
       g.subtotal = g.items.reduce((acc, r) => acc + (r.total || 0), 0);
     }
 
@@ -593,7 +582,7 @@ export default function BOMView({
                 color: palette.text,
               }}
             />
-            <div style={{ fontSize: 11.5, color: palette.soft }}>Vista agrupada por tipología</div>
+            <div style={{ fontSize: 11.5, color: palette.soft }}>Vista consolidada</div>
           </div>
         </div>
       </div>

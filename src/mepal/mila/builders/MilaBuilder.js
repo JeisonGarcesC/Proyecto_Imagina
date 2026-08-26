@@ -20,8 +20,8 @@ const MILA_VARIANTS = {
     label: 'Mila',
     line: 'MILA',
     seatCode: '22000127935',
-    tableSeatCode: '22000130198',
-    tableSeatGrommetCode: '22000130198',
+    tableSeatCode: '22000130199',
+    tableSeatGrommetCode: '22000130199',
     legCode: '22000127142',
     beamCode: '22000127143',
     centerSupportCode: '22000127149',
@@ -259,20 +259,20 @@ export function createMilaScreenPart({
   quantity,
   moduleSpacingMm,
 }) {
-  const cat = resolveMilaScreenCatalogItem(quantity);
+  const backCat = resolveMilaScreenCatalogItem(quantity);
   const offset = MILA_ACCESSORY_OFFSETS_MM.screen;
-  return {
+  return [{
     type: 'GLB_PART',
     subtype: 'screen',
     line: variant?.line || 'MILA',
     groupId,
     groupName,
-    code: cat.code,
+    code: backCat.code,
     logicalCode: `${variant?.codePrefix || 'MILA'}_SCREEN_${quantity}P`,
-    name: `${variant?.label || 'Mila'} ${cat.label}`,
-    description: cat.description,
-    prices: cat.prices,
-    model: { src: cat.modelSrc },
+    name: `${variant?.label || 'Mila'} ${backCat.label}`,
+    description: backCat.description,
+    prices: backCat.prices,
+    model: { src: backCat.modelSrc },
     position: {
       x: Number(offset.x || 0),
       y: Number(offset.y || 0),
@@ -285,7 +285,7 @@ export function createMilaScreenPart({
       quantity,
       moduleSpacingMm,
     },
-  };
+  }];
 }
 
 function createMilaSupportParts({ groupId, groupName, moduleSpacingMm, quantity, variant }) {
@@ -539,7 +539,7 @@ export function buildMila({
 
   if (hasScreen) {
     parts.push(
-      createMilaScreenPart({
+      ...createMilaScreenPart({
         groupId,
         groupName,
         variant: resolvedVariant,
