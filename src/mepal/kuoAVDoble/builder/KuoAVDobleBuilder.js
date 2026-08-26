@@ -35,7 +35,16 @@ export function buildKuoAVDoble(config = {}) {
   const acabadoGrommet = config.acabadoGrommet || 'Anodizado';
   const especial = !!config.especial;
   const baldosaFormica = !!config.baldosaFormica;
-  const vertebraLateral = typeof config.vertebraLateral === 'boolean' ? config.vertebraLateral : true;
+  const legacyVertebraEnabled =
+    typeof config.vertebraLateral === 'boolean' ? config.vertebraLateral : true;
+  const vertebraLeftEnabled =
+    typeof config.vertebraLeftEnabled === 'boolean'
+      ? config.vertebraLeftEnabled
+      : legacyVertebraEnabled;
+  const vertebraRightEnabled =
+    typeof config.vertebraRightEnabled === 'boolean'
+      ? config.vertebraRightEnabled
+      : legacyVertebraEnabled;
 
   // Resolución de variantes de ancho (1200 / 1500 / 1650)
   let variantKey = 1200;
@@ -400,13 +409,14 @@ export function buildKuoAVDoble(config = {}) {
   }
 
   // 11. Vértebras Pasacables KUAC650000
-  if (vertebraLateral) {
+  if (vertebraLeftEnabled) {
     parts.push({
       partId: `${groupId}_VERTEBRA_FRONT`,
       groupId,
-      codigo: 'KUAC650000_F',
+      codigo: '22000116690',
       lookupTag: 'KUAC650000',
       role: KUO_AV_DOBLE_PART_ROLES.VERTEBRA_LEFT,
+      type: 'vertebra',
       name: 'Vértebra Pasacables Frontal',
       modelKind: 'glb',
       glb: '/assets/models/Kuo AV/Puesto Doble/KUAC650000.glb',
@@ -415,13 +425,16 @@ export function buildKuoAVDoble(config = {}) {
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
     });
+  }
 
+  if (vertebraRightEnabled) {
     parts.push({
       partId: `${groupId}_VERTEBRA_BACK`,
       groupId,
-      codigo: 'KUAC650000_P',
+      codigo: '22000116690',
       lookupTag: 'KUAC650000',
       role: KUO_AV_DOBLE_PART_ROLES.VERTEBRA_RIGHT,
+      type: 'vertebra',
       name: 'Vértebra Pasacables Posterior',
       modelKind: 'glb',
       glb: '/assets/models/Kuo AV/Puesto Doble/KUAC650000.glb',
@@ -608,7 +621,8 @@ export function buildKuoAVDoble(config = {}) {
       especial,
       baldosaFormica,
       costadoIntermedio: true,
-      vertebraLateral,
+      vertebraLeftEnabled,
+      vertebraRightEnabled,
       pantalla: hasPantalla,
       pantallaTipo,
       pantallaPosicion,

@@ -123,7 +123,7 @@ export const KUO_AV_DOBLE_PARTS = Object.freeze({
     modelKind: 'glb',
   },
   VERTEBRA_LEFT: {
-    code: 'KUAC650000_IZQ',
+    code: '22000116690',
     lookupTag: 'KUAC650000',
     name: 'Vértebra Pasacables Izquierda',
     role: KUO_AV_DOBLE_PART_ROLES.VERTEBRA_LEFT,
@@ -131,7 +131,7 @@ export const KUO_AV_DOBLE_PARTS = Object.freeze({
     modelKind: 'glb',
   },
   VERTEBRA_RIGHT: {
-    code: 'KUAC650000_DER',
+    code: '22000116690',
     lookupTag: 'KUAC650000',
     name: 'Vértebra Pasacables Derecha',
     role: KUO_AV_DOBLE_PART_ROLES.VERTEBRA_RIGHT,

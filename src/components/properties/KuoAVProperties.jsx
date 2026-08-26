@@ -59,7 +59,12 @@ export default function KuoAVProperties({ part, api }) {
   const [thickMm, setThickMm] = useState(currentConfig.thickMm || 30);
   const [kitFuente, setKitFuente] = useState(currentConfig.kitFuente !== undefined ? !!currentConfig.kitFuente : true);
   const [elevarKitFIzquierdo, setElevarKitFIzquierdo] = useState(!!currentConfig.elevarKitFIzquierdo);
-  const [vertebraLateral, setVertebraLateral] = useState(currentConfig.vertebraLateral !== undefined ? !!currentConfig.vertebraLateral : true);
+  const [vertebraEnabled, setVertebraEnabled] = useState(
+    currentConfig.vertebraEnabled !== undefined
+      ? !!currentConfig.vertebraEnabled
+      : !!currentConfig.vertebraLateral
+  );
+  const [vertebraLateral, setVertebraLateral] = useState(!!currentConfig.vertebraLateral);
   const [acabadoGrommet, setAcabadoGrommet] = useState(currentConfig.acabadoGrommet || 'ALUMINIUM');
   const [especial, setEspecial] = useState(!!currentConfig.especial);
 
@@ -77,6 +82,11 @@ export default function KuoAVProperties({ part, api }) {
     if (cfg.thickMm) setThickMm(cfg.thickMm);
     if (cfg.kitFuente !== undefined) setKitFuente(cfg.kitFuente);
     if (cfg.elevarKitFIzquierdo !== undefined) setElevarKitFIzquierdo(cfg.elevarKitFIzquierdo);
+    if (cfg.vertebraEnabled !== undefined) {
+      setVertebraEnabled(cfg.vertebraEnabled);
+    } else if (cfg.vertebraLateral !== undefined) {
+      setVertebraEnabled(cfg.vertebraLateral);
+    }
     if (cfg.vertebraLateral !== undefined) setVertebraLateral(cfg.vertebraLateral);
     if (cfg.acabadoGrommet) setAcabadoGrommet(cfg.acabadoGrommet);
     if (cfg.especial !== undefined) setEspecial(cfg.especial);
@@ -84,12 +94,14 @@ export default function KuoAVProperties({ part, api }) {
 
   async function updateConfig(changes) {
     const nextCfg = {
+      ...currentConfig,
       anchoMm,
       profundidadMm,
       alturaMm,
       thickMm,
       kitFuente,
       elevarKitFIzquierdo,
+      vertebraEnabled,
       vertebraLateral,
       acabadoGrommet,
       especial,
@@ -251,15 +263,33 @@ export default function KuoAVProperties({ part, api }) {
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
           <input
             type="checkbox"
-            checked={vertebraLateral}
+            checked={vertebraEnabled}
             onChange={(e) => {
               const val = e.target.checked;
-              setVertebraLateral(val);
-              updateConfig({ vertebraLateral: val });
+              setVertebraEnabled(val);
+              updateConfig({ vertebraEnabled: val });
             }}
           />
-          <span style={{ fontWeight: 600 }}>Colocar Vértebra Lateral</span>
+          <span style={{ fontWeight: 600 }}>Incluir Vértebra Pasacables</span>
         </label>
+
+        {vertebraEnabled && (
+          <div style={{ paddingLeft: 16 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 4 }}>Ubicación de Vértebra</div>
+            <select
+              value={vertebraLateral ? 'LATERAL' : 'CENTRAL'}
+              onChange={(e) => {
+                const val = e.target.value === 'LATERAL';
+                setVertebraLateral(val);
+                updateConfig({ vertebraLateral: val });
+              }}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12 }}
+            >
+              <option value="CENTRAL">Central / Vertical</option>
+              <option value="LATERAL">Lateral</option>
+            </select>
+          </div>
+        )}
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
           <input

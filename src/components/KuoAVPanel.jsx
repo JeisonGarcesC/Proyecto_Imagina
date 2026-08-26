@@ -16,6 +16,7 @@ export default function KuoAVPanel({ threeApiRef }) {
     alturaMm: 730,
     thickMm: 30,
     kitFuente: true,
+    vertebraEnabled: true,
     vertebraLateral: true,
     acabadoGrommet: 'ALUMINIUM',
   };
@@ -33,7 +34,8 @@ export default function KuoAVPanel({ threeApiRef }) {
     especial: false,
     baldosaFormica: false,
     costadoIntermedio: true,
-    vertebraLateral: true,
+    vertebraLeftEnabled: true,
+    vertebraRightEnabled: true,
   };
 
   async function handleInsert() {

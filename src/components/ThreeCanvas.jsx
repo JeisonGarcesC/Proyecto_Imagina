@@ -2184,7 +2184,7 @@ export default function ThreeCanvas({
             for (const it of bomList) {
               addRow(
                 String(it.codigo || it.code),
-                Number(it.cantidad || it.qty || 1),
+                Number(it.cantidad || it.qty || it.quantity || 1),
                 it.descripcion || it.description || it.name,
                 it.unitPrice || 0,
                 groupId,
@@ -2194,6 +2194,28 @@ export default function ThreeCanvas({
                 groupInstanceId
               );
             }
+          }
+          continue;
+        }
+
+        if (obj.userData?.kind === 'KUO_AV_ASSEMBLY') {
+          const bomList = obj.userData?.bom || obj.userData?.kuoAVParts || [];
+          const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+          const groupId = obj.userData?.groupId || groupInstanceId;
+          const groupName = obj.userData?.groupName || 'Kuo AV Superficie Perimetral';
+
+          for (const item of bomList) {
+            addRow(
+              String(item.codigo || item.code),
+              Number(item.cantidad || item.qty || item.quantity || 1),
+              item.descripcion || item.description,
+              item.unitPrice,
+              groupId,
+              groupName,
+              item.prices,
+              null,
+              groupInstanceId
+            );
           }
           continue;
         }

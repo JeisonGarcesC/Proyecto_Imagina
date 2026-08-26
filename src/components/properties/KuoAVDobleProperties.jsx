@@ -57,7 +57,18 @@ export default function KuoAVDobleProperties({ part, api }) {
   const [especial, setEspecial] = useState(!!currentConfig.especial);
   const [baldosaFormica, setBaldosaFormica] = useState(!!currentConfig.baldosaFormica);
   const [costadoIntermedio, setCostadoIntermedio] = useState(currentConfig.costadoIntermedio !== undefined ? !!currentConfig.costadoIntermedio : true);
-  const [vertebraLateral, setVertebraLateral] = useState(currentConfig.vertebraLateral !== undefined ? !!currentConfig.vertebraLateral : true);
+  const legacyVertebraEnabled =
+    currentConfig.vertebraLateral !== undefined ? !!currentConfig.vertebraLateral : true;
+  const [vertebraLeftEnabled, setVertebraLeftEnabled] = useState(
+    currentConfig.vertebraLeftEnabled !== undefined
+      ? !!currentConfig.vertebraLeftEnabled
+      : legacyVertebraEnabled
+  );
+  const [vertebraRightEnabled, setVertebraRightEnabled] = useState(
+    currentConfig.vertebraRightEnabled !== undefined
+      ? !!currentConfig.vertebraRightEnabled
+      : legacyVertebraEnabled
+  );
 
   // Pantalla Formica / Melamina / Tela
   const [pantalla, setPantalla] = useState(!!currentConfig.pantalla || !!currentConfig.pantallaEnabled);
@@ -85,7 +96,16 @@ export default function KuoAVDobleProperties({ part, api }) {
     if (cfg.especial !== undefined) setEspecial(cfg.especial);
     if (cfg.baldosaFormica !== undefined) setBaldosaFormica(cfg.baldosaFormica);
     if (cfg.costadoIntermedio !== undefined) setCostadoIntermedio(cfg.costadoIntermedio);
-    if (cfg.vertebraLateral !== undefined) setVertebraLateral(cfg.vertebraLateral);
+    if (cfg.vertebraLeftEnabled !== undefined) {
+      setVertebraLeftEnabled(cfg.vertebraLeftEnabled);
+    } else if (cfg.vertebraLateral !== undefined) {
+      setVertebraLeftEnabled(cfg.vertebraLateral);
+    }
+    if (cfg.vertebraRightEnabled !== undefined) {
+      setVertebraRightEnabled(cfg.vertebraRightEnabled);
+    } else if (cfg.vertebraLateral !== undefined) {
+      setVertebraRightEnabled(cfg.vertebraLateral);
+    }
     if (cfg.pantalla !== undefined || cfg.pantallaEnabled !== undefined) {
       setPantalla(!!cfg.pantalla || !!cfg.pantallaEnabled);
     }
@@ -116,7 +136,8 @@ export default function KuoAVDobleProperties({ part, api }) {
       especial,
       baldosaFormica,
       costadoIntermedio,
-      vertebraLateral,
+      vertebraLeftEnabled,
+      vertebraRightEnabled,
       pantalla,
       pantallaPosicion,
       pantallaTipo,
@@ -454,18 +475,31 @@ export default function KuoAVDobleProperties({ part, api }) {
           Kit Fuente Central
         </label>
 
-        {/* Colocar Vértebra Lateral */}
+        {/* Vértebras independientes */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, cursor: 'pointer' }}>
           <input
             type="checkbox"
-            checked={vertebraLateral}
+            checked={vertebraLeftEnabled}
             onChange={(e) => {
               const val = e.target.checked;
-              setVertebraLateral(val);
-              updateConfig({ vertebraLateral: val });
+              setVertebraLeftEnabled(val);
+              updateConfig({ vertebraLeftEnabled: val });
             }}
           />
-          Colocar Vértebra Lateral
+          Vértebra Izquierda / Frontal
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={vertebraRightEnabled}
+            onChange={(e) => {
+              const val = e.target.checked;
+              setVertebraRightEnabled(val);
+              updateConfig({ vertebraRightEnabled: val });
+            }}
+          />
+          Vértebra Derecha / Posterior
         </label>
       </div>
     </div>

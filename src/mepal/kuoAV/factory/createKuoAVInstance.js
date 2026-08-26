@@ -11,6 +11,28 @@ import { buildKuoAV } from '../builder/KuoAVBuilder.js';
 import { createSurfaceMesh } from '../../../factories/surfaceFactory.js';
 import { applyKuoAVAssetTransform } from '../transform/kuoAVAssetTransforms.js';
 import { KUO_AV_PART_ROLES, KUO_AV_PART_TYPES } from '../parts/kuoAVParts.js';
+import { buildKuoAVBOM } from '../bom/kuoAVBOMCatalog.js';
+
+function cloneAsset(source) {
+  const clone = source.clone ? source.clone(true) : source;
+  clone.traverse?.((child) => {
+    if (!child.isMesh) return;
+    if (child.geometry?.clone) child.geometry = child.geometry.clone();
+    if (Array.isArray(child.material)) {
+      child.material = child.material.map((material) => material?.clone?.() || material);
+    } else if (child.material?.clone) {
+      child.material = child.material.clone();
+    }
+  });
+  return clone;
+}
+
+function forEachMaterial(object, callback) {
+  const materials = Array.isArray(object.material) ? object.material : [object.material];
+  for (const material of materials) {
+    if (material) callback(material);
+  }
+}
 
 /**
  * Aplica transformaciones guardadas (posición, rotación, escala) a un Object3D.
@@ -95,17 +117,7 @@ export async function createKuoAVInstance({
   assemblyGroup.name = `KUO_AV_${instanceId}`;
 
   // 3. Empaquetar el desglose de partes con códigos CET para el BOM y cotizador
-  const kuoAVParts = parts.map((p) => ({
-    code: p.code || p.logicalCode,
-    logicalCode: p.logicalCode,
-    description: p.name,
-    qty: 1,
-    role: p.role,
-    type: p.type,
-    dimMm: p.dimMm,
-    unitPrice: 0, // Pendiente de resolución por catálogo/PriceLists
-    prices: { CO: 0, EUC: 0, USD: 0 },
-  }));
+  const kuoAVParts = buildKuoAVBOM(built);
 
   // 4. Configuración completa normalizada y preservada para reconstrucción exacta
   const preservedConfig = {
@@ -124,6 +136,7 @@ export async function createKuoAVInstance({
     config: preservedConfig,
     dimMm,
     kuoAVParts,
+    bom: kuoAVParts,
   };
 
   assemblyGroup.userData = {
@@ -198,7 +211,7 @@ export async function createKuoAVInstance({
         const loaded = await loadGlb(candidatePaths);
         const glbScene = loaded?.scene || loaded?.object || loaded || null;
         if (glbScene) {
-          partObject = glbScene.clone ? glbScene.clone(true) : glbScene;
+          partObject = cloneAsset(glbScene);
         }
       } catch (err) {
         console.warn(`[createKuoAVInstance] Error al cargar GLB "${part.model.src}". Usando proxy visual:`, err.message);
@@ -221,17 +234,16 @@ export async function createKuoAVInstance({
           child.castShadow = true;
           child.receiveShadow = true;
           child.frustumCulled = false;
-          if (child.material) {
-            child.material.depthWrite = true;
-            child.material.depthTest = true;
-            child.material.side = THREE.DoubleSide;
-            // Si es la vértebra, asegurar que sea visible y sólida (no transparente con alpha 0.6)
+          forEachMaterial(child, (material) => {
+            material.depthWrite = true;
+            material.depthTest = true;
+            material.side = THREE.DoubleSide;
             if (isVertebra) {
-              child.material.transparent = false;
-              child.material.opacity = 1.0;
-              child.material.needsUpdate = true;
+              material.transparent = false;
+              material.opacity = 1.0;
+              material.needsUpdate = true;
             }
-          }
+          });
         }
       });
 
@@ -244,8 +256,10 @@ export async function createKuoAVInstance({
       partObject.userData = {
         ...(partObject.userData || {}),
         parentAssemblyId: instanceId,
+        instanceId,
         groupId: effectiveGroupId,
         code: part.code,
+        lookupTag: part.lookupTag || part.logicalCode,
         codigoCET: part.code,
         role: part.role,
         partType: part.type,
