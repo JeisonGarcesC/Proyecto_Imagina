@@ -104,3 +104,34 @@ export function getDuctCoverSides(tipoModulo, state = {}) {
 
   return state.single ? ['single'] : [];
 }
+
+export function resolveDuctCoverPhysicalSides({
+  tipoModulo,
+  tipoPuesto,
+  ductSide = 'RIGHT',
+  state = {},
+} = {}) {
+  const mod = normalizeDuctModuleType(tipoModulo);
+
+  if (mod === 'intermedio') {
+    return getDuctCoverSides(mod, state);
+  }
+
+  if (!state.single) return [];
+
+  if (mod === 'individual') return ['right'];
+
+  const seat = normalizeDuctSeatType(tipoPuesto);
+  const normalizedDuctSide = String(ductSide || 'RIGHT')
+    .trim()
+    .toUpperCase();
+
+  // Los nombres _IZQ/_DER describen la orientación del ducto dentro del puesto,
+  // no el extremo local donde se instala la tapa. Los GLB sencillos y dobles
+  // usan convenciones opuestas entre sí.
+  if (seat === 'doble') {
+    return [normalizedDuctSide === 'LEFT' ? 'left' : 'right'];
+  }
+
+  return [normalizedDuctSide === 'LEFT' ? 'right' : 'left'];
+}

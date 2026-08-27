@@ -56,6 +56,45 @@ export function normalizeCeilingDuctSide(side) {
   return 'LEFT';
 }
 
+export function defaultCeilingDuctState(tipoModulo) {
+  return String(tipoModulo || '').toUpperCase() === 'INTERMEDIO'
+    ? { left: false, right: false }
+    : { single: false };
+}
+
+export function normalizeCeilingDuctState(tipoModulo, state = {}) {
+  if (String(tipoModulo || '').toUpperCase() === 'INTERMEDIO') {
+    const left = !!state.left;
+    return { left, right: !left && !!state.right };
+  }
+  return { single: !!state.single };
+}
+
+export function selectKoncisaCeilingDuctReference(ducts = [], side = 'LEFT') {
+  const sideKey = normalizeCeilingDuctSide(side);
+  const candidates = ducts.filter((duct) => {
+    const moduleType = String(duct?.meta?.tipoModulo || '')
+      .trim()
+      .toUpperCase();
+    return moduleType === 'TERMINAL' || moduleType === 'INTERMEDIO';
+  });
+
+  if (!candidates.length) return null;
+
+  return candidates.reduce((selected, duct) => {
+    if (!selected) return duct;
+    const selectedX = Number(selected?.position?.x || 0);
+    const ductX = Number(duct?.position?.x || 0);
+    return sideKey === 'RIGHT'
+      ? ductX > selectedX
+        ? duct
+        : selected
+      : ductX < selectedX
+        ? duct
+        : selected;
+  }, null);
+}
+
 export function resolveKoncisaCeilingDuct({ tipoPuesto = 'sencillo', side = 'LEFT' } = {}) {
   const puestoKey = tipoPuesto === 'doble' ? 'doble' : 'sencillo';
   const sideKey = normalizeCeilingDuctSide(side);

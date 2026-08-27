@@ -17,7 +17,10 @@ import { createDucto } from '../parts/ductos';
 import { createPasacable } from '../parts/pasacables';
 
 import { resolveKoncisaFloorDuct } from '../rules/koncisaFloorDuctRules';
-import { resolveKoncisaCeilingDuct } from '../rules/koncisaCeilingDuctRules';
+import {
+  resolveKoncisaCeilingDuct,
+  selectKoncisaCeilingDuctReference,
+} from '../rules/koncisaCeilingDuctRules';
 
 import { buildKoncisaLeader } from '../leader/KoncisaLeaderBuilder';
 
@@ -490,74 +493,24 @@ export function buildKoncisaPlus(config = {}) {
     const selectedSide =
       String(config.ceilingDuct?.side || 'LEFT').toUpperCase() === 'RIGHT' ? 'RIGHT' : 'LEFT';
 
-    const referenceDuct =
-      ductosNormales.find(
-        (p) =>
-          String(p.meta?.tipoModulo || '').toUpperCase() === 'TERMINAL' &&
-          String(p.meta?.side || p.side || '').toUpperCase() === selectedSide
-      ) ||
-      ductosNormales.find((p) => String(p.meta?.tipoModulo || '').toUpperCase() === 'TERMINAL') ||
-      ductosNormales.find((p) => String(p.meta?.tipoModulo || '').toUpperCase() === 'INDIVIDUAL') ||
-      ductosNormales.find((p) => String(p.meta?.tipoModulo || '').toUpperCase() === 'INTERMEDIO') ||
-      ductosNormales[0] ||
-      null;
+    const referenceDuct = selectKoncisaCeilingDuctReference(ductosNormales, selectedSide);
+
+    // El bajante es un accesorio de un ducto horizontal. Sin una referencia
+    // terminal o intermedia no se debe crear como pieza flotante.
+    if (!referenceDuct) {
+      return {
+        groupId,
+        groupName,
+        parts,
+      };
+    }
 
     const ceilingDuct = resolveKoncisaCeilingDuct({
       tipoPuesto,
       side: selectedSide,
     });
 
-    const basePosition = referenceDuct?.position || {
-      x: 0,
-      y: 0,
-      z: 0,
-    };
-
-    const baseRotation = referenceDuct?.rotation || {
-      x: 0,
-      y: 0,
-      z: 0,
-    };
-
-    const leftResolved = resolveKoncisaCeilingDuct({
-      tipoPuesto,
-      side: 'LEFT',
-    });
-
-    const rightResolved = resolveKoncisaCeilingDuct({
-      tipoPuesto,
-      side: 'RIGHT',
-    });
-
-    const leftOffset = leftResolved.offsetFromReferenceMm || {};
-    const rightOffset = rightResolved.offsetFromReferenceMm || {};
-
-    const leftPosition = {
-      x: (basePosition.x || 0) + (leftOffset.x || 0),
-      y: (basePosition.y || 0) + (leftOffset.y || 0),
-      z: (basePosition.z || 0) + (leftOffset.z || 0),
-    };
-
-    const rightPosition = {
-      x: (basePosition.x || 0) + (rightOffset.x || 0),
-      y: (basePosition.y || 0) + (rightOffset.y || 0),
-      z: (basePosition.z || 0) + (rightOffset.z || 0),
-    };
-
-    const leftRotation = {
-      x: baseRotation.x || 0,
-      y: (baseRotation.y || 0) + (leftOffset.rotY || 0),
-      z: baseRotation.z || 0,
-    };
-
-    const rightRotation = {
-      x: baseRotation.x || 0,
-      y: (baseRotation.y || 0) + (rightOffset.rotY || 0),
-      z: baseRotation.z || 0,
-    };
-
-    const selectedPosition = selectedSide === 'RIGHT' ? rightPosition : leftPosition;
-    const selectedRotation = selectedSide === 'RIGHT' ? rightRotation : leftRotation;
+    const referenceDuctIndex = ductosNormales.indexOf(referenceDuct);
 
     parts.push({
       type: 'ductoTecho',
@@ -569,9 +522,11 @@ export function buildKoncisaPlus(config = {}) {
       groupId,
       groupName,
 
-      position: selectedPosition,
+      // Posición local provisional. ThreeCanvas la resuelve con los bounds
+      // reales de ambos GLB al terminar de cargarlos.
+      position: { x: 0, y: 0, z: 0 },
 
-      rotation: selectedRotation,
+      rotation: { x: 0, y: selectedSide === 'RIGHT' ? Math.PI : 0, z: 0 },
 
       model: {
         kind: 'glb',
@@ -585,18 +540,9 @@ export function buildKoncisaPlus(config = {}) {
         modelCode: ceilingDuct.modelCode,
         referenceDuctCode: referenceDuct?.code || null,
         referenceDuctType: referenceDuct?.meta?.tipoModulo || null,
+        referenceDuctIndex,
+        attachmentKind: 'KONCISA_CEILING_DUCT',
         onePerIsland: true,
-
-        sideTransformsMm: {
-          LEFT: {
-            position: leftPosition,
-            rotation: leftRotation,
-          },
-          RIGHT: {
-            position: rightPosition,
-            rotation: rightRotation,
-          },
-        },
       },
     });
   }
