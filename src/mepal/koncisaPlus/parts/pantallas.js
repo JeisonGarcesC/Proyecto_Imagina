@@ -43,11 +43,14 @@ export const KONCISA_PRIVACY_PANEL_SUPPORTS = {
     offsetYMm: -20,
     offsetZMm: 0,
 
-    rotation: [0, Math.PI / 2, 0],
+    // El eje largo del GLB ya está sobre Z, igual que la pantalla lateral.
+    rotation: [0, 0, 0],
   },
 
   lateral75: {
-    modelSrc: '/assets/models/koncisaPlus/2KAC272000-30x75.glb',
+    // No existe un GLB 30x75 en los assets actuales. Se usa el soporte
+    // disponible y se centra geométricamente sobre la pantalla de 750 mm.
+    modelSrc: '/assets/models/koncisaPlus/2KAC272000-30x60.glb',
     code: '2KAC272000-30x75',
     name: 'Soporte pantalla lateral Koncisa Plus 30x75',
 
@@ -57,7 +60,7 @@ export const KONCISA_PRIVACY_PANEL_SUPPORTS = {
     offsetYMm: -20,
     offsetZMm: 0,
 
-    rotation: [0, Math.PI / 2, 0],
+    rotation: [0, 0, 0],
   },
 
   frontal: {

@@ -1055,6 +1055,11 @@ export default function App() {
         });
         return Array.from(expandedIds);
       });
+    } else {
+      const individualId = selectedPart?.instanceId || null;
+      setSelectedIds((currentIds) =>
+        individualId ? [individualId] : currentIds.length ? [currentIds[currentIds.length - 1]] : []
+      );
     }
 
     setMoveAsGroup(nextMoveAsGroup);

@@ -1972,17 +1972,19 @@ export default function ThreeCanvas({
     }
 
     function selectPartById(instanceId) {
-      const found = parts.find(
-        ({ obj }) =>
-          (obj?.userData?.instanceId || obj?.uuid) === instanceId ||
-          obj?.userData?.parentAssemblyId === instanceId ||
-          obj?.userData?.groupId === instanceId
-      );
+      const found =
+        parts.find(({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId) ||
+        parts.find(
+          ({ obj }) =>
+            obj?.userData?.parentAssemblyId === instanceId || obj?.userData?.groupId === instanceId
+        );
       const rawObj =
         found?.obj ||
         scene.children.find((child) => (child?.userData?.instanceId || child?.uuid) === instanceId);
       if (rawObj) {
-        const root = getRootPartObject(rawObj) || rawObj;
+        const root = moveAsGroupRef.current
+          ? getRootPartObject(rawObj) || rawObj
+          : getIndividualMovementRoot(rawObj) || rawObj;
         setActivePart(root);
         frameObject?.(root); // opcional: enfocar al seleccionar desde 2D
       }
@@ -1997,7 +1999,9 @@ export default function ThreeCanvas({
         scene.children.find((child) => (child?.userData?.instanceId || child?.uuid) === instanceId);
       if (!rawObj || rawObj.userData?.lockedMovement) return false;
 
-      const obj = getAssemblyObject(rawObj) || rawObj;
+      const obj = moveAsGroupRef.current
+        ? getAssemblyObject(rawObj) || rawObj
+        : getIndividualMovementRoot(rawObj) || rawObj;
       if (!obj || obj.userData?.lockedMovement) return false;
 
       const nextX = Number(x);
@@ -2919,6 +2923,46 @@ export default function ThreeCanvas({
       return fallback;
     }
 
+    function getIndividualMovementRoot(object) {
+      if (!object) return null;
+      const assembly = getAssemblyObject(object);
+      let current = object;
+      let fallback = null;
+
+      while (current && current !== scene) {
+        if (current !== assembly && current.userData?.isPartRoot) return current;
+
+        const kind = String(current.userData?.kind || '');
+        if (
+          !fallback &&
+          current !== assembly &&
+          [
+            'PART',
+            'SURFACE',
+            'PRIVACY_PANEL',
+            'GLB_PART',
+            'BLOCK_PART',
+            'ducto',
+            'ductoPiso',
+            'ductoTecho',
+            'pedestal',
+            'costado',
+            'costadoIntegracionUnitario',
+            'acopleDucto',
+            'grommet',
+            'pasacable',
+            'viga',
+          ].includes(kind)
+        ) {
+          fallback = current;
+        }
+        if (current === assembly) break;
+        current = current.parent;
+      }
+
+      return fallback || assembly || getRootPartObject(object);
+    }
+
     function getAssemblyObject(object) {
       const sequence = getCritterium8SequenceRoot(object);
       if (sequence) return sequence;
@@ -2970,7 +3014,9 @@ export default function ThreeCanvas({
     }
 
     function resolveSelectionTargets(object, { asGroup = moveAsGroupRef.current } = {}) {
-      const physicalRoot = getRootPartObject(object);
+      const physicalRoot = asGroup
+        ? getRootPartObject(object)
+        : getIndividualMovementRoot(object);
       const physicalId = physicalRoot?.userData?.instanceId || physicalRoot?.uuid;
 
       if (!physicalRoot || !physicalId || !asGroup) {
@@ -7340,16 +7386,23 @@ export default function ThreeCanvas({
 
           support.name = `SOPORTE_PANTALLA_${index + 1}`;
 
-          support.position.set(
-            anchor.position?.[0] || 0,
-            anchor.position?.[1] || 0,
-            anchor.position?.[2] || 0
-          );
-
           support.rotation.set(
             anchor.rotation?.[0] || 0,
             anchor.rotation?.[1] || 0,
             anchor.rotation?.[2] || 0
+          );
+
+          // Los GLB de soporte no comparten un pivote de montaje consistente.
+          // Se alinean por la geometría ya rotada: base en el anclaje inferior
+          // y centro de profundidad sobre el plano de la pantalla.
+          support.position.set(0, 0, 0);
+          support.updateMatrixWorld(true);
+          const supportBounds = new THREE.Box3().setFromObject(support);
+          const supportCenter = supportBounds.getCenter(new THREE.Vector3());
+          support.position.set(
+            anchor.position?.[0] || 0,
+            (anchor.position?.[1] || 0) - supportBounds.min.y,
+            (anchor.position?.[2] || 0) - supportCenter.z
           );
 
           support.traverse((node) => {
@@ -7936,7 +7989,9 @@ export default function ThreeCanvas({
       if (!target) return;
       if (target?.userData?.lockedMovement) return;
 
-      const effectiveTarget = getAssemblyObject(target) || target;
+      const effectiveTarget = moveAsGroupRef.current
+        ? getAssemblyObject(target) || target
+        : getIndividualMovementRoot(target) || target;
 
       const targets =
         moveAsGroupRef.current && effectiveTarget?.userData?.groupId
@@ -11458,8 +11513,11 @@ export default function ThreeCanvas({
         : isCritterium8AssemblyRoot(root)
           ? getCritterium8EditablePart(hitObj) || root
           : root;
+      const movementRoot = moveAsGroupRef.current
+        ? root
+        : getIndividualMovementRoot(hitObj) || propertiesTarget || root;
 
-      const rootId = root.userData?.instanceId || root.uuid;
+      const rootId = movementRoot.userData?.instanceId || movementRoot.uuid;
       const wantsToggle = e.ctrlKey || e.metaKey;
       const targetIsSelected = selectedIds3D.includes(rootId);
       const preserveSelection =
@@ -11477,7 +11535,7 @@ export default function ThreeCanvas({
         dragIds = [rootId];
       }
 
-      setActivePart(root, {
+      setActivePart(movementRoot, {
         toggle: wantsToggle,
         preserve: preserveSelection,
         targetIds: dragIds,
@@ -11618,7 +11676,7 @@ export default function ThreeCanvas({
         },
       });
 
-      if (root?.userData?.lockedMovement) {
+      if (movementRoot?.userData?.lockedMovement) {
         e.preventDefault();
         e.stopPropagation();
         return;
@@ -11688,7 +11746,7 @@ export default function ThreeCanvas({
         dragGroupStartRef.current = null;
       }
 
-      dragRootStartRef.current = root.position.clone();
+      dragRootStartRef.current = movementRoot.position.clone();
 
       //  Guardar submesh clickeado
       activeSubMesh = hitObj?.isMesh ? hitObj : null;
@@ -11706,8 +11764,9 @@ export default function ThreeCanvas({
       }
 
       // ---- DRAG ----
-      const rootAssembly = getAssemblyObject(root) || getKoncisaAssemblyObject(root) || root;
-      const targetToDrag = rootAssembly;
+      const rootAssembly =
+        getAssemblyObject(movementRoot) || getKoncisaAssemblyObject(movementRoot) || movementRoot;
+      const targetToDrag = moveAsGroupRef.current ? rootAssembly : movementRoot;
 
       let dragTargets = [];
       if (moveAsGroupRef.current && dragGroupStartRef.current && dragGroupStartRef.current.length > 0) {
@@ -11715,7 +11774,9 @@ export default function ThreeCanvas({
       } else {
         const dragIdSet = new Set(dragIds);
         dragIdSet.add(rootId);
-        if (rootAssembly.userData?.instanceId) dragIdSet.add(rootAssembly.userData.instanceId);
+        if (moveAsGroupRef.current && rootAssembly.userData?.instanceId) {
+          dragIdSet.add(rootAssembly.userData.instanceId);
+        }
 
         const allSceneCandidates = Array.from(
           new Set([...parts.map(({ obj }) => obj), ...scene.children])
@@ -11744,7 +11805,7 @@ export default function ThreeCanvas({
           const targetAssembly =
             targetObj.userData?.kind?.includes('ASSEMBLY')
               ? targetObj
-              : getKoncisaAssemblyObject(targetObj);
+              : null;
           if (targetAssembly) {
             targetAssembly.userData.attachment = null;
             if (targetAssembly.userData.attachedNeighbors) {
