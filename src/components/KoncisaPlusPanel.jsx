@@ -104,9 +104,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
   const [includeFloorDuct, setIncludeFloorDuct] = useState(false);
 
-  const [includeCeilingDuct, setIncludeCeilingDuct] = useState(false);
-  const [ceilingDuctSide, setCeilingDuctSide] = useState('LEFT');
-
   const handleCreate = () => {
     // =========================================
     // PUESTO LÍDER
@@ -226,10 +223,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
         enabled: includeFloorDuct,
       },
 
-      ceilingDuct: {
-        enabled: includeCeilingDuct,
-        side: ceilingDuctSide,
-      },
     });
 
     // TEMPORAL: prueba de pantalla lateral visible
@@ -985,40 +978,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
               />{' '}
               Incluir ducto bajante a piso
             </label>
-          </div>
-
-          <div
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              padding: 10,
-              background: '#fff',
-              display: 'grid',
-              gap: 8,
-            }}
-          >
-            <label>
-              <input
-                type="checkbox"
-                checked={includeCeilingDuct}
-                onChange={(e) => setIncludeCeilingDuct(e.target.checked)}
-              />{' '}
-              Incluir ducto bajante a techo
-            </label>
-
-            {includeCeilingDuct && (
-              <div>
-                <label>Lado del ducto a techo</label>
-                <select
-                  value={ceilingDuctSide}
-                  onChange={(e) => setCeilingDuctSide(e.target.value)}
-                  style={{ width: '100%' }}
-                >
-                  <option value="LEFT">Izquierda</option>
-                  <option value="RIGHT">Derecha</option>
-                </select>
-              </div>
-            )}
           </div>
 
           <div>

@@ -1,4 +1,4 @@
-import { inputStyle, labelStyle, sectionStyle } from '../shared/PropertyStyles';
+import { sectionStyle } from '../shared/PropertyStyles';
 
 export default function KoncisaBajanteDuctProperties({ part, api, isFloorDuct, isCeilingDuct }) {
   return (
@@ -40,20 +40,9 @@ export default function KoncisaBajanteDuctProperties({ part, api, isFloorDuct, i
       </div>
 
       {isCeilingDuct && (
-        <div style={{ marginTop: 10 }}>
-          <label style={labelStyle}>Lado ducto a techo</label>
-
-          <select
-            value={part?.meta?.side || 'LEFT'}
-            onChange={(e) => {
-              const side = e.target.value;
-              api?.updateSelectedCeilingDuctSide?.(side);
-            }}
-            style={inputStyle}
-          >
-            <option value="LEFT">Izquierda</option>
-            <option value="RIGHT">Derecha</option>
-          </select>
+        <div style={{ marginTop: 10, fontSize: 11, opacity: 0.65 }}>
+          Este bajante depende del ducto horizontal. Para incluirlo, quitarlo o cambiar su extremo,
+          selecciona el ducto asociado.
         </div>
       )}
 

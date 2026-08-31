@@ -267,7 +267,10 @@ export async function createKoncisaPlusInstance({
     notify(`La falda ${skirt.logicalCode} no tiene un modelo 3D válido.`);
   }
 
-  for (const ducto of parts.filter((part) => part.type === 'ducto')) {
+  const normalDucts = parts.filter((part) => part.type === 'ducto');
+  const createdDuctObjects = new Map();
+
+  for (const [ductIndex, ducto] of normalDucts.entries()) {
     if (!ducto.code) {
       notify(`No tenemos disponible este ducto: ${ducto.logicalCode}`);
       continue;
@@ -281,9 +284,11 @@ export async function createKoncisaPlusInstance({
     if (ducto.model?.kind === 'native-koncisa-duct' || ducto.meta?.useNativeModel) {
       const created = api.addNativeKoncisaDuctPart?.(payload);
       if (!created) notify(`No se pudo crear el ducto especial: ${ducto.logicalCode}`);
+      else createdDuctObjects.set(ductIndex, created);
       continue;
     }
-    await api.addExternalGlbPart?.(payload);
+    const created = await api.addExternalGlbPart?.(payload);
+    if (created) createdDuctObjects.set(ductIndex, created);
   }
 
   for (const ductoPiso of parts.filter((part) => part.type === 'ductoPiso')) {
@@ -312,11 +317,18 @@ export async function createKoncisaPlusInstance({
       notify(`Este ducto a techo no tiene modelo 3D asociado: ${ductoTecho.logicalCode}`);
       continue;
     }
+    const referenceDuct = createdDuctObjects.get(
+      Number(ductoTecho?.meta?.referenceDuctIndex)
+    );
+    if (!referenceDuct) {
+      notify('El ducto bajante a techo no se creó porque no tiene un ducto horizontal asociado.');
+      continue;
+    }
     await api.addExternalGlbPart?.({
       ...ductoTecho,
       groupId: ductoTecho.groupId || groupId,
       groupName: ductoTecho.groupName || groupName,
-      parentGroup: puestoGroup,
+      parentGroup: referenceDuct,
     });
   }
 

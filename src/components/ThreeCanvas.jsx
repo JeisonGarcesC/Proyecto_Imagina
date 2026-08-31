@@ -125,9 +125,15 @@ import {
   defaultDuctCoverState,
   normalizeDuctCoverState,
   getDuctCoverSides,
+  resolveDuctCoverPhysicalSides,
   normalizeDuctModuleType,
   inferDuctChannelType,
 } from '../mepal/koncisaPlus/rules/koncisaDuctCoverRules';
+import {
+  defaultCeilingDuctState,
+  normalizeCeilingDuctState,
+  resolveKoncisaCeilingDuct,
+} from '../mepal/koncisaPlus/rules/koncisaCeilingDuctRules';
 import {
   CLAK_SWAP_ALLOWED_CODES,
   getClakVariantOptionsByCode,
@@ -1188,7 +1194,7 @@ export default function ThreeCanvas({
       milaConnectorHandleGroup.updateMatrixWorld(true);
     }
 
-    function computeBounds2D(root) {
+    function computeBounds2D(root, { exclude = null } = {}) {
       // Calcula bounds en el espacio LOCAL del root (robusto para GLTF con hijos y pivotes raros)
       root.updateMatrixWorld(true);
 
@@ -1210,6 +1216,7 @@ export default function ThreeCanvas({
 
       root.traverse((child) => {
         if (!child.isMesh || !child.geometry) return;
+        if (exclude?.(child)) return;
 
         const g = child.geometry;
         if (!g.boundingBox) g.computeBoundingBox();
@@ -1965,17 +1972,19 @@ export default function ThreeCanvas({
     }
 
     function selectPartById(instanceId) {
-      const found = parts.find(
-        ({ obj }) =>
-          (obj?.userData?.instanceId || obj?.uuid) === instanceId ||
-          obj?.userData?.parentAssemblyId === instanceId ||
-          obj?.userData?.groupId === instanceId
-      );
+      const found =
+        parts.find(({ obj }) => (obj?.userData?.instanceId || obj?.uuid) === instanceId) ||
+        parts.find(
+          ({ obj }) =>
+            obj?.userData?.parentAssemblyId === instanceId || obj?.userData?.groupId === instanceId
+        );
       const rawObj =
         found?.obj ||
         scene.children.find((child) => (child?.userData?.instanceId || child?.uuid) === instanceId);
       if (rawObj) {
-        const root = getRootPartObject(rawObj) || rawObj;
+        const root = moveAsGroupRef.current
+          ? getRootPartObject(rawObj) || rawObj
+          : getIndividualMovementRoot(rawObj) || rawObj;
         setActivePart(root);
         frameObject?.(root); // opcional: enfocar al seleccionar desde 2D
       }
@@ -1990,7 +1999,9 @@ export default function ThreeCanvas({
         scene.children.find((child) => (child?.userData?.instanceId || child?.uuid) === instanceId);
       if (!rawObj || rawObj.userData?.lockedMovement) return false;
 
-      const obj = getAssemblyObject(rawObj) || rawObj;
+      const obj = moveAsGroupRef.current
+        ? getAssemblyObject(rawObj) || rawObj
+        : getIndividualMovementRoot(rawObj) || rawObj;
       if (!obj || obj.userData?.lockedMovement) return false;
 
       const nextX = Number(x);
@@ -2912,6 +2923,46 @@ export default function ThreeCanvas({
       return fallback;
     }
 
+    function getIndividualMovementRoot(object) {
+      if (!object) return null;
+      const assembly = getAssemblyObject(object);
+      let current = object;
+      let fallback = null;
+
+      while (current && current !== scene) {
+        if (current !== assembly && current.userData?.isPartRoot) return current;
+
+        const kind = String(current.userData?.kind || '');
+        if (
+          !fallback &&
+          current !== assembly &&
+          [
+            'PART',
+            'SURFACE',
+            'PRIVACY_PANEL',
+            'GLB_PART',
+            'BLOCK_PART',
+            'ducto',
+            'ductoPiso',
+            'ductoTecho',
+            'pedestal',
+            'costado',
+            'costadoIntegracionUnitario',
+            'acopleDucto',
+            'grommet',
+            'pasacable',
+            'viga',
+          ].includes(kind)
+        ) {
+          fallback = current;
+        }
+        if (current === assembly) break;
+        current = current.parent;
+      }
+
+      return fallback || assembly || getRootPartObject(object);
+    }
+
     function getAssemblyObject(object) {
       const sequence = getCritterium8SequenceRoot(object);
       if (sequence) return sequence;
@@ -2963,7 +3014,9 @@ export default function ThreeCanvas({
     }
 
     function resolveSelectionTargets(object, { asGroup = moveAsGroupRef.current } = {}) {
-      const physicalRoot = getRootPartObject(object);
+      const physicalRoot = asGroup
+        ? getRootPartObject(object)
+        : getIndividualMovementRoot(object);
       const physicalId = physicalRoot?.userData?.instanceId || physicalRoot?.uuid;
 
       if (!physicalRoot || !physicalId || !asGroup) {
@@ -7333,16 +7386,23 @@ export default function ThreeCanvas({
 
           support.name = `SOPORTE_PANTALLA_${index + 1}`;
 
-          support.position.set(
-            anchor.position?.[0] || 0,
-            anchor.position?.[1] || 0,
-            anchor.position?.[2] || 0
-          );
-
           support.rotation.set(
             anchor.rotation?.[0] || 0,
             anchor.rotation?.[1] || 0,
             anchor.rotation?.[2] || 0
+          );
+
+          // Los GLB de soporte no comparten un pivote de montaje consistente.
+          // Se alinean por la geometría ya rotada: base en el anclaje inferior
+          // y centro de profundidad sobre el plano de la pantalla.
+          support.position.set(0, 0, 0);
+          support.updateMatrixWorld(true);
+          const supportBounds = new THREE.Box3().setFromObject(support);
+          const supportCenter = supportBounds.getCenter(new THREE.Vector3());
+          support.position.set(
+            anchor.position?.[0] || 0,
+            (anchor.position?.[1] || 0) - supportBounds.min.y,
+            (anchor.position?.[2] || 0) - supportCenter.z
           );
 
           support.traverse((node) => {
@@ -7825,6 +7885,7 @@ export default function ThreeCanvas({
       removeActiveOrGroup: () => removeTargetOrGroup(activePart),
       updateSelectedDuctType,
       updateSelectedDuctCovers,
+      updateSelectedCeilingDucts,
       updateSelectedCeilingDuctSide,
       updateSelectedPartTransformPatch,
       movePartToXZ: (id, x, z) => movePartToXZInternal(id, x, z),
@@ -7928,7 +7989,9 @@ export default function ThreeCanvas({
       if (!target) return;
       if (target?.userData?.lockedMovement) return;
 
-      const effectiveTarget = getAssemblyObject(target) || target;
+      const effectiveTarget = moveAsGroupRef.current
+        ? getAssemblyObject(target) || target
+        : getIndividualMovementRoot(target) || target;
 
       const targets =
         moveAsGroupRef.current && effectiveTarget?.userData?.groupId
@@ -10259,32 +10322,107 @@ export default function ThreeCanvas({
       });
     }
 
-    function getDuctCoverLocalTransform(root, side) {
-      const b2d = computeBounds2D(root);
-      const sizeLocal = b2d?.sizeLocal || new THREE.Vector3(0.6, 0.1, 0.2);
+    function removeCeilingDuctChildren(root) {
+      if (!root) return;
+      const children = root.children.filter(
+        (child) => child?.userData?.meta?.category === 'ductos-a-techo'
+      );
+      children.forEach((child) => removePartObject(child, { emitBom: false }));
+    }
 
-      const halfX = sizeLocal.x / 2;
+    function isDuctAttachmentDescendant(root, node) {
+      let current = node;
+      while (current && current !== root) {
+        const category = String(current.userData?.meta?.category || '').toLowerCase();
+        if (current.userData?.isDuctCover || category === 'ductos-a-techo') return true;
+        current = current.parent;
+      }
+      return false;
+    }
 
-      // Ajuste base inicial.
-      // Luego, si quieres, calibramos fino X/Y/Z según cómo venga el GLB.
-      if (side === 'left') {
-        return {
-          position: new THREE.Vector3(-halfX, 0, 0),
-          rotationY: Math.PI,
-        };
+    function getCeilingDuctLocalTransform(duct, ceilingDuct, sideValue) {
+      const side = String(sideValue || 'LEFT').toUpperCase() === 'RIGHT' ? 'RIGHT' : 'LEFT';
+      const OUTSIDE_OFFSET_M = 0.07;
+      const DEPTH_OFFSET_M = -0.028;
+      const ductBounds = computeBounds2D(duct, {
+        exclude: (node) => isDuctAttachmentDescendant(duct, node),
+      });
+      const ceilingBounds = computeBounds2D(ceilingDuct);
+      const rotationY = side === 'RIGHT' ? Math.PI : 0;
+
+      if (!ductBounds || !ceilingBounds) {
+        return { position: new THREE.Vector3(), rotationY };
       }
 
-      if (side === 'right') {
-        return {
-          position: new THREE.Vector3(halfX, 0, 0),
-          rotationY: 0,
-        };
-      }
+      const ductMin = ductBounds.localCenter.clone().addScaledVector(ductBounds.sizeLocal, -0.5);
+      const ductMax = ductBounds.localCenter.clone().addScaledVector(ductBounds.sizeLocal, 0.5);
+      const ceilingMin = ceilingBounds.localCenter
+        .clone()
+        .addScaledVector(ceilingBounds.sizeLocal, -0.5);
+      const ceilingMax = ceilingBounds.localCenter
+        .clone()
+        .addScaledVector(ceilingBounds.sizeLocal, 0.5);
 
-      // terminal / individual
+      const rotatedMinX = side === 'RIGHT' ? -ceilingMax.x : ceilingMin.x;
+      const rotatedMaxX = side === 'RIGHT' ? -ceilingMin.x : ceilingMax.x;
+      const rotatedMaxZ = side === 'RIGHT' ? -ceilingMin.z : ceilingMax.z;
+
       return {
-        position: new THREE.Vector3(halfX, 0, 0),
-        rotationY: 0,
+        position: new THREE.Vector3(
+          side === 'RIGHT'
+            ? ductMax.x - rotatedMaxX + OUTSIDE_OFFSET_M
+            : ductMin.x - rotatedMinX - OUTSIDE_OFFSET_M,
+          ductMin.y - ceilingMin.y,
+          ductMax.z - rotatedMaxZ + DEPTH_OFFSET_M
+        ),
+        rotationY,
+      };
+    }
+
+    function getDuctCoverLocalTransform(root, cover, side) {
+      const ductBounds = computeBounds2D(root, {
+        exclude: (node) => isDuctAttachmentDescendant(root, node),
+      });
+      const coverBounds = computeBounds2D(cover);
+
+      if (!ductBounds || !coverBounds) {
+        return {
+          position: new THREE.Vector3(),
+          rotationY: side === 'left' ? Math.PI : 0,
+        };
+      }
+
+      const ductMin = ductBounds.localCenter.clone().addScaledVector(ductBounds.sizeLocal, -0.5);
+      const ductMax = ductBounds.localCenter.clone().addScaledVector(ductBounds.sizeLocal, 0.5);
+      const coverMin = coverBounds.localCenter.clone().addScaledVector(coverBounds.sizeLocal, -0.5);
+      const coverMax = coverBounds.localCenter.clone().addScaledVector(coverBounds.sizeLocal, 0.5);
+      const rotationY = side === 'left' ? Math.PI : 0;
+      const moduleType = normalizeDuctModuleType(root.userData?.meta?.tipoModulo);
+      const usesDuctCoverAdjustment = moduleType === 'intermedio' || moduleType === 'terminal';
+      const horizontalInset = usesDuctCoverAdjustment ? 31 / 1000 : 0;
+      const depthOffset = usesDuctCoverAdjustment ? -23 / 1000 : 0;
+      const rotationMatrix = new THREE.Matrix4().makeRotationY(rotationY);
+      const rotatedCoverBox = new THREE.Box3();
+
+      for (const x of [coverMin.x, coverMax.x]) {
+        for (const y of [coverMin.y, coverMax.y]) {
+          for (const z of [coverMin.z, coverMax.z]) {
+            rotatedCoverBox.expandByPoint(
+              new THREE.Vector3(x, y, z).applyMatrix4(rotationMatrix)
+            );
+          }
+        }
+      }
+
+      return {
+        position: new THREE.Vector3(
+          side === 'left'
+            ? ductMin.x - rotatedCoverBox.max.x + horizontalInset
+            : ductMax.x - rotatedCoverBox.min.x - horizontalInset,
+          ductMin.y - rotatedCoverBox.min.y,
+          ductMax.z - rotatedCoverBox.max.z + depthOffset
+        ),
+        rotationY,
       };
     }
 
@@ -10312,24 +10450,80 @@ export default function ThreeCanvas({
 
       const isCurrentlyRotated = !!root.userData?.ductRotated180;
 
-      // Rotación relativa: toma la rotación real actual y suma 180°
-      root.rotation.y += Math.PI;
-
-      // Normalizar para evitar valores infinitos: 0, PI, 2PI, 3PI...
-      root.rotation.y = THREE.MathUtils.euclideanModulo(root.rotation.y, Math.PI * 2);
-
       if (!isCurrentlyRotated) {
-        console.log('Rotando ducto 180.');
-        //root.position.x = 0.34; // ajustar posición cuando está rotado en x esta en metros
-        root.position.x = 0.613; // ajustar posición cuando está rotado en x esta en metros
-        //root.position.z = -0.258; // ajustar posición cuando está rotado en y esta en metros
-        root.position.z = -0.129;
+        const ductBounds = computeBounds2D(root, {
+          exclude: (node) => isDuctAttachmentDescendant(root, node),
+        });
+        const pivotLocal = ductBounds?.localCenter || new THREE.Vector3();
+
+        root.userData.ductRotationInitialTransform = {
+          position: root.position.toArray(),
+          rotation: [root.rotation.x, root.rotation.y, root.rotation.z],
+        };
+
+        const ductMin = ductBounds.localCenter.clone().addScaledVector(ductBounds.sizeLocal, -0.5);
+        const ductMax = ductBounds.localCenter.clone().addScaledVector(ductBounds.sizeLocal, 0.5);
+        const getBoundsXInParent = () => {
+          let minX = Infinity;
+          let maxX = -Infinity;
+
+          for (const x of [ductMin.x, ductMax.x]) {
+            for (const y of [ductMin.y, ductMax.y]) {
+              for (const z of [ductMin.z, ductMax.z]) {
+                const pointInParent = new THREE.Vector3(x, y, z).applyMatrix4(root.matrix);
+                minX = Math.min(minX, pointInParent.x);
+                maxX = Math.max(maxX, pointInParent.x);
+              }
+            }
+          }
+
+          return { minX, maxX };
+        };
+
+        // El extremo derecho inicial coincide con el final de la superficie.
+        // Su inicio se obtiene restando el ancho real, no usando X = 0 (centro).
+        root.updateMatrix();
+        const initialBoundsX = getBoundsXInParent();
+        const surfaceWidthMm = Number(
+          root.userData?.meta?.realWidthMm ||
+            root.userData?.meta?.nominalWidthMm ||
+            root.userData?.dim?.widthMm ||
+            0
+        );
+        const oppositeSurfaceStartX = initialBoundsX.maxX - surfaceWidthMm / 1000;
+
+        // Girar alrededor del centro físico y llevar el borde visible del
+        // terminal al inicio real de la superficie.
+        root.updateMatrix();
+        const pivotBefore = pivotLocal.clone().applyMatrix4(root.matrix);
+
+        root.rotation.y = THREE.MathUtils.euclideanModulo(root.rotation.y + Math.PI, Math.PI * 2);
+        root.updateMatrix();
+
+        const pivotAfter = pivotLocal.clone().applyMatrix4(root.matrix);
+        root.position.add(pivotBefore.sub(pivotAfter));
+        root.updateMatrix();
+
+        const { minX: rotatedMinX } = getBoundsXInParent();
+
+        if (Number.isFinite(rotatedMinX)) {
+          root.position.x += oppositeSurfaceStartX - rotatedMinX;
+        }
         root.userData.ductRotated180 = true;
       } else {
-        console.log('no 180 grados');
-        root.position.x = 0;
-        root.position.z = 0;
+        const initialTransform = root.userData?.ductRotationInitialTransform;
+
+        if (Array.isArray(initialTransform?.position)) {
+          root.position.fromArray(initialTransform.position);
+        }
+        if (Array.isArray(initialTransform?.rotation)) {
+          root.rotation.set(...initialTransform.rotation);
+        } else {
+          root.rotation.y = THREE.MathUtils.euclideanModulo(root.rotation.y + Math.PI, Math.PI * 2);
+        }
+
         root.userData.ductRotated180 = false;
+        delete root.userData.ductRotationInitialTransform;
       }
 
       root.updateMatrixWorld(true);
@@ -10460,6 +10654,10 @@ export default function ThreeCanvas({
         root.userData?.ductCovers ||
         oldMeta?.ductCovers ||
         defaultDuctCoverState(oldMeta?.tipoModulo || 'terminal');
+      const oldCeilingDucts =
+        root.userData?.ceilingDucts ||
+        oldMeta?.ceilingDucts ||
+        defaultCeilingDuctState(oldMeta?.tipoModulo || 'terminal');
 
       const code = root.userData?.codigoPT || root.userData?.code;
       const logicalCode = root.userData?.logicalCode || oldMeta?.logicalCode || null;
@@ -10512,6 +10710,7 @@ export default function ThreeCanvas({
           modelSrcRight: oldMeta?.modelSrcRight || null,
 
           ductCovers: oldCovers,
+          ceilingDucts: oldCeilingDucts,
         },
       });
 
@@ -10519,6 +10718,7 @@ export default function ThreeCanvas({
 
       // Mantener tapas si tenía
       await syncDuctCovers(newDuctObj, oldCovers);
+      await syncCeilingDucts(newDuctObj, oldCeilingDucts);
 
       setActivePart(newDuctObj);
 
@@ -10540,7 +10740,7 @@ export default function ThreeCanvas({
       const base = await loadDuctCoverModel(coverAsset.modelSrc);
       const cover = base.clone(true);
 
-      const t = getDuctCoverLocalTransform(root, side);
+      const t = getDuctCoverLocalTransform(root, cover, side);
 
       cover.position.copy(t.position);
       cover.rotation.set(0, t.rotationY, 0);
@@ -10578,6 +10778,7 @@ export default function ThreeCanvas({
         instanceId: root.userData?.instanceId || null,
         description: root.userData?.description || null,
         ductCovers: root.userData?.ductCovers || null,
+        ceilingDucts: root.userData?.ceilingDucts || null,
         transformMm: {
           x: Math.round(root.position.x * 1000),
           y: Math.round(root.position.y * 1000),
@@ -10587,6 +10788,119 @@ export default function ThreeCanvas({
           rotZ: Math.round(THREE.MathUtils.radToDeg(root.rotation.z) * 100) / 100,
         },
       };
+    }
+
+    async function addCeilingDuctChild(root, side, asset) {
+      const base = await loadDuctCoverModel(asset.modelSrc);
+      const child = base.clone(true);
+      const transform = getCeilingDuctLocalTransform(root, child, side);
+      const catalogItem = catalogByCodeRef.current?.get?.(String(asset.code)) || null;
+
+      child.position.copy(transform.position);
+      child.rotation.set(0, transform.rotationY, 0);
+      child.name = `CEILING_DUCT_${side.toUpperCase()}`;
+      child.userData = {
+        isPartRoot: true,
+        code: asset.code,
+        codigoPT: asset.code,
+        kind: 'ductoTecho',
+        line: 'KONCISA.PLUS',
+        description: asset.name,
+        unitPrice:
+          Number(
+            catalogItem?.prices?.[countryRef.current] ??
+              catalogItem?.prices?.CO ??
+              catalogItem?.raw?.price ??
+              0
+          ) || 0,
+        prices: catalogItem?.prices || undefined,
+        logicalCode: asset.logicalCode,
+        modelSrc: asset.modelSrc,
+        model: { kind: 'glb', src: asset.modelSrc },
+        instanceId: `${asset.code}__${Date.now()}__${Math.random().toString(16).slice(2)}`,
+        groupId: root.userData?.groupId || null,
+        groupName: root.userData?.groupName || null,
+        parentAssemblyId: root.userData?.instanceId || root.userData?.code || null,
+        meta: {
+          category: 'ductos-a-techo',
+          attachmentKind: 'KONCISA_CEILING_DUCT',
+          side: side.toUpperCase(),
+          tipoPuesto: root.userData?.meta?.tipoPuesto || 'sencillo',
+          referenceDuctCode: root.userData?.code || null,
+          referenceDuctType: root.userData?.meta?.tipoModulo || null,
+        },
+      };
+
+      child.traverse((node) => {
+        node.userData = {
+          ...(node.userData || {}),
+          parentAssemblyId: child.userData.parentAssemblyId,
+          groupId: child.userData.groupId,
+          groupName: child.userData.groupName,
+        };
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+
+      root.add(child);
+      parts.push({ code: asset.code, obj: child });
+      pickables.push(child);
+      return child;
+    }
+
+    async function syncCeilingDucts(root, requestedState) {
+      if (!root || root.userData?.kind !== 'ducto') return false;
+      const tipoModulo = normalizeDuctModuleType(root.userData?.meta?.tipoModulo);
+      if (tipoModulo === 'INDIVIDUAL') return false;
+
+      const tipoPuesto = root.userData?.meta?.tipoPuesto || 'sencillo';
+      const nextState = normalizeCeilingDuctState(tipoModulo, requestedState);
+      const asset = resolveKoncisaCeilingDuct({ tipoPuesto });
+
+      root.userData.ceilingDucts = nextState;
+      root.userData.meta = { ...(root.userData.meta || {}), ceilingDucts: nextState };
+      removeCeilingDuctChildren(root);
+
+      const sides = resolveDuctCoverPhysicalSides({
+        tipoModulo,
+        tipoPuesto,
+        ductSide: root.userData?.meta?.side,
+        state: nextState,
+      });
+      for (const side of sides) await addCeilingDuctChild(root, side, asset);
+
+      root.updateMatrixWorld(true);
+      if (selectionHelper) selectionHelper.update();
+      onSelectionChange?.(buildDuctPopupPart(root));
+      onFloatingEditorRequest?.({
+        open: true,
+        x: 120,
+        y: 120,
+        part: buildDuctPopupPart(root),
+        ductCovers: root.userData?.ductCovers || null,
+      });
+      refreshFloorAndGrid();
+      emitBOM?.();
+      return true;
+    }
+
+    async function updateSelectedCeilingDucts(patch = {}) {
+      if (readOnly || !activePart) return false;
+      const root = getActiveEditablePartObject();
+      if (!root || root.userData?.kind !== 'ducto') return false;
+      const tipoModulo = normalizeDuctModuleType(root.userData?.meta?.tipoModulo);
+      const current =
+        root.userData?.ceilingDucts ||
+        root.userData?.meta?.ceilingDucts ||
+        defaultCeilingDuctState(tipoModulo);
+      const next = { ...current, ...patch };
+      if (tipoModulo === 'INTERMEDIO') {
+        if (patch.left === true) next.right = false;
+        if (patch.right === true) next.left = false;
+      }
+      return syncCeilingDucts(root, next);
     }
 
     async function syncDuctCovers(root, requestedState) {
@@ -10635,7 +10949,12 @@ export default function ThreeCanvas({
       removeDuctCoverChildren(root);
 
       // 4. AGREGAR MODELOS 3D
-      const sides = getDuctCoverSides(tipoModulo, nextState);
+      const sides = resolveDuctCoverPhysicalSides({
+        tipoModulo,
+        tipoPuesto,
+        ductSide: root.userData?.meta?.side,
+        state: nextState,
+      });
 
       for (const side of sides) {
         await addDuctCoverChild(root, side, coverAsset);
@@ -10718,6 +11037,10 @@ export default function ThreeCanvas({
       const tipoPuesto = oldObj.userData?.meta?.tipoPuesto || 'sencillo';
       const nominalWidthMm = oldObj.userData?.meta?.nominalWidthMm || 1200;
       const oldCovers = oldObj.userData?.ductCovers || defaultDuctCoverState(normalizedType);
+      const oldCeilingDucts =
+        oldObj.userData?.ceilingDucts ||
+        oldObj.userData?.meta?.ceilingDucts ||
+        defaultCeilingDuctState(normalizedType);
 
       // Resolver el ducto según tipo y ancho
       const resolved = resolveKoncisaDucto({
@@ -10764,6 +11087,7 @@ export default function ThreeCanvas({
           tipoModulo: normalizedType,
           nominalWidthMm,
           ductCovers: oldCovers,
+          ceilingDucts: oldCeilingDucts,
         },
       });
 
@@ -10789,6 +11113,7 @@ export default function ThreeCanvas({
 
       // Sincronizar tapas en la escena 3D
       await syncDuctCovers(newDuctObj, oldCovers);
+      await syncCeilingDucts(newDuctObj, oldCeilingDucts);
 
       // =========================
       // AGREGAR TAPAS AL BOM
@@ -10832,32 +11157,15 @@ export default function ThreeCanvas({
         side,
       };
 
-      /**
-       * Caso recomendado:
-       * Si desde buildKoncisaPlus guardas las posiciones ya calculadas para LEFT/RIGHT,
-       * se usan aquí directamente.
-       */
-      const sideTransforms = root.userData?.meta?.sideTransformsMm || null;
-      const nextTransform = sideTransforms?.[side] || null;
-
-      if (nextTransform?.position) {
-        root.position.set(
-          Number(nextTransform.position.x || 0) / 1000,
-          Number(nextTransform.position.y || 0) / 1000,
-          Number(nextTransform.position.z || 0) / 1000
-        );
+      const referenceDuct = root.parent?.userData?.kind === 'ducto' ? root.parent : null;
+      if (!referenceDuct) {
+        console.warn('El ducto bajante a techo no tiene un ducto horizontal asociado.');
+        return false;
       }
 
-      if (nextTransform?.rotation) {
-        root.rotation.set(
-          Number(nextTransform.rotation.x || 0),
-          Number(nextTransform.rotation.y || 0),
-          Number(nextTransform.rotation.z || 0)
-        );
-      } else {
-        // Fallback temporal si aún no tienes sideTransformsMm
-        root.rotation.y = side === 'RIGHT' ? Math.PI : 0;
-      }
+      const nextTransform = getCeilingDuctLocalTransform(referenceDuct, root, side);
+      root.position.copy(nextTransform.position);
+      root.rotation.set(0, nextTransform.rotationY, 0);
 
       root.updateMatrixWorld(true);
 
@@ -11205,8 +11513,11 @@ export default function ThreeCanvas({
         : isCritterium8AssemblyRoot(root)
           ? getCritterium8EditablePart(hitObj) || root
           : root;
+      const movementRoot = moveAsGroupRef.current
+        ? root
+        : getIndividualMovementRoot(hitObj) || propertiesTarget || root;
 
-      const rootId = root.userData?.instanceId || root.uuid;
+      const rootId = movementRoot.userData?.instanceId || movementRoot.uuid;
       const wantsToggle = e.ctrlKey || e.metaKey;
       const targetIsSelected = selectedIds3D.includes(rootId);
       const preserveSelection =
@@ -11224,7 +11535,7 @@ export default function ThreeCanvas({
         dragIds = [rootId];
       }
 
-      setActivePart(root, {
+      setActivePart(movementRoot, {
         toggle: wantsToggle,
         preserve: preserveSelection,
         targetIds: dragIds,
@@ -11365,7 +11676,7 @@ export default function ThreeCanvas({
         },
       });
 
-      if (root?.userData?.lockedMovement) {
+      if (movementRoot?.userData?.lockedMovement) {
         e.preventDefault();
         e.stopPropagation();
         return;
@@ -11435,7 +11746,7 @@ export default function ThreeCanvas({
         dragGroupStartRef.current = null;
       }
 
-      dragRootStartRef.current = root.position.clone();
+      dragRootStartRef.current = movementRoot.position.clone();
 
       //  Guardar submesh clickeado
       activeSubMesh = hitObj?.isMesh ? hitObj : null;
@@ -11453,8 +11764,9 @@ export default function ThreeCanvas({
       }
 
       // ---- DRAG ----
-      const rootAssembly = getAssemblyObject(root) || getKoncisaAssemblyObject(root) || root;
-      const targetToDrag = rootAssembly;
+      const rootAssembly =
+        getAssemblyObject(movementRoot) || getKoncisaAssemblyObject(movementRoot) || movementRoot;
+      const targetToDrag = moveAsGroupRef.current ? rootAssembly : movementRoot;
 
       let dragTargets = [];
       if (moveAsGroupRef.current && dragGroupStartRef.current && dragGroupStartRef.current.length > 0) {
@@ -11462,7 +11774,9 @@ export default function ThreeCanvas({
       } else {
         const dragIdSet = new Set(dragIds);
         dragIdSet.add(rootId);
-        if (rootAssembly.userData?.instanceId) dragIdSet.add(rootAssembly.userData.instanceId);
+        if (moveAsGroupRef.current && rootAssembly.userData?.instanceId) {
+          dragIdSet.add(rootAssembly.userData.instanceId);
+        }
 
         const allSceneCandidates = Array.from(
           new Set([...parts.map(({ obj }) => obj), ...scene.children])
@@ -11491,7 +11805,7 @@ export default function ThreeCanvas({
           const targetAssembly =
             targetObj.userData?.kind?.includes('ASSEMBLY')
               ? targetObj
-              : getKoncisaAssemblyObject(targetObj);
+              : null;
           if (targetAssembly) {
             targetAssembly.userData.attachment = null;
             if (targetAssembly.userData.attachedNeighbors) {
@@ -14771,6 +15085,10 @@ export default function ThreeCanvas({
           ductModuleType,
           part?.meta?.ductCovers || defaultDuctCoverState(ductModuleType)
         );
+        const initialCeilingDucts = normalizeCeilingDuctState(
+          ductModuleType,
+          part?.meta?.ceilingDucts || defaultCeilingDuctState(ductModuleType)
+        );
 
         obj.userData = {
           isPartRoot: true, //para usar las propiedades en los diferentes elementos
@@ -14803,6 +15121,7 @@ export default function ThreeCanvas({
           materialCode: null,
 
           ductCovers: part.type === 'ducto' ? initialDuctCovers : null,
+          ceilingDucts: part.type === 'ducto' ? initialCeilingDucts : null,
           ...(part.extraUserData || {}),
         };
 
@@ -14824,6 +15143,27 @@ export default function ThreeCanvas({
             node.receiveShadow = true;
           }
         });
+
+        if (
+          part?.meta?.attachmentKind === 'KONCISA_CEILING_DUCT' &&
+          parentGroup?.userData?.kind === 'ducto'
+        ) {
+          const attachmentTransform = getCeilingDuctLocalTransform(
+            parentGroup,
+            obj,
+            part?.meta?.side
+          );
+          obj.position.copy(attachmentTransform.position);
+          obj.rotation.set(0, attachmentTransform.rotationY, 0);
+        }
+
+        const bounds2d = computeBounds2D(obj);
+        if (bounds2d) {
+          obj.userData.bounds2d = {
+            localCenter: bounds2d.localCenter.toArray(),
+            sizeLocal: bounds2d.sizeLocal.toArray(),
+          };
+        }
 
         if (parentGroup) {
           parentGroup.add(obj);

@@ -14,6 +14,11 @@ export default function KoncisaDuctProperties({ part, api }) {
     part?.meta?.ductCovers ||
     (tipoModulo === 'INTERMEDIO' ? { left: false, right: false } : { single: false });
 
+  const ceilingDucts =
+    part?.ceilingDucts ||
+    part?.meta?.ceilingDucts ||
+    (tipoModulo === 'INTERMEDIO' ? { left: false, right: false } : { single: false });
+
   //const tipoModulo = String(part?.meta?.tipoModulo || '').toUpperCase();
   const isTerminal = tipoModulo === 'TERMINAL';
   const currentRotY = Number(part?.transformMm?.rotY || 0);
@@ -123,6 +128,50 @@ export default function KoncisaDuctProperties({ part, api }) {
           </label>
         )}
       </div>
+
+      {tipoModulo !== 'INDIVIDUAL' && (
+        <div style={{ marginTop: 14 }}>
+          <label style={labelStyle}>Ducto bajante a techo</label>
+
+          {tipoModulo === 'INTERMEDIO' ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={!!ceilingDucts.left}
+                  disabled={!!ceilingDucts.right}
+                  onChange={(e) =>
+                    api?.updateSelectedCeilingDucts?.({ left: e.target.checked })
+                  }
+                />
+                Bajante lado izquierdo
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={!!ceilingDucts.right}
+                  disabled={!!ceilingDucts.left}
+                  onChange={(e) =>
+                    api?.updateSelectedCeilingDucts?.({ right: e.target.checked })
+                  }
+                />
+                Bajante lado derecho
+              </label>
+            </div>
+          ) : (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={!!ceilingDucts.single}
+                onChange={(e) =>
+                  api?.updateSelectedCeilingDucts?.({ single: e.target.checked })
+                }
+              />
+              Incluir en el extremo abierto
+            </label>
+          )}
+        </div>
+      )}
     </div>
   );
 }
