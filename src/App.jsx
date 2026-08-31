@@ -24,6 +24,7 @@ import {
 
 //2d
 import Plan2DOverlay from './components/Plan2DOverlay';
+import { deleteShape2D, translateShape2D, updateShape2D } from './plan2d/geometry2D/shapeEditor2D';
 import BOMWindow from './components/BOMWindow';
 import BOMView from './components/BOMView';
 import { catalogByCodigoPT } from './catalog/catalogData';
@@ -331,6 +332,27 @@ export default function App() {
     if (!selectedOpening || selectedOpening.locked) return;
     setOpenings((current) => current.filter((opening) => opening.id !== selectedOpening.id));
     setSelectedOpeningId(null);
+  };
+
+  const [shapes2D, setShapes2D] = useState([]);
+  const [shapeTool2D, setShapeTool2D] = useState(null);
+  const [selectedShape2DId, setSelectedShape2DId] = useState(null);
+  const selectedShape2D = useMemo(
+    () => shapes2D.find((shape) => shape.id === selectedShape2DId) || null,
+    [shapes2D, selectedShape2DId]
+  );
+  const handleShape2DChange = (patch) => {
+    if (!selectedShape2DId) return;
+    setShapes2D((current) => updateShape2D(current, selectedShape2DId, patch));
+  };
+  const handleDeleteShape2D = () => {
+    if (!selectedShape2DId) return;
+    setShapes2D((current) => deleteShape2D(current, selectedShape2DId));
+    setSelectedShape2DId(null);
+  };
+  const handleReplaceShape2D = (shape) => {
+    if (!shape?.id || shape.semanticType === 'cimbra') return;
+    setShapes2D((current) => current.map((item) => item.id === shape.id ? shape : item));
   };
   const [selectedIds, setSelectedIds] = useState([]);
   const [moveAsGroup, setMoveAsGroup] = useState(true);
@@ -1338,6 +1360,15 @@ export default function App() {
               onDeleteOpening={handleDeleteOpening}
               onCloseOpeningProperties={() => setSelectedOpeningId(null)}
               onClearOpenings={() => { setOpenings([]); setSelectedOpeningId(null); }}
+              shapeTool2D={shapeTool2D}
+              setShapeTool2D={setShapeTool2D}
+              selectedShape2D={selectedShape2D}
+              onShape2DChange={handleShape2DChange}
+              onDeleteShape2D={handleDeleteShape2D}
+              onTranslateShape2D={(delta) => {
+                if (!selectedShape2DId) return;
+                setShapes2D((current) => translateShape2D(current, selectedShape2DId, delta));
+              }}
             />
           </div>
 
@@ -1500,6 +1531,17 @@ export default function App() {
             getRotationState2D={(id) =>
               threeApiRef.current?.getRotationState?.({ sourceId: id }) || null
             }
+            shapes2D={shapes2D}
+            shapeTool2D={shapeTool2D}
+            selectedShape2DId={selectedShape2DId}
+            onAddShape2D={(shape) => {
+              setShapes2D((current) => [...current, shape]);
+              setSelectedShape2DId(shape.id);
+              setShapeTool2D(null);
+            }}
+            onSelectShape2D={setSelectedShape2DId}
+            onReplaceShape2D={handleReplaceShape2D}
+            onDeleteSelectedShape2D={handleDeleteShape2D}
             walls={walls}
             columns={columns}
             openings={openings}

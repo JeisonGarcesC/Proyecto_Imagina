@@ -37,6 +37,17 @@ import {
   pruneCimbraVisibility,
   resolveSelectedKoncisaPostId,
 } from '../plan2d/koncisaCimbraGeometry2D';
+import { drawShapes2D } from '../plan2d/geometry2D/shapesRenderer2D';
+import { createShapeFromTool } from '../plan2d/geometry2D/shapeEditor2D';
+import {
+  getShapeCenter2D,
+  getShapeHandles2D,
+  moveShape2D,
+  pickShapeHandle2D,
+  resizeShape2D,
+  rotateShape2D,
+  selectInteractiveShapeAtPoint,
+} from '../plan2d/geometry2D/shapeInteraction2D';
 import { getEdukWidthInfoByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { createWallDefinition } from '../core/architecture/walls/wallDefinition';
 import { selectWallAtPoint } from '../core/architecture/walls/wallInteraction2D';
@@ -270,6 +281,13 @@ export default function Plan2DOverlay({
   onEndRotation2D,
   onCancelRotation2D,
   getRotationState2D,
+  shapes2D = [],
+  shapeTool2D = null,
+  selectedShape2DId = null,
+  onAddShape2D,
+  onSelectShape2D,
+  onReplaceShape2D,
+  onDeleteSelectedShape2D,
 }) {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureStart, setMeasureStart] = useState(null);
@@ -366,6 +384,7 @@ export default function Plan2DOverlay({
   const dimensionTextDragRef = useRef(null);
   const suppressNextClickRef = useRef(false);
   const rotationDragRef = useRef(null);
+  const shapeDragRef = useRef(null);
   const [isRotatingPiece, setIsRotatingPiece] = useState(false);
 
   const planImageRef = useRef(null);
@@ -1068,6 +1087,33 @@ export default function Plan2DOverlay({
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
 
+      const shapeDrag = shapeDragRef.current;
+      if (shapeDrag?.pointerId === e.pointerId) {
+        const world = canvasToWorld(mx, my);
+        if (!world) return;
+        const point = { x: world.x, y: world.z };
+        let nextShape = shapeDrag.initialShape;
+        if (shapeDrag.mode === 'move') {
+          nextShape = moveShape2D(shapeDrag.initialShape, {
+            x: point.x - shapeDrag.startWorld.x,
+            y: point.y - shapeDrag.startWorld.y,
+          });
+        } else if (shapeDrag.mode === 'resize') {
+          nextShape = resizeShape2D(shapeDrag.initialShape, shapeDrag.handleId, point);
+        } else if (shapeDrag.mode === 'rotate') {
+          const center = getShapeCenter2D(shapeDrag.initialShape);
+          const angle = Math.atan2(point.y - center.y, point.x - center.x);
+          nextShape = rotateShape2D(
+            shapeDrag.initialShape,
+            shapeDrag.startRotation + angle - shapeDrag.startPointerAngle
+          );
+        }
+        shapeDrag.hasMoved = true;
+        onReplaceShape2D?.(nextShape);
+        e.preventDefault();
+        return;
+      }
+
       if (scaleMode && scaleStartPx) {
         const w = rect.width || canvas.width;
         const h = rect.height || canvas.height;
@@ -1313,6 +1359,7 @@ export default function Plan2DOverlay({
       canvasToWorld,
       onPlanPositionChange,
       hitTestPlanAtCanvasPoint,
+      onReplaceShape2D,
     ]
   );
 
@@ -1374,6 +1421,15 @@ export default function Plan2DOverlay({
       const rotationDrag = rotationDragRef.current;
       const variantDrag = variantHandleDragRef.current;
       const planDrag = planDragRef.current;
+      const shapeDrag = shapeDragRef.current;
+
+      if (shapeDrag?.pointerId === e.pointerId) {
+        shapeDragRef.current = null;
+        suppressNextClickRef.current = true;
+        if (canvas?.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
 
       if (planDrag?.pointerId === e.pointerId) {
         planDragRef.current = null;
@@ -1479,6 +1535,7 @@ export default function Plan2DOverlay({
   const handlePointerCancel = useCallback(
     (e) => {
       cancelVariantHandleDrag(e.pointerId);
+      shapeDragRef.current = null;
       cancelSelectionDrag(e.pointerId);
       cancelDimensionTextDrag(e.pointerId);
       cancelPieceDrag();
@@ -1560,6 +1617,51 @@ export default function Plan2DOverlay({
 
       // drag de pieza con botón izquierdo
       if (e.button !== 0) return;
+
+      const shapeWorld = canvasToWorld(mx, my);
+      if (shapeTool2D && shapeWorld) {
+        onAddShape2D?.(createShapeFromTool(shapeTool2D, { x: shapeWorld.x, y: shapeWorld.z }));
+        onPickIds?.([]);
+        e.preventDefault();
+        return;
+      }
+
+      if (shapeWorld) {
+        const point = { x: shapeWorld.x, y: shapeWorld.z };
+        const tolerance = 10 / Math.max(viewRef.current.s, Number.EPSILON);
+        const selectedShape = shapes2D.find((shape) => shape.id === selectedShape2DId);
+        const handle = selectedShape
+          ? pickShapeHandle2D(
+              selectedShape,
+              point,
+              tolerance,
+              28 / Math.max(viewRef.current.s, Number.EPSILON)
+            )
+          : null;
+        const pickedShape = handle
+          ? selectedShape
+          : selectInteractiveShapeAtPoint(shapes2D, point, tolerance);
+
+        if (pickedShape) {
+          onSelectShape2D?.(pickedShape.id);
+          onPickIds?.([]);
+          const center = getShapeCenter2D(pickedShape);
+          shapeDragRef.current = {
+            pointerId: e.pointerId,
+            initialShape: pickedShape,
+            startWorld: point,
+            mode: handle?.kind || 'move',
+            handleId: handle?.id || null,
+            startRotation: pickedShape.geometry.rotation || 0,
+            startPointerAngle: Math.atan2(point.y - center.y, point.x - center.x),
+            hasMoved: false,
+          };
+          canvas.setPointerCapture?.(e.pointerId);
+          e.preventDefault();
+          return;
+        }
+        onSelectShape2D?.(null);
+      }
 
       if (openingMode === 'PLACE') {
         const preview = resolveDoorAtCanvasPoint(mx, my);
@@ -1823,12 +1925,19 @@ export default function Plan2DOverlay({
       processVariantHandleDragQueue,
       hitTestPlanAtCanvasPoint,
       getRuntimePlan,
+      shapes2D,
+      shapeTool2D,
+      selectedShape2DId,
+      onAddShape2D,
+      onSelectShape2D,
+      onPickIds,
     ]
   );
 
   useEffect(() => {
     const onEscape = (e) => {
       if (e.key !== 'Escape') return;
+      shapeDragRef.current = null;
       if (rotationDragRef.current) {
         rotationDragRef.current = null;
         setIsRotatingPiece(false);
@@ -1851,6 +1960,7 @@ export default function Plan2DOverlay({
 
   useEffect(() => {
     const cancelActiveDrag = () => {
+      shapeDragRef.current = null;
       cancelVariantHandleDrag();
       cancelSelectionDrag();
       cancelDimensionTextDrag();
@@ -2066,6 +2176,10 @@ export default function Plan2DOverlay({
       onAddOpening,
       onSelectOpening,
       openings,
+      shapes2D,
+      shapeTool2D,
+      onAddShape2D,
+      onSelectShape2D,
     ]
   );
 
@@ -2116,6 +2230,13 @@ export default function Plan2DOverlay({
         });
       }
 
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedShape2DId) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onDeleteSelectedShape2D?.();
+        return;
+      }
+
       if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedDimensionId) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -2157,6 +2278,8 @@ export default function Plan2DOverlay({
     recordDimensionHistoryAction,
     scaleMode,
     calibrationDraft,
+    selectedShape2DId,
+    onDeleteSelectedShape2D,
   ]);
 
   useEffect(() => {
@@ -2499,21 +2622,53 @@ export default function Plan2DOverlay({
       // en selección, movimiento ni persistencia.
       if (cimbraVisiblePostIds.size) {
         const cimbras = getDuctCimbras(snap, { visiblePostIds: cimbraVisiblePostIds });
-        for (const cimbra of cimbras) {
-          const [px, py] = toCanvasLocal(cimbra.x, cimbra.z);
-          ctx.save();
-          ctx.translate(px, py);
-          ctx.rotate(-cimbra.rotation);
-          ctx.strokeStyle = '#ef1b1b';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(
-            (-cimbra.width * s) / 2,
-            (-cimbra.depth * s) / 2,
-            cimbra.width * s,
-            cimbra.depth * s
-          );
-          ctx.restore();
+        drawShapes2D(ctx, cimbras, { toCanvas: toCanvasLocal, scale: s });
+      }
+
+      drawShapes2D(ctx, shapes2D, { toCanvas: toCanvasLocal, scale: s });
+      const selectedShape = shapes2D.find((shape) => shape.id === selectedShape2DId);
+      if (selectedShape) {
+        drawShapes2D(
+          ctx,
+          [{ ...selectedShape, style: { ...selectedShape.style, stroke: '#06b6d4', strokeWidth: 3 } }],
+          { toCanvas: toCanvasLocal, scale: s }
+        );
+        const handles = getShapeHandles2D(selectedShape, 28 / Math.max(s, Number.EPSILON));
+        const resizeHandles = handles.filter((handle) => handle.kind === 'resize');
+        const rotationHandle = handles.find((handle) => handle.kind === 'rotate');
+        ctx.save();
+        ctx.strokeStyle = '#06b6d4';
+        ctx.fillStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        if (resizeHandles.length > 2 && selectedShape.type !== 'circle') {
+          ctx.beginPath();
+          resizeHandles.forEach((handle, index) => {
+            const [hx, hy] = toCanvasLocal(handle.x, handle.y);
+            if (index === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+          });
+          ctx.closePath();
+          ctx.stroke();
         }
+        if (rotationHandle) {
+          const center = getShapeCenter2D(selectedShape);
+          const [cx, cy] = toCanvasLocal(center.x, center.y);
+          const [rx, ry] = toCanvasLocal(rotationHandle.x, rotationHandle.y);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(rx, ry);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        handles.forEach((handle) => {
+          const [hx, hy] = toCanvasLocal(handle.x, handle.y);
+          ctx.beginPath();
+          ctx.arc(hx, hy, handle.kind === 'rotate' ? 6 : 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+        ctx.restore();
       }
 
       const activeVariantControl = resolveActiveVariantControl2D(snap);
@@ -2770,6 +2925,8 @@ export default function Plan2DOverlay({
     isVariantHandleDragging,
     detailed2DIds,
     cimbraVisiblePostIds,
+    shapes2D,
+    selectedShape2DId,
   ]);
 
   const selectedDetailKeys = collectSelected2DDetailKeys(
@@ -3327,7 +3484,7 @@ export default function Plan2DOverlay({
           display: 'block',
           touchAction: 'none',
           cursor:
-            measureMode || isWallDrawMode || scaleMode || selectionDrag
+            measureMode || isWallDrawMode || shapeTool2D || scaleMode || selectionDrag
               ? 'crosshair'
               : isPlanDragging
                 ? 'grabbing'
@@ -3354,6 +3511,7 @@ export default function Plan2DOverlay({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={(event) => {
+          if (shapeDragRef.current?.pointerId === event.pointerId) shapeDragRef.current = null;
           if (planDragRef.current?.pointerId === event.pointerId) {
             planDragRef.current = null;
             setIsPlanDragging(false);

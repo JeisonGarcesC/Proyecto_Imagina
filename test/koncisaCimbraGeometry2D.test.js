@@ -25,15 +25,17 @@ function duct(overrides = {}) {
 
 test('sencillo estándar usa 74,3 × 77,3 mm y no el bounds2d del GLB', () => {
   const geometry = getDuctCimbraGeometry(duct());
-  assert.ok(Math.abs(geometry.width - 0.0743) < Number.EPSILON);
-  assert.ok(Math.abs(geometry.depth - 0.0773) < Number.EPSILON);
-  assert.equal(geometry.dimensionSource, 'technical-config');
+  assert.equal(geometry.type, 'rectangle');
+  assert.equal(geometry.semanticType, 'cimbra');
+  assert.ok(Math.abs(geometry.geometry.width - 0.0743) < Number.EPSILON);
+  assert.ok(Math.abs(geometry.geometry.height - 0.0773) < Number.EPSILON);
+  assert.equal(geometry.metadata.dimensionSource, 'technical-config');
 });
 
 test('posición y rotación se leen del snapshot 3D actual', () => {
   const geometry = getDuctCimbraGeometry(duct({ x: 4, z: 3, rotY: Math.PI }));
   assert.deepEqual(
-    { x: geometry.x, z: geometry.z, rotation: geometry.rotation },
+    { x: geometry.geometry.x, z: geometry.geometry.y, rotation: geometry.geometry.rotation },
     { x: 4, z: 3, rotation: Math.PI }
   );
 });
@@ -41,7 +43,7 @@ test('posición y rotación se leen del snapshot 3D actual', () => {
 test('puesto A ON y puesto B OFF solo genera la cimbra de A', () => {
   const parts = [duct(), duct({ id: 'duct-b', instanceId: 'duct-b', groupId: 'puesto-b' })];
   const cimbras = getDuctCimbras(parts, { visiblePostIds: new Set(['puesto-a']) });
-  assert.deepEqual(cimbras.map((item) => item.postId), ['puesto-a']);
+  assert.deepEqual(cimbras.map((item) => item.metadata.postId), ['puesto-a']);
 });
 
 test('A y C conservan visibilidad independiente', () => {
@@ -53,7 +55,7 @@ test('A y C conservan visibilidad independiente', () => {
   const cimbras = getDuctCimbras(parts, {
     visiblePostIds: new Set(['puesto-a', 'puesto-c']),
   });
-  assert.deepEqual(cimbras.map((item) => item.postId), ['puesto-a', 'puesto-c']);
+  assert.deepEqual(cimbras.map((item) => item.metadata.postId), ['puesto-a', 'puesto-c']);
 });
 
 test('puesto nuevo comienza OFF', () => {
@@ -76,7 +78,7 @@ test('piso y techo del mismo puesto generan dos cimbras cuando está ON', () => 
   const cimbras = getDuctCimbras([duct(), duct({ id: 'ceiling', type: 'ductoTecho' })], {
     visiblePostIds: new Set(['puesto-a']),
   });
-  assert.deepEqual(cimbras.map((item) => item.destination), ['PISO', 'TECHO']);
+  assert.deepEqual(cimbras.map((item) => item.metadata.destination), ['PISO', 'TECHO']);
 });
 
 test('acepta dimensión técnica explícita para variantes sin tabla confirmada', () => {
@@ -89,9 +91,9 @@ test('acepta dimensión técnica explícita para variantes sin tabla confirmada'
       },
     })
   );
-  assert.equal(geometry.width, 0.08);
-  assert.equal(geometry.depth, 0.09);
-  assert.equal(geometry.dimensionSource, 'metadata');
+  assert.equal(geometry.geometry.width, 0.08);
+  assert.equal(geometry.geometry.height, 0.09);
+  assert.equal(geometry.metadata.dimensionSource, 'metadata');
 });
 
 test('no usa bounds2d como fallback para una variante sin dimensión confirmada', () => {

@@ -1,3 +1,5 @@
+import { createShape, SHAPE_2D_TYPES } from './geometry2D/shapes2D.js';
+
 const KONCISA_DUCT_KINDS = new Set(['ductoPiso', 'ductoTecho']);
 
 // Medida técnica confirmada en el plano suministrado. No contiene offsets:
@@ -90,20 +92,33 @@ export function getDuctCimbraGeometry(part) {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
 
   return {
-    type: 'KONCISA_DUCT_CIMBRA',
-    ductId: part?.instanceId || part?.id || null,
-    postId: getKoncisaPostId(part),
-    ductKind,
-    destination: ductKind === 'ductoTecho' ? 'TECHO' : 'PISO',
-    layoutType: part?.meta?.layoutType || null,
-    tipoPuesto: part?.meta?.tipoPuesto || null,
-    cableType: normalizeCableType(part),
-    dimensionSource: dimensions.source,
-    x,
-    z,
-    width: dimensions.widthMm / 1000,
-    depth: dimensions.depthMm / 1000,
-    rotation: Number.isFinite(Number(part?.rotY)) ? Number(part.rotY) : 0,
+    ...createShape({
+      id: `cimbra:${part?.instanceId || part?.id || 'ducto'}`,
+      type: SHAPE_2D_TYPES.RECTANGLE,
+      semanticType: 'cimbra',
+      geometry: {
+        x,
+        y: z,
+        width: dimensions.widthMm / 1000,
+        height: dimensions.depthMm / 1000,
+        rotation: Number.isFinite(Number(part?.rotY)) ? Number(part.rotY) : 0,
+      },
+      style: {
+        stroke: '#ef1b1b',
+        strokeWidth: 2,
+        fill: false,
+      },
+    }),
+    metadata: {
+      ductId: part?.instanceId || part?.id || null,
+      postId: getKoncisaPostId(part),
+      ductKind,
+      destination: ductKind === 'ductoTecho' ? 'TECHO' : 'PISO',
+      layoutType: part?.meta?.layoutType || null,
+      tipoPuesto: part?.meta?.tipoPuesto || null,
+      cableType: normalizeCableType(part),
+      dimensionSource: dimensions.source,
+    },
   };
 }
 

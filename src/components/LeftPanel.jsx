@@ -331,6 +331,12 @@ export default function LeftPanel({
   onDeleteOpening,
   onCloseOpeningProperties,
   onClearOpenings,
+  shapeTool2D,
+  setShapeTool2D,
+  selectedShape2D,
+  onShape2DChange,
+  onDeleteShape2D,
+  onTranslateShape2D,
   // otros
   Plan2DUploader,
   handleLoadPlan2D,
@@ -1718,6 +1724,51 @@ export default function LeftPanel({
 
             {columnMode === 'EDIT' && selectedColumn && (
               <ColumnProperties column={selectedColumn} onChange={onColumnChange} onDelete={onDeleteColumn} onClose={onCloseColumnProperties} />
+            )}
+          </div>
+        </>
+      )}
+
+      {section === 'elements2d' && (
+        <>
+          <h3 style={{ margin: '0 0 12px 0' }}>Elementos 2D</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <strong style={{ fontSize: 12 }}>CONSTRUCCIÓN GRÁFICA</strong>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {[
+                ['wall', '🧱 Muro'], ['door', '🚪 Puerta'], ['window', '🪟 Ventana'],
+              ].map(([tool, label]) => <button key={tool} type="button" style={btnMini(shapeTool2D === tool)} onClick={() => setShapeTool2D(shapeTool2D === tool ? null : tool)}>{label}</button>)}
+            </div>
+            <strong style={{ fontSize: 12, marginTop: 6 }}>FIGURAS</strong>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {[
+                ['rectangle', '▭ Rectángulo'], ['square', '□ Cuadrado'], ['circle', '○ Círculo'],
+                ['triangle', '△ Triángulo'], ['line', '─ Línea'], ['polygon', '⬡ Polígono'],
+              ].map(([tool, label]) => <button key={tool} type="button" style={btnMini(shapeTool2D === tool)} onClick={() => setShapeTool2D(shapeTool2D === tool ? null : tool)}>{label}</button>)}
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>{shapeTool2D ? 'Haz clic en el plano para colocar el elemento.' : 'Selecciona una herramienta o una figura existente.'}</div>
+            {selectedShape2D && (
+              <div style={{ display: 'grid', gap: 7, marginTop: 8, paddingTop: 10, borderTop: '1px solid #ddd' }}>
+                <strong>Propiedades</strong>
+                <label style={lab}>Tipo<input value={selectedShape2D.type} disabled style={inp} /></label>
+                {'x' in selectedShape2D.geometry && <label style={lab}>X (m)<input type="number" step="0.05" value={selectedShape2D.geometry.x} onChange={(e) => onShape2DChange({ geometry: { x: Number(e.target.value) } })} style={inp} /></label>}
+                {'y' in selectedShape2D.geometry && <label style={lab}>Y (m)<input type="number" step="0.05" value={selectedShape2D.geometry.y} onChange={(e) => onShape2DChange({ geometry: { y: Number(e.target.value) } })} style={inp} /></label>}
+                {'width' in selectedShape2D.geometry && <label style={lab}>Ancho (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.width} onChange={(e) => onShape2DChange({ geometry: { width: Number(e.target.value) } })} style={inp} /></label>}
+                {'height' in selectedShape2D.geometry && <label style={lab}>Alto (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.height} onChange={(e) => onShape2DChange({ geometry: { height: Number(e.target.value) } })} style={inp} /></label>}
+                {'size' in selectedShape2D.geometry && <label style={lab}>Tamaño (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.size} onChange={(e) => onShape2DChange({ geometry: { size: Number(e.target.value) } })} style={inp} /></label>}
+                {'radius' in selectedShape2D.geometry && <label style={lab}>Radio (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.radius} onChange={(e) => onShape2DChange({ geometry: { radius: Number(e.target.value) } })} style={inp} /></label>}
+                {'rotation' in selectedShape2D.geometry && <label style={lab}>Rotación (°)<input type="number" step="1" value={Math.round(selectedShape2D.geometry.rotation * 1800 / Math.PI) / 10} onChange={(e) => onShape2DChange({ geometry: { rotation: Number(e.target.value) * Math.PI / 180 } })} style={inp} /></label>}
+                <label style={lab}>Contorno<input type="color" value={selectedShape2D.style.stroke} onChange={(e) => onShape2DChange({ style: { stroke: e.target.value } })} style={inp} /></label>
+                <label style={lab}>Relleno<input type="color" value={selectedShape2D.style.fillColor} onChange={(e) => onShape2DChange({ style: { fillColor: e.target.value } })} style={inp} /></label>
+                <label style={{ fontSize: 12 }}><input type="checkbox" checked={selectedShape2D.style.fill} onChange={(e) => onShape2DChange({ style: { fill: e.target.checked } })} /> Activar relleno</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                  <button type="button" style={btnMini(false)} onClick={() => onTranslateShape2D({ x: -0.1, y: 0 })}>←</button>
+                  <button type="button" style={btnMini(false)} onClick={() => onTranslateShape2D({ x: 0.1, y: 0 })}>→</button>
+                  <button type="button" style={btnMini(false)} onClick={() => onTranslateShape2D({ x: 0, y: -0.1 })}>↓</button>
+                  <button type="button" style={btnMini(false)} onClick={() => onTranslateShape2D({ x: 0, y: 0.1 })}>↑</button>
+                </div>
+                <button type="button" onClick={onDeleteShape2D} style={{ ...btnMini(false), color: '#b91c1c' }}>Eliminar figura</button>
+              </div>
             )}
           </div>
         </>
