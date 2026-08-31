@@ -32,6 +32,11 @@ import {
   worldPointToDocument,
 } from '../core/plans/utils/planTransform';
 import { drawVectorPlan2D } from '../core/plans/renderers/vectorPlanRenderer2D';
+import {
+  getDuctCimbras,
+  pruneCimbraVisibility,
+  resolveSelectedKoncisaPostId,
+} from '../plan2d/koncisaCimbraGeometry2D';
 import { getEdukWidthInfoByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { createWallDefinition } from '../core/architecture/walls/wallDefinition';
 import { selectWallAtPoint } from '../core/architecture/walls/wallInteraction2D';
@@ -504,6 +509,7 @@ export default function Plan2DOverlay({
   // visible toggle
   const [visible, setVisible] = useState(defaultVisible);
   const [viewMode, setViewMode] = useState('normal');
+  const [cimbraVisiblePostIds, setCimbraVisiblePostIds] = useState(() => new Set());
   const latestSnapshotRef = useRef([]);
 
   // draft muros
@@ -2199,6 +2205,10 @@ export default function Plan2DOverlay({
         }) || []
       ).filter(Boolean);
       latestSnapshotRef.current = snap;
+      const prunedCimbraPostIds = pruneCimbraVisibility(cimbraVisiblePostIds, snap);
+      if (prunedCimbraPostIds.size !== cimbraVisiblePostIds.size) {
+        setCimbraVisiblePostIds(prunedCimbraPostIds);
+      }
       const snapGeometry = buildSnapGeometry(snap);
       const { s, cx, cz } = viewRef.current;
 
@@ -2485,6 +2495,27 @@ export default function Plan2DOverlay({
         ctx.restore();
       }
 
+      // Capa visual derivada: se dibuja sobre las huellas, sin participar
+      // en selección, movimiento ni persistencia.
+      if (cimbraVisiblePostIds.size) {
+        const cimbras = getDuctCimbras(snap, { visiblePostIds: cimbraVisiblePostIds });
+        for (const cimbra of cimbras) {
+          const [px, py] = toCanvasLocal(cimbra.x, cimbra.z);
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(-cimbra.rotation);
+          ctx.strokeStyle = '#ef1b1b';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(
+            (-cimbra.width * s) / 2,
+            (-cimbra.depth * s) / 2,
+            cimbra.width * s,
+            cimbra.depth * s
+          );
+          ctx.restore();
+        }
+      }
+
       const activeVariantControl = resolveActiveVariantControl2D(snap);
       if (activeVariantControl?.type === 'EDUK_WIDTH') {
         const { handles, center, axis, type } = activeVariantControl;
@@ -2738,6 +2769,7 @@ export default function Plan2DOverlay({
     hoveredVariantHandleDir,
     isVariantHandleDragging,
     detailed2DIds,
+    cimbraVisiblePostIds,
   ]);
 
   const selectedDetailKeys = collectSelected2DDetailKeys(
@@ -2746,6 +2778,13 @@ export default function Plan2DOverlay({
   );
   const selectedAreDetailed =
     selectedDetailKeys.length > 0 && selectedDetailKeys.every((key) => detailed2DIds.has(key));
+  const selectedCimbraPostId = resolveSelectedKoncisaPostId(
+    latestSnapshotRef.current,
+    selectedIds
+  );
+  const selectedPostCimbraVisible = selectedCimbraPostId
+    ? cimbraVisiblePostIds.has(selectedCimbraPostId)
+    : false;
 
   if (!visible) {
     return (
@@ -3006,6 +3045,43 @@ export default function Plan2DOverlay({
             </button>
           </>
         ) : null}
+
+        <button
+          type="button"
+          onClick={() => {
+            const postId = resolveSelectedKoncisaPostId(latestSnapshotRef.current, selectedIds);
+            if (!postId) return;
+            setCimbraVisiblePostIds((current) => {
+              const next = new Set(current);
+              if (next.has(postId)) next.delete(postId);
+              else next.add(postId);
+              return next;
+            });
+          }}
+          disabled={!selectedCimbraPostId}
+          aria-pressed={selectedPostCimbraVisible}
+          title={
+            selectedCimbraPostId
+              ? 'Mostrar u ocultar cimbras del puesto KONCISA PLUS seleccionado'
+              : 'Selecciona un puesto KONCISA PLUS para controlar sus cimbras'
+          }
+          style={{
+            padding: '6px 10px',
+            borderRadius: 10,
+            border: selectedPostCimbraVisible
+              ? '1px solid rgba(220, 38, 38, 0.9)'
+              : '1px solid rgba(0,0,0,0.14)',
+            background: selectedPostCimbraVisible
+              ? 'rgba(254, 226, 226, 0.96)'
+              : 'rgba(255,255,255,0.92)',
+            color: selectedPostCimbraVisible ? '#b91c1c' : 'inherit',
+            cursor: selectedCimbraPostId ? 'pointer' : 'not-allowed',
+            opacity: selectedCimbraPostId ? 1 : 0.55,
+            fontWeight: 700,
+          }}
+        >
+          Cimbra: {selectedPostCimbraVisible ? 'ON' : 'OFF'}
+        </button>
 
         <button
           onClick={() => setVisible(false)}

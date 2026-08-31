@@ -1779,6 +1779,12 @@ export default function ThreeCanvas({
           if (!obj) return null;
 
           obj.updateMatrixWorld(true);
+          const snapshotPartMetadata = {
+            type: obj.userData?.kind || obj.userData?.type || 'PART',
+            subtype: obj.userData?.subtype || null,
+            line: obj.userData?.line || null,
+            meta: obj.userData?.meta || null,
+          };
           const attachDetailed = (snapshot) => {
             if (snapshot?.kind === 'CRITTERIUM_8_ASSEMBLY') return snapshot;
             const detailKey = get2DDetailKey(snapshot);
@@ -1837,6 +1843,7 @@ export default function ThreeCanvas({
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
 
             return attachDetailed({
+              ...snapshotPartMetadata,
               id: obj.userData?.instanceId || obj.uuid,
               instanceId: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || null,
@@ -1885,6 +1892,7 @@ export default function ThreeCanvas({
             const worldEuler = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ');
 
             return attachDetailed({
+              ...snapshotPartMetadata,
               id: obj.userData?.instanceId || obj.uuid,
               instanceId: obj.userData?.instanceId || obj.uuid,
 
@@ -1918,6 +1926,7 @@ export default function ThreeCanvas({
             const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
             return attachDetailed({
+              ...snapshotPartMetadata,
               id: obj.userData?.instanceId || obj.uuid,
               instanceId: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || null,
@@ -1948,6 +1957,7 @@ export default function ThreeCanvas({
           });
 
           return attachDetailed({
+            ...snapshotPartMetadata,
             id: obj.userData?.instanceId || obj.uuid,
             instanceId: obj.userData?.instanceId || obj.uuid,
             groupId: obj.userData?.groupId || null,
