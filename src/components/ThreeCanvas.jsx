@@ -34,6 +34,7 @@ import {
   hasDetailedFootprint2DCacheEntry,
 } from '../plan2d/extractDetailedFootprint2D';
 import { get2DDetailKey } from '../plan2d/detailSelection2D';
+import { resolveFinishAppearance2D } from '../plan2d/finishAppearance2D';
 import { buildWallsGeometry3D } from '../core/architecture/walls/wallGeometry3D';
 import { buildColumnGeometry3D } from '../core/architecture/columns/columnGeometry3D';
 import { buildDoorGeometry2D } from '../core/architecture/openings/doorGeometry2D';
@@ -1771,6 +1772,51 @@ export default function ThreeCanvas({
     }
 */
 
+    function extractFinishAppearanceSnapshot2D(root) {
+      if (!root?.traverse) return { appearance: null, appearances: [] };
+      const appearances = [];
+      const finishes = root.userData?.finishes || {};
+      const rootMaterialCode = root.userData?.materialCode || null;
+
+      root.traverse((node) => {
+        if (!node?.isMesh) return;
+        const componentKey = node === root ? 'root' : getMeshPathKey(root, node);
+        const finishMaterialCode = finishes?.[componentKey]?.materialCode || null;
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        const visibleMaterial = materials.find((material) => material?.color) || null;
+        const visibleColor = visibleMaterial?.color?.getHexString
+          ? `#${visibleMaterial.color.getHexString()}`
+          : null;
+        const semanticType =
+          node.userData?.semanticType ||
+          node.userData?.role ||
+          node.userData?.type ||
+          node.userData?.meta?.category ||
+          root.userData?.type ||
+          root.userData?.kind ||
+          null;
+        const appearance = resolveFinishAppearance2D(
+          {
+            componentKey,
+            semanticType,
+            meshMaterialCode: node.userData?.materialCode || null,
+            rootMaterialCode,
+            finishMaterialCode,
+            visibleColor,
+            opacity: visibleMaterial?.transparent ? visibleMaterial.opacity : null,
+          },
+          materialsByCodeRef.current
+        );
+        if (appearance) appearances.push(appearance);
+      });
+
+      const appearance =
+        appearances.find((item) => String(item.semanticType || '').toLowerCase().includes('superfic')) ||
+        appearances[0] ||
+        null;
+      return { appearance, appearances };
+    }
+
     function getPartsSnapshot2D(options = {}) {
       const requestedDetailKeys = new Set(options?.detailed2DIds || []);
       let detailedGenerationBudget = Math.max(0, Number(options?.detailedGenerationBudget) || 2);
@@ -1779,11 +1825,13 @@ export default function ThreeCanvas({
           if (!obj) return null;
 
           obj.updateMatrixWorld(true);
+          const finishSnapshot = extractFinishAppearanceSnapshot2D(obj);
           const snapshotPartMetadata = {
             type: obj.userData?.kind || obj.userData?.type || 'PART',
             subtype: obj.userData?.subtype || null,
             line: obj.userData?.line || null,
             meta: obj.userData?.meta || null,
+            ...finishSnapshot,
           };
           const attachDetailed = (snapshot) => {
             if (snapshot?.kind === 'CRITTERIUM_8_ASSEMBLY') return snapshot;
@@ -1808,6 +1856,7 @@ export default function ThreeCanvas({
             const w = obj.userData?.dimMm?.width ? obj.userData.dimMm.width / 1000 : obj.userData?.dimMm?.widthMm ? obj.userData.dimMm.widthMm / 1000 : size.x;
             const d = obj.userData?.dimMm?.depth ? obj.userData.dimMm.depth / 1000 : obj.userData?.dimMm?.depthMm ? obj.userData.dimMm.depthMm / 1000 : size.z;
             return {
+              ...snapshotPartMetadata,
               id: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || obj.userData?.instanceId,
               codigoPT: obj.userData?.codigoPT || obj.userData?.code || obj.userData?.kind || 'KUO_AV',

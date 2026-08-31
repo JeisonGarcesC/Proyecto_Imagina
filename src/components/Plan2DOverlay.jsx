@@ -38,6 +38,7 @@ import {
   resolveSelectedKoncisaPostId,
 } from '../plan2d/koncisaCimbraGeometry2D';
 import { drawShapes2D } from '../plan2d/geometry2D/shapesRenderer2D';
+import { resolveFinishStyle2D } from '../plan2d/finishAppearance2D';
 import { createShapeFromTool } from '../plan2d/geometry2D/shapeEditor2D';
 import {
   getShapeCenter2D,
@@ -529,6 +530,7 @@ export default function Plan2DOverlay({
   const [visible, setVisible] = useState(defaultVisible);
   const [viewMode, setViewMode] = useState('normal');
   const [cimbraVisiblePostIds, setCimbraVisiblePostIds] = useState(() => new Set());
+  const [showFinishes2D, setShowFinishes2D] = useState(false);
   const latestSnapshotRef = useRef([]);
 
   // draft muros
@@ -2596,7 +2598,14 @@ export default function Plan2DOverlay({
 
         const isSel = selSet.has(p.id);
 
-        ctx.fillStyle = isSel ? 'rgba(56, 194, 212, 0.28)' : 'rgba(0,0,0,0.07)';
+        const normalFill = isSel ? 'rgba(56, 194, 212, 0.28)' : 'rgba(0,0,0,0.07)';
+        const finishStyle = resolveFinishStyle2D(
+          { fill: true, fillColor: normalFill, fillOpacity: 1 },
+          p.appearance,
+          showFinishes2D,
+          p.type || p.kind
+        );
+        ctx.fillStyle = finishStyle.fillColor;
         ctx.strokeStyle = isSel ? 'rgba(56, 194, 212, 0.95)' : 'rgba(0,0,0,0.30)';
         ctx.lineWidth = isSel ? 2.2 : 1;
 
@@ -2607,7 +2616,10 @@ export default function Plan2DOverlay({
             ? FURNITURE_2D_RENDER_MODES.DETAILED
             : FURNITURE_2D_RENDER_MODES.NORMAL,
         });
+        const previousAlpha = ctx.globalAlpha;
+        ctx.globalAlpha = previousAlpha * (finishStyle.fillOpacity ?? 1);
         ctx.fill();
+        ctx.globalAlpha = previousAlpha;
         ctx.stroke();
 
         ctx.fillStyle = isSel ? 'rgba(56, 194, 212, 1)' : 'rgba(0,0,0,0.35)';
@@ -2925,6 +2937,7 @@ export default function Plan2DOverlay({
     isVariantHandleDragging,
     detailed2DIds,
     cimbraVisiblePostIds,
+    showFinishes2D,
     shapes2D,
     selectedShape2DId,
   ]);
@@ -3202,6 +3215,28 @@ export default function Plan2DOverlay({
             </button>
           </>
         ) : null}
+
+        <button
+          type="button"
+          onClick={() => setShowFinishes2D((current) => !current)}
+          aria-pressed={showFinishes2D}
+          title="Mostrar los colores reales de los acabados del modelo 3D"
+          style={{
+            padding: '6px 10px',
+            borderRadius: 10,
+            border: showFinishes2D
+              ? '1px solid rgba(37, 99, 235, 0.9)'
+              : '1px solid rgba(0,0,0,0.14)',
+            background: showFinishes2D
+              ? 'rgba(219, 234, 254, 0.96)'
+              : 'rgba(255,255,255,0.92)',
+            color: showFinishes2D ? '#1d4ed8' : 'inherit',
+            cursor: 'pointer',
+            fontWeight: 700,
+          }}
+        >
+          Acabados: {showFinishes2D ? 'ON' : 'OFF'}
+        </button>
 
         <button
           type="button"
