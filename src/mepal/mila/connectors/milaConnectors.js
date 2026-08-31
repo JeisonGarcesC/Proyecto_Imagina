@@ -791,7 +791,13 @@ export function findBestMilaConnectorSnap({
             // Mantener la altura actual evita que la silla "se hunda" al acoplarse al panel divisor.
             targetPosY = activeAssembly.position.y;
           } else if (isGiroSnap) {
-            targetPosY = (effectiveTargetPort.worldPos.y - rotatedOffset.y) + (activeConnectors.isGiro ? giroDropM : 0);
+            if (activeConnectors.isGiro) {
+              targetPosY = (effectiveTargetPort.worldPos.y - rotatedOffset.y) + giroDropM;
+            } else {
+              // Cuando la silla se acopla a una superficie de giro, no debe copiar la bajada
+              // propia del giro; la caída vertical solo se aplica si el giro es el activo.
+              targetPosY = activeAssembly.position.y;
+            }
           } else {
             targetPosY = effectiveTargetPort.worldPos.y - rotatedOffset.y;
           }

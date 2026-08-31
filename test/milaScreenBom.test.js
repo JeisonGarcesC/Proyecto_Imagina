@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 
 import { resolveMilaScreenBomBreakdown } from '../src/mepal/mila/config/milaTunables.js';
 import { createMilaAccessoryInstance } from '../src/mepal/mila/factories/createMilaAccessoryInstance.js';
+import { findBestMilaConnectorSnap } from '../src/mepal/mila/connectors/milaConnectors.js';
 
 test('resolveMilaScreenBomBreakdown usa los códigos reales del accesorio y descompone 4 como dos paneles de 2', () => {
   assert.deepEqual(resolveMilaScreenBomBreakdown(1), [
@@ -69,4 +71,34 @@ test('createMilaScreenPart ancla la pantalla al puesto y no la empuja al fondo d
   assert.equal(parts[0].position.y, 0);
   assert.equal(parts[0].position.z, -720);
   assert.equal(parts[0].code, '22000129109');
+});
+
+test('findBestMilaConnectorSnap mantiene la altura de la silla cuando se acopla a una superficie de giro', () => {
+  const seat = new THREE.Group();
+  seat.userData = {
+    kind: 'MILA_ASSEMBLY',
+    type: 'mila',
+    line: 'MILA',
+    config: { quantity: 1, moduleSpacingMm: 600 },
+  };
+  seat.position.set(0, 0.24, 0);
+  seat.updateMatrixWorld(true);
+
+  const giro = new THREE.Group();
+  giro.userData = {
+    kind: 'MILA_GIRO_SURFACE',
+    type: 'MILA_GIRO_SURFACE',
+    angleDeg: 60,
+    meta: { role: 'giro-surface' },
+  };
+  giro.position.set(0.2623, 0.0, -0.36);
+  giro.updateMatrixWorld(true);
+
+  const snap = findBestMilaConnectorSnap({
+    activeAssembly: seat,
+    allAssemblies: [giro],
+  });
+
+  assert.ok(snap);
+  assert.equal(Number(snap.targetTransform.y.toFixed(6)), Number(seat.position.y.toFixed(6)));
 });
