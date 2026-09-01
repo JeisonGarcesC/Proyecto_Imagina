@@ -10,10 +10,7 @@ import {
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
-import {
-  drawFurnitureFootprint2D,
-  FURNITURE_2D_RENDER_MODES,
-} from '../plan2d/furnitureRenderer2D';
+import { drawFurnitureFootprint2D, FURNITURE_2D_RENDER_MODES } from '../plan2d/furnitureRenderer2D';
 import { hitTestFootprint2D } from '../plan2d/footprintGeometry2D';
 import {
   collectSelected2DDetailKeys,
@@ -52,13 +49,26 @@ import {
 import { getEdukWidthInfoByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { createWallDefinition } from '../core/architecture/walls/wallDefinition';
 import { selectWallAtPoint } from '../core/architecture/walls/wallInteraction2D';
-import { buildJoinedWallsGeometry2D, getJoinedWallGeometry } from '../core/architecture/walls/wallJoins2D';
-import { createColumnDefinition, COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition';
+import {
+  buildJoinedWallsGeometry2D,
+  getJoinedWallGeometry,
+} from '../core/architecture/walls/wallJoins2D';
+import {
+  createColumnDefinition,
+  COLUMN_SHAPES,
+} from '../core/architecture/columns/columnDefinition';
 import { buildColumnGeometry2D } from '../core/architecture/columns/columnGeometry2D';
 import { selectColumnAtPoint } from '../core/architecture/columns/columnInteraction2D';
 import { buildArchitectureSnapGeometry } from '../core/architecture/snapping/architectureSnapGeometry2D';
-import { createDoorDefinition, validateDoorPlacement } from '../core/architecture/openings/doorDefinition';
-import { buildDoorGeometry2D, buildWallSegmentPolygons2D, projectPointToWallSegment } from '../core/architecture/openings/doorGeometry2D';
+import {
+  createDoorDefinition,
+  validateDoorPlacement,
+} from '../core/architecture/openings/doorDefinition';
+import {
+  buildDoorGeometry2D,
+  buildWallSegmentPolygons2D,
+  projectPointToWallSegment,
+} from '../core/architecture/openings/doorGeometry2D';
 import { selectOpeningAtPoint } from '../core/architecture/openings/openingInteraction2D';
 
 //Zoom escalas del 2d
@@ -848,21 +858,33 @@ export default function Plan2DOverlay({
     [architectureSnapGeometry, canvasToWorld]
   );
 
-  const resolveDoorAtCanvasPoint = useCallback((mx, my) => {
-    const worldPoint = canvasToWorld(mx, my);
-    if (!worldPoint) return null;
-    const joined = buildJoinedWallsGeometry2D(walls);
-    let best = null;
-    joined.wallGeometries.forEach((wallGeometry) => wallGeometry.segmentsGeometry.forEach((segment) => {
-      const projection = projectPointToWallSegment(worldPoint, segment);
-      if (!best || projection.distance < best.distance) best = { wallId: wallGeometry.wallId, segment, ...projection };
-    }));
-    const tolerance = 12 / Math.max(viewRef.current.s, Number.EPSILON);
-    if (!best || best.distance > tolerance) return null;
-    const door = createDoorDefinition({ wallId: best.wallId, segmentId: best.segment.segmentId, offset: best.offset, width: doorWidth, height: doorHeight });
-    const validation = validateDoorPlacement(door, walls, openings);
-    return { door, validation, geometry: buildDoorGeometry2D(door, walls, openings) };
-  }, [canvasToWorld, walls, openings, doorWidth, doorHeight]);
+  const resolveDoorAtCanvasPoint = useCallback(
+    (mx, my) => {
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint) return null;
+      const joined = buildJoinedWallsGeometry2D(walls);
+      let best = null;
+      joined.wallGeometries.forEach((wallGeometry) =>
+        wallGeometry.segmentsGeometry.forEach((segment) => {
+          const projection = projectPointToWallSegment(worldPoint, segment);
+          if (!best || projection.distance < best.distance)
+            best = { wallId: wallGeometry.wallId, segment, ...projection };
+        })
+      );
+      const tolerance = 12 / Math.max(viewRef.current.s, Number.EPSILON);
+      if (!best || best.distance > tolerance) return null;
+      const door = createDoorDefinition({
+        wallId: best.wallId,
+        segmentId: best.segment.segmentId,
+        offset: best.offset,
+        width: doorWidth,
+        height: doorHeight,
+      });
+      const validation = validateDoorPlacement(door, walls, openings);
+      return { door, validation, geometry: buildDoorGeometry2D(door, walls, openings) };
+    },
+    [canvasToWorld, walls, openings, doorWidth, doorHeight]
+  );
 
   useEffect(() => {
     if (isWallDrawMode || columnMode === 'PLACE' || openingMode === 'PLACE') return;
@@ -2440,19 +2462,28 @@ export default function Plan2DOverlay({
         const geometry = getJoinedWallGeometry(joinedWallsGeometry, wall.id);
         if (!geometry) continue;
         for (const segment of geometry.segmentsGeometry) {
-          const segmentOpenings = openings.filter((opening) => opening.wallId === wall.id && opening.segmentId === segment.segmentId && validateDoorPlacement(opening, walls, openings).valid);
-          const polygons = segmentOpenings.length ? buildWallSegmentPolygons2D(segment, segmentOpenings) : [segment.polygon];
+          const segmentOpenings = openings.filter(
+            (opening) =>
+              opening.wallId === wall.id &&
+              opening.segmentId === segment.segmentId &&
+              validateDoorPlacement(opening, walls, openings).valid
+          );
+          const polygons = segmentOpenings.length
+            ? buildWallSegmentPolygons2D(segment, segmentOpenings)
+            : [segment.polygon];
           polygons.forEach((polygon) => {
             ctx.beginPath();
             polygon.forEach((point, index) => {
               const [x, y] = toCanvasLocal(point.x, point.z);
-              if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+              if (index === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
             });
             ctx.closePath();
             ctx.fillStyle = isSelected ? 'rgba(0,145,180,0.32)' : 'rgba(20,20,20,0.32)';
             ctx.strokeStyle = isSelected ? 'rgba(0,145,180,0.95)' : 'rgba(20,20,20,0.78)';
             ctx.lineWidth = isSelected ? 3 : 1;
-            ctx.fill(); ctx.stroke();
+            ctx.fill();
+            ctx.stroke();
           });
         }
 
@@ -2510,26 +2541,56 @@ export default function Plan2DOverlay({
         const [lx, ly] = toCanvasLocal(geometry.openEnd.x, geometry.openEnd.z);
         const [cx, cy] = toCanvasLocal(geometry.closedEnd.x, geometry.closedEnd.z);
         ctx.save();
-        ctx.strokeStyle = geometry.valid === false ? '#dc2626' : selected ? '#d97706' : preview ? '#16a34a' : '#505050';
+        ctx.strokeStyle =
+          geometry.valid === false
+            ? '#dc2626'
+            : selected
+              ? '#d97706'
+              : preview
+                ? '#16a34a'
+                : '#505050';
         ctx.lineWidth = selected ? 3 : 2;
-        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(lx, ly); ctx.stroke();
         ctx.beginPath();
-        ctx.arc(hx, hy, geometry.arc.radius * s, Math.atan2(cy - hy, cx - hx), Math.atan2(ly - hy, lx - hx), geometry.arc.counterClockwise !== invertZ);
+        ctx.moveTo(hx, hy);
+        ctx.lineTo(lx, ly);
         ctx.stroke();
-        ctx.beginPath(); ctx.arc(hx, hy, 3, 0, Math.PI * 2); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+        ctx.beginPath();
+        ctx.arc(
+          hx,
+          hy,
+          geometry.arc.radius * s,
+          Math.atan2(cy - hy, cx - hx),
+          Math.atan2(ly - hy, lx - hx),
+          geometry.arc.counterClockwise !== invertZ
+        );
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
         ctx.restore();
       };
 
       for (const opening of openings || []) {
         if (opening?.visible === false) continue;
-        drawDoorSymbol(buildDoorGeometry2D(opening, walls, openings), opening.id === selectedOpeningId);
+        drawDoorSymbol(
+          buildDoorGeometry2D(opening, walls, openings),
+          opening.id === selectedOpeningId
+        );
       }
       if (openingMode === 'PLACE' && doorPreview?.geometry) {
         drawDoorSymbol(doorPreview.geometry, false, true);
-        const [tx, ty] = toCanvasLocal(doorPreview.geometry.center.x, doorPreview.geometry.center.z);
+        const [tx, ty] = toCanvasLocal(
+          doorPreview.geometry.center.x,
+          doorPreview.geometry.center.z
+        );
         ctx.fillStyle = doorPreview.validation.valid ? '#166534' : '#b91c1c';
         ctx.font = '12px sans-serif';
-        ctx.fillText(`${doorWidth.toFixed(2)} m${doorPreview.validation.valid ? '' : ' · no cabe'}`, tx + 10, ty - 10);
+        ctx.fillText(
+          `${doorWidth.toFixed(2)} m${doorPreview.validation.valid ? '' : ' · no cabe'}`,
+          tx + 10,
+          ty - 10
+        );
       }
 
       // Muro en construcción
@@ -2597,7 +2658,7 @@ export default function Plan2DOverlay({
         ctx.rotate(-(p.rotY || 0));
 
         const isSel = selSet.has(p.id);
-
+        // color 2D estandar o normal. azul clarito
         const normalFill = isSel ? 'rgba(56, 194, 212, 0.28)' : 'rgba(0,0,0,0.07)';
         const finishStyle = resolveFinishStyle2D(
           { fill: true, fillColor: normalFill, fillOpacity: 1 },
@@ -2642,7 +2703,12 @@ export default function Plan2DOverlay({
       if (selectedShape) {
         drawShapes2D(
           ctx,
-          [{ ...selectedShape, style: { ...selectedShape.style, stroke: '#06b6d4', strokeWidth: 3 } }],
+          [
+            {
+              ...selectedShape,
+              style: { ...selectedShape.style, stroke: '#06b6d4', strokeWidth: 3 },
+            },
+          ],
           { toCanvas: toCanvasLocal, scale: s }
         );
         const handles = getShapeHandles2D(selectedShape, 28 / Math.max(s, Number.EPSILON));
@@ -2942,16 +3008,10 @@ export default function Plan2DOverlay({
     selectedShape2DId,
   ]);
 
-  const selectedDetailKeys = collectSelected2DDetailKeys(
-    selectedIds,
-    latestSnapshotRef.current
-  );
+  const selectedDetailKeys = collectSelected2DDetailKeys(selectedIds, latestSnapshotRef.current);
   const selectedAreDetailed =
     selectedDetailKeys.length > 0 && selectedDetailKeys.every((key) => detailed2DIds.has(key));
-  const selectedCimbraPostId = resolveSelectedKoncisaPostId(
-    latestSnapshotRef.current,
-    selectedIds
-  );
+  const selectedCimbraPostId = resolveSelectedKoncisaPostId(latestSnapshotRef.current, selectedIds);
   const selectedPostCimbraVisible = selectedCimbraPostId
     ? cimbraVisiblePostIds.has(selectedCimbraPostId)
     : false;
@@ -3040,14 +3100,8 @@ export default function Plan2DOverlay({
             padding: '6px 10px',
             borderRadius: 10,
             border: '1px solid rgba(0,0,0,0.14)',
-            background:
-              selectedAreDetailed
-                ? 'rgba(37, 99, 235, 0.14)'
-                : 'rgba(255,255,255,0.92)',
-            color:
-              selectedAreDetailed
-                ? 'rgba(30, 64, 175, 1)'
-                : 'inherit',
+            background: selectedAreDetailed ? 'rgba(37, 99, 235, 0.14)' : 'rgba(255,255,255,0.92)',
+            color: selectedAreDetailed ? 'rgba(30, 64, 175, 1)' : 'inherit',
             cursor: selectedDetailKeys.length ? 'pointer' : 'not-allowed',
             opacity: selectedDetailKeys.length ? 1 : 0.55,
           }}
@@ -3227,9 +3281,7 @@ export default function Plan2DOverlay({
             border: showFinishes2D
               ? '1px solid rgba(37, 99, 235, 0.9)'
               : '1px solid rgba(0,0,0,0.14)',
-            background: showFinishes2D
-              ? 'rgba(219, 234, 254, 0.96)'
-              : 'rgba(255,255,255,0.92)',
+            background: showFinishes2D ? 'rgba(219, 234, 254, 0.96)' : 'rgba(255,255,255,0.92)',
             color: showFinishes2D ? '#1d4ed8' : 'inherit',
             cursor: 'pointer',
             fontWeight: 700,

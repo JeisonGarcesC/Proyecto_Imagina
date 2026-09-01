@@ -1,3 +1,4 @@
+//src/mepal/koncisaPlus/rules/koncisaFloorDuctRules.js
 export const KONCISA_FLOOR_DUCTS = {
   sencillo: {
     grommet: {
@@ -36,50 +37,70 @@ export const KONCISA_FLOOR_DUCTS = {
   },
 };
 
+// Offset por tipo de módulo de referencia (TERMINAL/INTERMEDIO/INDIVIDUAL) y
+// por posición elegida (LEFT/RIGHT/CENTER). INDIVIDUAL solo admite CENTER,
+// ya que el ducto individual solo tiene un lugar posible para el bajante.
+//
+// Cada entrada es una función (ecuación) que recibe el largo y la profundidad
+// reales del puesto/superficie, porque el ducto horizontal cambia de tamaño
+// (1000/1200/1500...) y el bajante debe reubicarse según esa medida.
+const zeroOffset = () => ({ x: 0, y: 0, z: 0, rotY: 0 });
+
+const offsetTerminalGrommetIzquierdo = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetTerminalGrommetDerecho = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetTerminalGrommetCentro = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
 export const KONCISA_FLOOR_DUCT_OFFSETS = {
   // =========================
   // CON GROMMET
   // =========================
+
+  // Posicion Ducto a piso: fn({ largoRealMm, anchoRealMm }) => { x, y, z, rotY }
   grommet: {
     sencillo: {
       TERMINAL: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        LEFT: offsetTerminalGrommetIzquierdo,
+        CENTER: offsetTerminalGrommetCentro,
+        RIGHT: offsetTerminalGrommetDerecho,
       },
       INTERMEDIO: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        LEFT: zeroOffset,
+        CENTER: zeroOffset,
+        RIGHT: zeroOffset,
       },
       INDIVIDUAL: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        CENTER: zeroOffset,
       },
     },
 
     doble: {
       TERMINAL: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        LEFT: zeroOffset,
+        CENTER: zeroOffset,
+        RIGHT: zeroOffset,
       },
       INTERMEDIO: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        LEFT: zeroOffset,
+        CENTER: zeroOffset,
+        RIGHT: zeroOffset,
       },
       INDIVIDUAL: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        CENTER: zeroOffset,
       },
     },
   },
@@ -90,43 +111,33 @@ export const KONCISA_FLOOR_DUCT_OFFSETS = {
   pasacable: {
     sencillo: {
       TERMINAL: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        LEFT: zeroOffset,
+        CENTER: zeroOffset,
+        RIGHT: zeroOffset,
       },
       INTERMEDIO: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        LEFT: zeroOffset,
+        CENTER: zeroOffset,
+        RIGHT: zeroOffset,
       },
       INDIVIDUAL: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        CENTER: zeroOffset,
       },
     },
 
     doble: {
       TERMINAL: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        LEFT: zeroOffset,
+        CENTER: zeroOffset,
+        RIGHT: zeroOffset,
       },
       INTERMEDIO: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        LEFT: zeroOffset,
+        CENTER: zeroOffset,
+        RIGHT: zeroOffset,
       },
       INDIVIDUAL: {
-        x: 0,
-        y: 0,
-        z: 0,
-        rotY: 0,
+        CENTER: zeroOffset,
       },
     },
   },
@@ -150,29 +161,46 @@ export function normalizeFloorDuctReferenceType(tipoModulo) {
   return 'TERMINAL';
 }
 
+// El ducto individual solo tiene una ubicación posible para el bajante.
+export function normalizeFloorDuctPosition(referenceDuctType, position) {
+  const refKey = normalizeFloorDuctReferenceType(referenceDuctType);
+
+  if (refKey === 'INDIVIDUAL') return 'CENTER';
+
+  const value = String(position || 'CENTER').toUpperCase();
+  if (value === 'LEFT' || value === 'RIGHT') return value;
+
+  return 'CENTER';
+}
+
 export function resolveKoncisaFloorDuct({
   tipoPuesto = 'sencillo',
   tipoPasoCable = 'grommet',
   referenceDuctType = 'TERMINAL',
+  position = 'CENTER',
+  largoRealMm = 1200,
+  anchoRealMm = 600,
 } = {}) {
   const puestoKey = tipoPuesto === 'doble' ? 'doble' : 'sencillo';
   const cableKey = normalizeFloorDuctCableType(tipoPasoCable);
   const refKey = normalizeFloorDuctReferenceType(referenceDuctType);
+  const positionKey = normalizeFloorDuctPosition(refKey, position);
 
   const duct = KONCISA_FLOOR_DUCTS?.[puestoKey]?.[cableKey];
 
-  const offset = KONCISA_FLOOR_DUCT_OFFSETS?.[cableKey]?.[puestoKey]?.[refKey] || {
-    x: 0,
-    y: 0,
-    z: 0,
-    rotY: 0,
-  };
+  const offsetFn = KONCISA_FLOOR_DUCT_OFFSETS?.[cableKey]?.[puestoKey]?.[refKey]?.[positionKey];
+  const offset =
+    typeof offsetFn === 'function'
+      ? offsetFn({ largoRealMm, anchoRealMm })
+      : offsetFn || { x: 0, y: 0, z: 0, rotY: 0 };
 
   return {
     ...duct,
     tipoPuesto: puestoKey,
     cableType: cableKey,
     referenceDuctType: refKey,
+    position: positionKey,
+    dimsMm: { largoRealMm, anchoRealMm },
     offsetFromReferenceMm: offset,
   };
 }

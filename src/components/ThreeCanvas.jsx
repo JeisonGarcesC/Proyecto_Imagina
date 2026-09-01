@@ -64,9 +64,7 @@ import { registerCritterium8Instance } from '../mepal/critterium8/integration/cr
 import { rebuildCritterium8Instance } from '../mepal/critterium8/integration/rebuildCritterium8Instance.js';
 import { patchCritterium8TileConfig } from '../mepal/critterium8/integration/critterium8Config.js';
 import { disposeCritterium8FrameAssembly3D } from '../mepal/critterium8/renderers/Critterium8FrameRenderer3D.js';
-import {
-  disposeCritterium8Sequence3D,
-} from '../mepal/critterium8/builders/Critterium8SequenceRenderBuilder.js';
+import { disposeCritterium8Sequence3D } from '../mepal/critterium8/builders/Critterium8SequenceRenderBuilder.js';
 import {
   partitionCritterium8Frames,
   prepareCritterium8Sequence,
@@ -93,6 +91,7 @@ import {
 } from '../mepal/zen/products/zenVariantDefinition.js';
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
+import { resolveKoncisaFloorDuct } from '../mepal/koncisaPlus/rules/koncisaFloorDuctRules';
 
 import {
   createKoncisaPrivacyPanelProcedural,
@@ -269,7 +268,7 @@ export default function ThreeCanvas({
   const gridHelperRef = useRef(null);
   const sceneRef = useRef(null);
 
-  const refreshFloorAndGridRef = useRef(() => { });
+  const refreshFloorAndGridRef = useRef(() => {});
 
   // ✅ (opcional) guardar refs de scene para debug
   // const sceneRef = useRef(null);
@@ -672,7 +671,7 @@ export default function ThreeCanvas({
     function updateKuoAVSnapMarkers() {
       const assembly =
         activePart?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-          activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
+        activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
           ? activePart
           : getKoncisaAssemblyObject(activePart);
 
@@ -911,10 +910,7 @@ export default function ThreeCanvas({
       scene.children.forEach((node) => {
         if (node === targetObj) return;
         const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
-        if (
-          node.userData?.kind === 'MILA_ASSEMBLY' ||
-          node.userData?.type === 'mila'
-        ) {
+        if (node.userData?.kind === 'MILA_ASSEMBLY' || node.userData?.type === 'mila') {
           allAssemblies.push(node);
         } else if (
           node.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
@@ -953,8 +949,10 @@ export default function ThreeCanvas({
       );
       const panelLeftPorts = panelPorts.filter((port) => port.side === 'left');
       const panelRightPorts = panelPorts.filter((port) => port.side === 'right');
-      const panelLeftPort = panelLeftPorts.find((port) => Number(port.seatIndex || 0) === 0) || null;
-      const panelRightPort = panelRightPorts.find((port) => Number(port.seatIndex || 0) === 0) || null;
+      const panelLeftPort =
+        panelLeftPorts.find((port) => Number(port.seatIndex || 0) === 0) || null;
+      const panelRightPort =
+        panelRightPorts.find((port) => Number(port.seatIndex || 0) === 0) || null;
 
       let isLeftOccupied = true;
       let isRightOccupied = true;
@@ -1125,7 +1123,9 @@ export default function ThreeCanvas({
         if (snapResult) {
           isSnapCandidate = true;
           const activeMesh =
-            snapResult.activeSide === 'left' || snapResult.activeSide === 'center' || snapResult.activeSide === 'screen'
+            snapResult.activeSide === 'left' ||
+            snapResult.activeSide === 'center' ||
+            snapResult.activeSide === 'screen'
               ? milaLeftConnector
               : milaRightConnector;
           setConnectorMeshColor(
@@ -1515,7 +1515,9 @@ export default function ThreeCanvas({
       activePart = obj;
       activeEditablePart =
         selectionContext?.propertiesTarget ||
-        (isKoncisaAssemblyRoot(obj) || isCritterium8AssemblyRoot(obj) || isCritterium8SequenceRoot(obj)
+        (isKoncisaAssemblyRoot(obj) ||
+        isCritterium8AssemblyRoot(obj) ||
+        isCritterium8SequenceRoot(obj)
           ? null
           : getEditableKoncisaPartObject(obj) || getCritterium8EditableTarget(obj));
       obj = activeEditablePart || obj;
@@ -1547,9 +1549,11 @@ export default function ThreeCanvas({
       const finishes = obj?.userData?.finishes || {};
       const subMaterialCode = subKey ? finishes[subKey]?.materialCode || null : null;
       const subName = obj?.userData?.activeSubName || null;
-      const critteriumAssembly = getCritterium8AssemblyRoot(activePart) || getCritterium8AssemblyRoot(obj);
+      const critteriumAssembly =
+        getCritterium8AssemblyRoot(activePart) || getCritterium8AssemblyRoot(obj);
       const critteriumEditablePart = getCritterium8EditablePart(obj);
-      const critteriumSequence = getCritterium8SequenceRoot(activePart) || getCritterium8SequenceRoot(obj);
+      const critteriumSequence =
+        getCritterium8SequenceRoot(activePart) || getCritterium8SequenceRoot(obj);
 
       onSelectionChange?.({
         code: obj.userData.codigoPT || obj.userData.code,
@@ -1614,7 +1618,8 @@ export default function ThreeCanvas({
                     partType: critteriumEditablePart.userData?.partType,
                     slotId: critteriumEditablePart.userData?.slotId,
                     code: critteriumEditablePart.userData?.code,
-                    provisionalGeometry: critteriumEditablePart.userData?.provisionalGeometry === true,
+                    provisionalGeometry:
+                      critteriumEditablePart.userData?.provisionalGeometry === true,
                   }
                 : null,
             }
@@ -1811,7 +1816,11 @@ export default function ThreeCanvas({
       });
 
       const appearance =
-        appearances.find((item) => String(item.semanticType || '').toLowerCase().includes('superfic')) ||
+        appearances.find((item) =>
+          String(item.semanticType || '')
+            .toLowerCase()
+            .includes('superfic')
+        ) ||
         appearances[0] ||
         null;
       return { appearance, appearances };
@@ -1847,19 +1856,31 @@ export default function ThreeCanvas({
             return { ...snapshot, detailedFootprint };
           };
 
-          if (obj.userData?.kind === 'KUO_AV_ASSEMBLY' || obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
+          if (
+            obj.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+            obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY'
+          ) {
             const box = new THREE.Box3().setFromObject(obj);
             const size = new THREE.Vector3();
             const center = new THREE.Vector3();
             box.getSize(size);
             box.getCenter(center);
-            const w = obj.userData?.dimMm?.width ? obj.userData.dimMm.width / 1000 : obj.userData?.dimMm?.widthMm ? obj.userData.dimMm.widthMm / 1000 : size.x;
-            const d = obj.userData?.dimMm?.depth ? obj.userData.dimMm.depth / 1000 : obj.userData?.dimMm?.depthMm ? obj.userData.dimMm.depthMm / 1000 : size.z;
+            const w = obj.userData?.dimMm?.width
+              ? obj.userData.dimMm.width / 1000
+              : obj.userData?.dimMm?.widthMm
+                ? obj.userData.dimMm.widthMm / 1000
+                : size.x;
+            const d = obj.userData?.dimMm?.depth
+              ? obj.userData.dimMm.depth / 1000
+              : obj.userData?.dimMm?.depthMm
+                ? obj.userData.dimMm.depthMm / 1000
+                : size.z;
             return {
               ...snapshotPartMetadata,
               id: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || obj.userData?.instanceId,
-              codigoPT: obj.userData?.codigoPT || obj.userData?.code || obj.userData?.kind || 'KUO_AV',
+              codigoPT:
+                obj.userData?.codigoPT || obj.userData?.code || obj.userData?.kind || 'KUO_AV',
               x: center.x,
               z: center.z,
               w: Math.max(0.001, w),
@@ -2782,10 +2803,7 @@ export default function ThreeCanvas({
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
           const screenQuantity = Math.max(
             1,
-            Math.min(
-              4,
-              Number(obj.userData?.meta?.quantity || obj.userData?.quantity || 1)
-            )
+            Math.min(4, Number(obj.userData?.meta?.quantity || obj.userData?.quantity || 1))
           );
           const screenBreakdown = resolveMilaScreenBomBreakdown(screenQuantity);
 
@@ -2800,7 +2818,9 @@ export default function ThreeCanvas({
                     ? MILA_ACCESSORY_CATALOG.screen1P
                     : resolveMilaScreenCatalogItem(screenQuantity);
             addRow(
-              String(panel.code || catalog?.code || obj.userData?.codigoPT || obj.userData?.code || ''),
+              String(
+                panel.code || catalog?.code || obj.userData?.codigoPT || obj.userData?.code || ''
+              ),
               Number(panel.qty || 1),
               null,
               null,
@@ -3073,9 +3093,7 @@ export default function ThreeCanvas({
     }
 
     function resolveSelectionTargets(object, { asGroup = moveAsGroupRef.current } = {}) {
-      const physicalRoot = asGroup
-        ? getRootPartObject(object)
-        : getIndividualMovementRoot(object);
+      const physicalRoot = asGroup ? getRootPartObject(object) : getIndividualMovementRoot(object);
       const physicalId = physicalRoot?.userData?.instanceId || physicalRoot?.uuid;
 
       if (!physicalRoot || !physicalId || !asGroup) {
@@ -3111,9 +3129,15 @@ export default function ThreeCanvas({
           if (rootAssembly) {
             members.push(rootAssembly);
             const rootIds = new Set(
-              [rootAssembly.userData?.instanceId, rootAssembly.userData?.code, rootAssembly.uuid].filter(Boolean)
+              [
+                rootAssembly.userData?.instanceId,
+                rootAssembly.userData?.code,
+                rootAssembly.uuid,
+              ].filter(Boolean)
             );
-            const descendants = physicalObjects.filter((candidate) => isDescendantOf(candidate, rootAssembly));
+            const descendants = physicalObjects.filter((candidate) =>
+              isDescendantOf(candidate, rootAssembly)
+            );
             const linkedMembers = physicalObjects.filter((candidate) =>
               rootIds.has(candidate.userData?.parentAssemblyId)
             );
@@ -3183,10 +3207,10 @@ export default function ThreeCanvas({
               : countryRef.current === 'USD'
                 ? detUSD?.precio
                 : detCO?.precio) ||
-            detCO?.precio ||
-            detEUC?.precio ||
-            detUSD?.precio ||
-            0
+              detCO?.precio ||
+              detEUC?.precio ||
+              detUSD?.precio ||
+              0
           ),
           prices: {
             CO: Number(detCO?.precio || 0),
@@ -3336,11 +3360,15 @@ export default function ThreeCanvas({
         const rotActive = THREE.MathUtils.euclideanModulo(assembly.rotation.y, Math.PI * 2);
         const rotTarget = THREE.MathUtils.euclideanModulo(node.rotation.y, Math.PI * 2);
         const diffAngle = THREE.MathUtils.euclideanModulo(Math.abs(rotActive - rotTarget), Math.PI);
-        const isPerp = Math.abs(diffAngle - Math.PI / 2) < 0.25 || Math.abs(diffAngle - (3 * Math.PI) / 2) < 0.25;
+        const isPerp =
+          Math.abs(diffAngle - Math.PI / 2) < 0.25 ||
+          Math.abs(diffAngle - (3 * Math.PI) / 2) < 0.25;
 
         if (isPerp) {
           // Búsqueda de contacto entre bordes en disposición perpendicular
-          const centerDist = activeBox.getCenter(new THREE.Vector3()).distanceTo(targetBox.getCenter(new THREE.Vector3()));
+          const centerDist = activeBox
+            .getCenter(new THREE.Vector3())
+            .distanceTo(targetBox.getCenter(new THREE.Vector3()));
           const maxDimActive = activeBox.getSize(new THREE.Vector3()).length();
           const maxDimTarget = targetBox.getSize(new THREE.Vector3()).length();
           if (centerDist <= (maxDimActive + maxDimTarget) * 0.6) {
@@ -3418,7 +3446,7 @@ export default function ThreeCanvas({
 
       assembly.updateMatrixWorld(true);
       const widthMm = Number(assembly.userData?.config?.anchoMm || 1200);
-      const halfWidthM = (widthMm / 2) / 1000;
+      const halfWidthM = widthMm / 2 / 1000;
       const leftWorld = new THREE.Vector3(-halfWidthM, 0, 0).applyMatrix4(assembly.matrixWorld);
       const rightWorld = new THREE.Vector3(halfWidthM, 0, 0).applyMatrix4(assembly.matrixWorld);
 
@@ -3442,7 +3470,8 @@ export default function ThreeCanvas({
         const rotB = THREE.MathUtils.euclideanModulo(node.rotation.y, Math.PI * 2);
         const diffAngle = THREE.MathUtils.euclideanModulo(Math.abs(rotA - rotB), Math.PI);
         const isPerp =
-          Math.abs(diffAngle - Math.PI / 2) < 0.25 || Math.abs(diffAngle - (3 * Math.PI) / 2) < 0.25;
+          Math.abs(diffAngle - Math.PI / 2) < 0.25 ||
+          Math.abs(diffAngle - (3 * Math.PI) / 2) < 0.25;
 
         if (!isPerp) return;
 
@@ -4035,18 +4064,18 @@ export default function ThreeCanvas({
       const plantParts =
         det && det.codigo
           ? [
-            {
-              code: det.codigo,
-              description: det.descripcion,
-              qty: 1,
-              unitPrice: Number(det.precio || 0),
-              prices: {
-                CO: detCO?.precio || 0,
-                EUC: detEUC?.precio || 0,
-                USD: detUSD?.precio || 0,
+              {
+                code: det.codigo,
+                description: det.descripcion,
+                qty: 1,
+                unitPrice: Number(det.precio || 0),
+                prices: {
+                  CO: detCO?.precio || 0,
+                  EUC: detEUC?.precio || 0,
+                  USD: detUSD?.precio || 0,
+                },
               },
-            },
-          ]
+            ]
           : [];
 
       obj.userData = {
@@ -4149,18 +4178,18 @@ export default function ThreeCanvas({
       const accParts =
         det && det.codigo
           ? [
-            {
-              code: det.codigo,
-              description: det.descripcion,
-              qty: 1,
-              unitPrice: Number(det.precio || 0),
-              prices: {
-                CO: detCO?.precio || 0,
-                EUC: detEUC?.precio || 0,
-                USD: detUSD?.precio || 0,
+              {
+                code: det.codigo,
+                description: det.descripcion,
+                qty: 1,
+                unitPrice: Number(det.precio || 0),
+                prices: {
+                  CO: detCO?.precio || 0,
+                  EUC: detEUC?.precio || 0,
+                  USD: detUSD?.precio || 0,
+                },
               },
-            },
-          ]
+            ]
           : [];
 
       obj.userData = {
@@ -4438,7 +4467,10 @@ export default function ThreeCanvas({
     }
 
     function getSelectedCritterium8Sequence() {
-      return getCritterium8SequenceRoot(activePart) || (isCritterium8SequenceRoot(activePart) ? activePart : null);
+      return (
+        getCritterium8SequenceRoot(activePart) ||
+        (isCritterium8SequenceRoot(activePart) ? activePart : null)
+      );
     }
 
     function selectCritterium8Sequence(sequenceRoot) {
@@ -4459,8 +4491,18 @@ export default function ThreeCanvas({
 
     function applyCritterium8SequenceHistoryState(state = {}) {
       const frames = Array.from(new Set(state.frames || []));
-      const roots = Array.from(new Set(frames.map((frame) => getCritterium8SequenceRoot(frame)).filter(Boolean)));
-      roots.forEach((root) => unregisterCritterium8Sequence({ sequenceRoot: root, partsRegistry: parts, pickables, preserveFrames: true, targetParent: scene }));
+      const roots = Array.from(
+        new Set(frames.map((frame) => getCritterium8SequenceRoot(frame)).filter(Boolean))
+      );
+      roots.forEach((root) =>
+        unregisterCritterium8Sequence({
+          sequenceRoot: root,
+          partsRegistry: parts,
+          pickables,
+          preserveFrames: true,
+          targetParent: scene,
+        })
+      );
       const created = [];
       for (const group of state.groups || []) {
         const prepared = prepareCritterium8Sequence({
@@ -4468,8 +4510,14 @@ export default function ThreeCanvas({
           options: { sequenceId: group.sequenceId },
           previousSequence: group.sequence,
         });
-        if (!prepared.success) throw new Error(prepared.reason || 'CRITTERIUM8_SEQUENCE_HISTORY_REBUILD_FAILED');
-        registerCritterium8Sequence({ sequenceRoot: prepared.sequenceRoot, parent: scene, partsRegistry: parts, pickables });
+        if (!prepared.success)
+          throw new Error(prepared.reason || 'CRITTERIUM8_SEQUENCE_HISTORY_REBUILD_FAILED');
+        registerCritterium8Sequence({
+          sequenceRoot: prepared.sequenceRoot,
+          parent: scene,
+          partsRegistry: parts,
+          pickables,
+        });
         created.push(prepared.sequenceRoot);
       }
       if (created.length === 1) selectCritterium8Sequence(created[0]);
@@ -4483,42 +4531,77 @@ export default function ThreeCanvas({
       const before = createCritterium8SequenceHistoryState(frameAssemblies);
       const prepared = prepareCritterium8Sequence({ frameAssemblies, options });
       if (!prepared.success) return prepared;
-      registerCritterium8Sequence({ sequenceRoot: prepared.sequenceRoot, parent: scene, partsRegistry: parts, pickables });
+      registerCritterium8Sequence({
+        sequenceRoot: prepared.sequenceRoot,
+        parent: scene,
+        partsRegistry: parts,
+        pickables,
+      });
       selectCritterium8Sequence(prepared.sequenceRoot);
       historyManager.pushAction({
         type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_CREATE,
         sequenceId: prepared.sequence.id,
         frameIds: [...prepared.sequence.frameIds],
         before,
-        after: createCritterium8SequenceHistoryState(frameAssemblies, [{ sequenceId: prepared.sequence.id, frameAssemblies, sequence: prepared.sequence }]),
+        after: createCritterium8SequenceHistoryState(frameAssemblies, [
+          { sequenceId: prepared.sequence.id, frameAssemblies, sequence: prepared.sequence },
+        ]),
       });
       refreshFloorAndGrid();
       return prepared;
     }
 
     function createCritterium8SequenceFromSelection(options = {}) {
-      const assemblies = Array.from(new Set(selectedIds3D
-        .map((id) => getCritterium8FrameAssembly(findPartById(id)))
-        .filter(Boolean)));
+      const assemblies = Array.from(
+        new Set(
+          selectedIds3D.map((id) => getCritterium8FrameAssembly(findPartById(id))).filter(Boolean)
+        )
+      );
       return createCritterium8SequenceFromFrames(assemblies, options);
     }
 
     function rebuildCritterium8Sequence(sequenceRoot, options = {}) {
-      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot)) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
-      const frames = sequenceRoot.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY');
-      const before = createCritterium8SequenceHistoryState(frames, [{ sequenceId: sequenceRoot.userData.sequenceId, frameAssemblies: frames, sequence: sequenceRoot.userData.sequence }]);
-      sequenceRoot.userData.metadata = { ...(sequenceRoot.userData.metadata || {}), dirtyConnections: true, dirtyJunctions: true };
+      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot))
+        return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      const frames = sequenceRoot.children.filter(
+        (child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'
+      );
+      const before = createCritterium8SequenceHistoryState(frames, [
+        {
+          sequenceId: sequenceRoot.userData.sequenceId,
+          frameAssemblies: frames,
+          sequence: sequenceRoot.userData.sequence,
+        },
+      ]);
+      sequenceRoot.userData.metadata = {
+        ...(sequenceRoot.userData.metadata || {}),
+        dirtyConnections: true,
+        dirtyJunctions: true,
+      };
       const prepared = prepareCritterium8SequenceRebuild(sequenceRoot, options);
       if (!prepared.success) return prepared;
       const parent = sequenceRoot.parent || scene;
-      replaceCritterium8Sequence({ previousRoot: sequenceRoot, nextRoot: prepared.sequenceRoot, parent, partsRegistry: parts, pickables });
-      selectCritterium8Sequence(prepared.sequenceRoot);
-      if (options.recordHistory !== false) historyManager.pushAction({
-        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REBUILD,
-        sequenceId: prepared.sequence.id,
-        before,
-        after: createCritterium8SequenceHistoryState(frames, [{ sequenceId: prepared.sequence.id, frameAssemblies: frames, sequence: prepared.sequence }]),
+      replaceCritterium8Sequence({
+        previousRoot: sequenceRoot,
+        nextRoot: prepared.sequenceRoot,
+        parent,
+        partsRegistry: parts,
+        pickables,
       });
+      selectCritterium8Sequence(prepared.sequenceRoot);
+      if (options.recordHistory !== false)
+        historyManager.pushAction({
+          type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REBUILD,
+          sequenceId: prepared.sequence.id,
+          before,
+          after: createCritterium8SequenceHistoryState(frames, [
+            {
+              sequenceId: prepared.sequence.id,
+              frameAssemblies: frames,
+              sequence: prepared.sequence,
+            },
+          ]),
+        });
       refreshFloorAndGrid();
       return prepared;
     }
@@ -4528,18 +4611,32 @@ export default function ThreeCanvas({
     }
 
     function dissolveCritterium8Sequence(sequenceRoot, options = {}) {
-      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot)) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot))
+        return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
       const sequenceId = sequenceRoot.userData.sequenceId;
       const frameIds = [...(sequenceRoot.userData.frameIds || [])];
-      const frames = sequenceRoot.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY');
-      const before = createCritterium8SequenceHistoryState(frames, [{ sequenceId, frameAssemblies: frames, sequence: sequenceRoot.userData.sequence }]);
-      const result = unregisterCritterium8Sequence({ sequenceRoot, partsRegistry: parts, pickables, preserveFrames: true, targetParent: sequenceRoot.parent || scene });
-      clearSelectionAfterRemoval();
-      if (options.recordHistory !== false) historyManager.pushAction({
-        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_DISSOLVE, sequenceId, frameIds,
-        before,
-        after: createCritterium8SequenceHistoryState(frames),
+      const frames = sequenceRoot.children.filter(
+        (child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'
+      );
+      const before = createCritterium8SequenceHistoryState(frames, [
+        { sequenceId, frameAssemblies: frames, sequence: sequenceRoot.userData.sequence },
+      ]);
+      const result = unregisterCritterium8Sequence({
+        sequenceRoot,
+        partsRegistry: parts,
+        pickables,
+        preserveFrames: true,
+        targetParent: sequenceRoot.parent || scene,
       });
+      clearSelectionAfterRemoval();
+      if (options.recordHistory !== false)
+        historyManager.pushAction({
+          type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_DISSOLVE,
+          sequenceId,
+          frameIds,
+          before,
+          after: createCritterium8SequenceHistoryState(frames),
+        });
       refreshFloorAndGrid();
       return { success: result.removed, frames: result.frames, sequenceId };
     }
@@ -4549,24 +4646,45 @@ export default function ThreeCanvas({
     }
 
     function addFrameToCritterium8Sequence(sequenceRoot, frameAssembly, options = {}) {
-      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot)) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot))
+        return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
       const frame = getCritterium8FrameAssembly(frameAssembly) || frameAssembly;
       const validation = validateFrameAdditionToCritterium8Sequence(sequenceRoot, frame, options);
       if (!validation.success) return validation;
       const existingFrames = validation.frameAssemblies.filter((item) => item !== frame);
-      const before = createCritterium8SequenceHistoryState(validation.frameAssemblies, [{ sequenceId: sequenceRoot.userData.sequenceId, frameAssemblies: existingFrames, sequence: sequenceRoot.userData.sequence }]);
+      const before = createCritterium8SequenceHistoryState(validation.frameAssemblies, [
+        {
+          sequenceId: sequenceRoot.userData.sequenceId,
+          frameAssemblies: existingFrames,
+          sequence: sequenceRoot.userData.sequence,
+        },
+      ]);
       const prepared = prepareCritterium8Sequence({
         frameAssemblies: validation.frameAssemblies,
         options: { ...options, sequenceId: sequenceRoot.userData.sequenceId },
         previousSequence: sequenceRoot.userData.sequence,
       });
       if (!prepared.success) return prepared;
-      replaceCritterium8Sequence({ previousRoot: sequenceRoot, nextRoot: prepared.sequenceRoot, parent: sequenceRoot.parent || scene, partsRegistry: parts, pickables });
+      replaceCritterium8Sequence({
+        previousRoot: sequenceRoot,
+        nextRoot: prepared.sequenceRoot,
+        parent: sequenceRoot.parent || scene,
+        partsRegistry: parts,
+        pickables,
+      });
       selectCritterium8Sequence(prepared.sequenceRoot);
       historyManager.pushAction({
-        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_ADD_FRAME, sequenceId: prepared.sequence.id, frameId: frame.userData.frameId,
+        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_ADD_FRAME,
+        sequenceId: prepared.sequence.id,
+        frameId: frame.userData.frameId,
         before,
-        after: createCritterium8SequenceHistoryState(validation.frameAssemblies, [{ sequenceId: prepared.sequence.id, frameAssemblies: validation.frameAssemblies, sequence: prepared.sequence }]),
+        after: createCritterium8SequenceHistoryState(validation.frameAssemblies, [
+          {
+            sequenceId: prepared.sequence.id,
+            frameAssemblies: validation.frameAssemblies,
+            sequence: prepared.sequence,
+          },
+        ]),
       });
       refreshFloorAndGrid();
       return prepared;
@@ -4578,33 +4696,67 @@ export default function ThreeCanvas({
     }
 
     function removeFrameFromCritterium8Sequence(sequenceRoot, frameId, options = {}) {
-      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot)) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      if (readOnly || !isCritterium8SequenceRoot(sequenceRoot))
+        return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
       const parent = sequenceRoot.parent || scene;
-      const allFrames = sequenceRoot.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY');
-      const removedFrame = allFrames.find((frame) => String(frame.userData.frameId) === String(frameId));
+      const allFrames = sequenceRoot.children.filter(
+        (child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'
+      );
+      const removedFrame = allFrames.find(
+        (frame) => String(frame.userData.frameId) === String(frameId)
+      );
       if (!removedFrame) return { success: false, reason: 'FRAME_NOT_FOUND_IN_SEQUENCE' };
       const remaining = allFrames.filter((frame) => frame !== removedFrame);
       const partitions = partitionCritterium8Frames(remaining, options);
-      const before = createCritterium8SequenceHistoryState(allFrames, [{ sequenceId: sequenceRoot.userData.sequenceId, frameAssemblies: allFrames, sequence: sequenceRoot.userData.sequence }]);
-      unregisterCritterium8Sequence({ sequenceRoot, partsRegistry: parts, pickables, preserveFrames: true, targetParent: parent });
+      const before = createCritterium8SequenceHistoryState(allFrames, [
+        {
+          sequenceId: sequenceRoot.userData.sequenceId,
+          frameAssemblies: allFrames,
+          sequence: sequenceRoot.userData.sequence,
+        },
+      ]);
+      unregisterCritterium8Sequence({
+        sequenceRoot,
+        partsRegistry: parts,
+        pickables,
+        preserveFrames: true,
+        targetParent: parent,
+      });
       const created = [];
       for (const partition of partitions) {
         if (!partition.shouldCreateSequence) continue;
-        const nextSequenceId = partitions.length === 1 ? sequenceRoot.userData.sequenceId : partition.sequence.id;
+        const nextSequenceId =
+          partitions.length === 1 ? sequenceRoot.userData.sequenceId : partition.sequence.id;
         const prepared = prepareCritterium8Sequence({
           frameAssemblies: partition.frameAssemblies,
           options: { ...options, sequenceId: nextSequenceId },
           previousSequence: sequenceRoot.userData.sequence,
         });
         if (!prepared.success) continue;
-        registerCritterium8Sequence({ sequenceRoot: prepared.sequenceRoot, parent, partsRegistry: parts, pickables });
+        registerCritterium8Sequence({
+          sequenceRoot: prepared.sequenceRoot,
+          parent,
+          partsRegistry: parts,
+          pickables,
+        });
         created.push(prepared.sequenceRoot);
       }
       clearSelectionAfterRemoval();
       historyManager.pushAction({
-        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REMOVE_FRAME, sequenceId: sequenceRoot.userData.sequenceId, frameId: removedFrame.userData.frameId,
+        type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REMOVE_FRAME,
+        sequenceId: sequenceRoot.userData.sequenceId,
+        frameId: removedFrame.userData.frameId,
         before,
-        after: createCritterium8SequenceHistoryState(allFrames, created.map((root) => ({ sequenceId: root.userData.sequenceId, frameAssemblies: root.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'), sequence: root.userData.sequence }))),
+        after: createCritterium8SequenceHistoryState(
+          allFrames,
+          created.map((root) => ({
+            sequenceId: root.userData.sequenceId,
+            frameAssemblies: root.children.filter(
+              (child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'
+            ),
+            sequence: root.userData.sequence,
+          }))
+        ),
       });
       refreshFloorAndGrid();
       return { success: true, removedFrame, sequenceRoots: created, split: created.length > 1 };
@@ -4621,7 +4773,8 @@ export default function ThreeCanvas({
         return { success: false, reason: 'CRITTERIUM8_ASSEMBLY_REQUIRED', diagnostics: [] };
       }
       const beforeConfig = JSON.parse(JSON.stringify(assembly.userData.config || {}));
-      const preferredSlotId = options.preferredSlotId ?? activeEditablePart?.userData?.slotId ?? null;
+      const preferredSlotId =
+        options.preferredSlotId ?? activeEditablePart?.userData?.slotId ?? null;
       const parent = assembly.parent || scene;
       const previousIndex = parent.children.indexOf(assembly);
       const prepared = await rebuildCritterium8Instance({ assembly, patch });
@@ -4663,7 +4816,10 @@ export default function ThreeCanvas({
     }
 
     function getSelectedCritterium8Assembly() {
-      return getCritterium8AssemblyRoot(activePart) || (isCritterium8AssemblyRoot(activePart) ? activePart : null);
+      return (
+        getCritterium8AssemblyRoot(activePart) ||
+        (isCritterium8AssemblyRoot(activePart) ? activePart : null)
+      );
     }
 
     function updateSelectedCritterium8(patch = {}) {
@@ -4673,7 +4829,12 @@ export default function ThreeCanvas({
 
     function updateSelectedCritterium8Tile(slotId, patch = {}) {
       const assembly = getSelectedCritterium8Assembly();
-      if (!assembly) return Promise.resolve({ success: false, reason: 'CRITTERIUM8_ASSEMBLY_REQUIRED', diagnostics: [] });
+      if (!assembly)
+        return Promise.resolve({
+          success: false,
+          reason: 'CRITTERIUM8_ASSEMBLY_REQUIRED',
+          diagnostics: [],
+        });
       const resolved = patchCritterium8TileConfig({
         config: assembly.userData.config,
         frameId: assembly.userData.frameId,
@@ -4681,7 +4842,11 @@ export default function ThreeCanvas({
         patch,
       });
       if (!resolved.success) return Promise.resolve(resolved);
-      return rebuildCritterium8Assembly(assembly, { tiles: resolved.config.tiles }, { preferredSlotId: slotId });
+      return rebuildCritterium8Assembly(
+        assembly,
+        { tiles: resolved.config.tiles },
+        { preferredSlotId: slotId }
+      );
     }
 
     function rebuildSelectedCritterium8() {
@@ -4825,9 +4990,14 @@ export default function ThreeCanvas({
     async function swapKuoGoVariant(instanceId, nextConfig = {}) {
       if (readOnly) return;
       console.log('[swapKuoGoVariant] START', { instanceId, nextConfig });
-      const found = parts.find(({ obj }) => obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId);
+      const found = parts.find(
+        ({ obj }) => obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId
+      );
       if (!found?.obj) {
-        console.warn('[swapKuoGoVariant] No se encontró el objeto KuoGo con instanceId:', instanceId);
+        console.warn(
+          '[swapKuoGoVariant] No se encontró el objeto KuoGo con instanceId:',
+          instanceId
+        );
         return;
       }
       const oldObj = found.obj;
@@ -4847,7 +5017,11 @@ export default function ThreeCanvas({
 
       let result;
       try {
-        result = await createKuoGoInstance({ config: targetConfig, loadGlb: loadExistingGlb, country: countryRef.current });
+        result = await createKuoGoInstance({
+          config: targetConfig,
+          loadGlb: loadExistingGlb,
+          country: countryRef.current,
+        });
       } catch (error) {
         console.error('[swapKuoGoVariant] Error en createKuoGoInstance:', error);
         return;
@@ -4915,7 +5089,10 @@ export default function ThreeCanvas({
           obj?.uuid === instanceId
       );
       if (!found?.obj) {
-        console.warn('[swapKuoAVVariant] No se encontró el objeto Kuo AV con instanceId:', instanceId);
+        console.warn(
+          '[swapKuoAVVariant] No se encontró el objeto Kuo AV con instanceId:',
+          instanceId
+        );
         return;
       }
       const oldObj = getRootPartObject(found.obj) || found.obj;
@@ -5015,7 +5192,9 @@ export default function ThreeCanvas({
 
     async function addKuoAVDoble(config = {}) {
       if (readOnly) return;
-      const countKuoDoble = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY').length;
+      const countKuoDoble = parts.filter(
+        ({ obj }) => obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY'
+      ).length;
       let result;
       try {
         result = await createKuoAVDobleInstance({
@@ -5075,7 +5254,10 @@ export default function ThreeCanvas({
           obj?.uuid === instanceId
       );
       if (!found?.obj) {
-        console.warn('[swapKuoAVDobleVariant] No se encontró el objeto con instanceId:', instanceId);
+        console.warn(
+          '[swapKuoAVDobleVariant] No se encontró el objeto con instanceId:',
+          instanceId
+        );
         return;
       }
       const oldObj = getRootPartObject(found.obj) || found.obj;
@@ -5174,7 +5356,9 @@ export default function ThreeCanvas({
 
     async function addKuoAVPantalla(config = {}) {
       if (readOnly) return;
-      const countPan = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY').length;
+      const countPan = parts.filter(
+        ({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY'
+      ).length;
       let result;
       try {
         result = await createKuoAVPantallaInstance({
@@ -5226,9 +5410,7 @@ export default function ThreeCanvas({
     async function swapKuoAVPantallaVariant(instanceId, nextConfig = {}) {
       if (readOnly) return;
       const found = parts.find(
-        ({ obj }) =>
-          obj?.userData?.instanceId === instanceId ||
-          obj?.uuid === instanceId
+        ({ obj }) => obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId
       );
       if (!found?.obj) return;
       const oldObj = getRootPartObject(found.obj) || found.obj;
@@ -5435,17 +5617,15 @@ export default function ThreeCanvas({
       const nextUnitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
-      const nextPrices =
-        catalogItem?.prices ||
-        catalogItem?.raw?.prices ||
-        {
+      const nextPrices = catalogItem?.prices ||
+        catalogItem?.raw?.prices || {
           CO: nextUnitPrice,
         };
 
@@ -5597,10 +5777,10 @@ export default function ThreeCanvas({
       const nextUnitPrice =
         Number(
           nextPrices?.[countryRef.current] ??
-          catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          0
+            catalogItem?.prices?.[countryRef.current] ??
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            0
         ) || 0;
 
       newObj.position.copy(savedPos);
@@ -5727,7 +5907,10 @@ export default function ThreeCanvas({
       }
 
       if (!targetObj) {
-        console.warn('[toggleMilaAccessory] No se encontró el objeto o ensamble Mila:', targetIdentifier);
+        console.warn(
+          '[toggleMilaAccessory] No se encontró el objeto o ensamble Mila:',
+          targetIdentifier
+        );
         return;
       }
 
@@ -5741,7 +5924,8 @@ export default function ThreeCanvas({
         assemblyGroup = assemblyGroup.parent;
       }
 
-      const groupId = assemblyGroup.userData?.groupId || targetObj.userData?.groupId || assemblyGroup.uuid;
+      const groupId =
+        assemblyGroup.userData?.groupId || targetObj.userData?.groupId || assemblyGroup.uuid;
       const groupName = assemblyGroup.userData?.groupName || 'Mila';
       const isMilaDouble =
         assemblyGroup.userData?.line === 'MILA_DOUBLE' ||
@@ -5979,7 +6163,11 @@ export default function ThreeCanvas({
         const loader = new GLTFLoader();
         gltf = await loader.loadAsync(catalogItem.modelSrc);
       } catch (err) {
-        console.error('[swapMilaAccessoryVariant] Error cargando modelo:', catalogItem.modelSrc, err);
+        console.error(
+          '[swapMilaAccessoryVariant] Error cargando modelo:',
+          catalogItem.modelSrc,
+          err
+        );
         return;
       }
 
@@ -6487,7 +6675,8 @@ export default function ThreeCanvas({
       parts.forEach(({ obj }) => {
         if (obj?.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') critteriumSequences.add(obj);
         const critteriumAssembly = getCritterium8AssemblyRoot(obj);
-        if (critteriumAssembly && !getCritterium8SequenceRoot(critteriumAssembly)) critteriumAssemblies.add(critteriumAssembly);
+        if (critteriumAssembly && !getCritterium8SequenceRoot(critteriumAssembly))
+          critteriumAssemblies.add(critteriumAssembly);
         let current = obj?.parent || null;
         while (current) {
           if (current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY') {
@@ -7616,8 +7805,9 @@ export default function ThreeCanvas({
       root.userData.typologyParts = [
         {
           code: root.userData.code,
-          description: `Pantalla ${tipo} ${material} ${root.userData.dim?.lengthMm || ''}x${root.userData.dim?.heightMm || ''
-            }`,
+          description: `Pantalla ${tipo} ${material} ${root.userData.dim?.lengthMm || ''}x${
+            root.userData.dim?.heightMm || ''
+          }`,
           qty: 1,
           unitPrice: 0,
         },
@@ -7946,6 +8136,7 @@ export default function ThreeCanvas({
       updateSelectedDuctCovers,
       updateSelectedCeilingDucts,
       updateSelectedCeilingDuctSide,
+      updateSelectedFloorDuctPosition,
       updateSelectedPartTransformPatch,
       movePartToXZ: (id, x, z) => movePartToXZInternal(id, x, z),
       isPartMovementLocked,
@@ -8071,18 +8262,10 @@ export default function ThreeCanvas({
       const movingId = target.userData?.instanceId;
       if (movingId) {
         parts.forEach(({ obj }) => {
-          if (
-            obj &&
-            obj !== target &&
-            obj.userData?.attachment?.targetAssemblyId === movingId
-          ) {
+          if (obj && obj !== target && obj.userData?.attachment?.targetAssemblyId === movingId) {
             const off = obj.userData.attachment.offsetLocal;
             if (off) {
-              obj.position.set(
-                target.position.x + off.x,
-                0,
-                target.position.z + off.z
-              );
+              obj.position.set(target.position.x + off.x, 0, target.position.z + off.z);
               obj.updateMatrixWorld(true);
             }
           }
@@ -8093,7 +8276,9 @@ export default function ThreeCanvas({
         console.log('[KUO INTERACTION]');
         console.log('SYNC 2D → 3D');
         console.log(`instanceId: ${target.userData?.instanceId}`);
-        console.log(`position: [${(target.position.x * 1000).toFixed(1)}, 0, ${(target.position.z * 1000).toFixed(1)}]`);
+        console.log(
+          `position: [${(target.position.x * 1000).toFixed(1)}, 0, ${(target.position.z * 1000).toFixed(1)}]`
+        );
       }
 
       if (selectionHelper) selectionHelper.update();
@@ -8494,7 +8679,9 @@ export default function ThreeCanvas({
           console.log('[KUO INTERACTION]');
           console.log('DRAG END');
           console.log(`instanceId: ${obj.userData?.instanceId}`);
-          console.log(`position: [${(obj.position.x * 1000).toFixed(1)}, 0, ${(obj.position.z * 1000).toFixed(1)}]`);
+          console.log(
+            `position: [${(obj.position.x * 1000).toFixed(1)}, 0, ${(obj.position.z * 1000).toFixed(1)}]`
+          );
         }
       });
       return true;
@@ -8785,7 +8972,8 @@ export default function ThreeCanvas({
           recordHistory: false,
           preferredSlotId: null,
         }).then((result) => {
-          if (!result?.success) throw new Error(result?.reason || 'CRITTERIUM8_HISTORY_REBUILD_FAILED');
+          if (!result?.success)
+            throw new Error(result?.reason || 'CRITTERIUM8_HISTORY_REBUILD_FAILED');
           return result;
         });
       } else if (
@@ -9027,7 +9215,10 @@ export default function ThreeCanvas({
             getGroupedObjects(physicalRoot).forEach((groupObj) => {
               const asm = getAssemblyObject(groupObj);
               const targetNode = asm || groupObj;
-              targetsByKey.set('groupItem:' + targetNode.uuid, { obj: targetNode, isAssembly: !!asm });
+              targetsByKey.set('groupItem:' + targetNode.uuid, {
+                obj: targetNode,
+                isAssembly: !!asm,
+              });
             });
             return;
           }
@@ -10466,9 +10657,7 @@ export default function ThreeCanvas({
       for (const x of [coverMin.x, coverMax.x]) {
         for (const y of [coverMin.y, coverMax.y]) {
           for (const z of [coverMin.z, coverMax.z]) {
-            rotatedCoverBox.expandByPoint(
-              new THREE.Vector3(x, y, z).applyMatrix4(rotationMatrix)
-            );
+            rotatedCoverBox.expandByPoint(new THREE.Vector3(x, y, z).applyMatrix4(rotationMatrix));
           }
         }
       }
@@ -11197,6 +11386,78 @@ export default function ThreeCanvas({
       }*/
     }
 
+    function updateSelectedFloorDuctPosition(newPosition) {
+      if (readOnly) return false;
+      if (!activePart) return false;
+
+      const root = getActiveEditablePartObject();
+      if (!root) return false;
+
+      if (root.userData?.kind !== 'ductoPiso') {
+        console.warn('La pieza activa no es un ducto bajante a piso.');
+        return false;
+      }
+
+      const meta = root.userData?.meta || {};
+      const referenceDuctType = meta.tipoModuloReferencia || 'TERMINAL';
+
+      const floorDuct = resolveKoncisaFloorDuct({
+        tipoPuesto: meta.tipoPuesto,
+        tipoPasoCable: meta.tipoPasoCable,
+        referenceDuctType,
+        position: newPosition,
+        largoRealMm: meta.largoRealMm,
+        anchoRealMm: meta.anchoRealMm,
+      });
+
+      const basePositionMm = meta.basePositionMm || { x: 0, y: 0, z: 0 };
+      const baseRotationRad = meta.baseRotationRad || { x: 0, y: 0, z: 0 };
+      const offset = floorDuct.offsetFromReferenceMm || {};
+
+      root.position.set(
+        ((basePositionMm.x || 0) + (offset.x || 0)) / 1000,
+        ((basePositionMm.y || 0) + (offset.y || 0)) / 1000,
+        ((basePositionMm.z || 0) + (offset.z || 0)) / 1000
+      );
+
+      root.rotation.set(
+        baseRotationRad.x || 0,
+        (baseRotationRad.y || 0) + (offset.rotY || 0),
+        baseRotationRad.z || 0
+      );
+
+      root.userData.meta = {
+        ...meta,
+        position: floorDuct.position,
+      };
+
+      root.updateMatrixWorld(true);
+
+      if (selectionHelper) selectionHelper.update();
+
+      onSelectionChange?.({
+        code: root.userData.codigoPT || root.userData.code,
+        dimMm: root.userData?.dim || null,
+        dimM: root.userData?.dimM || null,
+
+        materialCode: root.userData?.materialCode ?? null,
+        materialBase: root.userData?.materialBase ?? null,
+
+        line: root.userData?.line ?? null,
+        kind: root.userData?.kind || null,
+        meta: root.userData?.meta || null,
+        groupId: root.userData?.groupId || null,
+        groupName: root.userData?.groupName || null,
+        logicalCode: root.userData?.logicalCode || null,
+        instanceId: root.userData?.instanceId || null,
+      });
+
+      refreshFloorAndGrid();
+      emitBOM();
+
+      return true;
+    }
+
     function updateSelectedCeilingDuctSide(newSide) {
       if (readOnly) return false;
       if (!activePart) return false;
@@ -11503,7 +11764,7 @@ export default function ThreeCanvas({
           const snapType = hitMarker.userData?.snapType;
           const assembly =
             activePart.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-              activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
+            activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
               ? activePart
               : getKoncisaAssemblyObject(activePart) || activePart;
           const cfg = assembly.userData?.config || {};
@@ -11569,9 +11830,9 @@ export default function ThreeCanvas({
         ? getEditableKoncisaPartObject(hitObj) || root
         : isCritterium8SequenceRoot(root)
           ? getCritterium8EditableTarget(hitObj) || root
-        : isCritterium8AssemblyRoot(root)
-          ? getCritterium8EditablePart(hitObj) || root
-          : root;
+          : isCritterium8AssemblyRoot(root)
+            ? getCritterium8EditablePart(hitObj) || root
+            : root;
       const movementRoot = moveAsGroupRef.current
         ? root
         : getIndividualMovementRoot(hitObj) || propertiesTarget || root;
@@ -11579,8 +11840,7 @@ export default function ThreeCanvas({
       const rootId = movementRoot.userData?.instanceId || movementRoot.uuid;
       const wantsToggle = e.ctrlKey || e.metaKey;
       const targetIsSelected = selectedIds3D.includes(rootId);
-      const preserveSelection =
-        !wantsToggle && targetIsSelected && selectedIds3D.length > 1;
+      const preserveSelection = !wantsToggle && targetIsSelected && selectedIds3D.length > 1;
       let dragIds;
 
       if (preserveSelection) {
@@ -11614,7 +11874,18 @@ export default function ThreeCanvas({
         (root?.userData?.kind === 'MILA_ASSEMBLY' ||
           root?.userData?.type === 'mila' ||
           String(root?.userData?.line || '').toUpperCase() === 'MILA') &&
-        !['armrest-left', 'armrest-right', 'armrest-center', 'screen', 'giro-surface', 'accessory', 'panel-divisor', 'booth-table', 'screen-izq', 'screen-der'].includes(
+        ![
+          'armrest-left',
+          'armrest-right',
+          'armrest-center',
+          'screen',
+          'giro-surface',
+          'accessory',
+          'panel-divisor',
+          'booth-table',
+          'screen-izq',
+          'screen-der',
+        ].includes(
           String(root?.userData?.meta?.role || root?.userData?.role || '').toLowerCase()
         ) &&
         root?.userData?.kind !== 'MILA_GIRO_SURFACE' &&
@@ -11712,9 +11983,7 @@ export default function ThreeCanvas({
           config: propertiesTarget.userData?.config || root.userData?.config || null,
           userData: propertiesTarget.userData || root.userData || null,
           parentAssemblyId:
-            propertiesTarget.userData?.parentAssemblyId ||
-            root.userData?.parentAssemblyId ||
-            null,
+            propertiesTarget.userData?.parentAssemblyId || root.userData?.parentAssemblyId || null,
           ductCovers: propertiesTarget.userData?.ductCovers || null,
           showGrid: propertiesTarget.userData?.showGrid !== false,
           gridSize: propertiesTarget.userData?.isFloor
@@ -11730,7 +11999,9 @@ export default function ThreeCanvas({
           armrestRight: milaSeats ? root.userData?._milaArmrestRight || false : undefined,
           armrestCenter: milaSeats ? root.userData?._milaArmrestCenter || false : undefined,
           hasScreen: milaSeats ? root.userData?._milaHasScreen || false : undefined,
-          quantity: milaSeats ? root.userData?._milaQuantity || (milaSeats?.length ?? 1) : undefined,
+          quantity: milaSeats
+            ? root.userData?._milaQuantity || (milaSeats?.length ?? 1)
+            : undefined,
           assemblyGroupId: root.userData?.groupId || root.userData?.instanceId || root.uuid,
         },
       });
@@ -11745,7 +12016,10 @@ export default function ThreeCanvas({
         root?.userData?.kind === 'KUO_AV_ASSEMBLY' ||
         root?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY';
 
-      if (moveAsGroupRef.current && (root?.userData?.groupId || root?.userData?.parentAssemblyId || isKuoAssemblyRoot)) {
+      if (
+        moveAsGroupRef.current &&
+        (root?.userData?.groupId || root?.userData?.parentAssemblyId || isKuoAssemblyRoot)
+      ) {
         if (isKuoAssemblyRoot) {
           const assembly = root;
           const physicalObjects = parts.map(({ obj }) => obj).filter(Boolean);
@@ -11756,8 +12030,9 @@ export default function ThreeCanvas({
           while (changed) {
             changed = false;
             physicalObjects.forEach((candidate) => {
-              const candAssembly =
-                candidate.userData?.kind?.includes('ASSEMBLY') ? candidate : null;
+              const candAssembly = candidate.userData?.kind?.includes('ASSEMBLY')
+                ? candidate
+                : null;
               if (!candAssembly || clusterAssemblies.has(candAssembly)) return;
 
               for (const clAss of clusterAssemblies) {
@@ -11828,7 +12103,11 @@ export default function ThreeCanvas({
       const targetToDrag = moveAsGroupRef.current ? rootAssembly : movementRoot;
 
       let dragTargets = [];
-      if (moveAsGroupRef.current && dragGroupStartRef.current && dragGroupStartRef.current.length > 0) {
+      if (
+        moveAsGroupRef.current &&
+        dragGroupStartRef.current &&
+        dragGroupStartRef.current.length > 0
+      ) {
         dragTargets = dragGroupStartRef.current.map((item) => item.obj);
       } else {
         const dragIdSet = new Set(dragIds);
@@ -11861,10 +12140,7 @@ export default function ThreeCanvas({
 
         // Si se mueve en modo individual, separar de las conexiones magnéticas del banco
         dragTargets.forEach((targetObj) => {
-          const targetAssembly =
-            targetObj.userData?.kind?.includes('ASSEMBLY')
-              ? targetObj
-              : null;
+          const targetAssembly = targetObj.userData?.kind?.includes('ASSEMBLY') ? targetObj : null;
           if (targetAssembly) {
             targetAssembly.userData.attachment = null;
             if (targetAssembly.userData.attachedNeighbors) {
@@ -11909,7 +12185,9 @@ export default function ThreeCanvas({
         console.log(`instanceId: ${root.userData?.instanceId}`);
         console.log(`groupId: ${root.userData?.groupId}`);
         console.log(`dragStart: true`);
-        console.log(`position: [${(root.position.x * 1000).toFixed(1)}, ${(root.position.y * 1000).toFixed(1)}, ${(root.position.z * 1000).toFixed(1)}]`);
+        console.log(
+          `position: [${(root.position.x * 1000).toFixed(1)}, ${(root.position.y * 1000).toFixed(1)}, ${(root.position.z * 1000).toFixed(1)}]`
+        );
 
         console.log('\n[KUO DRAG TARGET]');
         console.log(`clickedObject: ${hitObj.name || hitObj.userData?.code || 'mesh'}`);
@@ -11930,7 +12208,9 @@ export default function ThreeCanvas({
         console.log('\n[KUO INTERACTION]');
         console.log('DRAG START');
         console.log(`instanceId: ${root.userData?.instanceId}`);
-        console.log(`position: [${(root.position.x * 1000).toFixed(1)}, ${(root.position.y * 1000).toFixed(1)}, ${(root.position.z * 1000).toFixed(1)}]`);
+        console.log(
+          `position: [${(root.position.x * 1000).toFixed(1)}, ${(root.position.y * 1000).toFixed(1)}, ${(root.position.z * 1000).toFixed(1)}]`
+        );
       }
 
       controls.enabled = false;
@@ -12005,19 +12285,33 @@ export default function ThreeCanvas({
             console.log('[KUO FINAL DRAG]');
             console.log(`dragMove: true`);
             console.log(`instanceId: ${activePart.userData?.instanceId}`);
-            console.log(`oldPosition: [${(posBefore.x * 1000).toFixed(1)}, 0.0, ${(posBefore.z * 1000).toFixed(1)}]`);
-            console.log(`newPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+            console.log(
+              `oldPosition: [${(posBefore.x * 1000).toFixed(1)}, 0.0, ${(posBefore.z * 1000).toFixed(1)}]`
+            );
+            console.log(
+              `newPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`
+            );
             console.log(`positionApplied: true`);
-            console.log(`actualPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+            console.log(
+              `actualPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`
+            );
 
             console.log('\n[KUO WORLD DEBUG]');
-            console.log(`floorPosition: [${floorMeshRef.current?.position.x.toFixed(1)}, ${floorMeshRef.current?.position.y.toFixed(1)}, ${floorMeshRef.current?.position.z.toFixed(1)}]`);
-            console.log(`gridPosition: [${gridHelperRef.current?.position.x.toFixed(1)}, ${gridHelperRef.current?.position.y.toFixed(1)}, ${gridHelperRef.current?.position.z.toFixed(1)}]`);
+            console.log(
+              `floorPosition: [${floorMeshRef.current?.position.x.toFixed(1)}, ${floorMeshRef.current?.position.y.toFixed(1)}, ${floorMeshRef.current?.position.z.toFixed(1)}]`
+            );
+            console.log(
+              `gridPosition: [${gridHelperRef.current?.position.x.toFixed(1)}, ${gridHelperRef.current?.position.y.toFixed(1)}, ${gridHelperRef.current?.position.z.toFixed(1)}]`
+            );
 
             console.log('\n[KUO DRAG POSITION]');
             console.log(`instanceId: ${activePart.userData?.instanceId}`);
-            console.log(`oldPosition: [${(posBefore.x * 1000).toFixed(1)}, 0.0, ${(posBefore.z * 1000).toFixed(1)}]`);
-            console.log(`newPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+            console.log(
+              `oldPosition: [${(posBefore.x * 1000).toFixed(1)}, 0.0, ${(posBefore.z * 1000).toFixed(1)}]`
+            );
+            console.log(
+              `newPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`
+            );
 
             console.log('\n[KUO INTERACTION]');
             console.log('DRAG MOVE');
@@ -12029,7 +12323,9 @@ export default function ThreeCanvas({
             console.log('\n[KUO INTERACTION]');
             console.log('SYNC 3D → 2D');
             console.log(`instanceId: ${activePart.userData?.instanceId}`);
-            console.log(`position: [${(activePart.position.x * 1000).toFixed(1)}, ${(activePart.position.y * 1000).toFixed(1)}, ${(activePart.position.z * 1000).toFixed(1)}]`);
+            console.log(
+              `position: [${(activePart.position.x * 1000).toFixed(1)}, ${(activePart.position.y * 1000).toFixed(1)}, ${(activePart.position.z * 1000).toFixed(1)}]`
+            );
 
             // Si este ensamble tiene otros ensambles pegados encima, moverlos juntos
             const movingId = activePart.userData?.instanceId;
@@ -12057,7 +12353,6 @@ export default function ThreeCanvas({
           if (selectionHelper) selectionHelper.update();
           return;
         }
-
       }
       refreshFloorAndGrid();
     }
@@ -12084,10 +12379,7 @@ export default function ThreeCanvas({
         if (activeGroupId && node.userData?.groupId === activeGroupId) return;
 
         const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
-        if (
-          node.userData?.kind === 'MILA_ASSEMBLY' ||
-          node.userData?.type === 'mila'
-        ) {
+        if (node.userData?.kind === 'MILA_ASSEMBLY' || node.userData?.type === 'mila') {
           allAssemblies.push(node);
         } else if (
           node.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
@@ -12211,10 +12503,14 @@ export default function ThreeCanvas({
     }
 
     function resolveMilaAssemblyVariant(root) {
-      const variant = String(root?.userData?.config?.variant || '').trim().toLowerCase();
+      const variant = String(root?.userData?.config?.variant || '')
+        .trim()
+        .toLowerCase();
       if (variant === 'single' || variant === 'double') return variant;
 
-      const line = String(root?.userData?.line || '').trim().toUpperCase();
+      const line = String(root?.userData?.line || '')
+        .trim()
+        .toUpperCase();
       if (line === 'MILA_DOUBLE') return 'double';
       return 'single';
     }
@@ -12351,11 +12647,17 @@ export default function ThreeCanvas({
 
       rootsForAccessoryScan.forEach((root) => {
         root.traverse((node) => {
-          const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+          const role = String(
+            node?.userData?.meta?.role || node?.userData?.role || ''
+          ).toLowerCase();
           if (!role) return;
 
           if (role === 'seat') {
-            seatModes.push(String(node.userData?.meta?.seatMode || 'chair').trim().toLowerCase());
+            seatModes.push(
+              String(node.userData?.meta?.seatMode || 'chair')
+                .trim()
+                .toLowerCase()
+            );
             return;
           }
           if (role === 'armrest-left') armrestLeft = true;
@@ -12366,8 +12668,10 @@ export default function ThreeCanvas({
       });
 
       const allTableLike =
-        seatModes.length > 0 && seatModes.every((mode) => mode === 'table' || mode === 'tablegrommet');
-      const allTableGrommet = seatModes.length > 0 && seatModes.every((mode) => mode === 'tablegrommet');
+        seatModes.length > 0 &&
+        seatModes.every((mode) => mode === 'table' || mode === 'tablegrommet');
+      const allTableGrommet =
+        seatModes.length > 0 && seatModes.every((mode) => mode === 'tablegrommet');
 
       return {
         type: 'seat',
@@ -12457,12 +12761,17 @@ export default function ThreeCanvas({
       const mergeRoots = collectMilaMergeRoots(mergeCandidate.activeObj, mergeCandidate.targetObj);
       if (mergeRoots.length < 2) return false;
 
-      const totalSeats = mergeRoots.reduce((sum, root) => sum + collectMilaSeatParts(root).length, 0);
+      const totalSeats = mergeRoots.reduce(
+        (sum, root) => sum + collectMilaSeatParts(root).length,
+        0
+      );
       const clampedQuantity = Math.max(1, Math.min(4, totalSeats));
 
       if (clampedQuantity <= 1) return false;
 
-      const desiredYaw = Number(mergeCandidate.targetObj?.rotation?.y || mergeRoots[0]?.rotation?.y || 0);
+      const desiredYaw = Number(
+        mergeCandidate.targetObj?.rotation?.y || mergeRoots[0]?.rotation?.y || 0
+      );
       const anchorWorldPos = resolveProjectedAnchorSeat(mergeRoots, desiredYaw);
       const accessoryRoots = collectMilaAttachedAccessoryRoots(mergeRoots);
       const recomposeConfig = resolveMilaRecomposeTargetConfig(
@@ -12609,7 +12918,11 @@ export default function ThreeCanvas({
         ) {
           // 1. Si es parte interna de un Puesto Doble
           const parentAss = getKoncisaAssemblyObject(activePart);
-          if (parentAss && parentAss.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' && parentAss !== activePart) {
+          if (
+            parentAss &&
+            parentAss.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' &&
+            parentAss !== activePart
+          ) {
             const worldPos = activePart.getWorldPosition(new THREE.Vector3());
             const localPos = parentAss.worldToLocal(worldPos);
             let newPos = 'CENTRAL';
@@ -12625,8 +12938,7 @@ export default function ThreeCanvas({
           } else if (activePart?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY') {
             // 2. Si es una Pantalla Flotante / Independiente, buscar mesa cercana para acoplarse
             const panWorld = activePart.getWorldPosition(new THREE.Vector3());
-            const isPerimetralScreen =
-              activePart.userData?.config?.tipo === 'FRONTAL_PERIMETRAL';
+            const isPerimetralScreen = activePart.userData?.config?.tipo === 'FRONTAL_PERIMETRAL';
             let nearestDesk = null;
             let minDeskDist = Infinity;
 
@@ -12640,7 +12952,10 @@ export default function ThreeCanvas({
               // Si es pantalla normal (FMT o Vidrio Doble), solo acepta Puesto Doble
               if (isDouble || (isPerimetralScreen && isSingle)) {
                 const deskPos = obj.getWorldPosition(new THREE.Vector3());
-                const d = new THREE.Vector2(panWorld.x - deskPos.x, panWorld.z - deskPos.z).length();
+                const d = new THREE.Vector2(
+                  panWorld.x - deskPos.x,
+                  panWorld.z - deskPos.z
+                ).length();
                 if (d < 1.8 && d < minDeskDist) {
                   minDeskDist = d;
                   nearestDesk = obj;
@@ -12684,7 +12999,7 @@ export default function ThreeCanvas({
                 const offsetY = isPerimetralScreen ? 0.632 : 0.452;
 
                 if (localZ > 0.2) {
-                  offsetZ = (halfDepthM * 2 + gapM);
+                  offsetZ = halfDepthM * 2 + gapM;
                 } else if (localZ < -0.2) {
                   offsetZ = -(halfDepthM * 2 + gapM);
                 } else {
@@ -12730,18 +13045,24 @@ export default function ThreeCanvas({
           console.log('[KUO FINAL DRAG]');
           console.log(`dragEnd: true`);
           console.log(`instanceId: ${activePart.userData?.instanceId}`);
-          console.log(`finalPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+          console.log(
+            `finalPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`
+          );
           console.log(`world: { floorPosition: [0.0, 0.0, 0.0], gridPosition: [0.0, 0.0, 0.0] }`);
           console.log(`controls: { enabled: true }`);
 
           console.log('\n[KUO DRAG END]');
           console.log(`instanceId: ${activePart.userData?.instanceId}`);
-          console.log(`finalPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`);
+          console.log(
+            `finalPosition: [${(activePart.position.x * 1000).toFixed(1)}, 0.0, ${(activePart.position.z * 1000).toFixed(1)}]`
+          );
 
           console.log('\n[KUO INTERACTION]');
           console.log('DRAG END');
           console.log(`instanceId: ${activePart.userData?.instanceId}`);
-          console.log(`position: [${(activePart.position.x * 1000).toFixed(1)}, ${(activePart.position.y * 1000).toFixed(1)}, ${(activePart.position.z * 1000).toFixed(1)}]`);
+          console.log(
+            `position: [${(activePart.position.x * 1000).toFixed(1)}, ${(activePart.position.y * 1000).toFixed(1)}, ${(activePart.position.z * 1000).toFixed(1)}]`
+          );
         }
 
         if (completedDragSession) {
@@ -13134,8 +13455,9 @@ export default function ThreeCanvas({
       const descriptionSuffix = String(incomingItem?.meta?.descriptionSuffix || '').trim();
 
       const description = isSpecial
-        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${descriptionSuffix ? ` - ${descriptionSuffix}` : ''
-        }`
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
+            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+          }`
         : catalogDescription;
 
       const rawPrice =
@@ -13362,19 +13684,20 @@ export default function ThreeCanvas({
       //const description = descriptionNote ? `${catalogDescription} - ${descriptionNote}`: catalogDescription;
 
       const description = isSpecial
-        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${descriptionSuffix ? ` - ${descriptionSuffix}` : ''
-        }`
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
+            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+          }`
         : catalogDescription;
 
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
 
       mesh.userData = {
@@ -13789,12 +14112,12 @@ export default function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
 
       const ductModuleType = part?.meta?.tipoModulo || 'terminal';
@@ -14314,12 +14637,12 @@ export default function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
 
       const instanceId = `${code || 'leader-skirt'}__${Date.now()}__${Math.random()
@@ -14383,18 +14706,18 @@ export default function ThreeCanvas({
           supportPositionsMm: {
             left: supportLeft
               ? {
-                x: supportLeft.position.x * 1000,
-                y: supportLeft.position.y * 1000,
-                z: supportLeft.position.z * 1000,
-              }
+                  x: supportLeft.position.x * 1000,
+                  y: supportLeft.position.y * 1000,
+                  z: supportLeft.position.z * 1000,
+                }
               : null,
 
             right: supportRight
               ? {
-                x: supportRight.position.x * 1000,
-                y: supportRight.position.y * 1000,
-                z: supportRight.position.z * 1000,
-              }
+                  x: supportRight.position.x * 1000,
+                  y: supportRight.position.y * 1000,
+                  z: supportRight.position.z * 1000,
+                }
               : null,
           },
         },
@@ -14525,10 +14848,10 @@ export default function ThreeCanvas({
 
       const realDepthMm = Number(
         part?.meta?.realDepthMm ??
-        part?.dimMm?.realDepthMm ??
-        part?.dimMm?.depthMm ??
-        part?.meta?.depthMm ??
-        600
+          part?.dimMm?.realDepthMm ??
+          part?.dimMm?.depthMm ??
+          part?.meta?.depthMm ??
+          600
       );
 
       if (!Number.isFinite(realDepthMm) || realDepthMm <= 0) {
@@ -14954,12 +15277,12 @@ export default function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
 
       const instanceId = `${code || 'costado'}__${Date.now()}__${Math.random()
@@ -15129,14 +15452,14 @@ export default function ThreeCanvas({
         const unitPrice =
           Number(
             part.prices?.[countryRef.current] ??
-            part.unitPrice ??
-            catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+              part.unitPrice ??
+              catalogItem?.prices?.[countryRef.current] ??
+              catalogItem?.prices?.CO ??
+              catalogItem?.prices?.co ??
+              catalogItem?.raw?.prices?.[countryRef.current] ??
+              catalogItem?.raw?.prices?.CO ??
+              catalogItem?.raw?.price ??
+              0
           ) || 0;
 
         const ductModuleType = part?.meta?.tipoModulo || 'terminal';
@@ -15694,8 +16017,8 @@ export default function ThreeCanvas({
       mesh.position.set(
         (doorGeometry.hinge.x + doorGeometry.openEnd.x) / 2,
         (walls.find((wall) => wall.id === opening.wallId)?.baseElevation || 0) +
-        opening.sillHeight +
-        opening.height / 2,
+          opening.sillHeight +
+          opening.height / 2,
         (doorGeometry.hinge.z + doorGeometry.openEnd.z) / 2
       );
       mesh.rotation.y = Math.atan2(dz, dx);
@@ -15723,11 +16046,11 @@ export default function ThreeCanvas({
       const geometry =
         descriptor.geometryType === 'CYLINDER'
           ? new THREE.CylinderGeometry(
-            descriptor.diameter / 2,
-            descriptor.diameter / 2,
-            descriptor.height,
-            32
-          )
+              descriptor.diameter / 2,
+              descriptor.diameter / 2,
+              descriptor.height,
+              32
+            )
           : new THREE.BoxGeometry(descriptor.width, descriptor.height, descriptor.depth);
       const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xb7b7b7 }));
       mesh.name = `COLUMN_${column.id}`;

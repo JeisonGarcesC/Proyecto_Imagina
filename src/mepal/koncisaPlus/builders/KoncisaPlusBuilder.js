@@ -424,10 +424,16 @@ export function buildKoncisaPlus(config = {}) {
 
     const referenceDuctType = String(referenceDuct?.meta?.tipoModulo || 'TERMINAL').toUpperCase();
 
+    // TERMINAL/INTERMEDIO admiten LEFT/RIGHT/CENTER; INDIVIDUAL solo CENTER.
+    const floorDuctPosition = config.floorDuct?.position || 'CENTER';
+
     const floorDuct = resolveKoncisaFloorDuct({
       tipoPuesto,
       tipoPasoCable,
       referenceDuctType,
+      position: floorDuctPosition,
+      largoRealMm,
+      anchoRealMm,
     });
 
     const basePosition = referenceDuct?.position || {
@@ -479,6 +485,13 @@ export function buildKoncisaPlus(config = {}) {
         referenceDuctCode: referenceDuct?.code || null,
         modelCode: floorDuct.modelCode,
         onePerIsland: true,
+        position: floorDuct.position,
+        // Base sin offset, usada para recalcular la posición al cambiar de lado en runtime.
+        basePositionMm: { x: basePosition.x || 0, y: basePosition.y || 0, z: basePosition.z || 0 },
+        baseRotationRad: { x: baseRotation.x || 0, y: baseRotation.y || 0, z: baseRotation.z || 0 },
+        // Medidas del puesto/superficie de referencia; la ecuación del offset depende de ellas.
+        largoRealMm,
+        anchoRealMm,
       },
     });
   }
