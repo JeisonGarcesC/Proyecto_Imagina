@@ -44,41 +44,195 @@ export const KONCISA_FLOOR_DUCTS = {
 // Cada entrada es una función (ecuación) que recibe el largo y la profundidad
 // reales del puesto/superficie, porque el ducto horizontal cambia de tamaño
 // (1000/1200/1500...) y el bajante debe reubicarse según esa medida.
+//
+// El punto de partida (baseX) es el centro geométrico del módulo, igual para
+// TERMINAL/INTERMEDIO/INDIVIDUAL, por eso TERMINAL e INTERMEDIO comparten las
+// mismas fórmulas: para una misma largoRealMm deben caer en el mismo sitio.
 const zeroOffset = () => ({ x: 0, y: 0, z: 0, rotY: 0 });
 
-const offsetTerminalGrommetIzquierdo = ({ largoRealMm }) => ({
-  x: largoRealMm / 2 - 205 + 95 / 2 - 374,
+const offsetGrommetIzquierdoTerminal = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374 - 335,
   y: -510,
   z: -38,
   rotY: 0,
 });
-const offsetTerminalGrommetDerecho = ({ largoRealMm }) => ({
-  x: largoRealMm / 2 + 205 - 95 / 2,
+const offsetGrommetDerechoTerminal = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2 - 335,
   y: -510,
   z: -38,
   rotY: 0,
 });
-const offsetTerminalGrommetCentro = ({ largoRealMm }) => ({
-  x: largoRealMm + 95 / 2 - 374,
+const offsetGrommetCentroTerminal = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374 - 335,
   y: -510,
   z: -38,
   rotY: 0,
 });
 
-const offsetIntermedioGrommetIzquierdo = ({ largoRealMm }) => ({
-  x: largoRealMm / 2 - 205 + 95 / 2 - 374,
+const offsetGrommetIzquierdoIntermedio = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374 - 335 - 280,
   y: -510,
   z: -38,
   rotY: 0,
 });
-const offsetIntermedioGrommetDerecho = ({ largoRealMm }) => ({
-  x: largoRealMm / 2 + 205 - 95 / 2,
+const offsetGrommetDerechoIntermedio = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2 - 335,
   y: -510,
   z: -38,
   rotY: 0,
 });
-const offsetIntermedioGrommetCentro = ({ largoRealMm }) => ({
-  x: largoRealMm + 95 / 2 - 374,
+const offsetGrommetCentroIntermedio = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
+const offsetGrommetCentroIndividual = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 660,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
+// Doble
+
+const offsetGrommetIzquierdoTerminalDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38 + 83,
+  rotY: 0,
+});
+const offsetGrommetDerechoTerminalDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2 - 335,
+  y: -510,
+  z: -38 + 83,
+  rotY: 0,
+});
+const offsetGrommetCentroTerminalDoble = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38 + 83,
+  rotY: 0,
+});
+
+const offsetGrommetIzquierdoIntermedioDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374 - 335 - 280,
+  y: -510,
+  z: -38 - 7,
+  rotY: 0,
+});
+const offsetGrommetDerechoIntermedioDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2 - 335,
+  y: -510,
+  z: -38 - 7,
+  rotY: 0,
+});
+const offsetGrommetCentroIntermedioDoble = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38 - 7,
+  rotY: 0,
+});
+
+const offsetGrommetCentroIndividualDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 660,
+  y: -510,
+  z: -38 - 7,
+  rotY: 0,
+});
+
+//Pasacable
+
+//sencillo
+
+const offsetPasacableIzquierdoTerminal = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetPasacableDerechoTerminal = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetPasacableCentroTerminal = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
+const offsetPasacableIzquierdoIntermedio = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374 - 335 - 280,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetPasacableDerechoIntermedio = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetPasacableCentroIntermedio = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
+const offsetPasacableCentroIndividual = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 660,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
+// Doble
+
+const offsetPasacableIzquierdoTerminalDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetPasacableDerechoTerminalDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetPasacableCentroTerminalDoble = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
+const offsetPasacableIzquierdoIntermedioDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374 - 335 - 280,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetPasacableDerechoIntermedioDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetPasacableCentroIntermedioDoble = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374 - 335,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
+const offsetPasacableCentroIndividualDoble = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 660,
   y: -510,
   z: -38,
   rotY: 0,
@@ -93,33 +247,33 @@ export const KONCISA_FLOOR_DUCT_OFFSETS = {
   grommet: {
     sencillo: {
       TERMINAL: {
-        LEFT: offsetTerminalGrommetIzquierdo,
-        CENTER: offsetTerminalGrommetCentro,
-        RIGHT: offsetTerminalGrommetDerecho,
+        LEFT: offsetGrommetIzquierdoTerminal,
+        CENTER: offsetGrommetCentroTerminal,
+        RIGHT: offsetGrommetDerechoTerminal,
       },
       INTERMEDIO: {
-        LEFT: offsetIntermedioGrommetIzquierdo,
-        CENTER: offsetIntermedioGrommetCentro,
-        RIGHT: offsetIntermedioGrommetDerecho,
+        LEFT: offsetGrommetIzquierdoIntermedio,
+        CENTER: offsetGrommetCentroIntermedio,
+        RIGHT: offsetGrommetDerechoIntermedio,
       },
       INDIVIDUAL: {
-        CENTER: zeroOffset,
+        CENTER: offsetGrommetCentroIndividual,
       },
     },
 
     doble: {
       TERMINAL: {
-        LEFT: zeroOffset,
-        CENTER: zeroOffset,
-        RIGHT: zeroOffset,
+        LEFT: offsetGrommetIzquierdoTerminalDoble,
+        CENTER: offsetGrommetCentroTerminalDoble,
+        RIGHT: offsetGrommetDerechoTerminalDoble,
       },
       INTERMEDIO: {
-        LEFT: zeroOffset,
-        CENTER: zeroOffset,
-        RIGHT: zeroOffset,
+        LEFT: offsetGrommetIzquierdoIntermedioDoble,
+        CENTER: offsetGrommetCentroIntermedioDoble,
+        RIGHT: offsetGrommetDerechoIntermedioDoble,
       },
       INDIVIDUAL: {
-        CENTER: zeroOffset,
+        CENTER: offsetGrommetCentroIndividualDoble,
       },
     },
   },
@@ -130,33 +284,33 @@ export const KONCISA_FLOOR_DUCT_OFFSETS = {
   pasacable: {
     sencillo: {
       TERMINAL: {
-        LEFT: zeroOffset,
-        CENTER: zeroOffset,
-        RIGHT: zeroOffset,
+        LEFT: offsetPasacableIzquierdoTerminal,
+        CENTER: offsetPasacableCentroTerminal,
+        RIGHT: offsetPasacableDerechoTerminal,
       },
       INTERMEDIO: {
-        LEFT: zeroOffset,
-        CENTER: zeroOffset,
-        RIGHT: zeroOffset,
+        LEFT: offsetPasacableIzquierdoIntermedio,
+        CENTER: offsetPasacableCentroIntermedio,
+        RIGHT: offsetPasacableDerechoIntermedio,
       },
       INDIVIDUAL: {
-        CENTER: zeroOffset,
+        CENTER: offsetPasacableCentroIndividual,
       },
     },
 
     doble: {
       TERMINAL: {
-        LEFT: zeroOffset,
-        CENTER: zeroOffset,
-        RIGHT: zeroOffset,
+        LEFT: offsetPasacableIzquierdoTerminalDoble,
+        CENTER: offsetPasacableCentroTerminalDoble,
+        RIGHT: offsetPasacableDerechoTerminalDoble,
       },
       INTERMEDIO: {
-        LEFT: zeroOffset,
-        CENTER: zeroOffset,
-        RIGHT: zeroOffset,
+        LEFT: offsetPasacableIzquierdoIntermedioDoble,
+        CENTER: offsetPasacableCentroIntermedioDoble,
+        RIGHT: offsetPasacableDerechoIntermedioDoble,
       },
       INDIVIDUAL: {
-        CENTER: zeroOffset,
+        CENTER: offsetPasacableCentroIndividualDoble,
       },
     },
   },

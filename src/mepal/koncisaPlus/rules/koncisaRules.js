@@ -450,18 +450,19 @@ export function getDuctosConfig({
     if (tipoPuesto === 'doble') {
       if (tipoModulo === 'terminal') {
         //console.log('side: ', side);
+        //console.log('anchoRealMm: ', anchoRealMm);
         if (side === 'LEFT') {
           console.log('side left: ', side);
-          ductX = -160 - 442;
+          ductX = anchoRealMm / 2; //-335
           ductY = 510;
-          ductZ = 129;
+          ductZ = -129;
 
-          ductRotY = 0;
+          ductRotY = Math.PI;
         } else {
           console.log('side right: ', side);
-          ductX = 262; //-335
+          ductX = -(anchoRealMm / 2);
           ductY = 510;
-          ductZ = 0;
+          ductZ = 129;
 
           ductRotY = 0;
         }
@@ -490,6 +491,11 @@ export function getDuctosConfig({
       tipoPuesto,
       tipoModulo: ductMode.toLowerCase(), // terminal | intermedio | individual
       nominalWidthMm: largoRealMm,
+      moduleIndex: i,
+      // Centro geométrico del módulo, sin las correcciones visuales propias
+      // de cada tipoModulo. Sirve de ancla estable para piezas dependientes
+      // (p.ej. el ducto bajante a piso) que no deben variar según terminal/intermedio.
+      baseX,
       x: ductX,
       y: ductY,
       z: ductZ,

@@ -396,6 +396,8 @@ export function buildKoncisaPlus(config = {}) {
         tipoPuesto: d.tipoPuesto,
         tipoModulo: d.tipoModulo,
         nominalWidthMm: d.nominalWidthMm,
+        moduleIndex: d.moduleIndex ?? 0,
+        baseX: d.baseX ?? 0,
         x: d.x ?? 0,
         y: d.y ?? 0,
         z: d.z ?? 0,
@@ -436,10 +438,15 @@ export function buildKoncisaPlus(config = {}) {
       anchoRealMm,
     });
 
-    const basePosition = referenceDuct?.position || {
-      x: 0,
-      y: 0,
-      z: 0,
+    const basePosition = {
+      // Ancla en el centro geométrico del módulo (baseX), no en la posición
+      // visual del ducto horizontal: así TERMINAL/INTERMEDIO/INDIVIDUAL
+      // producen el mismo punto de referencia para una misma largoRealMm,
+      // y las fórmulas de offset (koncisaFloorDuctRules) son las únicas
+      // responsables de la ubicación final.
+      x: Number(referenceDuct?.meta?.baseX ?? 0),
+      y: referenceDuct?.position?.y || 0,
+      z: referenceDuct?.position?.z || 0,
     };
 
     const baseRotation = referenceDuct?.rotation || {
