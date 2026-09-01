@@ -65,6 +65,25 @@ const offsetTerminalGrommetCentro = ({ largoRealMm }) => ({
   rotY: 0,
 });
 
+const offsetIntermedioGrommetIzquierdo = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 - 205 + 95 / 2 - 374,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetIntermedioGrommetDerecho = ({ largoRealMm }) => ({
+  x: largoRealMm / 2 + 205 - 95 / 2,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+const offsetIntermedioGrommetCentro = ({ largoRealMm }) => ({
+  x: largoRealMm + 95 / 2 - 374,
+  y: -510,
+  z: -38,
+  rotY: 0,
+});
+
 export const KONCISA_FLOOR_DUCT_OFFSETS = {
   // =========================
   // CON GROMMET
@@ -79,9 +98,9 @@ export const KONCISA_FLOOR_DUCT_OFFSETS = {
         RIGHT: offsetTerminalGrommetDerecho,
       },
       INTERMEDIO: {
-        LEFT: zeroOffset,
-        CENTER: zeroOffset,
-        RIGHT: zeroOffset,
+        LEFT: offsetIntermedioGrommetIzquierdo,
+        CENTER: offsetIntermedioGrommetCentro,
+        RIGHT: offsetIntermedioGrommetDerecho,
       },
       INDIVIDUAL: {
         CENTER: zeroOffset,
