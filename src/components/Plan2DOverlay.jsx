@@ -35,6 +35,13 @@ import {
   resolveSelectedKoncisaPostId,
 } from '../plan2d/koncisaCimbraGeometry2D';
 import { drawShapes2D } from '../plan2d/geometry2D/shapesRenderer2D';
+import { createTextAtPoint2D, moveText2D, rotateText2D } from '../plan2d/text2D/textEditor2D';
+import {
+  getTextHandles2D,
+  pickTextHandle2D,
+  selectTextAtPoint2D,
+} from '../plan2d/text2D/textInteraction2D';
+import { drawTexts2D } from '../plan2d/text2D/textRenderer2D';
 import { resolveFinishStyle2D } from '../plan2d/finishAppearance2D';
 import { createShapeFromTool } from '../plan2d/geometry2D/shapeEditor2D';
 import {
@@ -299,6 +306,13 @@ export default function Plan2DOverlay({
   onSelectShape2D,
   onReplaceShape2D,
   onDeleteSelectedShape2D,
+  texts2D = [],
+  textTool2D = false,
+  selectedText2DId = null,
+  onAddText2D,
+  onSelectText2D,
+  onReplaceText2D,
+  onDeleteSelectedText2D,
 }) {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureStart, setMeasureStart] = useState(null);
@@ -396,6 +410,7 @@ export default function Plan2DOverlay({
   const suppressNextClickRef = useRef(false);
   const rotationDragRef = useRef(null);
   const shapeDragRef = useRef(null);
+  const textDragRef = useRef(null);
   const [isRotatingPiece, setIsRotatingPiece] = useState(false);
 
   const planImageRef = useRef(null);
@@ -1111,6 +1126,31 @@ export default function Plan2DOverlay({
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
 
+      const textDrag = textDragRef.current;
+      if (textDrag?.pointerId === e.pointerId) {
+        const world = canvasToWorld(mx, my);
+        if (!world) return;
+        const point = { x: world.x, y: world.z };
+        let nextText = textDrag.initialText;
+        if (textDrag.mode === 'move') {
+          nextText = moveText2D(textDrag.initialText, {
+            x: point.x - textDrag.startWorld.x,
+            y: point.y - textDrag.startWorld.y,
+          });
+        } else if (textDrag.mode === 'rotate') {
+          const center = textDrag.initialText.geometry;
+          const angle = Math.atan2(point.y - center.y, point.x - center.x);
+          nextText = rotateText2D(
+            textDrag.initialText,
+            textDrag.startRotation + angle - textDrag.startPointerAngle
+          );
+        }
+        textDrag.hasMoved = true;
+        onReplaceText2D?.(nextText);
+        e.preventDefault();
+        return;
+      }
+
       const shapeDrag = shapeDragRef.current;
       if (shapeDrag?.pointerId === e.pointerId) {
         const world = canvasToWorld(mx, my);
@@ -1384,6 +1424,7 @@ export default function Plan2DOverlay({
       onPlanPositionChange,
       hitTestPlanAtCanvasPoint,
       onReplaceShape2D,
+      onReplaceText2D,
     ]
   );
 
@@ -1446,6 +1487,15 @@ export default function Plan2DOverlay({
       const variantDrag = variantHandleDragRef.current;
       const planDrag = planDragRef.current;
       const shapeDrag = shapeDragRef.current;
+      const textDrag = textDragRef.current;
+
+      if (textDrag?.pointerId === e.pointerId) {
+        textDragRef.current = null;
+        suppressNextClickRef.current = true;
+        if (canvas?.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
 
       if (shapeDrag?.pointerId === e.pointerId) {
         shapeDragRef.current = null;
@@ -1560,6 +1610,7 @@ export default function Plan2DOverlay({
     (e) => {
       cancelVariantHandleDrag(e.pointerId);
       shapeDragRef.current = null;
+      textDragRef.current = null;
       cancelSelectionDrag(e.pointerId);
       cancelDimensionTextDrag(e.pointerId);
       cancelPieceDrag();
@@ -1643,6 +1694,13 @@ export default function Plan2DOverlay({
       if (e.button !== 0) return;
 
       const shapeWorld = canvasToWorld(mx, my);
+      if (textTool2D && shapeWorld) {
+        onAddText2D?.(createTextAtPoint2D({ x: shapeWorld.x, y: shapeWorld.z }));
+        onPickIds?.([]);
+        e.preventDefault();
+        return;
+      }
+
       if (shapeTool2D && shapeWorld) {
         onAddShape2D?.(createShapeFromTool(shapeTool2D, { x: shapeWorld.x, y: shapeWorld.z }));
         onPickIds?.([]);
@@ -1653,6 +1711,44 @@ export default function Plan2DOverlay({
       if (shapeWorld) {
         const point = { x: shapeWorld.x, y: shapeWorld.z };
         const tolerance = 10 / Math.max(viewRef.current.s, Number.EPSILON);
+        const context = canvas.getContext('2d');
+        const selectedText = texts2D.find((textItem) => textItem.id === selectedText2DId);
+        const textHandle = selectedText
+          ? pickTextHandle2D(
+              context,
+              selectedText,
+              point,
+              viewRef.current.s,
+              tolerance,
+              28 / Math.max(viewRef.current.s, Number.EPSILON)
+            )
+          : null;
+        const pickedText = textHandle
+          ? selectedText
+          : selectTextAtPoint2D(context, texts2D, point, viewRef.current.s, tolerance);
+
+        if (pickedText) {
+          onSelectText2D?.(pickedText.id);
+          onSelectShape2D?.(null);
+          onPickIds?.([]);
+          textDragRef.current = {
+            pointerId: e.pointerId,
+            initialText: pickedText,
+            startWorld: point,
+            mode: textHandle?.kind || 'move',
+            startRotation: pickedText.geometry.rotation || 0,
+            startPointerAngle: Math.atan2(
+              point.y - pickedText.geometry.y,
+              point.x - pickedText.geometry.x
+            ),
+            hasMoved: false,
+          };
+          canvas.setPointerCapture?.(e.pointerId);
+          e.preventDefault();
+          return;
+        }
+
+        onSelectText2D?.(null);
         const selectedShape = shapes2D.find((shape) => shape.id === selectedShape2DId);
         const handle = selectedShape
           ? pickShapeHandle2D(
@@ -1668,6 +1764,7 @@ export default function Plan2DOverlay({
 
         if (pickedShape) {
           onSelectShape2D?.(pickedShape.id);
+          onSelectText2D?.(null);
           onPickIds?.([]);
           const center = getShapeCenter2D(pickedShape);
           shapeDragRef.current = {
@@ -1951,9 +2048,14 @@ export default function Plan2DOverlay({
       getRuntimePlan,
       shapes2D,
       shapeTool2D,
+      texts2D,
+      textTool2D,
+      selectedText2DId,
       selectedShape2DId,
       onAddShape2D,
+      onAddText2D,
       onSelectShape2D,
+      onSelectText2D,
       onPickIds,
     ]
   );
@@ -1962,6 +2064,7 @@ export default function Plan2DOverlay({
     const onEscape = (e) => {
       if (e.key !== 'Escape') return;
       shapeDragRef.current = null;
+      textDragRef.current = null;
       if (rotationDragRef.current) {
         rotationDragRef.current = null;
         setIsRotatingPiece(false);
@@ -1985,6 +2088,7 @@ export default function Plan2DOverlay({
   useEffect(() => {
     const cancelActiveDrag = () => {
       shapeDragRef.current = null;
+      textDragRef.current = null;
       cancelVariantHandleDrag();
       cancelSelectionDrag();
       cancelDimensionTextDrag();
@@ -2254,6 +2358,13 @@ export default function Plan2DOverlay({
         });
       }
 
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedText2DId) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onDeleteSelectedText2D?.();
+        return;
+      }
+
       if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedShape2DId) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -2304,6 +2415,8 @@ export default function Plan2DOverlay({
     calibrationDraft,
     selectedShape2DId,
     onDeleteSelectedShape2D,
+    selectedText2DId,
+    onDeleteSelectedText2D,
   ]);
 
   useEffect(() => {
@@ -2749,6 +2862,40 @@ export default function Plan2DOverlay({
         ctx.restore();
       }
 
+      drawTexts2D(ctx, texts2D, {
+        toCanvas: toCanvasLocal,
+        scale: s,
+        selectedId: selectedText2DId,
+      });
+      const selectedText = texts2D.find((textItem) => textItem.id === selectedText2DId);
+      if (selectedText) {
+        const [rotationHandle] = getTextHandles2D(
+          ctx,
+          selectedText,
+          s,
+          28 / Math.max(s, Number.EPSILON)
+        );
+        if (rotationHandle) {
+          const [tx, ty] = toCanvasLocal(selectedText.geometry.x, selectedText.geometry.y);
+          const [rx, ry] = toCanvasLocal(rotationHandle.x, rotationHandle.y);
+          ctx.save();
+          ctx.strokeStyle = '#06b6d4';
+          ctx.fillStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(rx, ry);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.arc(rx, ry, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
       const activeVariantControl = resolveActiveVariantControl2D(snap);
       if (activeVariantControl?.type === 'EDUK_WIDTH') {
         const { handles, center, axis, type } = activeVariantControl;
@@ -3006,6 +3153,8 @@ export default function Plan2DOverlay({
     showFinishes2D,
     shapes2D,
     selectedShape2DId,
+    texts2D,
+    selectedText2DId,
   ]);
 
   const selectedDetailKeys = collectSelected2DDetailKeys(selectedIds, latestSnapshotRef.current);
@@ -3571,7 +3720,7 @@ export default function Plan2DOverlay({
           display: 'block',
           touchAction: 'none',
           cursor:
-            measureMode || isWallDrawMode || shapeTool2D || scaleMode || selectionDrag
+            measureMode || isWallDrawMode || shapeTool2D || textTool2D || scaleMode || selectionDrag
               ? 'crosshair'
               : isPlanDragging
                 ? 'grabbing'
@@ -3599,6 +3748,7 @@ export default function Plan2DOverlay({
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={(event) => {
           if (shapeDragRef.current?.pointerId === event.pointerId) shapeDragRef.current = null;
+          if (textDragRef.current?.pointerId === event.pointerId) textDragRef.current = null;
           if (planDragRef.current?.pointerId === event.pointerId) {
             planDragRef.current = null;
             setIsPlanDragging(false);

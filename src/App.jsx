@@ -25,6 +25,7 @@ import {
 //2d
 import Plan2DOverlay from './components/Plan2DOverlay';
 import { deleteShape2D, translateShape2D, updateShape2D } from './plan2d/geometry2D/shapeEditor2D';
+import { deleteText2D, updateText2D } from './plan2d/text2D/textEditor2D';
 import BOMWindow from './components/BOMWindow';
 import BOMView from './components/BOMView';
 import { catalogByCodigoPT } from './catalog/catalogData';
@@ -353,6 +354,22 @@ export default function App() {
   const handleReplaceShape2D = (shape) => {
     if (!shape?.id || shape.semanticType === 'cimbra') return;
     setShapes2D((current) => current.map((item) => item.id === shape.id ? shape : item));
+  };
+  const [texts2D, setTexts2D] = useState([]);
+  const [textTool2D, setTextTool2D] = useState(false);
+  const [selectedText2DId, setSelectedText2DId] = useState(null);
+  const selectedText2D = useMemo(
+    () => texts2D.find((item) => item.id === selectedText2DId) || null,
+    [texts2D, selectedText2DId]
+  );
+  const handleText2DChange = (patch) => {
+    if (!selectedText2DId) return;
+    setTexts2D((current) => updateText2D(current, selectedText2DId, patch));
+  };
+  const handleDeleteText2D = () => {
+    if (!selectedText2DId) return;
+    setTexts2D((current) => deleteText2D(current, selectedText2DId));
+    setSelectedText2DId(null);
   };
   const [selectedIds, setSelectedIds] = useState([]);
   const [moveAsGroup, setMoveAsGroup] = useState(true);
@@ -1369,6 +1386,14 @@ export default function App() {
                 if (!selectedShape2DId) return;
                 setShapes2D((current) => translateShape2D(current, selectedShape2DId, delta));
               }}
+              textTool2D={textTool2D}
+              setTextTool2D={(active) => {
+                setTextTool2D(active);
+                if (active) setShapeTool2D(null);
+              }}
+              selectedText2D={selectedText2D}
+              onText2DChange={handleText2DChange}
+              onDeleteText2D={handleDeleteText2D}
             />
           </div>
 
@@ -1542,6 +1567,24 @@ export default function App() {
             onSelectShape2D={setSelectedShape2DId}
             onReplaceShape2D={handleReplaceShape2D}
             onDeleteSelectedShape2D={handleDeleteShape2D}
+            texts2D={texts2D}
+            textTool2D={textTool2D}
+            selectedText2DId={selectedText2DId}
+            onAddText2D={(item) => {
+              setTexts2D((current) => [...current, item]);
+              setSelectedText2DId(item.id);
+              setSelectedShape2DId(null);
+              setTextTool2D(false);
+            }}
+            onSelectText2D={(id) => {
+              setSelectedText2DId(id);
+              if (id) setSelectedShape2DId(null);
+            }}
+            onReplaceText2D={(item) => {
+              if (!item?.id) return;
+              setTexts2D((current) => current.map((currentItem) => currentItem.id === item.id ? item : currentItem));
+            }}
+            onDeleteSelectedText2D={handleDeleteText2D}
             walls={walls}
             columns={columns}
             openings={openings}

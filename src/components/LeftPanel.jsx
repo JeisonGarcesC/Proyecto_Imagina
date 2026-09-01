@@ -337,6 +337,11 @@ export default function LeftPanel({
   onShape2DChange,
   onDeleteShape2D,
   onTranslateShape2D,
+  textTool2D,
+  setTextTool2D,
+  selectedText2D,
+  onText2DChange,
+  onDeleteText2D,
   // otros
   Plan2DUploader,
   handleLoadPlan2D,
@@ -1737,14 +1742,14 @@ export default function LeftPanel({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               {[
                 ['wall', '🧱 Muro'], ['door', '🚪 Puerta'], ['window', '🪟 Ventana'],
-              ].map(([tool, label]) => <button key={tool} type="button" style={btnMini(shapeTool2D === tool)} onClick={() => setShapeTool2D(shapeTool2D === tool ? null : tool)}>{label}</button>)}
+              ].map(([tool, label]) => <button key={tool} type="button" style={btnMini(shapeTool2D === tool)} onClick={() => { setTextTool2D(false); setShapeTool2D(shapeTool2D === tool ? null : tool); }}>{label}</button>)}
             </div>
             <strong style={{ fontSize: 12, marginTop: 6 }}>FIGURAS</strong>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               {[
                 ['rectangle', '▭ Rectángulo'], ['square', '□ Cuadrado'], ['circle', '○ Círculo'],
                 ['triangle', '△ Triángulo'], ['line', '─ Línea'], ['polygon', '⬡ Polígono'],
-              ].map(([tool, label]) => <button key={tool} type="button" style={btnMini(shapeTool2D === tool)} onClick={() => setShapeTool2D(shapeTool2D === tool ? null : tool)}>{label}</button>)}
+              ].map(([tool, label]) => <button key={tool} type="button" style={btnMini(shapeTool2D === tool)} onClick={() => { setTextTool2D(false); setShapeTool2D(shapeTool2D === tool ? null : tool); }}>{label}</button>)}
             </div>
             <div style={{ fontSize: 12, opacity: 0.7 }}>{shapeTool2D ? 'Haz clic en el plano para colocar el elemento.' : 'Selecciona una herramienta o una figura existente.'}</div>
             {selectedShape2D && (
@@ -1768,6 +1773,35 @@ export default function LeftPanel({
                   <button type="button" style={btnMini(false)} onClick={() => onTranslateShape2D({ x: 0, y: 0.1 })}>↑</button>
                 </div>
                 <button type="button" onClick={onDeleteShape2D} style={{ ...btnMini(false), color: '#b91c1c' }}>Eliminar figura</button>
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'grid', gap: 8, marginTop: 18, paddingTop: 14, borderTop: '1px solid #ddd' }}>
+            <h3 style={{ margin: 0 }}>Texto 2D</h3>
+            <button
+              type="button"
+              style={btnMini(textTool2D)}
+              onClick={() => setTextTool2D(!textTool2D)}
+            >
+              T Texto
+            </button>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>
+              {textTool2D ? 'Haz clic en el plano para colocar el texto.' : 'Selecciona la herramienta o un texto existente.'}
+            </div>
+            {selectedText2D && (
+              <div style={{ display: 'grid', gap: 7, marginTop: 4 }}>
+                <strong>Propiedades del texto</strong>
+                <label style={lab}>Texto<textarea rows={3} value={selectedText2D.text} onChange={(e) => onText2DChange({ text: e.target.value })} style={{ ...inp, resize: 'vertical' }} /></label>
+                <label style={lab}>X (m)<input type="number" step="0.05" value={selectedText2D.geometry.x} onChange={(e) => onText2DChange({ geometry: { x: Number(e.target.value) } })} style={inp} /></label>
+                <label style={lab}>Y (m)<input type="number" step="0.05" value={selectedText2D.geometry.y} onChange={(e) => onText2DChange({ geometry: { y: Number(e.target.value) } })} style={inp} /></label>
+                <label style={lab}>Tamaño de fuente (m)<input type="number" min="0.01" step="0.02" value={selectedText2D.style.fontSize} onChange={(e) => onText2DChange({ style: { fontSize: Number(e.target.value) } })} style={inp} /></label>
+                <label style={lab}>Color<input type="color" value={selectedText2D.style.color} onChange={(e) => onText2DChange({ style: { color: e.target.value } })} style={inp} /></label>
+                <label style={lab}>Familia<select value={selectedText2D.style.fontFamily} onChange={(e) => onText2DChange({ style: { fontFamily: e.target.value } })} style={inp}>{['Arial', 'Helvetica', 'sans-serif', 'monospace'].map((font) => <option key={font} value={font}>{font}</option>)}</select></label>
+                <label style={lab}>Alineación<select value={selectedText2D.style.align} onChange={(e) => onText2DChange({ style: { align: e.target.value } })} style={inp}><option value="left">Izquierda</option><option value="center">Centro</option><option value="right">Derecha</option></select></label>
+                <label style={{ fontSize: 12 }}><input type="checkbox" checked={selectedText2D.style.fontWeight === 'bold'} onChange={(e) => onText2DChange({ style: { fontWeight: e.target.checked ? 'bold' : 'normal' } })} /> Negrita</label>
+                <label style={{ fontSize: 12 }}><input type="checkbox" checked={selectedText2D.style.fontStyle === 'italic'} onChange={(e) => onText2DChange({ style: { fontStyle: e.target.checked ? 'italic' : 'normal' } })} /> Cursiva</label>
+                <label style={lab}>Rotación (°)<input type="number" step="1" value={Math.round(selectedText2D.geometry.rotation * 1800 / Math.PI) / 10} onChange={(e) => onText2DChange({ geometry: { rotation: Number(e.target.value) * Math.PI / 180 } })} style={inp} /></label>
+                <button type="button" onClick={onDeleteText2D} style={{ ...btnMini(false), color: '#b91c1c' }}>Eliminar texto</button>
               </div>
             )}
           </div>

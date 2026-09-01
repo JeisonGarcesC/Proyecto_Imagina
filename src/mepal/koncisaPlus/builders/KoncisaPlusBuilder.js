@@ -383,6 +383,7 @@ export function buildKoncisaPlus(config = {}) {
     anchoRealMm,
     hasDuct,
     ductModes,
+    tipoPasoCable,
   });
 
   ductos.forEach((d) => {
