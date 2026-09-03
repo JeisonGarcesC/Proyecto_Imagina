@@ -92,6 +92,7 @@ import {
 
 import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
 import { resolveKoncisaFloorDuct } from '../mepal/koncisaPlus/rules/koncisaFloorDuctRules';
+import { getDuctosConfig } from '../mepal/koncisaPlus/rules/koncisaRules';
 
 import {
   createKoncisaPrivacyPanelProcedural,
@@ -1521,7 +1522,24 @@ export default function ThreeCanvas({
           ? null
           : getEditableKoncisaPartObject(obj) || getCritterium8EditableTarget(obj));
       obj = activeEditablePart || obj;
-      activeSubMesh = null; // ✅ cada vez que cambia selección, reset submesh
+      const hasSubMeshContext =
+        selectionContext && Object.prototype.hasOwnProperty.call(selectionContext, 'subMesh');
+      activeSubMesh =
+        hasSubMeshContext && selectionContext.subMesh?.isMesh ? selectionContext.subMesh : null;
+
+      if (hasSubMeshContext) {
+        if (activeSubMesh) {
+          const activeSubKey = getMeshPathKey(obj, activeSubMesh);
+          obj.userData.activeSubKey = activeSubKey;
+          obj.userData.activeSubName =
+            activeSubMesh.name && activeSubMesh.name.trim()
+              ? activeSubMesh.name.trim()
+              : activeSubKey;
+        } else {
+          obj.userData.activeSubKey = null;
+          obj.userData.activeSubName = null;
+        }
+      }
       const edukWidthContext =
         obj?.userData?.kind === 'EDUK'
           ? getEdukWidthInfoByCode(obj.userData?.codigoPT || obj.userData?.code)
@@ -2160,6 +2178,31 @@ export default function ThreeCanvas({
         return String(value ?? '').trim();
       }
 
+      function resolveCatalogDescription(code, fallbackDescription = '') {
+        const normalizedCode = normalizeText(code);
+        const item = normalizedCode
+          ? catalogByCodeRef.current?.get?.(normalizedCode) || null
+          : null;
+        const catalogDescription = normalizeText(
+          item?.ui?.title ||
+            item?.ui?.subtitle ||
+            item?.raw?.descripcion ||
+            item?.raw?.description ||
+            item?.raw?.DESCRIPCION_LARGA
+        );
+        const fallback = normalizeText(fallbackDescription);
+        if (!catalogDescription) return fallback || normalizedCode;
+
+        return /^SPECIAL:\s*/i.test(fallback)
+          ? `SPECIAL: ${catalogDescription}`
+          : catalogDescription;
+      }
+
+      function resolveOptionalUnitPrice(value) {
+        const price = Number(value);
+        return Number.isFinite(price) && price > 0 ? price : null;
+      }
+
       function belongsToKoncisaPlusAssembly(object) {
         let current = object?.parent || null;
         while (current) {
@@ -2184,7 +2227,9 @@ export default function ThreeCanvas({
 
         const normalizedCode = normalizeText(code);
         const normalizedGroupId = normalizeText(groupId);
-        const rowKey = normalizedCode;
+        const rowKey = normalizedGroupId
+          ? `T:${normalizedGroupId}::${normalizedCode}`
+          : `S::${normalizedCode}`;
 
         const item = catalogByCodeRef.current?.get?.(normalizedCode);
 
@@ -2273,11 +2318,15 @@ export default function ThreeCanvas({
 
           if (Array.isArray(bomList) && bomList.length) {
             for (const it of bomList) {
+              const itemCode = String(it.codigo || it.code);
               addRow(
-                String(it.codigo || it.code),
+                itemCode,
                 Number(it.cantidad || it.qty || it.quantity || 1),
-                it.descripcion || it.description || it.name,
-                it.unitPrice || 0,
+                resolveCatalogDescription(
+                  itemCode,
+                  it.descripcion || it.description || it.name
+                ),
+                resolveOptionalUnitPrice(it.unitPrice),
                 groupId,
                 groupName,
                 it.prices,
@@ -2296,11 +2345,12 @@ export default function ThreeCanvas({
           const groupName = obj.userData?.groupName || 'Kuo AV Superficie Perimetral';
 
           for (const item of bomList) {
+            const itemCode = String(item.codigo || item.code);
             addRow(
-              String(item.codigo || item.code),
+              itemCode,
               Number(item.cantidad || item.qty || item.quantity || 1),
-              item.descripcion || item.description,
-              item.unitPrice,
+              resolveCatalogDescription(itemCode, item.descripcion || item.description),
+              resolveOptionalUnitPrice(item.unitPrice),
               groupId,
               groupName,
               item.prices,
@@ -6833,10 +6883,14 @@ export default function ThreeCanvas({
     function removePartObject(obj, options = {}) {
       if (!obj) return false;
 
-      const root = getRootPartObject(obj) || obj;
+      const {
+        skipFloatingChildren = false,
+        disposeResources = true,
+        emitBom = true,
+        exactTarget = false,
+      } = options;
+      const root = exactTarget ? obj : getRootPartObject(obj) || obj;
       if (root.userData?.lockedDelete) return false;
-
-      const { skipFloatingChildren = false, disposeResources = true, emitBom = true } = options;
 
       const isAssembly =
         root.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || root.userData?.type === 'koncisa-plus';
@@ -8229,10 +8283,12 @@ export default function ThreeCanvas({
       const familyKey = getFinishFamilyKey(target);
       if (!familyKey) return [target];
 
-      return parts
+      const targets = parts
         .map((p) => p?.obj)
         .filter(Boolean)
         .filter((obj) => getFinishFamilyKey(obj) === familyKey);
+
+      return Array.from(new Set(targets));
     }
 
     function moveTargetOrGroup(target, dx = 0, dy = 0, dz = 0) {
@@ -8806,6 +8862,7 @@ export default function ThreeCanvas({
         const removed = removePartObject(object, {
           skipFloatingChildren: true,
           disposeResources: false,
+          exactTarget: true,
         });
         if (removed) removedAny = true;
       });
@@ -9183,15 +9240,18 @@ export default function ThreeCanvas({
     function removeTargetOrGroup(target) {
       if (!target) return false;
 
+      const effectiveTarget = deleteAsGroupRef.current
+        ? getRootPartObject(target) || target
+        : getIndividualMovementRoot(target) || target;
       const targets =
-        deleteAsGroupRef.current && target?.userData?.groupId
-          ? getGroupedObjects(target)
-          : [target];
+        deleteAsGroupRef.current && effectiveTarget?.userData?.groupId
+          ? getGroupedObjects(effectiveTarget)
+          : [effectiveTarget];
 
       let removedAny = false;
 
       targets.forEach((obj) => {
-        const ok = removePartObject(obj);
+        const ok = removePartObject(obj, { exactTarget: !deleteAsGroupRef.current });
         if (ok) removedAny = true;
       });
 
@@ -9202,11 +9262,22 @@ export default function ThreeCanvas({
       const selectedObjects = Array.from(new Set(ids || []))
         .map((id) => findPartById(id))
         .filter(Boolean);
-      const sourceObjects = selectedObjects.length ? selectedObjects : [activePart].filter(Boolean);
+      let sourceObjects = selectedObjects.length ? selectedObjects : [activePart].filter(Boolean);
+
+      if (!deleteAsGroupRef.current && sourceObjects.length === 1 && activeEditablePart) {
+        const selectedAssembly = getAssemblyObject(sourceObjects[0]);
+        const editableAssembly = getAssemblyObject(activeEditablePart);
+        if (selectedAssembly && selectedAssembly === editableAssembly) {
+          sourceObjects = [activeEditablePart];
+        }
+      }
+
       const targetsByKey = new Map();
 
       sourceObjects.forEach((obj) => {
-        const physicalRoot = getRootPartObject(obj) || obj;
+        const physicalRoot = deleteAsGroupRef.current
+          ? getRootPartObject(obj) || obj
+          : getIndividualMovementRoot(obj) || obj;
 
         if (deleteAsGroupRef.current) {
           const assembly = getKoncisaAssemblyObject(obj) || getKoncisaAssemblyObject(physicalRoot);
@@ -9228,7 +9299,11 @@ export default function ThreeCanvas({
           }
         }
 
-        targetsByKey.set('part:' + physicalRoot.uuid, { obj: physicalRoot, isAssembly: false });
+        const physicalAssembly = getAssemblyObject(physicalRoot);
+        targetsByKey.set('part:' + physicalRoot.uuid, {
+          obj: physicalRoot,
+          isAssembly: physicalAssembly === physicalRoot,
+        });
       });
 
       const targets = Array.from(targetsByKey.values());
@@ -11284,6 +11359,20 @@ export default function ThreeCanvas({
       // Información actual del ducto
       const tipoPuesto = oldObj.userData?.meta?.tipoPuesto || 'sencillo';
       const nominalWidthMm = oldObj.userData?.meta?.nominalWidthMm || 1200;
+      const oldMeta = oldObj.userData?.meta || {};
+      const accesoCableado =
+        String(
+          oldMeta.accesoCableado ||
+            oldMeta.tipoCanal ||
+            inferDuctChannelType({
+              logicalCode: oldObj.userData?.logicalCode,
+              description: oldObj.userData?.description,
+              codigoPT: oldObj.userData?.codigoPT,
+              code: oldObj.userData?.code,
+            })
+        ).toUpperCase() === 'PASACABLE'
+          ? 'PASACABLE'
+          : 'GROMMET';
       const oldCovers = oldObj.userData?.ductCovers || defaultDuctCoverState(normalizedType);
       const oldCeilingDucts =
         oldObj.userData?.ceilingDucts ||
@@ -11295,6 +11384,7 @@ export default function ThreeCanvas({
         tipoPuesto,
         tipoModulo: normalizedType,
         nominalWidthMm,
+        accesoCableado,
       });
 
       console.log('[updateSelectedDuctType]', { newType, normalizedType, resolved });
@@ -11308,15 +11398,46 @@ export default function ThreeCanvas({
       // Guardar posición, rotación y grupo
       const pos = oldObj.position.clone();
       const rot = oldObj.rotation.clone();
+      const scale = oldObj.scale.clone();
       const groupId = oldObj.userData?.groupId || null;
       const groupName = oldObj.userData?.groupName || null;
-      const parentGroup =
-        oldObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? oldObj.parent : null;
+      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
+      const parentIndex = parentGroup?.children?.indexOf(oldObj) ?? -1;
+      const side = String(oldMeta.side || 'RIGHT').toUpperCase() === 'LEFT' ? 'LEFT' : 'RIGHT';
+      const modelSrc =
+        side === 'LEFT'
+          ? resolved.modelSrcLeft || resolved.modelSrc
+          : resolved.modelSrcRight || resolved.modelSrc;
+      const moduleIndex = Math.max(0, Number(oldMeta.moduleIndex) || 0);
+      const assemblyConfig = parentGroup?.userData?.config || {};
+      const anchoRealMm = Number(
+        oldMeta.anchoRealMm || assemblyConfig.anchoRealMm || (tipoPuesto === 'doble' ? 1200 : 600)
+      );
+      const ductModes = Array.from({ length: moduleIndex + 1 }, () => 'TERMINAL');
+      ductModes[moduleIndex] = normalizedType.toUpperCase();
+      const placement = getDuctosConfig({
+        puestos: moduleIndex + 1,
+        tipoPuesto,
+        largoRealMm: nominalWidthMm,
+        anchoRealMm,
+        hasDuct: true,
+        ductModes,
+        tipoPasoCable: accesoCableado.toLowerCase(),
+        side,
+      }).find((duct) => duct.moduleIndex === moduleIndex);
+      const nextPositionMm = {
+        x: placement?.x ?? pos.x * 1000,
+        y: placement?.y ?? pos.y * 1000,
+        z: placement?.z ?? pos.z * 1000,
+      };
+      const nextRotation = {
+        x: placement?.rotX ?? rot.x,
+        y: placement?.rotY ?? rot.y,
+        z: placement?.rotZ ?? rot.z,
+      };
 
-      // Remover el ducto antiguo de la escena
-      removePartObject(oldObj);
-
-      // Crear nuevo ducto
+      // Crear primero el reemplazo. Si el GLB falla, el ducto anterior y su
+      // assembly permanecen intactos.
       const newDuctObj = await addExternalGlbPart({
         type: 'ducto',
         subtype: normalizedType,
@@ -11326,20 +11447,59 @@ export default function ThreeCanvas({
         groupId,
         parentGroup,
         groupName,
-        position: { x: pos.x * 1000, y: pos.y * 1000, z: pos.z * 1000 },
-        rotation: { x: rot.x, y: rot.y, z: rot.z },
-        model: { kind: 'glb', src: resolved.modelSrc },
+        position: nextPositionMm,
+        rotation: nextRotation,
+        model: { kind: 'glb', src: modelSrc },
         meta: {
+          ...oldMeta,
           category: 'ductos',
           tipoPuesto,
           tipoModulo: normalizedType,
           nominalWidthMm,
+          side,
+          accesoCableado,
+          modelSrcLeft: resolved.modelSrcLeft || null,
+          modelSrcRight: resolved.modelSrcRight || null,
           ductCovers: oldCovers,
           ceilingDucts: oldCeilingDucts,
+        },
+        extraUserData: {
+          instanceId: oldObj.userData?.instanceId || undefined,
+          materialCode: oldObj.userData?.materialCode || null,
+          materialBase: oldObj.userData?.materialBase || null,
+          finishes: oldObj.userData?.finishes || null,
+          activeSubKey: oldObj.userData?.activeSubKey || null,
+          activeSubName: oldObj.userData?.activeSubName || null,
         },
       });
 
       if (!newDuctObj) return;
+
+      newDuctObj.scale.copy(scale);
+      if (oldObj.userData?.materialCode) {
+        const materialCode = String(oldObj.userData.materialCode);
+        const materialDef = materialsByCodeRef.current?.get?.(materialCode) || null;
+        applyMaterialToObject3D(newDuctObj, materialCode, materialDef);
+      }
+      // Retirar exactamente la pieza física anterior. No usar removePartObject:
+      // esa función escala intencionalmente hasta KONCISA_PLUS_ASSEMBLY.
+      if (oldObj.parent) oldObj.parent.remove(oldObj);
+      removePartsRecordsUnder(oldObj);
+      removePickablesUnder(oldObj);
+      disposeObject3D(oldObj);
+
+      if (parentGroup && parentIndex >= 0) {
+        const appendedIndex = parentGroup.children.indexOf(newDuctObj);
+        if (appendedIndex >= 0 && appendedIndex !== parentIndex) {
+          parentGroup.children.splice(appendedIndex, 1);
+          parentGroup.children.splice(
+            Math.min(parentIndex, parentGroup.children.length),
+            0,
+            newDuctObj
+          );
+        }
+      }
+      newDuctObj.updateMatrixWorld(true);
 
       // Actualizar popup flotante
       onFloatingEditorRequest?.({
@@ -11362,6 +11522,9 @@ export default function ThreeCanvas({
       // Sincronizar tapas en la escena 3D
       await syncDuctCovers(newDuctObj, oldCovers);
       await syncCeilingDucts(newDuctObj, oldCeilingDucts);
+      setActivePart(newDuctObj);
+      emitBOM();
+      refreshFloorAndGrid();
 
       // =========================
       // AGREGAR TAPAS AL BOM
@@ -11859,6 +12022,7 @@ export default function ThreeCanvas({
         preserve: preserveSelection,
         targetIds: dragIds,
         propertiesTarget,
+        subMesh: hitObj?.isMesh ? hitObj : null,
       });
 
       if (transformToolRef.current === 'rotate') {
@@ -12081,21 +12245,6 @@ export default function ThreeCanvas({
       }
 
       dragRootStartRef.current = movementRoot.position.clone();
-
-      //  Guardar submesh clickeado
-      activeSubMesh = hitObj?.isMesh ? hitObj : null;
-
-      //  Guardar key estable en el root (para persistencia y UI)
-      if (activeSubMesh) {
-        const subKey = getMeshPathKey(propertiesTarget, activeSubMesh);
-
-        propertiesTarget.userData.activeSubKey = subKey;
-        propertiesTarget.userData.activeSubName =
-          activeSubMesh.name && activeSubMesh.name.trim() ? activeSubMesh.name.trim() : subKey;
-      } else {
-        propertiesTarget.userData.activeSubKey = null;
-        propertiesTarget.userData.activeSubName = null;
-      }
 
       // ---- DRAG ----
       const rootAssembly =
@@ -15667,7 +15816,7 @@ export default function ThreeCanvas({
 
       // ===== GROUP =====
       if (wantGroup) {
-        const targets = getFinishGroupTargets(activePart);
+        const targets = getFinishGroupTargets(editablePart);
 
         targets.forEach((obj) => {
           obj.userData.materialCode = code;

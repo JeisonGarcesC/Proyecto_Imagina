@@ -23,6 +23,17 @@ function safeStr(v) {
   return (v ?? '').toString();
 }
 
+function safeFilenameSegment(value, fallback) {
+  const sanitized = safeStr(value)
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .split('')
+    .map((character) => (character.charCodeAt(0) < 32 ? '_' : character))
+    .join('')
+    .replace(/[. ]+$/g, '')
+    .trim();
+  return sanitized || fallback;
+}
+
 export default function BOMView({
   items = [],
   defaultCountry = 'CO',
@@ -32,7 +43,10 @@ export default function BOMView({
   const [localCountry, setLocalCountry] = useState(defaultCountry);
   const [sortKey, setSortKey] = useState('code'); // code | description | qty | unitPrice | total
   const [sortDir, setSortDir] = useState('asc'); // asc | desc
+  const [groupMode, setGroupMode] = useState('typology');
   const [showModal, setShowModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportScope, setExportScope] = useState('all');
   const [corporateData, setCorporateData] = useState({
     proyecto: '',
     asesor: '',
@@ -51,7 +65,7 @@ export default function BOMView({
     setCorporateData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const groups = useMemo(() => {
+  const groupedViews = useMemo(() => {
     const norm = (s) => safeStr(s).toLowerCase();
     const qq = norm(q.trim());
 
@@ -102,6 +116,8 @@ export default function BOMView({
       };
     });
 
+    const unfilteredList = list;
+
     // 2) Filtro
     if (qq) {
       list = list.filter((r) => norm(r.code).includes(qq) || norm(r.description).includes(qq));
@@ -110,18 +126,83 @@ export default function BOMView({
     // 3) Sort dentro de cada grupo
     const dir = sortDir === 'asc' ? 1 : -1;
 
-    // 4) Mantener todo junto en una sola vista consolidada para que no se separen
-    // vigas, respaldos, paneles laterales ni accesorios dentro de la misma tipología.
-    const groupArr = [
-      {
-        key: 'ALL:CONSOLIDADO',
-        label: qq ? 'RESULTADOS' : 'TODOS',
-        items: list,
-        subtotal: 0,
-      },
-    ];
+    const buildGroups = (sourceRows) => {
+      const rowsToGroup = [...sourceRows];
+      const consolidateRows = (rows) => {
+      const byCode = new Map();
+      for (const row of rows) {
+        const key = row.code;
+        const previous = byCode.get(key);
+        if (!previous) {
+          byCode.set(key, { ...row });
+          continue;
+        }
+        const qty = Number(previous.qty || 0) + Number(row.qty || 0);
+        byCode.set(key, {
+          ...previous,
+          qty,
+          total: qty * Number(previous.unitPrice || 0),
+          groupCount: Math.max(Number(previous.groupCount || 0), Number(row.groupCount || 0)),
+        });
+      }
+      return Array.from(byCode.values());
+    };
 
-    // 5) Sort items dentro del bloque consolidado
+      let groupArr;
+    if (groupMode === 'consolidated') {
+      groupArr = [
+        {
+          key: 'ALL:CONSOLIDADO',
+          label: qq ? 'RESULTADOS' : 'TODOS',
+          items: consolidateRows(rowsToGroup),
+          subtotal: 0,
+        },
+      ];
+    } else if (groupMode === 'classification') {
+      const typologyItems = rowsToGroup.filter((row) => row.groupKey.startsWith('T:'));
+      const looseItems = rowsToGroup.filter((row) => row.groupKey.startsWith('S:'));
+      groupArr = [
+        typologyItems.length
+          ? {
+              key: 'C:TIPOLOGIAS',
+              label: 'COMPONENTES DE TIPOLOGÍAS',
+              items: consolidateRows(typologyItems),
+              subtotal: 0,
+            }
+          : null,
+        looseItems.length
+          ? {
+              key: 'C:SUELTOS',
+              label: 'ELEMENTOS SUELTOS',
+              items: consolidateRows(looseItems),
+              subtotal: 0,
+            }
+          : null,
+      ].filter(Boolean);
+    } else {
+      const map = new Map();
+      for (const row of rowsToGroup) {
+        if (!map.has(row.groupKey)) {
+          map.set(row.groupKey, { label: row.groupLabel, items: [] });
+        }
+        map.get(row.groupKey).items.push(row);
+      }
+
+      groupArr = Array.from(map.entries()).map(([key, value]) => ({
+        key,
+        label: value.label,
+        items: value.items,
+        subtotal: 0,
+      }));
+      groupArr.sort((a, b) => {
+        const aIsLoose = a.key.startsWith('S:');
+        const bIsLoose = b.key.startsWith('S:');
+        if (aIsLoose !== bIsLoose) return aIsLoose ? 1 : -1;
+        return a.label.localeCompare(b.label, 'es', { sensitivity: 'base' });
+      });
+    }
+
+    // Ordenar y totalizar las filas dentro de cada agrupación elegida.
     for (const g of groupArr) {
       g.items.sort((a, b) => {
         const va = a[sortKey];
@@ -135,14 +216,51 @@ export default function BOMView({
       g.subtotal = g.items.reduce((acc, r) => acc + (r.total || 0), 0);
     }
 
-    return groupArr;
-  }, [items, q, sortKey, sortDir, localCountry]);
+      return groupArr;
+    };
+
+    return {
+      filtered: buildGroups(list),
+      all: buildGroups(unfilteredList),
+    };
+  }, [items, q, sortKey, sortDir, localCountry, groupMode]);
+
+  const groups = groupedViews.filtered;
+  const allGroups = groupedViews.all;
 
   const grandTotal = useMemo(() => groups.reduce((acc, g) => acc + (g.subtotal || 0), 0), [groups]);
 
   const totalItems = useMemo(() => groups.reduce((acc, g) => acc + g.items.length, 0), [groups]);
 
   const exportToProfessionalExcel = async () => {
+    const groupsToExport = exportScope === 'filtered' ? groups : allGroups;
+    const exportGrandTotal = groupsToExport.reduce(
+      (sum, group) => sum + Number(group.subtotal || 0),
+      0
+    );
+    const suggestedName = `Cotizacion_${safeFilenameSegment(corporateData.proyecto, 'Proyecto')}_${safeFilenameSegment(corporateData.fecha, 'sin_fecha')}.xlsx`;
+    const electronSave = window.electronAPI?.saveBomXlsx;
+    let browserFileHandle = null;
+
+    if (!electronSave && typeof window.showSaveFilePicker === 'function') {
+      try {
+        browserFileHandle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: 'Libro de Excel',
+              accept: {
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+              },
+            },
+          ],
+        });
+      } catch (error) {
+        if (error?.name === 'AbortError') return { saved: false, canceled: true };
+        throw error;
+      }
+    }
+
     const excelModule = await import('exceljs/dist/exceljs.min.js');
     const ExcelJS = excelModule.default || excelModule;
     const workbook = new ExcelJS.Workbook();
@@ -267,7 +385,7 @@ export default function BOMView({
       });
     });
 
-    for (const g of groups) {
+    for (const g of groupsToExport) {
       const typologyCode = g.key?.startsWith('T:') ? g.key.slice(2).trim() : '';
       const typologyTitle = typologyCode ? `${typologyCode} - ${g.label}` : g.label;
       const isTypologyGroup = !!typologyCode;
@@ -369,7 +487,7 @@ export default function BOMView({
       ws.addRow([]);
     }
 
-    const totalRow = ws.addRow(['', 'TOTAL', '', '', '', '', grandTotal, '']);
+    const totalRow = ws.addRow(['', 'TOTAL', '', '', '', '', exportGrandTotal, '']);
     ['A', 'C', 'D', 'E', 'F', 'H'].forEach((col) => applyStyle(ws.getCell(`${col}${totalRow.number}`)));
     applyStyle(ws.getCell(`B${totalRow.number}`), {
       fill: fillPurple,
@@ -385,22 +503,40 @@ export default function BOMView({
 
     const xlsxBuffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([xlsxBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+    if (electronSave) {
+      return electronSave({ bytes: new Uint8Array(xlsxBuffer), suggestedName });
+    }
+
+    if (browserFileHandle) {
+      const writable = await browserFileHandle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return { saved: true, canceled: false };
+    }
+
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Cotizacion_${corporateData.proyecto || 'Proyecto'}_${corporateData.fecha}.xlsx`;
+    const objectUrl = URL.createObjectURL(blob);
+    link.href = objectUrl;
+    link.download = suggestedName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    return { saved: true, canceled: false, usedDownloadFallback: true };
   };
 
   const handleExportProfessional = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
     try {
-      await exportToProfessionalExcel();
-      setShowModal(false);
+      const result = await exportToProfessionalExcel();
+      if (result?.saved) setShowModal(false);
     } catch (error) {
       console.error('Error al exportar cotización:', error);
-      window.alert('No se pudo exportar la cotización. Revisa la consola para más detalle.');
+      window.alert(`No se pudo exportar la cotización: ${error?.message || 'error desconocido'}`);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -539,6 +675,26 @@ export default function BOMView({
                 </option>
               ))}
             </select>
+            <select
+              value={groupMode}
+              onChange={(event) => setGroupMode(event.target.value)}
+              aria-label="Agrupar inventario BOM"
+              title="Agrupación del inventario y de la exportación"
+              style={{
+                height: 34,
+                borderRadius: 8,
+                border: `1px solid ${palette.line}`,
+                padding: '0 10px',
+                background: '#fff',
+                color: palette.text,
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              <option value="typology">Por tipología</option>
+              <option value="classification">Por clasificación</option>
+              <option value="consolidated">Todo consolidado</option>
+            </select>
             <button
               onClick={() => setShowModal(true)}
               style={{
@@ -582,7 +738,13 @@ export default function BOMView({
                 color: palette.text,
               }}
             />
-            <div style={{ fontSize: 11.5, color: palette.soft }}>Vista consolidada</div>
+            <div style={{ fontSize: 11.5, color: palette.soft }}>
+              {groupMode === 'typology'
+                ? 'Vista agrupada por tipología'
+                : groupMode === 'classification'
+                  ? 'Vista agrupada por clasificación'
+                  : 'Vista consolidada'}
+            </div>
           </div>
         </div>
       </div>
@@ -631,7 +793,13 @@ export default function BOMView({
               <tbody>
                 {groups.map((g) => {
                   const typologyCode = g.key?.startsWith('T:') ? g.key.slice(2) : '';
-                  const typologyTitle = typologyCode ? `Tipología - ${typologyCode}` : 'Tipología';
+                  const typologyTitle = typologyCode
+                    ? `Tipología - ${typologyCode}`
+                    : g.key === 'C:TIPOLOGIAS' || g.key === 'C:SUELTOS'
+                      ? 'Clasificación'
+                      : g.key?.startsWith('S:')
+                        ? 'Elementos sueltos'
+                        : 'Inventario';
 
                   return (
                   <React.Fragment key={g.key}>
@@ -868,7 +1036,9 @@ export default function BOMView({
             justifyContent: 'center',
             zIndex: 9999,
           }}
-          onClick={() => setShowModal(false)}
+          onClick={() => {
+            if (!isExporting) setShowModal(false);
+          }}
         >
           <div
             style={{
@@ -998,11 +1168,54 @@ export default function BOMView({
                   />
                 </div>
               </div>
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    marginBottom: 6,
+                    color: palette.muted,
+                  }}
+                >
+                  Contenido a exportar
+                </label>
+                <select
+                  value={exportScope}
+                  onChange={(event) => setExportScope(event.target.value)}
+                  disabled={isExporting}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    border: `1px solid ${palette.line}`,
+                    fontSize: 12,
+                    color: palette.text,
+                    background: '#fff',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="all">BOM completo</option>
+                  <option value="filtered" disabled={!q.trim()}>
+                    Solo resultados de búsqueda{q.trim() ? ` (${totalItems} filas)` : ''}
+                  </option>
+                </select>
+                <div style={{ marginTop: 5, fontSize: 11, color: palette.soft }}>
+                  Se exportará con la agrupación “
+                  {groupMode === 'typology'
+                    ? 'Por tipología'
+                    : groupMode === 'classification'
+                      ? 'Por clasificación'
+                      : 'Todo consolidado'}
+                  ”.
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setShowModal(false)}
+                disabled={isExporting}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 8,
@@ -1011,13 +1224,15 @@ export default function BOMView({
                   color: palette.text,
                   fontWeight: 600,
                   fontSize: 12,
-                  cursor: 'pointer',
+                  cursor: isExporting ? 'not-allowed' : 'pointer',
+                  opacity: isExporting ? 0.6 : 1,
                 }}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleExportProfessional}
+                disabled={isExporting}
                 style={{
                   padding: '8px 16px',
                   borderRadius: 8,
@@ -1026,10 +1241,11 @@ export default function BOMView({
                   color: palette.stickyText,
                   fontWeight: 700,
                   fontSize: 12,
-                  cursor: 'pointer',
+                  cursor: isExporting ? 'wait' : 'pointer',
+                  opacity: isExporting ? 0.75 : 1,
                 }}
               >
-                Exportar Cotización
+                {isExporting ? 'Generando…' : 'Exportar Cotización'}
               </button>
             </div>
           </div>

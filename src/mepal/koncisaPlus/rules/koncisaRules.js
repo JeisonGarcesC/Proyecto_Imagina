@@ -401,7 +401,7 @@ export function getDuctosConfig({
       INTERMEDIO: ({ moduleStartX }) => ({
         x: moduleStartX - 8 - 19,
         y: 510 + 65,
-        z: getSimpleDuctZ() - 48,
+        z: getSimpleDuctZ() - 48 + 20,
         rotY: 0,
       }),
       INDIVIDUAL: ({ baseX }) => ({
@@ -410,6 +410,30 @@ export function getDuctosConfig({
         z: getSimpleDuctZ() - 52,
         rotY: 0,
       }),
+    },
+  };
+
+  const DOUBLE_DUCT_PLACEMENT = {
+    GROMMET: {
+      TERMINAL: ({ anchoRealMm: width, side: terminalSide }) =>
+        terminalSide === 'LEFT'
+          ? { x: width / 2, y: 510, z: -129, rotY: Math.PI }
+          : { x: -(width / 2), y: 510, z: 129, rotY: 0 },
+      INTERMEDIO: ({ moduleStartX }) => ({ x: moduleStartX, y: 510, z: 129, rotY: 0 }),
+      INDIVIDUAL: ({ baseX }) => ({ x: baseX - 692 / 2, y: 509, z: 129, rotY: 0 }),
+    },
+    PASACABLE: {
+      TERMINAL: ({ anchoRealMm: width, side: terminalSide }) =>
+        terminalSide === 'LEFT'
+          ? { x: width / 2, y: 510, z: -129, rotY: Math.PI }
+          : { x: -(width / 2), y: 510, z: 129, rotY: 0 },
+      INTERMEDIO: ({ moduleStartX }) => ({
+        x: moduleStartX - 30,
+        y: 510 + 65,
+        z: 129 - 24,
+        rotY: 0,
+      }),
+      INDIVIDUAL: ({ baseX }) => ({ x: baseX - 692 / 2, y: 509, z: 129, rotY: 0 }),
     },
   };
 
@@ -456,39 +480,13 @@ export function getDuctosConfig({
     }
 
     if (tipoPuesto === 'doble') {
-      if (tipoModulo === 'terminal') {
-        //console.log('side: ', side);
-        //console.log('anchoRealMm: ', anchoRealMm);
-        if (side === 'LEFT') {
-          console.log('side left: ', side);
-          ductX = anchoRealMm / 2; //-335
-          ductY = 510;
-          ductZ = -129;
+      const placementFn = DOUBLE_DUCT_PLACEMENT[accesoCableado]?.[tipoModulo.toUpperCase()];
+      const placement = placementFn?.({ baseX, moduleStartX, anchoRealMm, side }) || {};
 
-          ductRotY = Math.PI;
-        } else {
-          console.log('side right: ', side);
-          ductX = -(anchoRealMm / 2);
-          ductY = 510;
-          ductZ = 129;
-
-          ductRotY = 0;
-        }
-      }
-
-      if (tipoModulo === 'intermedio') {
-        ductX = moduleStartX;
-        ductY = 510;
-        ductZ = 129;
-        ductRotY = 0;
-      }
-
-      if (tipoModulo === 'individual') {
-        ductX = baseX - 692 / 2;
-        ductY = 509;
-        ductZ = 129;
-        ductRotY = 0;
-      }
+      ductX = placement.x ?? ductX;
+      ductY = placement.y ?? ductY;
+      ductZ = placement.z ?? ductZ;
+      ductRotY = placement.rotY ?? ductRotY;
     }
     //console.log('anchoRealMm: ', largoRealMm);
     //console.log('anchoRealMm: ', anchoRealMm);

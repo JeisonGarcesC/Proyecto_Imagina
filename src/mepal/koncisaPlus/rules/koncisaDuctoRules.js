@@ -136,15 +136,15 @@ export const KONCISA_DUCTO_RULES = {
   // =========================
   KONPLUSSCABLEDUCTDOUBLEPASACABLEINT100: {
     codigoPT: '22000136081',
-    modelSrc: '/assets/models/koncisaPlus/2KSO365000_100.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KSO365000_PASACABLE_100.glb',
   },
   KONPLUSSCABLEDUCTDOUBLEPASACABLEINT120: {
     codigoPT: '22000136082',
-    modelSrc: '/assets/models/koncisaPlus/2KSO365000_120.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KSO365000_PASACABLE_120.glb',
   },
   KONPLUSSCABLEDUCTDOUBLEPASACABLEINT150: {
     codigoPT: '22000136083',
-    modelSrc: '/assets/models/koncisaPlus/2KSO365000_150.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KSO365000_PASACABLE_150.glb',
   },
 
   // =========================
