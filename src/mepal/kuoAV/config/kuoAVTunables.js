@@ -321,7 +321,7 @@ export const KUO_AV_CALIBRATION = {
 
     rotacionDeg: {
       x: 0,
-      y: 0,
+      y: 180,
       z: 0,
     },
 
