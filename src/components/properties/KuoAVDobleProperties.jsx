@@ -56,7 +56,7 @@ export default function KuoAVDobleProperties({ part, api }) {
   const [acabadoGrommet, setAcabadoGrommet] = useState(currentConfig.acabadoGrommet || 'Anodizado');
   const [especial, setEspecial] = useState(!!currentConfig.especial);
   const [baldosaFormica, setBaldosaFormica] = useState(!!currentConfig.baldosaFormica);
-  const [costadoIntermedio, setCostadoIntermedio] = useState(currentConfig.costadoIntermedio !== undefined ? !!currentConfig.costadoIntermedio : true);
+  const [costadoIntermedio, setCostadoIntermedio] = useState(currentConfig.costadoIntermedio !== undefined ? !!currentConfig.costadoIntermedio : false);
   const legacyVertebraEnabled =
     currentConfig.vertebraLateral !== undefined ? !!currentConfig.vertebraLateral : true;
   const [vertebraLeftEnabled, setVertebraLeftEnabled] = useState(

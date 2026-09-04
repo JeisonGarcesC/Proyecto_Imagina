@@ -9,6 +9,7 @@ import {
   KUO_AV_DOBLE_VARIANTS,
 } from '../config/kuoAVDobleTunables.js';
 import { KUO_AV_DOBLE_PART_ROLES } from '../parts/kuoAVDobleParts.js';
+import { buildKuoAVDobleBOM } from '../bom/kuoAVDobleBOMCatalog.js';
 
 export function buildKuoAVDoble(config = {}) {
   const widthMm = Number(config.anchoMm || 1200);
@@ -577,57 +578,44 @@ export function buildKuoAVDoble(config = {}) {
     });
   }
 
-  // Generación del BOM estructurado
-  const bomMap = new Map();
-  parts.forEach((p) => {
-    const tag = p.lookupTag || p.codigo;
-    if (!bomMap.has(tag)) {
-      bomMap.set(tag, {
-        codigo: p.codigo,
-        lookupTag: tag,
-        description: p.name,
-        quantity: 0,
-        role: p.role,
-        modelKind: p.modelKind,
-      });
-    }
-    bomMap.get(tag).quantity += 1;
-  });
-  const bom = Array.from(bomMap.values());
+  const effectiveConfig = {
+    ...config,
+    anchoMm: widthMm,
+    profundidadMm: depthMm,
+    alturaMm,
+    thickMm,
+    tipoPuesto,
+    pieIzquierdo: hasLeftFoot,
+    pieDerecho: hasRightFoot,
+    paralesIzquierdos: hasLeftParales,
+    paralesDerechos: hasRightParales,
+    espesorTipo,
+    acabadoSuperficieF,
+    acabadoSuperficieP,
+    acabadoParales,
+    acabadoEstructura,
+    kitFuenteColor,
+    kitFuente,
+    elevarKitFIzquierdo: elevaKitF,
+    acabadoGrommet,
+    especial,
+    baldosaFormica,
+    costadoIntermedio:
+      typeof config.costadoIntermedio === 'boolean' ? config.costadoIntermedio : false,
+    vertebraLeftEnabled,
+    vertebraRightEnabled,
+    pantalla: hasPantalla,
+    pantallaTipo,
+    pantallaPosicion,
+    pantallaAcabado,
+  };
+  const bom = buildKuoAVDobleBOM(effectiveConfig, parts);
 
   return {
     kind: 'KUO_AV_DOBLE_ASSEMBLY',
     groupId,
     groupName,
-    config: {
-      anchoMm: widthMm,
-      profundidadMm: depthMm,
-      alturaMm,
-      thickMm,
-      tipoPuesto,
-      pieIzquierdo: hasLeftFoot,
-      pieDerecho: hasRightFoot,
-      paralesIzquierdos: hasLeftParales,
-      paralesDerechos: hasRightParales,
-      espesorTipo,
-      acabadoSuperficieF,
-      acabadoSuperficieP,
-      acabadoParales,
-      acabadoEstructura,
-      kitFuenteColor,
-      kitFuente,
-      elevarKitFIzquierdo: elevaKitF,
-      acabadoGrommet,
-      especial,
-      baldosaFormica,
-      costadoIntermedio: true,
-      vertebraLeftEnabled,
-      vertebraRightEnabled,
-      pantalla: hasPantalla,
-      pantallaTipo,
-      pantallaPosicion,
-      pantallaAcabado,
-    },
+    config: effectiveConfig,
     dimMm: {
       width: widthMm,
       depth: depthMm * 2 + gapCentralMm,

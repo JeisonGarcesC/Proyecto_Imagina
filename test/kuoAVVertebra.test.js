@@ -10,23 +10,23 @@ function getVertebras(built) {
   return built.parts.filter((part) => part.type === 'vertebra');
 }
 
-test('KUO AV permite desactivar la vértebra sin incluirla en el BOM', () => {
+test('KUO AV siempre incluye la vértebra central aunque una configuración antigua la desactive', () => {
   const built = buildKuoAV({
     anchoMm: 1200,
     profundidadMm: 600,
     vertebraEnabled: false,
-    vertebraLateral: true,
+    vertebraLateral: false,
   });
 
-  assert.equal(getVertebras(built).length, 0);
-  assert.equal(buildKuoAVBOM(built).some((item) => item.lookupTag.includes('KUAC650000')), false);
+  assert.equal(getVertebras(built).length, 1);
+  assert.equal(getVertebras(built)[0].logicalCode, 'KUAC650000');
+  assert.equal(buildKuoAVBOM(built).some((item) => item.lookupTag === 'KUAC650000'), true);
 });
 
 test('KUO AV selecciona la vértebra central con escala física 1:1', () => {
   const built = buildKuoAV({
     anchoMm: 1200,
     profundidadMm: 600,
-    vertebraEnabled: true,
     vertebraLateral: false,
   });
   const [vertebra] = getVertebras(built);
@@ -37,11 +37,38 @@ test('KUO AV selecciona la vértebra central con escala física 1:1', () => {
   assert.deepEqual(vertebra.scale, { x: 1, y: 1, z: 1 });
 });
 
+test('factory orienta la vértebra central hacia el interior bajo la mesa', async () => {
+  const source = new THREE.Group();
+  source.add(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.1, 0.1),
+      new THREE.MeshStandardMaterial()
+    )
+  );
+  const result = await createKuoAVInstance({
+    config: {
+      instanceId: 'KUOAV_CENTRAL_TEST',
+      anchoMm: 1200,
+      profundidadMm: 600,
+      vertebraLateral: false,
+      acabadoGrommet: 'NONE',
+    },
+    loadGlb: async () => source,
+  });
+  const vertebra = result.object.children.find(
+    (child) => child.userData.lookupTag === 'KUAC650000'
+  );
+
+  assert.ok(vertebra);
+  assert.equal(vertebra.position.x, 0.035);
+  assert.equal(vertebra.position.z, -0.25);
+  assert.equal(vertebra.rotation.y, Math.PI);
+});
+
 test('KUO AV selecciona y factura la vértebra lateral calibrada', () => {
   const built = buildKuoAV({
     anchoMm: 1200,
     profundidadMm: 600,
-    vertebraEnabled: true,
     vertebraLateral: true,
   });
   const [vertebra] = getVertebras(built);
@@ -56,9 +83,14 @@ test('KUO AV selecciona y factura la vértebra lateral calibrada', () => {
   assert.equal(bomItem.qty, 1);
 });
 
-test('configuraciones legacy conservan la presencia anterior de la vértebra', () => {
+test('vertebraLateral únicamente conmuta entre la variante central y lateral', () => {
   assert.equal(getVertebras(buildKuoAV({ vertebraLateral: true })).length, 1);
-  assert.equal(getVertebras(buildKuoAV({ vertebraLateral: false })).length, 0);
+  assert.equal(getVertebras(buildKuoAV({ vertebraLateral: false })).length, 1);
+  assert.equal(getVertebras(buildKuoAV({}))[0].logicalCode, 'KUAC650000');
+  assert.equal(
+    getVertebras(buildKuoAV({ vertebraLateral: true }))[0].logicalCode,
+    'KUAC650000_ALT_LAT'
+  );
 });
 
 test('KUO AV Doble controla ambas vértebras de forma independiente', () => {
@@ -88,7 +120,6 @@ test('factory clona recursos GLB y conserva metadatos de la vértebra lateral', 
       instanceId: 'KUOAV_TEST',
       anchoMm: 1200,
       profundidadMm: 600,
-      vertebraEnabled: true,
       vertebraLateral: true,
       acabadoGrommet: 'NONE',
     },
@@ -117,7 +148,6 @@ test('BOM estándar resuelve códigos SAP facturables y una sola unidad del kit 
       espesor: 'Formica 30',
       kitFuente: true,
       kitFuenteColor: 'Blanco',
-      vertebraEnabled: true,
       vertebraLateral: true,
       acabadoGrommet: 'ALUMINIUM',
     })
@@ -152,7 +182,7 @@ test('BOM selecciona códigos SAP por ancho, material, color y acabado', () => {
       espesorTipo: 'Melamina 30',
       kitFuente: true,
       kitFuenteColor: 'Negro',
-      vertebraEnabled: false,
+      vertebraLateral: false,
       acabadoGrommet: 'BLACK',
     })
   );
@@ -163,7 +193,7 @@ test('BOM selecciona códigos SAP por ancho, material, color y acabado', () => {
   assert.ok(codes.has('22000114425'));
   assert.ok(codes.has('22000126681'));
   assert.ok(codes.has('22000116523'));
-  assert.equal(codes.has('22000116690'), false);
+  assert.equal(codes.has('22000116690'), true);
 });
 
 test('variantes seleccionables de superficie tienen código SAP confirmado', () => {
