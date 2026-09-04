@@ -319,12 +319,12 @@ function createDoubleOCostadoAssembly() {
         },
       },
       back: {
-        heightMm: 25.4,
-        depthMm: 50.8,
+        heightMm: 51,
+        depthMm: 50,
         endClearanceMm: 0,
         offsetMm: {
-          x: 30,
-          y: 565,
+          x: 26,
+          y: 30,
           z: 0,
         },
       },
@@ -336,7 +336,7 @@ function createDoubleCurvoCostadoAssembly() {
   return createCostadoAssembly({
     positioningMode: 'measured-depth-double-v1',
 
-    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO35700_Generico.glb',
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO357000_Generico.glb',
     leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO357000_Generico.glb',
     centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
 
@@ -348,14 +348,14 @@ function createDoubleCurvoCostadoAssembly() {
     rightOffsetMm: {
       x: 0,
       y: 0,
-      z: 0,
+      z: 85,
     },
 
     //mover el costado izquierdo
     leftOffsetMm: {
       x: 0,
       y: 0,
-      z: 88,
+      z: 53,
     },
 
     centerBracketOffsetMm: {
@@ -369,7 +369,56 @@ function createDoubleCurvoCostadoAssembly() {
     crossbar: {
       heightMm: 25.4,
       depthMm: 50.8,
-      endClearanceMm: 0,
+      endClearanceMm: 170,
+      offsetMm: {
+        // Profundidad local hacia el interior del puesto. La rotación del
+        // terminal derecho refleja automáticamente el desplazamiento.
+        x: 30,
+        y: 685,
+        z: 0,
+      },
+    },
+  });
+}
+
+function createDoubleTrapezoidalCostadoAssembly() {
+  return createCostadoAssembly({
+    positioningMode: 'measured-depth-double-v1',
+
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO340000_Generico.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO340000_Generico.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
+
+    // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
+    // La profundidad real del puesto define únicamente el largo del travesaño.
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+
+    rightOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 114 + 48 - 9 - 5,
+    },
+
+    //mover el costado izquierdo
+    leftOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 59 + 5,
+    },
+
+    centerBracketOffsetMm: {
+      // Los accesorios dobles se ubican 15 + 25 mm hacia el interior.
+      // El terminal derecho refleja este eje local mediante su rotación.
+      x: 40,
+      y: 658,
+      z: 0,
+    },
+
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+      endClearanceMm: 310, //162
       offsetMm: {
         // Profundidad local hacia el interior del puesto. La rotación del
         // terminal derecho refleja automáticamente el desplazamiento.
@@ -884,7 +933,8 @@ export const KONCISA_COSTADO_RULES = {
   KONPLUSSPAINTEDLEGTERMINAL_16_120_TRAP: {
     codigoPT: '22000132404',
     modelSrc: '/assets/models/koncisaPlus/2KSO340000_120.glb',
-    assembly: createCostadoAssembly({
+    assembly: createDoubleTrapezoidalCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO340000_120.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO340000_120.glb',
@@ -899,12 +949,13 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_TRAP: {
     codigoPT: '22000132405',
     modelSrc: '/assets/models/koncisaPlus/2KSO340000_150.glb',
-    assembly: createCostadoAssembly({
+    assembly: createDoubleTrapezoidalCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO340000_150.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO340000_150.glb',
@@ -919,7 +970,7 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
 
   // =========================
