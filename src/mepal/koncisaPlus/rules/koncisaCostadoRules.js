@@ -131,14 +131,232 @@ function createDoubleRectCostadoAssembly() {
   return createCostadoAssembly({
     positioningMode: 'measured-depth-double-v1',
 
-    rightLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO328000_120.glb',
-    leftLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO328000_120.glb',
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO328000_Generico.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO328000_Generico.glb',
     centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
 
     // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
     // La profundidad real del puesto define únicamente el largo del travesaño.
     leftStructuralDepthMm: 50,
     rightStructuralDepthMm: 50,
+
+    centerBracketOffsetMm: {
+      // Los accesorios dobles se ubican 15 + 25 mm hacia el interior.
+      // El terminal derecho refleja este eje local mediante su rotación.
+      x: 40,
+      y: 658,
+      z: 0,
+    },
+
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+      endClearanceMm: 0,
+      offsetMm: {
+        // Profundidad local hacia el interior del puesto. La rotación del
+        // terminal derecho refleja automáticamente el desplazamiento.
+        x: 30,
+        y: 685,
+        z: 0,
+      },
+    },
+  });
+}
+
+function createDoubleTekCostadoAssembly() {
+  return createCostadoAssembly({
+    positioningMode: 'measured-depth-double-v1',
+
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO358000_Generico.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO358000_Generico.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
+
+    // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
+    // La profundidad real del puesto define únicamente el largo del travesaño.
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+
+    rightOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 0,
+    },
+
+    //mover el costado izquierdo
+    leftOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 120,
+    },
+
+    centerBracketOffsetMm: {
+      // Los accesorios dobles se ubican 15 + 25 mm hacia el interior.
+      // El terminal derecho refleja este eje local mediante su rotación.
+      x: 40,
+      y: 658,
+      z: 0,
+    },
+
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+      endClearanceMm: 0,
+      offsetMm: {
+        // Profundidad local hacia el interior del puesto. La rotación del
+        // terminal derecho refleja automáticamente el desplazamiento.
+        x: 30,
+        y: 685,
+        z: 0,
+      },
+    },
+  });
+}
+
+function createDoubleOrtogonalCostadoAssembly() {
+  return createCostadoAssembly({
+    positioningMode: 'measured-depth-double-v1',
+
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO364000_Generico.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_Generico.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
+
+    // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
+    // La profundidad real del puesto define únicamente el largo del travesaño.
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+
+    rightOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 0,
+    },
+
+    //mover el costado izquierdo
+    leftOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 88,
+    },
+
+    centerBracketOffsetMm: {
+      // Los accesorios dobles se ubican 15 + 25 mm hacia el interior.
+      // El terminal derecho refleja este eje local mediante su rotación.
+      x: 40,
+      y: 658,
+      z: 0,
+    },
+
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+      endClearanceMm: 0,
+      offsetMm: {
+        // Profundidad local hacia el interior del puesto. La rotación del
+        // terminal derecho refleja automáticamente el desplazamiento.
+        x: 30,
+        y: 685,
+        z: 0,
+      },
+    },
+  });
+}
+
+function createDoubleOCostadoAssembly() {
+  return createCostadoAssembly({
+    positioningMode: 'measured-depth-double-v1',
+
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO354000_Generico.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO354000_Generico.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
+
+    // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
+    // La profundidad real del puesto define únicamente el largo del travesaño.
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+
+    rightOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 0,
+    },
+
+    //mover el costado izquierdo
+    leftOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 101,
+    },
+
+    centerBracketOffsetMm: {
+      // Los accesorios dobles se ubican 15 + 25 mm hacia el interior.
+      // El terminal derecho refleja este eje local mediante su rotación.
+      x: 40,
+      y: 658,
+      z: 0,
+    },
+
+    // Mantener la barra principal y crear una copia inferior desplazada,
+    // en vez de mover la barra original sobre la misma posición.
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+      endClearanceMm: 0,
+      offsetMm: {
+        x: 30,
+        y: 685,
+        z: 0,
+      },
+    },
+    crossbars: {
+      front: {
+        heightMm: 25.4,
+        depthMm: 50.8,
+        endClearanceMm: 0,
+        offsetMm: {
+          x: 30,
+          y: 685,
+          z: 0,
+        },
+      },
+      back: {
+        heightMm: 25.4,
+        depthMm: 50.8,
+        endClearanceMm: 0,
+        offsetMm: {
+          x: 30,
+          y: 565,
+          z: 0,
+        },
+      },
+    },
+  });
+}
+
+function createDoubleCurvoCostadoAssembly() {
+  return createCostadoAssembly({
+    positioningMode: 'measured-depth-double-v1',
+
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO35700_Generico.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO357000_Generico.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
+
+    // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
+    // La profundidad real del puesto define únicamente el largo del travesaño.
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+
+    rightOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 0,
+    },
+
+    //mover el costado izquierdo
+    leftOffsetMm: {
+      x: 0,
+      y: 0,
+      z: 88,
+    },
 
     centerBracketOffsetMm: {
       // Los accesorios dobles se ubican 15 + 25 mm hacia el interior.
@@ -479,8 +697,10 @@ export const KONCISA_COSTADO_RULES = {
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_120_TEK: {
     codigoPT: '22000133822',
-    modelSrc: '/assets/models/koncisaPlus/2KSO340000_120.glb',
-    assembly: createCostadoAssembly({
+    modelSrc: '/assets/models/koncisaPlus/2KSO358000_120.glb',
+
+    assembly: createDoubleTekCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO340000_120.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO359000_120.glb',
@@ -495,11 +715,13 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_TEK: {
     codigoPT: '22000133823',
-    modelSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_150.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KSO358000_150.glb',
+    assembly: createDoubleTekCostadoAssembly(),
+    /*
     assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_150.glb',
 
@@ -515,7 +737,7 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
 
   // =========================
@@ -524,7 +746,8 @@ export const KONCISA_COSTADO_RULES = {
   KONPLUSSPAINTEDLEGTERMINAL_16_120_ORTOGONAL: {
     codigoPT: '22000136066',
     modelSrc: '/assets/models/koncisaPlus/2KSO364000_120.glb',
-    assembly: createCostadoAssembly({
+    assembly: createDoubleOrtogonalCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_120.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO364000_120.glb',
@@ -539,12 +762,13 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_ORTOGONAL: {
     codigoPT: '22000136067',
     modelSrc: '/assets/models/koncisaPlus/2KSO364000_150.glb',
-    assembly: createCostadoAssembly({
+    assembly: createDoubleOrtogonalCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO364000_150.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO364000_150.glb',
@@ -559,7 +783,7 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
 
   // =========================
@@ -568,7 +792,8 @@ export const KONCISA_COSTADO_RULES = {
   KONPLUSSPAINTEDLEGTERMINAL_16_120_O: {
     codigoPT: '22000133826',
     modelSrc: '/assets/models/koncisaPlus/2KSO354000_120.glb',
-    assembly: createCostadoAssembly({
+    assembly: createDoubleOCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO354000_120.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO354000_120.glb',
@@ -583,12 +808,13 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_O: {
     codigoPT: '22000133827',
     modelSrc: '/assets/models/koncisaPlus/2KSO354000_150.glb',
-    assembly: createCostadoAssembly({
+    assembly: createDoubleOCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO354000_150.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO354000_150.glb',
@@ -603,7 +829,7 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
 
   // =========================
@@ -612,7 +838,8 @@ export const KONCISA_COSTADO_RULES = {
   KONPLUSSPAINTEDLEGTERMINAL_16_120_CURVO: {
     codigoPT: '22000133832',
     modelSrc: '/assets/models/koncisaPlus/2KSO357000_120.glb',
-    assembly: createCostadoAssembly({
+    assembly: createDoubleCurvoCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO357000_120.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO357000_120.glb',
@@ -627,12 +854,13 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_150_CURVO: {
     codigoPT: '22000133833',
     modelSrc: '/assets/models/koncisaPlus/2KSO357000_150.glb',
-    assembly: createCostadoAssembly({
+    assembly: createDoubleCurvoCostadoAssembly(),
+    /*assembly: createCostadoAssembly({
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO357000_150.glb',
 
       rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO357000_150.glb',
@@ -647,11 +875,11 @@ export const KONCISA_COSTADO_RULES = {
           z: 17.5,
         },
       },
-    }),
+    }),*/
   },
 
   // =========================
-  // DOBLE - TRAP
+  // DOBLE - TRAPEZODAL
   // =========================
   KONPLUSSPAINTEDLEGTERMINAL_16_120_TRAP: {
     codigoPT: '22000132404',

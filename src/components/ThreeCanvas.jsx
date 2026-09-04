@@ -2322,10 +2322,7 @@ export default function ThreeCanvas({
               addRow(
                 itemCode,
                 Number(it.cantidad || it.qty || it.quantity || 1),
-                resolveCatalogDescription(
-                  itemCode,
-                  it.descripcion || it.description || it.name
-                ),
+                resolveCatalogDescription(itemCode, it.descripcion || it.description || it.name),
                 resolveOptionalUnitPrice(it.unitPrice),
                 groupId,
                 groupName,
@@ -15295,24 +15292,12 @@ export default function ThreeCanvas({
       }
 
       // =====================================================
-      // Crear travesaño procedural
+      // Crear travesaños procedurales
       // =====================================================
 
       //X = altura del perfil
       //Y = ancho del perfil
       //Z = largo del travesaño
-
-      const crossbarGeometry = new THREE.BoxGeometry(
-        crossbarHeightMm / 1000,
-        crossbarWidthMm / 1000,
-        crossbarLengthMm / 1000
-      );
-
-      //new THREE.BoxGeometry(
-      //25.4 / 1000,
-      //50.8 / 1000,
-      //crossbarLengthMm / 1000
-      //);
 
       const crossbarMaterial = new THREE.MeshStandardMaterial({
         color: new THREE.Color(254 / 255, 250 / 255, 252 / 255),
@@ -15320,18 +15305,64 @@ export default function ThreeCanvas({
         metalness: 0.08,
       });
 
-      const crossbarMesh = new THREE.Mesh(crossbarGeometry, crossbarMaterial);
+      const crossbarConfigs = (() => {
+        const explicitCrossbars = assembly?.crossbars;
 
-      crossbarMesh.name = 'KONCISA_COSTADO_CROSSBAR';
+        if (explicitCrossbars) {
+          const entries = [];
 
-      crossbarMesh.position.set(
-        crossbarOffsetMm.x / 1000,
-        crossbarOffsetMm.y / 1000,
-        crossbarOffsetMm.z / 1000
-      );
+          if (explicitCrossbars.front) {
+            entries.push({ key: 'front', config: explicitCrossbars.front });
+          }
 
-      crossbarMesh.castShadow = true;
-      crossbarMesh.receiveShadow = true;
+          if (explicitCrossbars.back) {
+            entries.push({ key: 'back', config: explicitCrossbars.back });
+          }
+
+          if (entries.length > 0) {
+            return entries;
+          }
+        }
+
+        return [{ key: 'main', config: crossbar }];
+      })();
+
+      const crossbarMeshes = crossbarConfigs.map(({ key, config }) => {
+        const resolvedHeightMm = Number(config?.heightMm ?? crossbarHeightMm);
+        const resolvedWidthMm = Number(config?.depthMm ?? crossbarWidthMm);
+        const resolvedEndClearanceMm = Number(config?.endClearanceMm ?? endClearanceMm);
+        const resolvedLengthMm = Math.max(1, realDepthMm - resolvedEndClearanceMm);
+
+        const geometry = new THREE.BoxGeometry(
+          resolvedHeightMm / 1000,
+          resolvedWidthMm / 1000,
+          resolvedLengthMm / 1000
+        );
+
+        const mesh = new THREE.Mesh(geometry, crossbarMaterial);
+        const offset = config?.offsetMm || {};
+
+        mesh.name =
+          key === 'main'
+            ? 'KONCISA_COSTADO_CROSSBAR'
+            : `KONCISA_COSTADO_CROSSBAR_${key.toUpperCase()}`;
+
+        mesh.position.set(
+          Number(offset.x ?? crossbarOffsetMm.x) / 1000,
+          Number(offset.y ?? crossbarOffsetMm.y) / 1000,
+          Number(offset.z ?? crossbarOffsetMm.z) / 1000
+        );
+
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+
+        mesh.userData = {
+          ...(mesh.userData || {}),
+          costadoComponent: key === 'main' ? 'CROSSBAR' : `CROSSBAR_${key.toUpperCase()}`,
+        };
+
+        return mesh;
+      });
 
       // =====================================================
       // Identificar internamente cada componente
@@ -15352,15 +15383,10 @@ export default function ThreeCanvas({
         costadoComponent: 'CENTER_BRACKET',
       };
 
-      crossbarMesh.userData = {
-        ...(crossbarMesh.userData || {}),
-        costadoComponent: 'CROSSBAR',
-      };
-
       root.add(leftLeg);
       root.add(rightLeg);
       root.add(centerBracket);
-      root.add(crossbarMesh);
+      crossbarMeshes.forEach((mesh) => root.add(mesh));
 
       // =====================================================
       // Posición general del costado
