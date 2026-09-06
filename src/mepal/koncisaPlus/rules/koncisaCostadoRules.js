@@ -127,6 +127,41 @@ function createCostadoAssembly({
   };
 }
 
+function createSencilloRectCostadoAssembly() {
+  return createCostadoAssembly({
+    positioningMode: 'measured-depth-double-v1',
+
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO328000_Generico.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO328000_Generico.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET.glb',
+
+    // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
+    // La profundidad real del puesto define únicamente el largo del travesaño.
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+
+    centerBracketOffsetMm: {
+      x: 40,
+      y: 0,
+      z: 0,
+    },
+
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+
+      // Se resta a la profundidad real para no invadir las patas.
+      endClearanceMm: 51,
+
+      offsetMm: {
+        x: 0,
+        y: 685,
+        z: -25.5,
+      },
+    },
+  });
+}
+
 function createDoubleRectCostadoAssembly() {
   return createCostadoAssembly({
     positioningMode: 'measured-depth-double-v1',
@@ -440,7 +475,8 @@ export const KONCISA_COSTADO_RULES = {
     modelSrc: '/assets/models/koncisaPlus/2KSO330000_60.glb',
     codigoPT: '22000132392',
 
-    assembly: {
+    assembly: createSencilloRectCostadoAssembly(),
+    /*assembly: {
       positioningMode: 'bounded-depth-v1',
 
       leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO330000_60.glb',
@@ -495,7 +531,7 @@ export const KONCISA_COSTADO_RULES = {
           z: -25.5,
         },
       },
-    },
+    },*/
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_075_RECT: {
     codigoPT: '22000132393',
