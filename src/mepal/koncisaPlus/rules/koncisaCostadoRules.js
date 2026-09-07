@@ -171,6 +171,7 @@ function createSencilloCostadoAssembly({
   leftOffsetZMm = 0,
   rightOffsetZMm = 0,
   endClearanceMm = 0,
+  crossbarOffsetZMm = 0,
   crossbars = null,
 }) {
   return createCostadoAssembly({
@@ -183,16 +184,6 @@ function createSencilloCostadoAssembly({
     leftOffsetMm: { z: leftOffsetZMm },
     rightOffsetMm: { z: rightOffsetZMm },
 
-    /*
-    centerBracketOffsetMm: { x: 40, y: 658, z: 0 },
-    crossbar: {
-      heightMm: 25.4,
-      depthMm: 50.8,
-      endClearanceMm,
-      offsetMm: { x: 30, y: 685, z: 0 },
-    },
-*/
-
     centerBracketOffsetMm: {
       x: 40,
       y: 0, //658
@@ -204,8 +195,8 @@ function createSencilloCostadoAssembly({
       depthMm: 50.8,
 
       // Se resta a la profundidad real para no invadir las patas.
-      endClearanceMm: 51,
-      //endClearanceMm,
+      //endClearanceMm: 51 + 141,
+      endClearanceMm,
 
       offsetMm: {
         // Profundidad local hacia el interior del puesto. La rotación del
@@ -213,18 +204,28 @@ function createSencilloCostadoAssembly({
 
         x: 30, //30
         y: 685,
-        z: 0, //-25.5
+        z: crossbarOffsetZMm, //-25.5
       },
     },
     crossbars,
   });
 }
 
-function createSencilloTekCostadoAssembly() {
+function createSencilloTekCostadoAssembly(lado) {
+  const isRightTerminal = lado === 'der';
   return createSencilloCostadoAssembly({
-    leftLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO330000_Generico.glb', //RIGHT_2KSO359000
-    rightLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO359000_Generico.glb',
-    leftOffsetZMm: 120,
+    //leftLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO330000_Generico.glb', //RIGHT_2KSO359000
+    //rightLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO359000_Generico.glb',
+    //leftOffsetZMm: 120,
+    leftLegSrc: isRightTerminal
+      ? '/assets/models/koncisaPlus/RIGHT_2KSO359000_Generico.glb'
+      : '/assets/models/koncisaPlus/LEFT_2KSO330000_Generico.glb', //revisar
+    rightLegSrc: isRightTerminal
+      ? '/assets/models/koncisaPlus/RIGHT_2KSO330000_Generico.glb'
+      : '/assets/models/koncisaPlus/LEFT_2KSO359000_Generico.glb', //revisar
+    leftOffsetZMm: 0, //64
+    rightOffsetZMm: 0, //148
+    endClearanceMm: 51,
   });
 }
 
@@ -233,6 +234,7 @@ function createSencilloOrtogonalCostadoAssembly() {
     leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO363000_Generico.glb',
     rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO363000_Generico.glb',
     leftOffsetZMm: 0,
+    endClearanceMm: 51,
   });
 }
 
@@ -241,6 +243,7 @@ function createSencilloOCostadoAssembly() {
     leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO355000_Generico.glb',
     rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO355000_Generico.glb',
     leftOffsetZMm: 0,
+    endClearanceMm: 51,
     crossbars: {
       front: { offsetMm: { x: 30, y: 685, z: 0 } },
       back: {
@@ -258,7 +261,7 @@ function createSencilloCurvoCostadoAssembly() {
     rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO356000_Generico.glb',
     leftOffsetZMm: 0,
     rightOffsetZMm: 0,
-    endClearanceMm: 170,
+    endClearanceMm: 51,
   });
 }
 
@@ -269,14 +272,18 @@ function createSencilloTrapezoidalCostadoAssembly(lado) {
     // El grommet está sobre Z negativo. La rotación del terminal derecho
     // invierte los extremos locales y requiere intercambiar las geometrías.
     leftLegSrc: isRightTerminal
-      ? '/assets/models/koncisaPlus/LEFT_2KSO340000_TRAP.glb'
+      ? '/assets/models/koncisaPlus/RIGHT_2KSO340000_Generico.glb'
       : '/assets/models/koncisaPlus/LEFT_2KSO330000_Generico.glb', //revisar
     rightLegSrc: isRightTerminal
       ? '/assets/models/koncisaPlus/RIGHT_2KSO330000_Generico.glb'
-      : '/assets/models/koncisaPlus/RIGHT_2KSO340000_TRAP.glb', //revisar
+      : '/assets/models/koncisaPlus/LEFT_2KSO340000_Generico.glb', //revisar
     leftOffsetZMm: 0, //64
-    rightOffsetZMm: 0, //148
-    endClearanceMm: 0, //310
+    rightOffsetZMm: 0, //148//ojito
+    // Reduce la longitud total en 130 mm.
+    endClearanceMm: 51 + 141,
+
+    // Mantiene fijo el extremo del grommet y retira el extremo trapezoidal.
+    crossbarOffsetZMm: isRightTerminal ? 230 - 170 : -230 + 170,
   });
 }
 
@@ -339,7 +346,7 @@ function createDoubleTekCostadoAssembly() {
     leftOffsetMm: {
       x: 0,
       y: 0,
-      z: 120,
+      z: 0,
     },
 
     centerBracketOffsetMm: {
@@ -388,7 +395,7 @@ function createDoubleOrtogonalCostadoAssembly() {
     leftOffsetMm: {
       x: 0,
       y: 0,
-      z: 88,
+      z: 0,
     },
 
     centerBracketOffsetMm: {
@@ -437,7 +444,7 @@ function createDoubleOCostadoAssembly() {
     leftOffsetMm: {
       x: 0,
       y: 0,
-      z: 101,
+      z: 0,
     },
 
     centerBracketOffsetMm: {
@@ -501,14 +508,14 @@ function createDoubleCurvoCostadoAssembly() {
     rightOffsetMm: {
       x: 0,
       y: 0,
-      z: 85,
+      z: 0,
     },
 
     //mover el costado izquierdo
     leftOffsetMm: {
       x: 0,
       y: 0,
-      z: 53,
+      z: 0,
     },
 
     centerBracketOffsetMm: {
@@ -538,8 +545,8 @@ function createDoubleTrapezoidalCostadoAssembly() {
   return createCostadoAssembly({
     positioningMode: 'measured-depth-double-v1',
 
-    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO340000_Generico.glb',
-    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO340000_Generico.glb',
+    rightLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO340000_Generico.glb',
+    leftLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO340000_Generico.glb',
     centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE.glb',
 
     // Las referencias 120 y 150 comparten patas de perfil 50 x 50 mm.
@@ -550,14 +557,14 @@ function createDoubleTrapezoidalCostadoAssembly() {
     rightOffsetMm: {
       x: 0,
       y: 0,
-      z: 114 + 48 - 9 - 5,
+      z: 0,
     },
 
     //mover el costado izquierdo
     leftOffsetMm: {
       x: 0,
       y: 0,
-      z: 59 + 5,
+      z: 0,
     },
 
     centerBracketOffsetMm: {
@@ -665,17 +672,17 @@ export const KONCISA_COSTADO_RULES = {
   KONPLUSSPAINTEDLEGTERMINAL_16_060_TEK_DER: {
     codigoPT: '22000133995',
     modelSrc: '/assets/models/koncisaPlus/2KSO359000_60_DER.glb',
-    assembly: createSencilloTekCostadoAssembly(),
+    assembly: createSencilloTekCostadoAssembly('der'),
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_075_TEK_DER: {
     codigoPT: '22000133996',
     modelSrc: '/assets/models/koncisaPlus/2KSO359000_75_DER.glb',
-    assembly: createSencilloTekCostadoAssembly(),
+    assembly: createSencilloTekCostadoAssembly('der'),
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_060_TEK_IZQ: {
     codigoPT: '22000134102',
     modelSrc: '/assets/models/koncisaPlus/2KSO359000_60_IZQ.glb',
-    assembly: createSencilloTekCostadoAssembly(),
+    assembly: createSencilloTekCostadoAssembly('izq'),
   },
   KONPLUSSPAINTEDLEGTERMINAL_16_075_TEK_IZQ: {
     codigoPT: '22000134103',
