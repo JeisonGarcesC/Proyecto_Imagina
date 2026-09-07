@@ -413,18 +413,18 @@ export function getDuctosConfig({
 
   const DOUBLE_DUCT_PLACEMENT = {
     GROMMET: {
-      TERMINAL: ({ anchoRealMm: width, side: terminalSide }) =>
+      TERMINAL: ({ baseX, largoRealMm: width, side: terminalSide }) =>
         terminalSide === 'LEFT'
-          ? { x: width / 2, y: 510, z: -129, rotY: Math.PI }
-          : { x: -(width / 2), y: 510, z: 129, rotY: 0 },
+          ? { x: baseX + width / 2, y: 510, z: -129, rotY: Math.PI }
+          : { x: baseX - width / 2, y: 510, z: 129, rotY: 0 },
       INTERMEDIO: ({ moduleStartX }) => ({ x: moduleStartX, y: 510, z: 129, rotY: 0 }),
       INDIVIDUAL: ({ baseX }) => ({ x: baseX - 692 / 2, y: 509, z: 129, rotY: 0 }),
     },
     PASACABLE: {
-      TERMINAL: ({ anchoRealMm: width, side: terminalSide }) =>
+      TERMINAL: ({ baseX, largoRealMm: width, side: terminalSide }) =>
         terminalSide === 'LEFT'
-          ? { x: width / 2, y: 510, z: -129, rotY: Math.PI }
-          : { x: -(width / 2), y: 510, z: 129, rotY: 0 },
+          ? { x: baseX + width / 2, y: 510, z: -129, rotY: Math.PI }
+          : { x: baseX - width / 2, y: 510, z: 129, rotY: 0 },
       INTERMEDIO: ({ moduleStartX }) => ({
         x: moduleStartX - 30,
         y: 510 + 65,
@@ -479,7 +479,8 @@ export function getDuctosConfig({
 
     if (tipoPuesto === 'doble') {
       const placementFn = DOUBLE_DUCT_PLACEMENT[accesoCableado]?.[tipoModulo.toUpperCase()];
-      const placement = placementFn?.({ baseX, moduleStartX, anchoRealMm, side }) || {};
+      const placement =
+        placementFn?.({ baseX, moduleStartX, largoRealMm, anchoRealMm, side }) || {};
 
       ductX = placement.x ?? ductX;
       ductY = placement.y ?? ductY;
