@@ -15105,9 +15105,7 @@ export default function ThreeCanvas({
         layoutType === 'LEADER' &&
         [600, 650, 700, 750].includes(realDepthMm);
       const usesMeasuredDoubleDepthPositioning =
-        resolvedPositioningMode === 'measured-depth-double-v1' &&
-        tipoPuesto === 'doble' &&
-        forma === 'RECT';
+        resolvedPositioningMode === 'measured-depth-double-v1';
       const usesBoundedDepthPositioning =
         usesStandardBoundedDepthPositioning || usesLeaderBoundedDepthPositioning;
 

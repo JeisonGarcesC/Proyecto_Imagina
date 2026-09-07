@@ -15,8 +15,6 @@ export function getCostadosConfig({
   const offsetXIzq = 0;
   const offsetXDer = 0;
 
-  const offsetZIzq = 300;
-  const offsetZDer = -300;
   const offsetZIntermedio = 0;
 
   const makeReplaceKey = (moduleIndex, replaceZone) =>
@@ -35,7 +33,7 @@ export function getCostadosConfig({
           depthMm: anchoRealMm,
           x: baseX - largoRealMm / 2 + offsetXIzq,
           y: 0,
-          z: offsetZIzq - 5.5,
+          z: 0,
 
           moduleIndex: 0,
           replaceZone: 'LEFT',
@@ -71,7 +69,7 @@ export function getCostadosConfig({
           depthMm: anchoRealMm,
           x: baseX + largoRealMm / 2 + offsetXDer,
           y: 0,
-          z: offsetZDer + 5.5,
+          z: 0,
 
           moduleIndex: i,
           replaceZone: 'RIGHT',
