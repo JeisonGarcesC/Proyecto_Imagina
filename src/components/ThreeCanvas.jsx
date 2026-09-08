@@ -158,6 +158,17 @@ import {
   resolveMilaScreenBomBreakdown,
   resolveMilaScreenCatalogItem,
 } from '../mepal/mila/config/milaTunables';
+import {
+  resolveMoreaSeatModeByCode,
+  resolveMoreaSeatVariantByMode,
+  resolveMoreaSeatOffsetMmByMode,
+  normalizeMoreaSeatMode,
+  resolveMoreaPedestalModeByCode,
+  resolveMoreaPedestalVariantByMode,
+  normalizeMoreaPedestalMode,
+  MOREA_BUILDER_TUNE,
+  MOREA_DOUBLE_BUILDER_TUNE,
+} from '../mepal/morea/config/moreaTunables';
 import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import {
   createMilaConnectorMesh,
@@ -168,7 +179,19 @@ import {
   isMilaPortOccupied,
   MILA_CONNECTOR_CONFIG,
 } from '../mepal/mila/connectors/milaConnectors.js';
+import {
+  resolveMilaAssemblyConnectors as resolveMoreaAssemblyConnectors,
+  findBestMilaConnectorSnap as findBestMoreaConnectorSnap,
+  unifyMilaConnectedAssemblies as unifyMoreaConnectedAssemblies,
+  getMilaAssemblyRoot as getMoreaAssemblyRoot,
+  isMilaPortOccupied as isMoreaPortOccupied,
+  MILA_CONNECTOR_CONFIG as MOREA_CONNECTOR_CONFIG,
+} from '../mepal/morea/connectors/moreaConnectors.js';
 import { MILA_GIRO_DEFINITIONS } from '../mepal/mila/factories/createMilaGiroInstance.js';
+import {
+  MOREA_GIRO_DEFINITIONS,
+  resolveMoreaGiroDefinition,
+} from '../mepal/morea/factories/createMoreaGiroInstance.js';
 
 const MM_TO_M = 1 / 1000;
 const ALMACENAMIENTO_CUSHION_CODE = '22000008239';
@@ -239,7 +262,35 @@ function resolveMilaSeatOffsetMmByMode(mode) {
   return MILA_SINGLE_SEAT_MODE_OFFSETS_MM[normalizedMode] || MILA_SINGLE_SEAT_MODE_OFFSETS_MM.chair;
 }
 
-export default function ThreeCanvas({
+function applyMoreaSeatTurn180(root, rotated180) {
+  if (!root) return false;
+
+  const beforeBox = new THREE.Box3().setFromObject(root);
+  const beforeCenter = beforeBox.getCenter(new THREE.Vector3());
+
+  const delta = rotated180 ? Math.PI : -Math.PI;
+  root.rotation.y += delta;
+  root.updateMatrixWorld?.(true);
+
+  const afterBox = new THREE.Box3().setFromObject(root);
+  const afterCenter = afterBox.getCenter(new THREE.Vector3());
+
+  if (
+    Number.isFinite(beforeCenter.x) &&
+    Number.isFinite(beforeCenter.y) &&
+    Number.isFinite(beforeCenter.z) &&
+    Number.isFinite(afterCenter.x) &&
+    Number.isFinite(afterCenter.y) &&
+    Number.isFinite(afterCenter.z)
+  ) {
+    root.position.add(beforeCenter.clone().sub(afterCenter));
+    root.updateMatrixWorld?.(true);
+  }
+
+  return true;
+}
+
+function ThreeCanvas({
   onApiReady,
   onSelectionChange,
   onBOMChange,
@@ -508,6 +559,17 @@ export default function ThreeCanvas({
     milaConnectorHandleGroup.add(milaSnapTargetConnector);
 
     scene.add(milaConnectorHandleGroup);
+
+    const clakConnectorHandleGroup = new THREE.Group();
+    clakConnectorHandleGroup.name = 'CLAK_CONNECTOR_HANDLES';
+    clakConnectorHandleGroup.visible = false;
+
+    const clakActiveConnector = createMilaConnectorMesh({ side: 'clak-active' });
+    const clakSnapTargetConnector = createMilaConnectorMesh({ side: 'clak-target' });
+    clakSnapTargetConnector.visible = false;
+    clakConnectorHandleGroup.add(clakActiveConnector, clakSnapTargetConnector);
+
+    scene.add(clakConnectorHandleGroup);
 
     const rotationRing = new THREE.Mesh(
       new THREE.TorusGeometry(1, 0.035, 10, 72),
@@ -889,50 +951,393 @@ export default function ThreeCanvas({
       });
     }
 
+    const CLAK_CONNECTOR_CODES = new Set([
+      'BP',
+      'BA',
+      'AP',
+      'AA',
+      '22000036396',
+      '22000036397',
+      '22000036398',
+      '22000036399',
+    ]);
+    const CLAK_SNAP_THRESHOLD_M = 0.28;
+
+    function normalizeClakConnectorCode(code) {
+      return String(code || '')
+        .trim()
+        .replace(/_grommet$/i, '')
+        .toUpperCase();
+    }
+
+    function isClakConnectorEnabledObject(obj) {
+      if (!obj) return false;
+      if (obj.userData?.kind !== 'CLAK') return false;
+      const normalizedCode = normalizeClakConnectorCode(obj.userData?.code || obj.userData?.codigoPT);
+      return CLAK_CONNECTOR_CODES.has(normalizedCode);
+    }
+
+    function resolveConnectorNormalWorld(obj, connector) {
+      const provided = connector?.line?.normal || connector?.normal;
+      const localNormal = new THREE.Vector3();
+
+      if (Array.isArray(provided) && provided.length === 3) {
+        localNormal.set(Number(provided[0]) || 0, Number(provided[1]) || 0, Number(provided[2]) || 0);
+      } else {
+        const normalizedCode = normalizeClakConnectorCode(obj?.userData?.code || obj?.userData?.codigoPT);
+        if (normalizedCode === 'BP') {
+          localNormal.set(0, 0, 1);
+        } else {
+          localNormal.set(0, 0, -1);
+        }
+      }
+
+      if (localNormal.lengthSq() < 1e-10) {
+        localNormal.set(1, 0, 0);
+      }
+
+      return localNormal
+        .normalize()
+        .applyQuaternion(obj.getWorldQuaternion(new THREE.Quaternion()))
+        .normalize();
+    }
+
+    function resolveBestConnectorSnap(
+      activeObj,
+      { includeSameGroup = false } = {}
+    ) {
+      if (!activeObj) return null;
+
+      const activeCode = activeObj.userData?.code || activeObj.userData?.codigoPT;
+      const activeConnectors = resolveObjectConnectors(activeObj, activeCode);
+      if (!activeConnectors.length) return null;
+
+      const activeGroupId = activeObj.userData?.groupId || null;
+
+      let best = {
+        dist: Infinity,
+        delta: null,
+        snapThreshold: SNAP_THRESHOLD,
+        isClakPair: false,
+        deltaWithY: null,
+        targetObj: null,
+        activeConnector: null,
+        targetConnector: null,
+      };
+
+      for (const p of parts) {
+        if (!p?.obj || p.obj === activeObj) continue;
+        if (!includeSameGroup && activeGroupId && p.obj.userData?.groupId === activeGroupId) continue;
+
+        const targetConnectors = resolveObjectConnectors(p.obj, p.code);
+        if (!targetConnectors.length) continue;
+
+        for (const cm of activeConnectors) {
+          if (!cm?.line?.from || !cm?.line?.to) continue;
+
+          for (const ct of targetConnectors) {
+            if (!ct?.line?.from || !ct?.line?.to) continue;
+            if (!isCompatible(cm, ct)) continue;
+
+            const cMove = getLineCenterWorld(activeObj, cm.line.from, cm.line.to);
+            const cTarget = getLineCenterWorld(p.obj, ct.line.from, ct.line.to);
+            const isClakPair =
+              isClakConnectorEnabledObject(activeObj) && isClakConnectorEnabledObject(p.obj);
+
+            const dist = isClakPair
+              ? new THREE.Vector2(cMove.x - cTarget.x, cMove.z - cTarget.z).length()
+              : cMove.distanceTo(cTarget);
+
+            const delta3D = cTarget.clone().sub(cMove);
+            const delta = delta3D.clone();
+            const snapThreshold = isClakPair ? CLAK_SNAP_THRESHOLD_M : SNAP_THRESHOLD;
+
+            if (isClakPair) {
+              // En CLAK solo acoplar en plano para no atravesar piezas por diferencia de altura.
+              delta.y = 0;
+            }
+
+            if (dist < best.dist) {
+              best = {
+                dist,
+                delta,
+                snapThreshold,
+                isClakPair,
+                deltaWithY: delta3D,
+                targetObj: p.obj,
+                activeConnector: cm,
+                targetConnector: ct,
+              };
+            }
+          }
+        }
+      }
+
+      return best.delta ? best : null;
+    }
+
+    function updateClakConnectors(activeObj) {
+      clakActiveConnector.visible = false;
+      clakSnapTargetConnector.visible = false;
+
+      if (!activeObj || isRotating3D || !isClakConnectorEnabledObject(activeObj)) {
+        clakConnectorHandleGroup.visible = false;
+        return;
+      }
+
+      const activeConnectors = resolveObjectConnectors(
+        activeObj,
+        activeObj.userData?.code || activeObj.userData?.codigoPT
+      );
+      const activeConnector = activeConnectors.find((c) => c?.line?.from && c?.line?.to) || null;
+      if (!activeConnector) {
+        clakConnectorHandleGroup.visible = false;
+        return;
+      }
+
+      const activeWorldPos = getLineCenterWorld(
+        activeObj,
+        activeConnector.line.from,
+        activeConnector.line.to
+      );
+      const activeWorldNormal = resolveConnectorNormalWorld(activeObj, activeConnector);
+
+      clakActiveConnector.position.copy(activeWorldPos);
+      clakActiveConnector.quaternion.setFromUnitVectors(
+        new THREE.Vector3(1, 0, 0),
+        activeWorldNormal
+      );
+      clakActiveConnector.visible = true;
+
+      const snapResult = isDragging ? resolveBestConnectorSnap(activeObj) : null;
+      const hasSnapCandidate = Boolean(
+        snapResult && snapResult.dist <= (snapResult.snapThreshold || SNAP_THRESHOLD)
+      );
+
+      if (hasSnapCandidate && snapResult?.targetObj && snapResult?.targetConnector?.line) {
+        const targetWorldPos = getLineCenterWorld(
+          snapResult.targetObj,
+          snapResult.targetConnector.line.from,
+          snapResult.targetConnector.line.to
+        );
+        const targetWorldNormal = resolveConnectorNormalWorld(
+          snapResult.targetObj,
+          snapResult.targetConnector
+        );
+
+        clakSnapTargetConnector.position.copy(targetWorldPos);
+        clakSnapTargetConnector.quaternion.setFromUnitVectors(
+          new THREE.Vector3(1, 0, 0),
+          targetWorldNormal
+        );
+        clakSnapTargetConnector.visible = true;
+
+        setConnectorMeshColor(
+          clakActiveConnector,
+          MILA_CONNECTOR_CONFIG.COLOR_SNAP_ACTIVE,
+          MILA_CONNECTOR_CONFIG.CORE_COLOR_ACTIVE
+        );
+        setConnectorMeshColor(
+          clakSnapTargetConnector,
+          MILA_CONNECTOR_CONFIG.COLOR_SNAP_ACTIVE,
+          MILA_CONNECTOR_CONFIG.CORE_COLOR_ACTIVE
+        );
+      } else {
+        setConnectorMeshColor(
+          clakActiveConnector,
+          MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
+          MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+        );
+        setConnectorMeshColor(
+          clakSnapTargetConnector,
+          MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
+          MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+        );
+        clakSnapTargetConnector.visible = false;
+      }
+
+      clakConnectorHandleGroup.visible = clakActiveConnector.visible || clakSnapTargetConnector.visible;
+      clakConnectorHandleGroup.updateMatrixWorld(true);
+    }
+
+    function resolveConnectorScopeLine(obj) {
+      if (!obj?.userData) return null;
+
+      const kind = String(obj.userData?.kind || '').toUpperCase();
+      const type = String(obj.userData?.type || '').toUpperCase();
+      const line = String(obj.userData?.line || obj.userData?.meta?.line || '').toUpperCase();
+      const role = String(obj.userData?.meta?.role || obj.userData?.role || '').toLowerCase();
+
+      if (
+        line === 'MOREA' ||
+        kind === 'MOREA_ASSEMBLY' ||
+        kind === 'MOREA_GIRO_SURFACE' ||
+        type === 'MOREA' ||
+        type === 'MOREA_GIRO_SURFACE'
+      ) {
+        return 'MOREA';
+      }
+
+      if (
+        line === 'MILA' ||
+        line === 'MILA_DOUBLE' ||
+        kind === 'MILA_ASSEMBLY' ||
+        kind === 'MILA_GIRO_SURFACE' ||
+        kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+        type === 'MILA' ||
+        type === 'MILA_GIRO_SURFACE' ||
+        type === 'MILA-PANEL-DIVISOR' ||
+        role === 'armrest-left' ||
+        role === 'armrest-right' ||
+        role === 'armrest-center' ||
+        role === 'screen' ||
+        role === 'panel-divisor' ||
+        role === 'giro-surface'
+      ) {
+        return 'MILA';
+      }
+
+      return null;
+    }
+
+    function resolveConnectorContext(object) {
+      if (!object) return null;
+
+      const moreaRoot = getMoreaAssemblyRoot(object) || object;
+      const moreaScopeLine = resolveConnectorScopeLine(moreaRoot);
+      if (moreaScopeLine === 'MOREA') {
+        return {
+          scopeLine: 'MOREA',
+          root: moreaRoot,
+          engine: {
+            resolveAssemblyConnectors: resolveMoreaAssemblyConnectors,
+            findBestSnap: findBestMoreaConnectorSnap,
+            unifyConnectedAssemblies: unifyMoreaConnectedAssemblies,
+            isPortOccupied: isMoreaPortOccupied,
+            config: MOREA_CONNECTOR_CONFIG,
+          },
+        };
+      }
+
+      const milaRoot = getMilaAssemblyRoot(object) || object;
+      const milaScopeLine = resolveConnectorScopeLine(milaRoot);
+      if (milaScopeLine === 'MILA') {
+        return {
+          scopeLine: 'MILA',
+          root: milaRoot,
+          engine: {
+            resolveAssemblyConnectors: resolveMilaAssemblyConnectors,
+            findBestSnap: findBestMilaConnectorSnap,
+            unifyConnectedAssemblies: unifyMilaConnectedAssemblies,
+            isPortOccupied: isMilaPortOccupied,
+            config: MILA_CONNECTOR_CONFIG,
+          },
+        };
+      }
+
+      return null;
+    }
+
+    function collectConnectorCandidatesByScope(targetObj, scopeLine, { excludeSameGroup = false } = {}) {
+      const allAssemblies = [];
+      const allGiroSurfaces = [];
+      const allAccessories = [];
+      const allPanelDivisors = [];
+      const activeGroupId = targetObj?.userData?.groupId;
+
+      scene.children.forEach((node) => {
+        if (node === targetObj) return;
+        if (excludeSameGroup && activeGroupId && node.userData?.groupId === activeGroupId) return;
+
+        const nodeScopeLine = resolveConnectorScopeLine(node);
+        if (!nodeScopeLine || nodeScopeLine !== scopeLine) return;
+
+        const role = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
+        const kind = String(node.userData?.kind || '').toUpperCase();
+        const type = String(node.userData?.type || '').toUpperCase();
+
+        if (
+          kind === 'MILA_ASSEMBLY' ||
+          kind === 'MOREA_ASSEMBLY' ||
+          type === 'MILA' ||
+          type === 'MOREA'
+        ) {
+          allAssemblies.push(node);
+          return;
+        }
+
+        if (
+          kind === 'MILA_GIRO_SURFACE' ||
+          kind === 'MOREA_GIRO_SURFACE' ||
+          type === 'MILA_GIRO_SURFACE' ||
+          type === 'MOREA_GIRO_SURFACE' ||
+          role === 'giro-surface'
+        ) {
+          allGiroSurfaces.push(node);
+          return;
+        }
+
+        if (scopeLine === 'MILA') {
+          if (kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' || type === 'MILA-PANEL-DIVISOR') {
+            allPanelDivisors.push(node);
+            return;
+          }
+
+          if (
+            role === 'armrest-left' ||
+            role === 'armrest-right' ||
+            role === 'armrest-center' ||
+            role === 'screen'
+          ) {
+            allAccessories.push(node);
+          }
+        }
+      });
+
+      return {
+        allAssemblies,
+        allGiroSurfaces,
+        allAccessories,
+        allPanelDivisors,
+      };
+    }
+
     function updateMilaConnectors() {
-      const targetObj = getMilaAssemblyRoot(activePart);
+      const activeRoot = getRootPartObject(activePart) || activePart;
+      if (isClakConnectorEnabledObject(activeRoot)) {
+        milaConnectorHandleGroup.visible = false;
+        updateClakConnectors(activeRoot);
+        return;
+      }
+
+      clakConnectorHandleGroup.visible = false;
+      const connectorContext = resolveConnectorContext(activePart);
+      const targetObj = connectorContext?.root || null;
+      const connectorEngine = connectorContext?.engine || null;
+      const connectorScopeLine = connectorContext?.scopeLine || null;
 
       if (!targetObj || isRotating3D) {
         milaConnectorHandleGroup.visible = false;
         return;
       }
 
-      const connectors = resolveMilaAssemblyConnectors(targetObj);
+      const connectors = connectorEngine?.resolveAssemblyConnectors(targetObj);
       if (!connectors) {
         milaConnectorHandleGroup.visible = false;
         return;
       }
 
-      // Recolectar todos los ensambles, giros y accesorios de la escena
-      const allAssemblies = [];
-      const allGiroSurfaces = [];
-      const allAccessories = [];
-      const allPanelDivisors = [];
-      scene.children.forEach((node) => {
-        if (node === targetObj) return;
-        const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
-        if (node.userData?.kind === 'MILA_ASSEMBLY' || node.userData?.type === 'mila') {
-          allAssemblies.push(node);
-        } else if (
-          node.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
-          node.userData?.type === 'mila-panel-divisor'
-        ) {
-          allPanelDivisors.push(node);
-        } else if (
-          node.userData?.kind === 'MILA_GIRO_SURFACE' ||
-          node.userData?.type === 'MILA_GIRO_SURFACE' ||
-          r === 'giro-surface'
-        ) {
-          allGiroSurfaces.push(node);
-        } else if (
-          r === 'armrest-left' ||
-          r === 'armrest-right' ||
-          r === 'armrest-center' ||
-          r === 'screen'
-        ) {
-          allAccessories.push(node);
-        }
-      });
+      if (connectorScopeLine !== 'MILA' && connectorScopeLine !== 'MOREA') {
+        milaConnectorHandleGroup.visible = false;
+        return;
+      }
+
+      const {
+        allAssemblies,
+        allGiroSurfaces,
+        allAccessories,
+        allPanelDivisors,
+      } = collectConnectorCandidatesByScope(targetObj, connectorScopeLine);
       const allSceneObjects = [
         ...allAssemblies,
         ...allGiroSurfaces,
@@ -1049,10 +1454,10 @@ export default function ThreeCanvas({
       } else {
         isLeftOccupied =
           !isDragging &&
-          (pLeft?.isOccupied || isMilaPortOccupied(pLeft?.worldPos, targetObj, allSceneObjects));
+          (pLeft?.isOccupied || connectorEngine.isPortOccupied(pLeft?.worldPos, targetObj, allSceneObjects));
         isRightOccupied =
           !isDragging &&
-          (pRight?.isOccupied || isMilaPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
+          (pRight?.isOccupied || connectorEngine.isPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
 
         if (pLeft) {
           milaLeftConnector.position.copy(pLeft.worldPos);
@@ -1099,21 +1504,16 @@ export default function ThreeCanvas({
           milaRightConnector.visible = !pRight?.isOccupied;
         }
 
-        const activeGroupId = targetObj.userData?.groupId;
-        const candidateAssemblies = allAssemblies.filter(
-          (node) => !activeGroupId || node.userData?.groupId !== activeGroupId
-        );
-        const candidateGiroSurfaces = allGiroSurfaces.filter(
-          (node) => !activeGroupId || node.userData?.groupId !== activeGroupId
-        );
-        const candidateAccessories = allAccessories.filter(
-          (node) => !activeGroupId || node.userData?.groupId !== activeGroupId
-        );
-        const candidatePanelDivisors = allPanelDivisors.filter(
-          (node) => !activeGroupId || node.userData?.groupId !== activeGroupId
-        );
+        const {
+          allAssemblies: candidateAssemblies,
+          allGiroSurfaces: candidateGiroSurfaces,
+          allAccessories: candidateAccessories,
+          allPanelDivisors: candidatePanelDivisors,
+        } = collectConnectorCandidatesByScope(targetObj, connectorScopeLine, {
+          excludeSameGroup: true,
+        });
 
-        const snapResult = findBestMilaConnectorSnap({
+        const snapResult = connectorEngine.findBestSnap({
           activeAssembly: targetObj,
           allAssemblies: candidateAssemblies,
           allGiroSurfaces: candidateGiroSurfaces,
@@ -1131,16 +1531,16 @@ export default function ThreeCanvas({
               : milaRightConnector;
           setConnectorMeshColor(
             activeMesh,
-            MILA_CONNECTOR_CONFIG.COLOR_SNAP_ACTIVE,
-            MILA_CONNECTOR_CONFIG.CORE_COLOR_ACTIVE
+            connectorEngine.config.COLOR_SNAP_ACTIVE,
+            connectorEngine.config.CORE_COLOR_ACTIVE
           );
 
           const otherMesh =
             activeMesh === milaLeftConnector ? milaRightConnector : milaLeftConnector;
           setConnectorMeshColor(
             otherMesh,
-            MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
-            MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+            connectorEngine.config.COLOR_NORMAL,
+            connectorEngine.config.CORE_COLOR_NORMAL
           );
 
           if (snapResult.connectionPoint) {
@@ -1155,8 +1555,8 @@ export default function ThreeCanvas({
             }
             setConnectorMeshColor(
               milaSnapTargetConnector,
-              MILA_CONNECTOR_CONFIG.COLOR_SNAP_ACTIVE,
-              MILA_CONNECTOR_CONFIG.CORE_COLOR_ACTIVE
+              connectorEngine.config.COLOR_SNAP_ACTIVE,
+              connectorEngine.config.CORE_COLOR_ACTIVE
             );
             milaSnapTargetConnector.visible = true;
           }
@@ -1166,23 +1566,23 @@ export default function ThreeCanvas({
       if (!isSnapCandidate) {
         setConnectorMeshColor(
           milaLeftConnector,
-          MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
-          MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+          connectorEngine.config.COLOR_NORMAL,
+          connectorEngine.config.CORE_COLOR_NORMAL
         );
         setConnectorMeshColor(
           milaRightConnector,
-          MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
-          MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+          connectorEngine.config.COLOR_NORMAL,
+          connectorEngine.config.CORE_COLOR_NORMAL
         );
         setConnectorMeshColor(
           milaPanelLeftConnector,
-          MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
-          MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+          connectorEngine.config.COLOR_NORMAL,
+          connectorEngine.config.CORE_COLOR_NORMAL
         );
         setConnectorMeshColor(
           milaPanelRightConnector,
-          MILA_CONNECTOR_CONFIG.COLOR_NORMAL,
-          MILA_CONNECTOR_CONFIG.CORE_COLOR_NORMAL
+          connectorEngine.config.COLOR_NORMAL,
+          connectorEngine.config.CORE_COLOR_NORMAL
         );
         milaSnapTargetConnector.visible = false;
       }
@@ -2308,10 +2708,10 @@ export default function ThreeCanvas({
 
         if (obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
           const bomList = obj.userData?.bom || [];
-          const parentCode = normalizeText(
+          const _parentCode = normalizeText(
             obj.userData?.codigoPT || obj.userData?.code || p.code || 'PUESTO_DOBLE_KUO_AV'
           );
-          const label = obj.userData?.name || 'Puesto Doble Kuo AV';
+          const _label = obj.userData?.name || 'Puesto Doble Kuo AV';
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
           const groupId = obj.userData?.groupId || groupInstanceId;
           const groupName = obj.userData?.groupName || 'Puesto Doble Kuo AV';
@@ -2363,11 +2763,17 @@ export default function ThreeCanvas({
         const isMilaPart =
           obj.userData?.line === 'MILA' ||
           obj.userData?.line === 'MILA_DOUBLE' ||
+          obj.userData?.line === 'MOREA' ||
           obj.userData?.category === 'mila' ||
           obj.userData?.category === 'mila-double' ||
+          obj.userData?.category === 'morea' ||
           obj.userData?.meta?.category === 'mila' ||
+          obj.userData?.meta?.category === 'morea' ||
           obj.userData?.meta?.line === 'MILA' ||
-          (obj.userData?.kind && String(obj.userData.kind).startsWith('MILA'));
+          obj.userData?.meta?.line === 'MOREA' ||
+          (obj.userData?.kind &&
+            (String(obj.userData.kind).startsWith('MILA') ||
+              String(obj.userData.kind).startsWith('MOREA')));
 
         const isKoncisaPart = belongsToKoncisaPlusAssembly(obj);
 
@@ -2790,7 +3196,8 @@ export default function ThreeCanvas({
         if (
           obj.userData?.kind === 'MILA_GIRO_SURFACE' ||
           obj.userData?.type === 'MILA_GIRO_SURFACE' ||
-          obj.userData?.meta?.role === 'giro-surface'
+          (obj.userData?.meta?.role === 'giro-surface' &&
+            String(obj.userData?.line || '').toUpperCase() === 'MILA')
         ) {
           const groupId = obj.userData?.groupId || null;
           const groupName = obj.userData?.groupName || null;
@@ -3003,6 +3410,7 @@ export default function ThreeCanvas({
           kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
           kind === 'MILA_ASSEMBLY' ||
           kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
+          kind === 'MOREA_ASSEMBLY' ||
           kind === 'KONCISA_PLUS_ASSEMBLY'
         ) {
           return cur;
@@ -3108,7 +3516,9 @@ export default function ThreeCanvas({
           current.userData?.type === 'mila-panel-divisor' ||
           current.userData?.kind === 'MILA_GIRO_SURFACE' ||
           current.userData?.type === 'MILA_GIRO_SURFACE' ||
-          current.userData?.meta?.role === 'giro-surface'
+          current.userData?.meta?.role === 'giro-surface' ||
+          current.userData?.kind === 'MOREA_ASSEMBLY' ||
+          current.userData?.type === 'morea'
         ) {
           return current;
         }
@@ -3312,7 +3722,23 @@ export default function ThreeCanvas({
       return a || b;
     }
 
-    function snapKuoAVAssembly(assembly, applyVariantSwap = false) {
+    function resolveObjectConnectors(obj, codeHint = null) {
+      if (!obj) return [];
+
+      const fromObjectMeta = obj.userData?.meta?.connectors;
+      if (Array.isArray(fromObjectMeta) && fromObjectMeta.length) return fromObjectMeta;
+
+      const fromObject = obj.userData?.connectors;
+      if (Array.isArray(fromObject) && fromObject.length) return fromObject;
+
+      const code = codeHint || obj.userData?.code || obj.userData?.codigoPT;
+      if (!code) return [];
+
+      const fromCatalog = catalogCache.get(code)?.meta?.connectors;
+      return Array.isArray(fromCatalog) ? fromCatalog : [];
+    }
+
+    function snapKuoAVAssembly(assembly) {
       if (
         !assembly ||
         (assembly.userData?.kind !== 'KUO_AV_ASSEMBLY' &&
@@ -3583,57 +4009,108 @@ export default function ThreeCanvas({
 
       if (!snapActive) return;
 
-      const activeCode = activePart.userData.code;
-      const activeMeta = catalogCache.get(activeCode)?.meta;
-      const activeConnectors = activeMeta?.connectors || [];
+      const activeObj = getRootPartObject(activePart) || activePart;
+      const activeCode = activeObj.userData?.code || activeObj.userData?.codigoPT;
+      const activeConnectors = resolveObjectConnectors(activeObj, activeCode);
 
       const now = performance.now();
       if (now - lastSnapTime < SNAP_COOLDOWN_MS) return;
       lastSnapTime = now;
 
-      if (!activeConnectors.length) return;
+      if (!activeConnectors.length) return { snapped: false, targetObj: null };
 
-      let best = {
-        dist: Infinity,
-        delta: null,
-      };
-
-      // Recorre todas las demás piezas
-      for (const p of parts) {
-        if (p.obj === activePart) continue;
-
-        const targetMeta = catalogCache.get(p.code)?.meta;
-        const targetConnectors = targetMeta?.connectors || [];
-        if (!targetConnectors.length) continue;
-
-        // Compara TODOS los conectores (activo vs target)
-        for (const cm of activeConnectors) {
-          if (!cm?.line?.from || !cm?.line?.to) continue;
-
-          for (const ct of targetConnectors) {
-            if (!ct?.line?.from || !ct?.line?.to) continue;
-
-            // Compatibilidad por JSON
-            if (!isCompatible(cm, ct)) continue;
-
-            const cMove = getLineCenterWorld(activePart, cm.line.from, cm.line.to);
-            const cTarget = getLineCenterWorld(p.obj, ct.line.from, ct.line.to);
-            const dist = cMove.distanceTo(cTarget);
-
-            if (dist < best.dist) {
-              best.dist = dist;
-              best.delta = cTarget.clone().sub(cMove);
-            }
-          }
-        }
-      }
+      const best = resolveBestConnectorSnap(activeObj);
 
       // Aplica el mejor snap si esta dentro del umbral
-      if (best.delta && best.dist <= SNAP_THRESHOLD) {
-        activePart.position.add(best.delta);
-        activePart.updateMatrixWorld(true);
+      if (best?.delta && best.dist <= (best.snapThreshold || SNAP_THRESHOLD)) {
+        activeObj.position.add(best.delta);
+        activeObj.updateMatrixWorld(true);
+
+        if (isClakConnectorEnabledObject(activeObj) && isClakConnectorEnabledObject(best.targetObj)) {
+          unifyMilaConnectedAssemblies(activeObj, best.targetObj);
+        }
+
         if (selectionHelper) selectionHelper.update();
+        return { snapped: true, targetObj: best.targetObj };
       }
+
+      return { snapped: false, targetObj: null };
+    }
+
+    function snapCreatedClakObject(object) {
+      const activeObj = getRootPartObject(object) || object;
+      if (!isClakConnectorEnabledObject(activeObj)) return false;
+
+      const best = resolveBestConnectorSnap(activeObj);
+      if (!best?.delta || best.dist > (best.snapThreshold || SNAP_THRESHOLD)) return false;
+
+      activeObj.position.add(best.delta);
+      activeObj.updateMatrixWorld(true);
+
+      if (isClakConnectorEnabledObject(activeObj) && isClakConnectorEnabledObject(best.targetObj)) {
+        unifyMilaConnectedAssemblies(activeObj, best.targetObj);
+      }
+
+      return true;
+    }
+
+    function getObjectWorldMinY(obj) {
+      if (!obj) return 0;
+      const box = new THREE.Box3().setFromObject(obj);
+      return box.isEmpty() ? obj.position.y : box.min.y;
+    }
+
+    function alignClakRootToFloor(root) {
+      if (!root) return;
+      const minY = getObjectWorldMinY(root);
+      if (!Number.isFinite(minY) || Math.abs(minY) < 1e-6) return;
+      root.position.y -= minY;
+      root.updateMatrixWorld(true);
+    }
+
+    function collectGroupedRootsByIds(groupIds = []) {
+      const ids = new Set((groupIds || []).filter(Boolean));
+      if (!ids.size) return [];
+
+      const roots = [];
+      const seen = new Set();
+
+      parts.forEach(({ obj }) => {
+        if (!obj) return;
+        if (!ids.has(obj.userData?.groupId)) return;
+        const root = getRootPartObject(obj) || obj;
+        const key = root.userData?.instanceId || root.uuid;
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        roots.push(root);
+      });
+
+      return roots;
+    }
+
+    function resnapConnectedClakObject(obj) {
+      const activeObj = getRootPartObject(obj) || obj;
+      if (!isClakConnectorEnabledObject(activeObj)) return false;
+      if (!activeObj.userData?.groupId) return false;
+
+      const best = resolveBestConnectorSnap(activeObj, { includeSameGroup: true });
+      if (!best?.deltaWithY || !best?.targetObj) return false;
+
+      const sourceGroupIds = [activeObj.userData?.groupId, best.targetObj.userData?.groupId];
+      const rootsToLift = collectGroupedRootsByIds(sourceGroupIds);
+      if (!rootsToLift.length) {
+        rootsToLift.push(activeObj, getRootPartObject(best.targetObj) || best.targetObj);
+      }
+
+      // En recalibración por cambio de variante se conserva el contacto con el piso
+      // en cada raíz y el acople se resuelve principalmente en XZ.
+      activeObj.position.add(best.deltaWithY);
+      activeObj.updateMatrixWorld(true);
+      unifyMilaConnectedAssemblies(activeObj, best.targetObj);
+
+      rootsToLift.forEach((root) => alignClakRootToFloor(root));
+
+      return true;
     }
 
     function frameObject(obj) {
@@ -5403,9 +5880,7 @@ export default function ThreeCanvas({
 
     async function addKuoAVPantalla(config = {}) {
       if (readOnly) return;
-      const countPan = parts.filter(
-        ({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY'
-      ).length;
+      const _countPan = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY').length;
       let result;
       try {
         result = await createKuoAVPantallaInstance({
@@ -5601,6 +6076,15 @@ export default function ThreeCanvas({
         String(meta.role || '').toLowerCase() === 'seat';
 
       if (!isMilaSimpleSeat) {
+        const isMoreaSeatCandidate =
+          userData.kind === 'GLB_PART' &&
+          userData.line === 'MOREA' &&
+          String(meta.role || '').toLowerCase() === 'seat';
+        if (isMoreaSeatCandidate) {
+          await swapMoreaSeatVariant(instanceId, _codigo, targetMode);
+          return;
+        }
+
         console.warn(
           '[swapMilaSeatVariant] La pieza no es un puesto editable de Mila simple:',
           instanceId
@@ -5765,6 +6249,678 @@ export default function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function swapMoreaSeatVariant(instanceId, _codigo, targetMode = 'chair') {
+      if (readOnly) return;
+
+      const found = parts.find(({ obj }) => {
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      });
+
+      if (!found?.obj) {
+        console.warn('[swapMoreaSeatVariant] No se encontró la pieza:', instanceId);
+        return;
+      }
+
+      const oldObj = found.obj;
+      const userData = oldObj.userData || {};
+      const meta = userData.meta || {};
+      const isMoreaSeat =
+        userData.kind === 'GLB_PART' &&
+        userData.line === 'MOREA' &&
+        String(meta.role || '').toLowerCase() === 'seat';
+
+      if (!isMoreaSeat) {
+        console.warn('[swapMoreaSeatVariant] La pieza no es un puesto editable de Morea:', instanceId);
+        return;
+      }
+
+      const moreaVariant = String(
+        meta.moreaVariant || oldObj.parent?.userData?.meta?.moreaVariant || 'single'
+      )
+        .trim()
+        .toLowerCase();
+      const nextVariant = resolveMoreaSeatVariantByMode(targetMode, moreaVariant);
+      const currentMode = meta.seatMode || resolveMoreaSeatModeByCode(userData.code);
+      const nextMode = normalizeMoreaSeatMode(targetMode);
+
+      const isSingleTableTargetMode =
+        moreaVariant === 'single' && (nextMode === 'table' || nextMode === 'tableGrommet');
+
+      const resolveMoreaSupportSurfaceTopY = (assemblyRoot) => {
+        if (!assemblyRoot) return null;
+        const topYs = [];
+
+        assemblyRoot.traverse((node) => {
+          if (!node?.userData) return;
+          if (node.userData?.kind !== 'GLB_PART') return;
+          if (String(node.userData?.line || '').toUpperCase() !== 'MOREA') return;
+          const role = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
+          if (!(role === 'side-left' || role === 'side-right' || role.startsWith('side-center-support'))) return;
+
+          const box = new THREE.Box3().setFromObject(node);
+          if (Number.isFinite(box.max.y)) topYs.push(box.max.y);
+        });
+
+        if (!topYs.length) return null;
+        const sum = topYs.reduce((acc, value) => acc + value, 0);
+        return sum / topYs.length;
+      };
+
+      const resolveTableTopBottomY = (rootObj) => {
+        if (!rootObj) return null;
+
+        const rootBounds = new THREE.Box3().setFromObject(rootObj);
+        const rootSize = new THREE.Vector3();
+        rootBounds.getSize(rootSize);
+        const rootHeight = Math.max(0.001, rootSize.y);
+        const rootTopHalfY = rootBounds.min.y + rootHeight * 0.45;
+
+        let bestArea = -1;
+        let bestBottomY = null;
+
+        rootObj.traverse((node) => {
+          if (!node?.isMesh) return;
+
+          const box = new THREE.Box3().setFromObject(node);
+          const size = new THREE.Vector3();
+          const center = new THREE.Vector3();
+          box.getSize(size);
+          box.getCenter(center);
+
+          if (!Number.isFinite(box.min.y) || !Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z)) return;
+
+          const area = size.x * size.z;
+          const maxHorizontal = Math.max(size.x, size.z);
+          const isThinHorizontal = size.y <= maxHorizontal * 0.3;
+          const isNearTop = center.y >= rootTopHalfY;
+          const isWideEnough = size.x >= 0.1 && size.z >= 0.1;
+
+          if (!isThinHorizontal || !isNearTop || !isWideEnough) return;
+          if (area > bestArea) {
+            bestArea = area;
+            bestBottomY = box.min.y;
+          }
+        });
+
+        return Number.isFinite(bestBottomY) ? bestBottomY : null;
+      };
+
+      const alignSingleTableToSupports = (seatObj) => {
+        if (!isSingleTableTargetMode || !seatObj) return;
+        const assemblyRoot = getAssemblyObject(seatObj) || seatObj.parent || null;
+        if (!assemblyRoot) return;
+
+        const supportTopY = resolveMoreaSupportSurfaceTopY(assemblyRoot);
+        const tableTopBottomY = resolveTableTopBottomY(seatObj);
+        if (!Number.isFinite(supportTopY) || !Number.isFinite(tableTopBottomY)) return;
+
+        const deltaY = supportTopY - tableTopBottomY;
+        if (Math.abs(deltaY) < 0.0005) return;
+
+        seatObj.position.y += deltaY;
+        seatObj.updateMatrixWorld(true);
+      };
+
+      if (currentMode === nextMode) {
+        if (!isSingleTableTargetMode) return;
+        alignSingleTableToSupports(oldObj);
+        const assemblyRoot = getAssemblyObject(oldObj) || oldObj;
+        assemblyRoot.updateMatrixWorld(true);
+        setActivePart(assemblyRoot, { targetIds: selectedIds3D });
+        refreshFloorAndGrid();
+        return;
+      }
+
+      const currentOffset = resolveMoreaSeatOffsetMmByMode(currentMode, moreaVariant);
+      const nextOffset = resolveMoreaSeatOffsetMmByMode(nextMode, moreaVariant);
+      const offsetDeltaMm = {
+        x: Number(nextOffset?.x || 0) - Number(currentOffset?.x || 0),
+        y: Number(nextOffset?.y || 0) - Number(currentOffset?.y || 0),
+        z: Number(nextOffset?.z || 0) - Number(currentOffset?.z || 0),
+      };
+
+      let gltf = null;
+      try {
+        const loader = new GLTFLoader();
+        gltf = await loader.loadAsync(nextVariant.modelSrc);
+      } catch (loadErr) {
+        console.error(
+          '[swapMoreaSeatVariant] Error cargando GLB destino:',
+          nextVariant.modelSrc,
+          loadErr
+        );
+        return;
+      }
+
+      if (!gltf?.scene) {
+        console.error('[swapMoreaSeatVariant] No se pudo parsear el GLB destino:', nextVariant.modelSrc);
+        return;
+      }
+
+      const newObj = gltf.scene.clone(true);
+      const savedPos = oldObj.position.clone();
+      const savedQuaternion = oldObj.quaternion.clone();
+      const savedScale = oldObj.scale.clone();
+      const savedParent = oldObj.parent || scene;
+      const savedParentIndex = savedParent.children.indexOf(oldObj);
+      const savedUserData = { ...userData };
+      const oldIds = new Set(
+        [instanceId, oldObj.userData?.instanceId, oldObj.uuid].filter(Boolean).map(String)
+      );
+
+      const catalogItem = catalogByCodeRef.current?.get?.(nextVariant.code) || null;
+      const nextDescription =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
+        `${savedUserData.groupName || 'Morea'} ${nextVariant.label}`;
+      const nextUnitPrice =
+        Number(
+          catalogItem?.prices?.[countryRef.current] ??
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
+        ) || 0;
+      const nextPrices =
+        catalogItem?.prices ||
+        catalogItem?.raw?.prices ||
+        {
+          CO: nextUnitPrice,
+        };
+
+      const nextBackrestRotated180 = Boolean(savedUserData?.meta?.backrestRotated180);
+
+      newObj.userData = {
+        ...savedUserData,
+        code: nextVariant.code,
+        codigoPT: nextVariant.code,
+        description: nextDescription,
+        unitPrice: nextUnitPrice,
+        prices: nextPrices,
+        modelSrc: nextVariant.modelSrc,
+        model: { src: nextVariant.modelSrc },
+        meta: {
+          ...(savedUserData.meta || {}),
+          role: 'seat',
+          seatMode: nextMode,
+          backrestRotated180: nextBackrestRotated180,
+        },
+      };
+
+      newObj.name = nextVariant.code;
+
+      newObj.traverse((node) => {
+        if (!node) return;
+        node.userData = {
+          ...(node.userData || {}),
+          parentAssemblyId: savedUserData.parentAssemblyId || null,
+          groupId: savedUserData.groupId || null,
+          groupName: savedUserData.groupName || null,
+        };
+
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+          if (node.material) {
+            node.material.depthTest = true;
+            node.material.depthWrite = true;
+            node.material.transparent = false;
+            node.material.needsUpdate = true;
+          }
+        }
+      });
+
+      if (nextBackrestRotated180 && (nextMode === 'chair' || nextMode === 'cushion')) {
+        applyMoreaSeatTurn180(newObj, true);
+      }
+
+      try {
+        if (oldObj.parent) {
+          oldObj.parent.remove(oldObj);
+        } else {
+          scene.remove(oldObj);
+        }
+      } catch (err) {
+        void err;
+      }
+      removePartsRecordsUnder(oldObj);
+      removePickablesUnder(oldObj);
+
+      savedParent.add(newObj);
+
+      if (savedParentIndex >= 0) {
+        const appendedIndex = savedParent.children.indexOf(newObj);
+        if (appendedIndex >= 0 && appendedIndex !== savedParentIndex) {
+          savedParent.children.splice(appendedIndex, 1);
+          savedParent.children.splice(savedParentIndex, 0, newObj);
+        }
+      }
+
+      newObj.position.copy(savedPos);
+      newObj.quaternion.copy(savedQuaternion);
+      newObj.scale.copy(savedScale);
+      newObj.position.x += offsetDeltaMm.x * MM_TO_M;
+      newObj.position.y += offsetDeltaMm.y * MM_TO_M;
+      newObj.position.z += offsetDeltaMm.z * MM_TO_M;
+      newObj.visible = true;
+      newObj.updateMatrixWorld(true);
+      alignSingleTableToSupports(newObj);
+
+      parts.push({ code: nextVariant.code, obj: newObj });
+      pickables.push(newObj);
+
+      const newId = newObj.userData?.instanceId || newObj.uuid;
+      const nextSelectedIds = selectedIds3D
+        .map((id) => (oldIds.has(String(id)) ? newId : id))
+        .filter(Boolean);
+      if (!nextSelectedIds.includes(newId)) nextSelectedIds.push(newId);
+
+      syncSelectedIds3D(Array.from(new Set(nextSelectedIds)));
+      const assemblyRoot = getAssemblyObject(newObj) || newObj;
+      assemblyRoot.updateMatrixWorld(true);
+      setActivePart(assemblyRoot, { targetIds: nextSelectedIds });
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
+    async function toggleMoreaSeatBackrestRotation(instanceId, rotate180 = false) {
+      if (readOnly) return;
+
+      const found = parts.find(({ obj }) => {
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      });
+
+      if (!found?.obj) {
+        console.warn('[toggleMoreaSeatBackrestRotation] No se encontró la pieza:', instanceId);
+        return;
+      }
+
+      const seatObj = found.obj;
+      const userData = seatObj.userData || {};
+      const meta = userData.meta || {};
+      const role = String(meta.role || userData.role || '').toLowerCase();
+      const line = String(userData.line || '').toUpperCase();
+
+      if (!(userData.kind === 'GLB_PART' && line === 'MOREA' && role === 'seat')) {
+        console.warn(
+          '[toggleMoreaSeatBackrestRotation] La pieza no es un asiento editable de Morea:',
+          instanceId
+        );
+        return;
+      }
+
+      const seatMode = String(meta.seatMode || resolveMoreaSeatModeByCode(userData.code) || 'chair')
+        .trim()
+        .toLowerCase();
+      if (seatMode !== 'chair' && seatMode !== 'cushion') return;
+
+      const current = Boolean(meta.backrestRotated180);
+      const next = Boolean(rotate180);
+      if (current === next) return;
+
+      const applied = applyMoreaSeatTurn180(seatObj, next);
+      if (!applied) return;
+
+      seatObj.userData = {
+        ...userData,
+        meta: {
+          ...meta,
+          backrestRotated180: next,
+        },
+      };
+      seatObj.updateMatrixWorld(true);
+
+      const assemblyRoot = getAssemblyObject(seatObj) || seatObj;
+      setActivePart(assemblyRoot, { targetIds: selectedIds3D });
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
+    async function swapMoreaPedestalVariant(targetIdentifier, targetMode = 'normal') {
+      if (readOnly) return;
+
+      const normalizedTargetMode = normalizeMoreaPedestalMode(targetMode);
+
+      let anchorObj = null;
+      for (const partEntry of parts) {
+        const obj = partEntry?.obj;
+        if (!obj) continue;
+        if (
+          obj.userData?.instanceId === targetIdentifier ||
+          obj.userData?.groupId === targetIdentifier ||
+          obj.userData?.parentAssemblyId === targetIdentifier ||
+          obj.uuid === targetIdentifier
+        ) {
+          anchorObj = obj;
+          break;
+        }
+      }
+
+      if (!anchorObj) {
+        scene.traverse((node) => {
+          if (anchorObj) return;
+          if (
+            node.userData?.instanceId === targetIdentifier ||
+            node.userData?.groupId === targetIdentifier ||
+            node.userData?.parentAssemblyId === targetIdentifier ||
+            node.uuid === targetIdentifier
+          ) {
+            anchorObj = node;
+          }
+        });
+      }
+
+      if (!anchorObj) {
+        console.warn('[swapMoreaPedestalVariant] No se encontró el ensamble/pieza Morea:', targetIdentifier);
+        return;
+      }
+
+      const assemblyRoot = getAssemblyObject(anchorObj) || anchorObj;
+      const isMoreaAssembly =
+        assemblyRoot?.userData?.kind === 'MOREA_ASSEMBLY' ||
+        String(assemblyRoot?.userData?.line || '').toUpperCase() === 'MOREA' ||
+        String(assemblyRoot?.userData?.type || '').toLowerCase() === 'morea';
+
+      if (!isMoreaAssembly) {
+        console.warn('[swapMoreaPedestalVariant] El objetivo no pertenece a un ensamble Morea:', targetIdentifier);
+        return;
+      }
+
+      const moreaVariant = String(assemblyRoot?.userData?.meta?.moreaVariant || 'single')
+        .trim()
+        .toLowerCase();
+      const nextVariant = resolveMoreaPedestalVariantByMode(normalizedTargetMode, moreaVariant);
+      const woodOutwardOffsetMm =
+        moreaVariant === 'double'
+          ? Number(
+            MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+              MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+              12
+          )
+          : Number(MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM || 12);
+
+      const sideTargets = [];
+      assemblyRoot.traverse((node) => {
+        if (!node?.userData) return;
+        if (node.userData?.kind !== 'GLB_PART') return;
+        if (String(node.userData?.line || '').toUpperCase() !== 'MOREA') return;
+        const role = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
+        if (role === 'side-left' || role === 'side-right') {
+          sideTargets.push(node);
+        }
+      });
+
+      if (!sideTargets.length) {
+        console.warn('[swapMoreaPedestalVariant] No se encontraron pedestales laterales en el ensamble Morea.');
+        return;
+      }
+
+      const currentMode = resolveMoreaPedestalModeByCode(
+        sideTargets[0]?.userData?.codigoPT || sideTargets[0]?.userData?.code,
+        moreaVariant
+      );
+      const everyTargetAlreadyInMode = sideTargets.every((sideObj) => {
+        const sideMode = resolveMoreaPedestalModeByCode(
+          sideObj?.userData?.codigoPT || sideObj?.userData?.code,
+          moreaVariant
+        );
+        return sideMode === normalizedTargetMode;
+      });
+
+      if (currentMode === normalizedTargetMode && everyTargetAlreadyInMode) {
+        let movedAny = false;
+
+        sideTargets.forEach((sideObj) => {
+          const currentUserData = sideObj?.userData || {};
+          const currentMeta = currentUserData?.meta || {};
+          const role = String(currentMeta.role || currentUserData.role || '').toLowerCase();
+          const xDirection = role === 'side-left' ? -1 : role === 'side-right' ? 1 : 0;
+          if (!xDirection) return;
+
+          const currentPosMm = {
+            x: sideObj.position.x / MM_TO_M,
+            y: sideObj.position.y / MM_TO_M,
+            z: sideObj.position.z / MM_TO_M,
+          };
+
+          const savedBasePosMm = currentMeta.pedestalBasePositionMm || null;
+          const basePosMm = {
+            x: Number.isFinite(Number(savedBasePosMm?.x))
+              ? Number(savedBasePosMm.x)
+              : currentPosMm.x,
+            y: Number.isFinite(Number(savedBasePosMm?.y))
+              ? Number(savedBasePosMm.y)
+              : currentPosMm.y,
+            z: Number.isFinite(Number(savedBasePosMm?.z))
+              ? Number(savedBasePosMm.z)
+              : currentPosMm.z,
+          };
+
+          const outwardMm = normalizedTargetMode === 'wood' ? woodOutwardOffsetMm : 0;
+          const targetPosMm = {
+            x: basePosMm.x + outwardMm * xDirection,
+            y: basePosMm.y,
+            z: basePosMm.z,
+          };
+
+          const needsMove =
+            Math.abs(currentPosMm.x - targetPosMm.x) > 0.5 ||
+            Math.abs(currentPosMm.y - targetPosMm.y) > 0.5 ||
+            Math.abs(currentPosMm.z - targetPosMm.z) > 0.5;
+
+          sideObj.userData = {
+            ...currentUserData,
+            meta: {
+              ...currentMeta,
+              role,
+              pedestalMode: normalizedTargetMode,
+              pedestalBasePositionMm: basePosMm,
+            },
+          };
+
+          if (!needsMove) return;
+
+          sideObj.position.set(
+            targetPosMm.x * MM_TO_M,
+            targetPosMm.y * MM_TO_M,
+            targetPosMm.z * MM_TO_M
+          );
+          sideObj.updateMatrixWorld(true);
+          movedAny = true;
+        });
+
+        assemblyRoot.userData = {
+          ...(assemblyRoot.userData || {}),
+          meta: {
+            ...(assemblyRoot.userData?.meta || {}),
+            pedestalMode: normalizedTargetMode,
+          },
+        };
+        assemblyRoot.updateMatrixWorld(true);
+
+        setActivePart(assemblyRoot, { targetIds: selectedIds3D });
+        if (movedAny) {
+          emitBOM();
+          refreshFloorAndGrid();
+        }
+        return;
+      }
+
+      let gltf = null;
+      try {
+        const loader = new GLTFLoader();
+        gltf = await loader.loadAsync(nextVariant.modelSrc);
+      } catch (loadErr) {
+        console.error(
+          '[swapMoreaPedestalVariant] Error cargando GLB destino:',
+          nextVariant.modelSrc,
+          loadErr
+        );
+        return;
+      }
+
+      if (!gltf?.scene) {
+        console.error('[swapMoreaPedestalVariant] No se pudo parsear el GLB destino:', nextVariant.modelSrc);
+        return;
+      }
+
+      const catalogItem = catalogByCodeRef.current?.get?.(nextVariant.code) || null;
+      const nextDescriptionBase =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
+        `Morea pedestal ${nextVariant.label}`;
+      const nextUnitPriceBase =
+        Number(
+          catalogItem?.prices?.[countryRef.current] ??
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
+        ) || 0;
+      const nextPricesBase =
+        catalogItem?.prices ||
+        catalogItem?.raw?.prices ||
+        {
+          CO: nextUnitPriceBase,
+        };
+
+      const replacementIdMap = new Map();
+      for (const oldObj of sideTargets) {
+        const newObj = gltf.scene.clone(true);
+
+        const savedPos = oldObj.position.clone();
+        const savedQuaternion = oldObj.quaternion.clone();
+        const savedScale = oldObj.scale.clone();
+        const savedParent = oldObj.parent || scene;
+        const savedParentIndex = savedParent.children.indexOf(oldObj);
+        const savedUserData = { ...(oldObj.userData || {}) };
+
+        const role = String(savedUserData?.meta?.role || savedUserData?.role || '').toLowerCase();
+        const nextDescription = savedUserData?.description || nextDescriptionBase;
+        const savedBasePosMm = savedUserData?.meta?.pedestalBasePositionMm || null;
+        const basePosMm = {
+          x: Number.isFinite(Number(savedBasePosMm?.x))
+            ? Number(savedBasePosMm.x)
+            : savedPos.x / MM_TO_M,
+          y: Number.isFinite(Number(savedBasePosMm?.y))
+            ? Number(savedBasePosMm.y)
+            : savedPos.y / MM_TO_M,
+          z: Number.isFinite(Number(savedBasePosMm?.z))
+            ? Number(savedBasePosMm.z)
+            : savedPos.z / MM_TO_M,
+        };
+
+        const outwardMm = normalizedTargetMode === 'wood' ? woodOutwardOffsetMm : 0;
+        const xDirection = role === 'side-left' ? -1 : role === 'side-right' ? 1 : 0;
+        const targetPosMm = {
+          x: basePosMm.x + outwardMm * xDirection,
+          y: basePosMm.y,
+          z: basePosMm.z,
+        };
+
+        newObj.userData = {
+          ...savedUserData,
+          code: nextVariant.code,
+          codigoPT: nextVariant.code,
+          description: nextDescription,
+          unitPrice: nextUnitPriceBase,
+          prices: nextPricesBase,
+          modelSrc: nextVariant.modelSrc,
+          model: { src: nextVariant.modelSrc },
+          meta: {
+            ...(savedUserData.meta || {}),
+            role,
+            pedestalMode: normalizedTargetMode,
+            pedestalBasePositionMm: basePosMm,
+          },
+        };
+
+        newObj.name = nextVariant.code;
+        newObj.traverse((node) => {
+          if (!node) return;
+          node.userData = {
+            ...(node.userData || {}),
+            parentAssemblyId: savedUserData.parentAssemblyId || null,
+            groupId: savedUserData.groupId || null,
+            groupName: savedUserData.groupName || null,
+          };
+
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.receiveShadow = true;
+            if (node.material) {
+              node.material.depthTest = true;
+              node.material.depthWrite = true;
+              node.material.transparent = false;
+              node.material.needsUpdate = true;
+            }
+          }
+        });
+
+        try {
+          if (oldObj.parent) {
+            oldObj.parent.remove(oldObj);
+          } else {
+            scene.remove(oldObj);
+          }
+        } catch (err) {
+          void err;
+        }
+        removePartsRecordsUnder(oldObj);
+        removePickablesUnder(oldObj);
+
+        savedParent.add(newObj);
+        if (savedParentIndex >= 0) {
+          const appendedIndex = savedParent.children.indexOf(newObj);
+          if (appendedIndex >= 0 && appendedIndex !== savedParentIndex) {
+            savedParent.children.splice(appendedIndex, 1);
+            savedParent.children.splice(savedParentIndex, 0, newObj);
+          }
+        }
+
+        newObj.position.set(
+          targetPosMm.x * MM_TO_M,
+          targetPosMm.y * MM_TO_M,
+          targetPosMm.z * MM_TO_M
+        );
+        newObj.quaternion.copy(savedQuaternion);
+        newObj.scale.copy(savedScale);
+        newObj.visible = true;
+        newObj.updateMatrixWorld(true);
+
+        parts.push({ code: nextVariant.code, obj: newObj });
+        pickables.push(newObj);
+
+        const oldIds = [oldObj.userData?.instanceId, oldObj.uuid].filter(Boolean).map(String);
+        const newId = newObj.userData?.instanceId || newObj.uuid;
+        oldIds.forEach((id) => replacementIdMap.set(id, newId));
+      }
+
+      assemblyRoot.userData = {
+        ...(assemblyRoot.userData || {}),
+        meta: {
+          ...(assemblyRoot.userData?.meta || {}),
+          pedestalMode: normalizedTargetMode,
+        },
+      };
+      assemblyRoot.updateMatrixWorld(true);
+
+      const nextSelectedIds = selectedIds3D.map((id) => replacementIdMap.get(String(id)) || id);
+      syncSelectedIds3D(Array.from(new Set(nextSelectedIds.filter(Boolean))));
+      setActivePart(assemblyRoot, { targetIds: nextSelectedIds });
+
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
     async function swapMilaGiroGrommet(instanceId, useGrommet = false) {
       if (readOnly) return;
 
@@ -5853,6 +7009,176 @@ export default function ThreeCanvas({
           useGrommet: Boolean(useGrommet),
           portA: def.portA,
           portB: def.portB,
+          isPartRoot: true,
+          instanceId: savedUserData.meta?.instanceId || instanceId,
+        },
+      };
+
+      newObj.name = nextCode;
+
+      newObj.traverse((node) => {
+        if (!node) return;
+        node.userData = {
+          ...(node.userData || {}),
+          parentAssemblyId: savedUserData.parentAssemblyId || null,
+          groupId: savedUserData.groupId || null,
+          groupName: savedUserData.groupName || null,
+        };
+
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+          if (node.material) {
+            node.material.depthTest = true;
+            node.material.depthWrite = true;
+            node.material.transparent = false;
+            node.material.needsUpdate = true;
+          }
+        }
+      });
+
+      try {
+        if (oldObj.parent) {
+          oldObj.parent.remove(oldObj);
+        } else {
+          scene.remove(oldObj);
+        }
+      } catch (err) {
+        void err;
+      }
+      removePartsRecordsUnder(oldObj);
+      removePickablesUnder(oldObj);
+
+      savedParent.add(newObj);
+
+      if (savedParentIndex >= 0) {
+        const appendedIndex = savedParent.children.indexOf(newObj);
+        if (appendedIndex >= 0 && appendedIndex !== savedParentIndex) {
+          savedParent.children.splice(appendedIndex, 1);
+          savedParent.children.splice(savedParentIndex, 0, newObj);
+        }
+      }
+
+      newObj.visible = true;
+      newObj.updateMatrixWorld(true);
+
+      parts.push({ code: nextCode, obj: newObj });
+      pickables.push(newObj);
+
+      const newId = newObj.userData?.instanceId || newObj.uuid;
+      const nextSelectedIds = selectedIds3D
+        .map((id) => (oldIds.has(String(id)) ? newId : id))
+        .filter(Boolean);
+      if (!nextSelectedIds.includes(newId)) nextSelectedIds.push(newId);
+
+      syncSelectedIds3D(Array.from(new Set(nextSelectedIds)));
+      setActivePart(newObj, { targetIds: nextSelectedIds });
+      updateMilaConnectors();
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
+    async function swapMoreaGiroGrommet(instanceId, useGrommet = false) {
+      if (readOnly) return;
+
+      const found = parts.find(({ obj }) => {
+        return (
+          obj?.userData?.instanceId === instanceId ||
+          obj?.userData?.meta?.instanceId === instanceId ||
+          obj?.uuid === instanceId
+        );
+      });
+
+      if (!found?.obj) {
+        console.warn('[swapMoreaGiroGrommet] No se encontró la superficie de giro:', instanceId);
+        return;
+      }
+
+      const oldObj = found.obj;
+      const userData = oldObj.userData || {};
+      const meta = userData.meta || {};
+      const angleDeg = Number(meta.angleDeg || userData.angleDeg || 60);
+      const variant = String(meta.moreaVariant || userData.moreaVariant || 'single')
+        .trim()
+        .toLowerCase();
+      const def = resolveMoreaGiroDefinition(angleDeg, variant, Boolean(useGrommet));
+      const fallbackDef = MOREA_GIRO_DEFINITIONS[angleDeg] || MOREA_GIRO_DEFINITIONS[60];
+
+      const nextModelSrc = def.modelSrc;
+      const nextCode = def.code;
+      const currentUseGrommet = Boolean(userData.useGrommet ?? meta.useGrommet);
+      if (currentUseGrommet === Boolean(def.useGrommet)) return;
+
+      let gltf = null;
+      try {
+        const loader = new GLTFLoader();
+        gltf = await loader.loadAsync(nextModelSrc);
+      } catch (loadErr) {
+        console.error('[swapMoreaGiroGrommet] Error cargando GLB:', nextModelSrc, loadErr);
+        return;
+      }
+
+      if (!gltf?.scene) {
+        console.error('[swapMoreaGiroGrommet] No se pudo parsear el GLB:', nextModelSrc);
+        return;
+      }
+
+      const newObj = gltf.scene.clone(true);
+      const savedPos = oldObj.position.clone();
+      const savedQuaternion = oldObj.quaternion.clone();
+      const savedScale = oldObj.scale.clone();
+      const savedParent = oldObj.parent || scene;
+      const savedParentIndex = savedParent.children.indexOf(oldObj);
+      const savedUserData = { ...userData };
+      const oldIds = new Set(
+        [instanceId, oldObj.userData?.instanceId, oldObj.uuid].filter(Boolean).map(String)
+      );
+
+      const catalogItem = catalogByCodeRef.current?.get?.(nextCode) || null;
+      const nextDescription =
+        catalogItem?.ui?.title ||
+        catalogItem?.ui?.subtitle ||
+        catalogItem?.raw?.descripcion ||
+        catalogItem?.raw?.description ||
+        savedUserData.description ||
+        `${fallbackDef?.label || 'Superficie giro'} Morea`;
+      const nextPrices = catalogItem?.prices || savedUserData.prices || undefined;
+      const nextUnitPrice =
+        Number(
+          nextPrices?.[countryRef.current] ??
+            catalogItem?.prices?.[countryRef.current] ??
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            0
+        ) || 0;
+
+      newObj.position.copy(savedPos);
+      newObj.quaternion.copy(savedQuaternion);
+      newObj.scale.copy(savedScale);
+
+      newObj.userData = {
+        ...savedUserData,
+        code: nextCode,
+        codigoPT: nextCode,
+        name: `${fallbackDef?.label || 'Superficie giro'} Morea`,
+        description: nextDescription,
+        prices: nextPrices,
+        unitPrice: nextUnitPrice,
+        modelSrc: nextModelSrc,
+        model: { src: nextModelSrc },
+        useGrommet: Boolean(def.useGrommet),
+        angleDeg: def.angleDeg,
+        connectorAngleDeg: def.connectorAngleDeg,
+        invertConnectorFacing: Boolean(def.invertConnectorFacing),
+        moreaVariant: def.resolvedVariant,
+        meta: {
+          ...(savedUserData.meta || {}),
+          role: 'giro-surface',
+          angleDeg: def.angleDeg,
+          connectorAngleDeg: def.connectorAngleDeg,
+          invertConnectorFacing: Boolean(def.invertConnectorFacing),
+          useGrommet: Boolean(def.useGrommet),
+          moreaVariant: def.resolvedVariant,
           isPartRoot: true,
           instanceId: savedUserData.meta?.instanceId || instanceId,
         },
@@ -6342,6 +7668,7 @@ export default function ThreeCanvas({
       }
 
       const oldObj = found.obj;
+      const oldMinY = getObjectWorldMinY(oldObj);
       const savedPos = oldObj.position.clone();
       const savedRot = oldObj.rotation.clone();
       const savedUserData = { ...oldObj.userData };
@@ -6379,6 +7706,27 @@ export default function ThreeCanvas({
       newObj.position.copy(savedPos);
       newObj.rotation.copy(savedRot);
       newObj.updateMatrixWorld(true);
+
+      const newMinY = getObjectWorldMinY(newObj);
+      if (Number.isFinite(oldMinY) && Number.isFinite(newMinY)) {
+        const preserveFloorDelta = oldMinY - newMinY;
+        if (Math.abs(preserveFloorDelta) > 1e-6) {
+          newObj.position.y += preserveFloorDelta;
+          newObj.updateMatrixWorld(true);
+        }
+      }
+
+      alignClakRootToFloor(newObj);
+
+      resnapConnectedClakObject(newObj);
+
+      const connectedRoots = collectGroupedRootsByIds([newObj.userData?.groupId]).filter(
+        (root) => root && root !== newObj
+      );
+      const connectedRoot = connectedRoots.find((root) => isClakConnectorEnabledObject(root));
+      if (connectedRoot) {
+        resnapConnectedClakObject(connectedRoot);
+      }
 
       setActivePart(newObj);
       emitBOM();
@@ -7009,7 +8357,7 @@ export default function ThreeCanvas({
       controls.update();
 
       //  Reaplica acabados por sub-mesh (solo para GLB/tipologías)
-      function reapplyFinishesToRoot(root, finishesMap) {
+      function _reapplyFinishesToRoot(root, finishesMap) {
         if (!root || !finishesMap || typeof finishesMap !== 'object') return;
 
         let applied = 0;
@@ -7110,7 +8458,7 @@ export default function ThreeCanvas({
         if (entity.finishes && typeof entity.finishes === 'object') {
           object.userData.activeSubKey = entity.activeSubKey || null;
           object.userData.activeSubName = entity.activeSubName || null;
-          reapplyFinishesToRoot(object, entity.finishes);
+          _reapplyFinishesToRoot(object, entity.finishes);
         }
       }
 
@@ -7218,7 +8566,7 @@ export default function ThreeCanvas({
               object.userData.materialCode = codeStr;
               applyMaterialToObject3D(object, codeStr, def);
             }
-            if (finish?.submeshes) reapplyFinishesToRoot(object, finish.submeshes);
+            if (finish?.submeshes) _reapplyFinishesToRoot(object, finish.submeshes);
             object.updateMatrixWorld(true);
           }
 
@@ -7457,7 +8805,7 @@ export default function ThreeCanvas({
             last.userData.activeSubKey = part.activeSubKey || null;
             last.userData.activeSubName = part.activeSubName || null;
 
-            reapplyFinishesToRoot(last, part.finishes);
+            _reapplyFinishesToRoot(last, part.finishes);
           }
           legacyResult.loaded.push({ index, kind: part.kind || 'LEGACY', codigoPT });
         } catch (err) {
@@ -7994,7 +9342,7 @@ export default function ThreeCanvas({
 
         meta: {
           category: 'ensamble',
-          line: 'MILA',
+          line: config.line || 'MILA',
         },
       };
 
@@ -8094,7 +9442,11 @@ export default function ThreeCanvas({
       swapKuoAVDobleVariant,
       swapKuoAVPantallaVariant,
       swapMilaSeatVariant,
+      swapMoreaSeatVariant,
+      swapMoreaPedestalVariant,
+      toggleMoreaSeatBackrestRotation,
       swapMilaGiroGrommet,
+      swapMoreaGiroGrommet,
       swapMilaAccessoryVariant,
       toggleMilaAccessory,
       swapMepalSaludVariant,
@@ -8144,7 +9496,21 @@ export default function ThreeCanvas({
         if (Array.isArray(position)) object.position.fromArray(position);
         if (Array.isArray(quaternion)) object.quaternion.fromArray(quaternion);
         if (Array.isArray(scale)) object.scale.fromArray(scale);
-        if (instruction.finishes) reapplyFinishesToRoot(object, instruction.finishes);
+        if (instruction.finishes && typeof instruction.finishes === 'object') {
+          object.traverse((n) => {
+            if (!n?.isMesh) return;
+            const key = getMeshPathKey(object, n);
+            const fin = instruction.finishes[key];
+            if (!fin?.materialCode) return;
+
+            const codeStr = String(fin.materialCode).trim();
+            const def = materialsByCodeRef.current?.get?.(codeStr) || null;
+            n.userData.materialCode = codeStr;
+            if (!def) return;
+            applyMaterialToMesh(n, codeStr, def);
+          });
+          object.userData.finishes = instruction.finishes;
+        }
         object.updateMatrixWorld(true);
         emitBOM();
         refreshFloorAndGrid();
@@ -8481,6 +9847,7 @@ export default function ThreeCanvas({
 
       sourceObjects.forEach((source) => {
         const physicalRoot = getRootPartObject(source) || source;
+        const assembly = getAssemblyObject(physicalRoot) || getKoncisaAssemblyObject(physicalRoot);
         if (!physicalRoot || physicalRoot.userData?.isFloor) return;
 
         if (!moveAsGroupRef.current) {
@@ -8880,7 +10247,9 @@ export default function ThreeCanvas({
         .filter(Boolean);
       if (!ids.length) return false;
       syncSelectedIds3D(ids);
-      setActivePart(created[created.length - 1], { targetIds: ids });
+      const lastCreated = created[created.length - 1];
+      setActivePart(lastCreated, { targetIds: ids });
+      snapCreatedClakObject(lastCreated);
       return true;
     }
 
@@ -12028,25 +13397,22 @@ export default function ThreeCanvas({
         return;
       }
 
-      // Para ensambles Mila, recolectar los puestos (asientos/mesas) y el puesto clickeado
-      let milaSeats = null;
-      let clickedMilaSeatIndex = 0;
+      // Para ensambles Mila/Morea, recolectar los puestos (asientos/mesas) y el puesto clickeado
+      let popupSeats = null;
+      let clickedPopupSeatIndex = 0;
+      const rootLine = String(root?.userData?.line || '').toUpperCase();
+      const isMilaRoot =
+        root?.userData?.kind === 'MILA_ASSEMBLY' ||
+        root?.userData?.type === 'mila' ||
+        rootLine === 'MILA';
+      const isMoreaRoot =
+        root?.userData?.kind === 'MOREA_ASSEMBLY' ||
+        root?.userData?.type === 'morea' ||
+        rootLine === 'MOREA';
+
       if (
-        (root?.userData?.kind === 'MILA_ASSEMBLY' ||
-          root?.userData?.type === 'mila' ||
-          String(root?.userData?.line || '').toUpperCase() === 'MILA') &&
-        ![
-          'armrest-left',
-          'armrest-right',
-          'armrest-center',
-          'screen',
-          'giro-surface',
-          'accessory',
-          'panel-divisor',
-          'booth-table',
-          'screen-izq',
-          'screen-der',
-        ].includes(
+        (isMilaRoot || isMoreaRoot) &&
+        !['armrest-left', 'armrest-right', 'armrest-center', 'screen', 'giro-surface', 'accessory', 'panel-divisor', 'booth-table', 'screen-izq', 'screen-der'].includes(
           String(root?.userData?.meta?.role || root?.userData?.role || '').toLowerCase()
         ) &&
         root?.userData?.kind !== 'MILA_GIRO_SURFACE' &&
@@ -12078,12 +13444,15 @@ export default function ThreeCanvas({
         // Ordenar de izquierda a derecha (por posición X)
         seatNodes.sort((a, b) => a.position.x - b.position.x);
 
-        milaSeats = seatNodes.map((node, idx) => ({
+        popupSeats = seatNodes.map((node, idx) => ({
           instanceId: node.userData?.instanceId || node.uuid,
           code: node.userData?.codigoPT || node.userData?.code,
-          seatMode:
-            node.userData?.meta?.seatMode ||
-            resolveMilaSeatModeByCode(node.userData?.codigoPT || node.userData?.code),
+          seatMode: isMoreaRoot
+            ? node.userData?.meta?.seatMode ||
+              resolveMoreaSeatModeByCode(node.userData?.codigoPT || node.userData?.code)
+            : node.userData?.meta?.seatMode ||
+              resolveMilaSeatModeByCode(node.userData?.codigoPT || node.userData?.code),
+          backrestRotated180: Boolean(node.userData?.meta?.backrestRotated180),
           label: `Puesto ${idx + 1}`,
           index: idx,
         }));
@@ -12092,6 +13461,8 @@ export default function ThreeCanvas({
         let hasArmrestRight = false;
         let hasArmrestCenter = false;
         let hasScreen = false;
+        let moreaLeftSideCode = null;
+        let moreaRightSideCode = null;
 
         root.traverse((node) => {
           const role = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
@@ -12099,12 +13470,29 @@ export default function ThreeCanvas({
           if (role === 'armrest-right') hasArmrestRight = true;
           if (role === 'armrest-center') hasArmrestCenter = true;
           if (role === 'screen') hasScreen = true;
+          if (isMoreaRoot && role === 'side-left') {
+            moreaLeftSideCode = node.userData?.codigoPT || node.userData?.code || null;
+          }
+          if (isMoreaRoot && role === 'side-right') {
+            moreaRightSideCode = node.userData?.codigoPT || node.userData?.code || null;
+          }
         });
+
+        if (isMoreaRoot) {
+          const moreaVariant = String(root.userData?.meta?.moreaVariant || 'single')
+            .trim()
+            .toLowerCase();
+          root.userData._moreaPedestalMode = resolveMoreaPedestalModeByCode(
+            moreaLeftSideCode || moreaRightSideCode || root.userData?.meta?.pedestalMode,
+            moreaVariant
+          );
+          root.userData._moreaVariant = moreaVariant;
+        }
 
         if (clickedSeat) {
           const clickedId = clickedSeat.userData?.instanceId || clickedSeat.uuid;
-          const foundIdx = milaSeats.findIndex((s) => s.instanceId === clickedId);
-          if (foundIdx >= 0) clickedMilaSeatIndex = foundIdx;
+          const foundIdx = popupSeats.findIndex((s) => s.instanceId === clickedId);
+          if (foundIdx >= 0) clickedPopupSeatIndex = foundIdx;
         }
 
         // Propiedades de accesorios para el popup de propiedades
@@ -12154,15 +13542,23 @@ export default function ThreeCanvas({
           almacenVariant: propertiesTarget.userData?.almacenVariant || null,
           almacenCategory: propertiesTarget.userData?.almacenCategory || null,
           almacenVariants: propertiesTarget.userData?.almacenVariants || null,
-          seats: milaSeats,
-          clickedSeatIndex: clickedMilaSeatIndex,
-          armrestLeft: milaSeats ? root.userData?._milaArmrestLeft || false : undefined,
-          armrestRight: milaSeats ? root.userData?._milaArmrestRight || false : undefined,
-          armrestCenter: milaSeats ? root.userData?._milaArmrestCenter || false : undefined,
-          hasScreen: milaSeats ? root.userData?._milaHasScreen || false : undefined,
-          quantity: milaSeats
-            ? root.userData?._milaQuantity || (milaSeats?.length ?? 1)
+          seats: popupSeats,
+          clickedSeatIndex: clickedPopupSeatIndex,
+          armrestLeft: popupSeats ? root.userData?._milaArmrestLeft || false : undefined,
+          armrestRight: popupSeats ? root.userData?._milaArmrestRight || false : undefined,
+          armrestCenter: popupSeats ? root.userData?._milaArmrestCenter || false : undefined,
+          hasScreen: popupSeats ? root.userData?._milaHasScreen || false : undefined,
+          backrestRotated180: popupSeats
+            ? Boolean(
+              popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
+              popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
+              root.userData?.meta?.backrestRotated180 ||
+              root.userData?._moreaBackrestRotated180
+            )
             : undefined,
+          quantity: popupSeats ? root.userData?._milaQuantity || (popupSeats?.length ?? 1) : undefined,
+          moreaVariant: isMoreaRoot ? root.userData?._moreaVariant || 'single' : undefined,
+          moreaPedestalMode: isMoreaRoot ? root.userData?._moreaPedestalMode || 'normal' : undefined,
           assemblyGroupId: root.userData?.groupId || root.userData?.instanceId || root.uuid,
         },
       });
@@ -12504,51 +13900,34 @@ export default function ThreeCanvas({
     }
 
     /**
-     * Snap bidireccional inteligente entre Ensambles Mila y Superficies de Giro Mila.
-     * Retorna true si se aplicó un snap de Mila/Giro, evitando que el snap genérico
-     * resetee la posición o distorsione la rotación.
+     * Snap bidireccional entre ensambles/superficies dentro de la misma linea.
+     * Mila y Morea se resuelven por separado para evitar cruces entre menus.
      */
     function snapMilaAndGiroSurfaces(target) {
       if (!target) return { snapped: false, mergeCandidate: null };
 
-      const targetObj = getMilaAssemblyRoot(target);
+      const connectorContext = resolveConnectorContext(target);
+      const targetObj = connectorContext?.root || null;
+      const connectorEngine = connectorContext?.engine || null;
+      const connectorScopeLine = connectorContext?.scopeLine || null;
 
       if (!targetObj) return { snapped: false, mergeCandidate: null };
 
-      const activeGroupId = targetObj.userData?.groupId;
-      const allAssemblies = [];
-      const allGiroSurfaces = [];
-      const allAccessories = [];
-      const allPanelDivisors = [];
-      scene.children.forEach((node) => {
-        if (node === targetObj) return;
-        if (activeGroupId && node.userData?.groupId === activeGroupId) return;
+      if (connectorScopeLine !== 'MILA' && connectorScopeLine !== 'MOREA') {
+        return { snapped: false, mergeCandidate: null };
+      }
 
-        const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
-        if (node.userData?.kind === 'MILA_ASSEMBLY' || node.userData?.type === 'mila') {
-          allAssemblies.push(node);
-        } else if (
-          node.userData?.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||
-          node.userData?.type === 'mila-panel-divisor'
-        ) {
-          allPanelDivisors.push(node);
-        } else if (
-          node.userData?.kind === 'MILA_GIRO_SURFACE' ||
-          node.userData?.type === 'MILA_GIRO_SURFACE' ||
-          r === 'giro-surface'
-        ) {
-          allGiroSurfaces.push(node);
-        } else if (
-          r === 'armrest-left' ||
-          r === 'armrest-right' ||
-          r === 'armrest-center' ||
-          r === 'screen'
-        ) {
-          allAccessories.push(node);
-        }
+      const {
+        allAssemblies,
+        allGiroSurfaces,
+        allAccessories,
+        allPanelDivisors,
+      } = collectConnectorCandidatesByScope(targetObj, connectorScopeLine, {
+        excludeSameGroup: true,
       });
+      const activeGroupId = targetObj.userData?.groupId;
 
-      const snapResult = findBestMilaConnectorSnap({
+      const snapResult = connectorEngine.findBestSnap({
         activeAssembly: targetObj,
         allAssemblies,
         allGiroSurfaces,
@@ -12588,7 +13967,7 @@ export default function ThreeCanvas({
         targetObj.rotation.set(0, rotAfter, 0);
         targetObj.updateMatrixWorld(true);
 
-        unifyMilaConnectedAssemblies(targetObj, snapResult.targetObj);
+        connectorEngine.unifyConnectedAssemblies(targetObj, snapResult.targetObj);
         updateMilaConnectors();
         return {
           snapped: true,
@@ -12835,7 +14214,11 @@ export default function ThreeCanvas({
     function resnapGiroSurfaceToAssembly(giroRoot, targetAssembly) {
       if (!giroRoot || !targetAssembly) return false;
 
-      const snapResult = findBestMilaConnectorSnap({
+      const connectorContext = resolveConnectorContext(giroRoot) || resolveConnectorContext(targetAssembly);
+      const connectorEngine = connectorContext?.engine || null;
+      if (!connectorEngine) return false;
+
+      const snapResult = connectorEngine.findBestSnap({
         activeAssembly: giroRoot,
         allAssemblies: [targetAssembly],
         allGiroSurfaces: [],
@@ -12853,7 +14236,7 @@ export default function ThreeCanvas({
       giroRoot.rotation.set(0, snapResult.targetTransform.rotY, 0);
       giroRoot.updateMatrixWorld(true);
 
-      unifyMilaConnectedAssemblies(giroRoot, targetAssembly);
+      connectorEngine.unifyConnectedAssemblies(giroRoot, targetAssembly);
       return true;
     }
 
@@ -13825,7 +15208,7 @@ export default function ThreeCanvas({
 
       const descriptionSuffix = String(part?.meta?.descriptionSuffix || '').trim();
 
-      const descriptionNote = String(part?.meta?.descriptionNote || '').trim();
+      const _descriptionNote = String(part?.meta?.descriptionNote || '').trim();
 
       //const description = descriptionNote ? `${catalogDescription} - ${descriptionNote}`: catalogDescription;
 
@@ -16218,6 +17601,7 @@ export default function ThreeCanvas({
       edukHeightHandleNext.material.dispose();
       scene.remove(edukTableHandleGroup);
       scene.remove(milaConnectorHandleGroup);
+      scene.remove(clakConnectorHandleGroup);
       renderer.domElement.style.cursor = '';
       renderer.dispose();
       if (renderer.domElement?.parentNode === container) {
@@ -16326,3 +17710,6 @@ export default function ThreeCanvas({
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
 }
+
+export { ThreeCanvas };
+export default ThreeCanvas;

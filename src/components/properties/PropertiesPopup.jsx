@@ -10,10 +10,10 @@ import LinkProperties, { isLinkEditablePart } from './LinkProperties';
 import KuoGoProperties, { isKuoGoEditablePart } from './KuoGoProperties';
 import KuoAVProperties, { isKuoAVEditablePart } from './KuoAVProperties';
 import KuoAVDobleProperties, { isKuoAVDobleEditablePart } from './KuoAVDobleProperties';
+import GiroSurfaceProperties, { isGiroSurfaceEditablePart } from './GiroSurfaceProperties';
+import MoreaProperties, { isMoreaEditablePart } from './MoreaProperties';
 import MilaProperties, {
   isMilaEditablePart,
-  MilaGiroProperties,
-  isMilaGiroEditablePart,
 } from './MilaProperties';
 import { isClakPuffVariantPart } from './clakPuffVariants';
 import { sectionStyle } from './shared/PropertyStyles';
@@ -66,8 +66,9 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isKuoGoEditablePart(part) ||
     isKuoAVEditablePart(part) ||
     isKuoAVDobleEditablePart(part) ||
+    isGiroSurfaceEditablePart(part) ||
+    isMoreaEditablePart(part) ||
     isMilaEditablePart(part) ||
-    isMilaGiroEditablePart(part) ||
     isFloor;
 
   const popupLeft = Math.min(x + 12, window.innerWidth - 310);
@@ -123,9 +124,11 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
 
       <KuoAVDobleProperties part={part} api={api} onClose={onClose} />
 
-      <MilaProperties part={part} api={api} onClose={onClose} />
+      <GiroSurfaceProperties part={part} api={api} onClose={onClose} />
 
-      <MilaGiroProperties part={part} api={api} onClose={onClose} />
+      <MoreaProperties part={part} api={api} onClose={onClose} />
+
+      {!isMoreaEditablePart(part) && <MilaProperties part={part} api={api} onClose={onClose} />}
 
       {isFloor && (
         <div style={sectionStyle}>

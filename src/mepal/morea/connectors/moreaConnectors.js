@@ -1,7 +1,7 @@
-// src/mepal/mila/connectors/milaConnectors.js
+// src/mepal/morea/connectors/moreaConnectors.js
 import * as THREE from 'three';
-import { MILA_GIRO_CONNECTOR_TUNE, MILA_GIRO_TUNE } from '../config/milaGiroTunables.js';
-import { MILA_ACCESSORY_OFFSETS_MM } from '../config/milaTunables.js';
+import { MILA_GIRO_CONNECTOR_TUNE, MILA_GIRO_TUNE } from '../../mila/config/milaGiroTunables.js';
+import { MILA_ACCESSORY_OFFSETS_MM } from '../../mila/config/milaTunables.js';
 
 export const MILA_CONNECTOR_CONFIG = {
   SNAP_RADIUS_M: 0.48, // Radio de detección para acople óptimo (48 cm)
@@ -29,6 +29,14 @@ const PANEL_DIVISOR_CONNECTOR_TUNE = {
   seatBackShiftM: 0.06,
   // Empuje extra solamente cuando son 2-4 puestos.
   multiSeatBackExtraShiftM: 0,
+};
+
+const MOREA_GIRO_CONNECTOR_LOCAL_Y_OFFSET_M = 0;
+const MOREA_GIRO_CONNECTED_Y_DROP_M = -0.035;
+const MOREA_GIRO_CONNECTOR_YAW_TRIM_DEG_BY_ANGLE = {
+  // Ajuste fino para orientar más al frente/atrás por ángulo base.
+  // Positivo gira antihorario, negativo gira horario.
+  60: { left: 10, right: -7 },
 };
 
 function clampPanelSeats(value) {
@@ -587,6 +595,13 @@ function resolveMoreaSidePortsCore(targetObj, worldQuaternion, options = {}) {
 
   const localLeft = targetObj.worldToLocal(leftAnchorWorld.clone());
   const localRight = targetObj.worldToLocal(rightAnchorWorld.clone());
+  const localYOffsetM = Number.isFinite(options.localYOffsetM)
+    ? Number(options.localYOffsetM)
+    : 0;
+  if (localYOffsetM !== 0) {
+    localLeft.y += localYOffsetM;
+    localRight.y += localYOffsetM;
+  }
   const worldLeft = localLeft.clone().applyMatrix4(targetObj.matrixWorld);
   const worldRight = localRight.clone().applyMatrix4(targetObj.matrixWorld);
 
@@ -710,11 +725,21 @@ function resolveMoreaGiroSidePorts(targetObj, worldQuaternion, options = {}) {
     clampToTopSurfaceZ: true,
     preferRadialNormals: true,
     applySupportFaceOffset: false,
+    localYOffsetM: MOREA_GIRO_CONNECTOR_LOCAL_Y_OFFSET_M,
     snapNormalsToPrimaryAxis: Boolean(options.snapNormalsToPrimaryAxis),
   });
 }
 
 function flattenHorizontalNormal(normal, fallbackX = 1) {
+  const flat = normal.clone();
+  flat.y = 0;
+  if (flat.lengthSq() < 1e-10) {
+    flat.set(fallbackX >= 0 ? 1 : -1, 0, 0);
+  }
+  return flat.normalize();
+}
+
+function preserveHorizontalNormal(normal, fallbackX = 1) {
   const flat = normal.clone();
   flat.y = 0;
   if (flat.lengthSq() < 1e-10) {
@@ -1072,7 +1097,7 @@ export function resolveMilaAssemblyConnectors(object) {
           : requestedAngleDeg === 135
             ? 45
             : requestedAngleDeg === 270
-              ? 150
+              ? 90
               : null;
       const connectorAngleDeg = Number(
         targetObj.userData?.connectorAngleDeg ||
@@ -1081,16 +1106,24 @@ export function resolveMilaAssemblyConnectors(object) {
           requestedAngleDeg ||
           60
       );
+      const yawTrimEntry = MOREA_GIRO_CONNECTOR_YAW_TRIM_DEG_BY_ANGLE[connectorAngleDeg];
+      const yawTrimLeftDeg = Number(
+        typeof yawTrimEntry === 'object' && yawTrimEntry !== null
+          ? yawTrimEntry.left
+          : yawTrimEntry
+      ) || 0;
+      const yawTrimRightDeg = Number(
+        typeof yawTrimEntry === 'object' && yawTrimEntry !== null
+          ? yawTrimEntry.right
+          : yawTrimEntry
+      ) || 0;
+      const yawTrimLeftRad = (yawTrimLeftDeg * Math.PI) / 180;
+      const yawTrimRightRad = (yawTrimRightDeg * Math.PI) / 180;
       const invertConnectorFacing = Boolean(
         targetObj.userData?.invertConnectorFacing ??
           targetObj.userData?.meta?.invertConnectorFacing ??
           Number.isFinite(inferredAliasBaseAngle)
       );
-      const moreaVariant = String(
-        targetObj.userData?.moreaVariant || targetObj.userData?.meta?.moreaVariant || 'single'
-      )
-        .trim()
-        .toLowerCase();
 
       const sidePorts = resolveMoreaGiroSidePorts(targetObj, worldQuaternion, {
         // En 90° (simple y doble) forzamos ejes primarios para estabilizar
@@ -1115,16 +1148,7 @@ export function resolveMilaAssemblyConnectors(object) {
           new THREE.Vector3(1, 0, 0)
         );
 
-      const shouldFaceBack = connectorAngleDeg === 90 && moreaVariant === 'double';
-
-      const localAvgNormal = localNormalLeft
-        .clone()
-        .add(localNormalRight)
-        .multiplyScalar(0.5);
-      const effectiveAvgLocalNormal =
-        localAvgNormal.lengthSq() > 1e-10 ? localAvgNormal.normalize() : localNormalLeft.clone();
-      const facesBackNow = effectiveAvgLocalNormal.z > 0;
-      const mustFlipNormals = shouldFaceBack ? !facesBackNow : facesBackNow;
+      const mustFlipNormals = Boolean(invertConnectorFacing);
 
       const finalLocalNormalLeft = mustFlipNormals
         ? localNormalLeft.clone().multiplyScalar(-1)
@@ -1138,14 +1162,24 @@ export function resolveMilaAssemblyConnectors(object) {
         finalLocalNormalRight.multiplyScalar(-1);
       }
 
-      const worldNormalLeft = flattenHorizontalNormal(
-        finalLocalNormalLeft.clone().applyQuaternion(worldQuaternion),
-        finalLocalNormalLeft.x || -1
-      );
-      const worldNormalRight = flattenHorizontalNormal(
-        finalLocalNormalRight.clone().applyQuaternion(worldQuaternion),
-        finalLocalNormalRight.x || 1
-      );
+      const localYAxis = new THREE.Vector3(0, 1, 0);
+      if (yawTrimLeftRad !== 0) {
+        finalLocalNormalLeft.applyAxisAngle(localYAxis, yawTrimLeftRad).normalize();
+      }
+      if (yawTrimRightRad !== 0) {
+        finalLocalNormalRight.applyAxisAngle(localYAxis, yawTrimRightRad).normalize();
+      }
+
+      const shouldQuantizeWorldNormals = connectorAngleDeg === 90;
+      const projectWorldNormal = (localNormal, fallbackX) => {
+        const worldNormal = localNormal.clone().applyQuaternion(worldQuaternion);
+        return shouldQuantizeWorldNormals
+          ? flattenHorizontalNormal(worldNormal, fallbackX)
+          : preserveHorizontalNormal(worldNormal, fallbackX);
+      };
+
+      const worldNormalLeft = projectWorldNormal(finalLocalNormalLeft, finalLocalNormalLeft.x || -1);
+      const worldNormalRight = projectWorldNormal(finalLocalNormalRight, finalLocalNormalRight.x || 1);
 
       const isTerminalSurface = connectorAngleDeg === 180;
       const localCenter = sidePorts.localLeft.clone().lerp(sidePorts.localRight, 0.5);
@@ -1158,8 +1192,8 @@ export function resolveMilaAssemblyConnectors(object) {
         centerLocalNormal.lengthSq() > 1e-10
           ? centerLocalNormal.normalize()
           : finalLocalNormalLeft.clone();
-      const centerWorldNormal = flattenHorizontalNormal(
-        effectiveCenterLocalNormal.clone().applyQuaternion(worldQuaternion),
+      const centerWorldNormal = projectWorldNormal(
+        effectiveCenterLocalNormal,
         effectiveCenterLocalNormal.x || -1
       );
 
@@ -1649,7 +1683,6 @@ export function findBestMilaConnectorSnap({
   const activeGroupId = activeAssembly.userData?.groupId;
   const allCandidates = [...allAssemblies, ...allGiroSurfaces, ...allAccessories, ...allPanelDivisors];
   const activeLocalBounds = resolveObjectLocalBounds(activeAssembly);
-  const activeLocalCenter = activeLocalBounds?.getCenter(new THREE.Vector3()) || null;
   const activeLocalCorners = activeLocalBounds
     ? [
         new THREE.Vector3(activeLocalBounds.min.x, activeLocalBounds.min.y, activeLocalBounds.min.z),
@@ -1730,11 +1763,14 @@ export function findBestMilaConnectorSnap({
             !targetConnectors.isAccessory &&
             !activeConnectors.isPanelDivisor &&
             !targetConnectors.isPanelDivisor;
+          const isMoreaGiroSnap =
+            Boolean(activeConnectors.isMorea && activeConnectors.isGiro) ||
+            Boolean(targetConnectors.isMorea && targetConnectors.isGiro);
           const isStrictMoreaGiroChairSnap =
             isMixedGiroChairSnap &&
             Boolean(activeConnectors.isMorea || targetConnectors.isMorea);
           const giroDropM = isStrictMoreaGiroChairSnap
-            ? 0
+            ? MOREA_GIRO_CONNECTED_Y_DROP_M
             : (Number(MILA_GIRO_TUNE?.CONNECTED_Y_OFFSET_MM) || 0) / 1000;
 
           // Solución matemática exacta en 2D (plano XZ) para rotar el vector normal local del puerto activo
@@ -1748,7 +1784,9 @@ export function findBestMilaConnectorSnap({
           const cosAlpha = -Ax * Tx - Az * Tz;
           const requiredYaw = Math.atan2(sinAlpha, cosAlpha);
           const yawCandidates =
-            isMixedGiroChairSnap && !isStrictMoreaGiroChairSnap
+            isMoreaGiroSnap
+              ? [requiredYaw]
+              : isMixedGiroChairSnap && !isStrictMoreaGiroChairSnap
               ? [requiredYaw, requiredYaw + Math.PI]
               : [requiredYaw];
 
@@ -1835,37 +1873,16 @@ export function findBestMilaConnectorSnap({
               }
             }
 
-            if (
-              isOutsideCandidate &&
-              activeConnectors.isGiro &&
-              targetConnectors.isMorea &&
-              !targetConnectors.isGiro &&
-              activeLocalCenter &&
-              (effectiveTargetPort.id === 'left' || effectiveTargetPort.id === 'right')
-            ) {
-              const chairLocalBounds = resolveObjectLocalBounds(targetObj);
-              if (chairLocalBounds) {
-                const giroCenterWorld = activeLocalCenter
-                  .clone()
-                  .applyAxisAngle(new THREE.Vector3(0, 1, 0), yawCandidate)
-                  .add(targetPos);
-                const giroCenterInChairLocal = targetObj.worldToLocal(giroCenterWorld.clone());
-                const outsideMarginM = 0.02;
-                const outsideDistance =
-                  effectiveTargetPort.id === 'left'
-                    ? chairLocalBounds.min.x - giroCenterInChairLocal.x
-                    : giroCenterInChairLocal.x - chairLocalBounds.max.x;
-
-                if (outsideDistance < outsideMarginM) {
-                  isOutsideCandidate = false;
-                  const centerPenetration = outsideMarginM - outsideDistance;
-                  penetrationPenalty += Math.min(0.45, centerPenetration * 6);
-                }
-              }
-            }
+            // Nota: el filtro basado en el centro del giro era demasiado restrictivo
+            // para algunos GLB de Morea y bloqueaba snaps validos giro<->silla.
+            // Conservar el control por esquinas (arriba) evita penetraciones notorias
+            // sin cancelar conexiones correctas en el puerto lateral.
 
             if (isStrictMoreaGiroChairSnap && !isOutsideCandidate) {
-              continue;
+              // En Morea giro<->silla algunos GLB producen una interseccion minima
+              // por bounds aun estando correctamente alineados por puerto.
+              // Penalizamos el candidato, pero no lo anulamos por completo.
+              penetrationPenalty += 0.12;
             }
 
             const snapScore = dist + penetrationPenalty;
