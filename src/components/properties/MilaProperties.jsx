@@ -66,6 +66,22 @@ export function isMilaGiroEditablePart(part) {
 
 export function isMilaEditablePart(part) {
   if (!part) return false;
+  const line = String(
+    part.line ||
+    part.meta?.line ||
+    part.userData?.line ||
+    part.userData?.meta?.line ||
+    ''
+  ).trim().toUpperCase();
+
+  if (
+    line === 'MOREA' ||
+    part.kind === 'MOREA_ASSEMBLY' ||
+    part.kind === 'MOREA_GIRO_SURFACE' ||
+    part.type === 'MOREA_GIRO_SURFACE'
+  ) {
+    return false;
+  }
   // Excluir Panel Divisor (Booth)
   if (
     part.kind === 'MILA_PANEL_DIVISOR_ASSEMBLY' ||

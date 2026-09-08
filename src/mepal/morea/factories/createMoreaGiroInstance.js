@@ -77,11 +77,11 @@ export const MOREA_GIRO_DEFINITIONS = {
   },
   270: {
     angleDeg: 270,
-    code: 'HSU070000',
-    modelSrc: '/assets/models/Morea/HSU070000.glb',
-    grommetCode: 'HSU070000_GROMMET',
-    grommetModelSrc: '/assets/models/Morea/HSU070000_GROMMET.glb',
-    label: 'Legacy 270° (invertida de 150°)',
+    code: 'HSU030000',
+    modelSrc: '/assets/models/Morea/HSU030000.glb',
+    grommetCode: 'HSU030000_GROMMET',
+    grommetModelSrc: '/assets/models/Morea/HSU030000_GROMMET.glb',
+    label: 'Legacy 270° (invertida de 90°)',
     hiddenFromPanel: true,
   },
 };
@@ -89,7 +89,7 @@ export const MOREA_GIRO_DEFINITIONS = {
 const MOREA_GIRO_INVERTED_ALIAS_MAP = {
   120: 60,
   135: 45,
-  270: 150,
+  270: 90,
 };
 
 export const MOREA_GIRO_SPAWN_Y_MM = 340;

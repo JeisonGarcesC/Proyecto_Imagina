@@ -38,6 +38,33 @@ const MOREA_GIRO_OPTIONS = [
     useGrommet: false,
     label: 'Superficie Curva Morea 90° Doble',
   },
+  {
+    key: 'HSU060000_INV_120',
+    code: 'HSU060000',
+    modelTag: 'HSU060000',
+    angle: 120,
+    variant: 'single',
+    useGrommet: false,
+    label: 'Superficie Curva Morea 120° (Invertida)',
+  },
+  {
+    key: 'HSU020000_INV_135',
+    code: 'HSU020000',
+    modelTag: 'HSU020000',
+    angle: 135,
+    variant: 'single',
+    useGrommet: false,
+    label: 'Superficie Curva Morea 135° (Invertida)',
+  },
+  {
+    key: 'HSU030000_INV_270',
+    code: 'HSU030000',
+    modelTag: 'HSU030000',
+    angle: 270,
+    variant: 'single',
+    useGrommet: false,
+    label: 'Superficie Curva Morea 270° (Invertida)',
+  },
 ];
 
 function normalizeCatalogTitle(catalogItem, fallbackCode) {

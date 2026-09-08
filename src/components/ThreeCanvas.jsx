@@ -13548,6 +13548,14 @@ function ThreeCanvas({
           armrestRight: popupSeats ? root.userData?._milaArmrestRight || false : undefined,
           armrestCenter: popupSeats ? root.userData?._milaArmrestCenter || false : undefined,
           hasScreen: popupSeats ? root.userData?._milaHasScreen || false : undefined,
+          backrestRotated180: popupSeats
+            ? Boolean(
+              popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
+              popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
+              root.userData?.meta?.backrestRotated180 ||
+              root.userData?._moreaBackrestRotated180
+            )
+            : undefined,
           quantity: popupSeats ? root.userData?._milaQuantity || (popupSeats?.length ?? 1) : undefined,
           moreaVariant: isMoreaRoot ? root.userData?._moreaVariant || 'single' : undefined,
           moreaPedestalMode: isMoreaRoot ? root.userData?._moreaPedestalMode || 'normal' : undefined,
