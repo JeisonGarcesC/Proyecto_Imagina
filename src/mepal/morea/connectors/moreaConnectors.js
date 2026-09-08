@@ -1,7 +1,7 @@
-// src/mepal/mila/connectors/milaConnectors.js
+// src/mepal/morea/connectors/moreaConnectors.js
 import * as THREE from 'three';
-import { MILA_GIRO_CONNECTOR_TUNE, MILA_GIRO_TUNE } from '../config/milaGiroTunables.js';
-import { MILA_ACCESSORY_OFFSETS_MM } from '../config/milaTunables.js';
+import { MILA_GIRO_CONNECTOR_TUNE, MILA_GIRO_TUNE } from '../../mila/config/milaGiroTunables.js';
+import { MILA_ACCESSORY_OFFSETS_MM } from '../../mila/config/milaTunables.js';
 
 export const MILA_CONNECTOR_CONFIG = {
   SNAP_RADIUS_M: 0.48, // Radio de detección para acople óptimo (48 cm)

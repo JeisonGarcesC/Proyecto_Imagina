@@ -1,5 +1,6 @@
 import { getClakProductDefinition } from '../products/clakProductDefinition.js';
 import { getClakDetail } from '../catalog/clakLoader.js';
+import * as THREE from 'three';
 
 const CLAK_VARIANT_BOM_RECIPES = {
   BP: ['22000036401', 'GROMMET_OR_STD', '22000036407', '22000036402'],
@@ -49,6 +50,84 @@ function resolveDescription(detailCO, detailEUC, detailUSD, code) {
     CLAK_BOM_DESCRIPTION_FALLBACKS[String(code)] ||
     code
   );
+}
+
+function normalizeClakConnectorCode(code) {
+  return String(code || '')
+    .trim()
+    .replace(/_grommet$/i, '')
+    .toUpperCase();
+}
+
+function buildClakConnectorMeta(object, codigoPT) {
+  const normalizedCode = normalizeClakConnectorCode(codigoPT);
+  const isDeskFamily = ['BP', 'BA', 'AP', 'AA'].includes(normalizedCode);
+  const isModuleFamily = [
+    '22000036396',
+    '22000036397',
+    '22000036398',
+    '22000036399',
+  ].includes(normalizedCode);
+  if (!isDeskFamily && !isModuleFamily) return null;
+
+  object.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(object);
+  if (box.isEmpty()) return null;
+
+  const centerX = (box.min.x + box.max.x) * 0.5;
+  const sizeY = Math.max(0, box.max.y - box.min.y);
+  const zEdge = box.max.z;
+
+  if (isDeskFamily) {
+    const edgeInsetY = Math.min(0.03, Math.max(0.015, sizeY * 0.05));
+    const connectorY = Math.max(box.min.y, box.max.y - edgeInsetY);
+    const zFrontEdge = box.min.z;
+    return {
+      units: 'm',
+      connectors: [
+        {
+          id: 'CLAK_BP_TO_MODULE',
+          compatibleWith: ['CLAK_MODULE_TO_BP'],
+          line: {
+            // Canto frontal de la tapa: centrado en ancho y pegado al borde delantero.
+            from: [centerX, connectorY, zFrontEdge],
+            to: [centerX, connectorY, zFrontEdge],
+            normal: [0, 0, -1],
+          },
+        },
+      ],
+    };
+  }
+
+  // En panel/módulo: usar altura relativa para que al crecer en alto
+  // el conector suba de forma proporcional, manteniéndose en la línea media útil.
+  const is200Module = normalizedCode === '22000036398' || normalizedCode === '22000036399';
+  const connectorInsetM = is200Module ? 0.05 : 0.04;
+  const yRatio = is200Module
+    ? 0.48
+    : sizeY >= 1.9
+      ? 0.42
+      : sizeY >= 1.7
+        ? 0.4
+        : 0.38;
+  const connectorY = box.min.y + sizeY * yRatio;
+  const connectorZ = Math.max(box.min.z, zEdge - connectorInsetM);
+
+  return {
+    units: 'm',
+    connectors: [
+      {
+        id: 'CLAK_MODULE_TO_BP',
+        compatibleWith: ['CLAK_BP_TO_MODULE'],
+        line: {
+          // Mitad horizontal de la pared/faja visible, pegado al plano frontal de acople.
+          from: [centerX, connectorY, connectorZ],
+          to: [centerX, connectorY, connectorZ],
+          normal: [0, 0, -1],
+        },
+      },
+    ],
+  };
 }
 
 async function buildClakParts(codigoPT, country) {
@@ -158,9 +237,16 @@ export async function createClakInstance({
   }
 
   const metadata = await createClakMetadata(definition, object, country);
+  const connectorMeta = buildClakConnectorMeta(object, metadata.codigoPT);
   object.userData = {
     ...(object.userData || {}),
     ...metadata,
+    units: connectorMeta?.units || object.userData?.units,
+    connectors: connectorMeta?.connectors || object.userData?.connectors,
+    meta: {
+      ...(object.userData?.meta || {}),
+      ...(connectorMeta || {}),
+    },
   };
   object.name = `CLAK_${metadata.codigoPT}`;
 

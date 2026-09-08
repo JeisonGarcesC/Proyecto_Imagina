@@ -22,10 +22,13 @@ import LinkPanel from './LinkPanel';
 import KuoGoPanel from './KuoGoPanel';
 import KuoAVPanel from './KuoAVPanel';
 import MilaPanel from './MilaPanel';
+import MoreaPanel from './MoreaPanel';
 import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import { createMilaGiroInstance } from '../mepal/mila/factories/createMilaGiroInstance';
 import { createMilaAccessoryInstance } from '../mepal/mila/factories/createMilaAccessoryInstance';
 import { createMilaPanelDivisorInstance } from '../mepal/mila/factories/createMilaPanelDivisorInstance';
+import { createMoreaInstance } from '../mepal/morea/factories/createMoreaInstance';
+import { createMoreaGiroInstance } from '../mepal/morea/factories/createMoreaGiroInstance';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,
@@ -41,6 +44,7 @@ import { COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition';
 import DoorProperties from '../core/architecture/openings/components/DoorProperties';
 
 const typologyImageCache = new Map();
+const CLAK_MENU_HIDDEN_CODES = new Set(['22000036398']);
 export const IMAGE_FOLDER_SETS = {
   general: ['general'],
   tipologias: ['tipologias'],
@@ -1179,9 +1183,13 @@ export default function LeftPanel({
       .trim()
       .toLowerCase();
 
+    const visibleClakItems = (clakItems || []).filter(
+      (it) => !CLAK_MENU_HIDDEN_CODES.has(String(it?.codigoPT || '').trim())
+    );
+
     // If user is searching, show matching items (including variants)
     if (q) {
-      return (clakItems || []).filter((it) => {
+      return visibleClakItems.filter((it) => {
         const code = String(it?.codigoPT ?? '').toLowerCase();
         const title = String(it?.ui?.title ?? '').toLowerCase();
         return code.includes(q) || title.includes(q);
@@ -1194,7 +1202,7 @@ export default function LeftPanel({
       const out = [];
       const groupingMap = new Map();
 
-      for (const it of clakItems || []) {
+      for (const it of visibleClakItems) {
         const codeNorm = normalizeClakPuffCode(it?.codigoPT);
 
         // determine group key
@@ -1210,9 +1218,9 @@ export default function LeftPanel({
           } else {
             const mod = getModuleVariantByCode(codeNorm);
             if (mod) {
-              // Group module variants by width only so modules with same width
-              // (e.g., 174cm and 200cm) show as a single reference each by default.
-              key = `mod_${String(mod.width)}`;
+                // Mostrar un solo representante para toda la familia de modulos
+                // (36396/36397/36398/36399). Las variaciones se resuelven en propiedades.
+                key = 'mod_family_video_conference';
             }
           }
         }
@@ -1239,7 +1247,7 @@ export default function LeftPanel({
     }
 
     // show all when user requested variants
-    return clakItems || [];
+    return visibleClakItems;
   }, [clakItems, qClak, showClakVariants]);
 
   // ================================
@@ -2360,64 +2368,22 @@ export default function LeftPanel({
       {/* ======================= MOREA ======================= */}
       {section === 'morea' && (
         <>
-          <h1 className="lp-wrap" style={{ margin: '0 0 12px 0', lineHeight: 1.1 }}>
-            Morea
-          </h1>
+          <MoreaPanel
+            catalogByCode={new Map((moreaItems || []).map((it) => [String(it.codigoPT), it]))}
+            onCreate={async (config) => {
+              const api = threeApiRef.current;
+              if (!api) {
+                alert('El visor 3D aún no está listo.');
+                return;
+              }
 
-          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
-            Selecciona un producto Morea para verlo en el menú de la librería.
-          </div>
-
-          <input
-            value={qMorea}
-            onChange={(e) => setQMorea(e.target.value)}
-            placeholder="Buscar por código o descripción..."
-            style={{
-              width: '100%',
-              padding: 10,
-              borderRadius: 10,
-              border: '1px solid #e5e7eb',
-              marginBottom: 10,
-              outline: 'none',
+              if (config?.type === 'giro') {
+                await createMoreaGiroInstance({ api, config });
+              } else {
+                await createMoreaInstance({ api, config });
+              }
             }}
           />
-
-          {!moreaReady && <div style={{ fontSize: 12, opacity: 0.7 }}>Cargando Morea...</div>}
-
-          <div style={{ display: 'grid', gap: 8 }}>
-            {moreaFiltered.map((it) => (
-              <button
-                key={String(it.codigoPT)}
-                disabled={readOnly}
-                onClick={() => !readOnly && alert('La lógica de inserción de Morea se añadirá cuando esté lista la regla de fabricación.')}
-                style={cardBtn(readOnly)}
-              >
-                <MoreaCardImage codigo={it.codigoPT} title={it.title || it.codigoPT} />
-                <div style={{ fontWeight: 900, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
-                  {it.codigoPT}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    opacity: 0.85,
-                    overflowWrap: 'anywhere',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {it.title || it.codigoPT}
-                </div>
-                {it.subtitle ? (
-                  <div style={{ fontSize: 11, opacity: 0.65 }}>{it.subtitle}</div>
-                ) : null}
-              </button>
-            ))}
-          </div>
-
-          {moreaReady && moreaFiltered.length === 0 && (
-            <div style={{ fontSize: 12, opacity: 0.7, marginTop: 10 }}>
-              No hay productos disponibles. Agrega entradas a morea.json.
-            </div>
-          )}
         </>
       )}
 
