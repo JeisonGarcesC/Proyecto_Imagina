@@ -51,7 +51,8 @@ export function getCostadosConfig({
           depthMm: anchoRealMm,
           x: baseX - largoRealMm / 2,
           y: 0,
-          z: offsetZIntermedio - 90,
+          // El assembly medido ya se centra sobre la profundidad real.
+          z: offsetZIntermedio,
 
           moduleIndex: i,
           replaceZone: 'INTERMEDIO',

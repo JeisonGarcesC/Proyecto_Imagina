@@ -186,7 +186,7 @@ export async function createKoncisaPlusInstance({
       .toLowerCase();
     if (modelKind === 'koncisa-costado-assembly') {
       const assembly = costado?.meta?.costadoAssembly || null;
-      if (!assembly?.leftLegSrc || !assembly?.rightLegSrc || !assembly?.centerBracketSrc) {
+      if (!assembly?.leftLegSrc || !assembly?.rightLegSrc) {
         notify(`El costado ${costado.logicalCode} no tiene completo su ensamble 3D.`);
         continue;
       }
