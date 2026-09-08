@@ -13413,9 +13413,6 @@ function ThreeCanvas({
       if (
         (isMilaRoot || isMoreaRoot) &&
         !['armrest-left', 'armrest-right', 'armrest-center', 'screen', 'giro-surface', 'accessory', 'panel-divisor', 'booth-table', 'screen-izq', 'screen-der'].includes(
-          'armrest-left',
-          'armrest-right',
-          'armrest-center',
           String(root?.userData?.meta?.role || root?.userData?.role || '').toLowerCase()
         ) &&
         root?.userData?.kind !== 'MILA_GIRO_SURFACE' &&
