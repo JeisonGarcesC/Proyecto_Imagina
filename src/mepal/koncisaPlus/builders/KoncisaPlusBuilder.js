@@ -383,6 +383,7 @@ export function buildKoncisaPlus(config = {}) {
     anchoRealMm,
     hasDuct,
     ductModes,
+    tipoPasoCable,
   });
 
   ductos.forEach((d) => {
@@ -396,6 +397,8 @@ export function buildKoncisaPlus(config = {}) {
         tipoPuesto: d.tipoPuesto,
         tipoModulo: d.tipoModulo,
         nominalWidthMm: d.nominalWidthMm,
+        moduleIndex: d.moduleIndex ?? 0,
+        baseX: d.baseX ?? 0,
         x: d.x ?? 0,
         y: d.y ?? 0,
         z: d.z ?? 0,
@@ -424,16 +427,27 @@ export function buildKoncisaPlus(config = {}) {
 
     const referenceDuctType = String(referenceDuct?.meta?.tipoModulo || 'TERMINAL').toUpperCase();
 
+    // TERMINAL/INTERMEDIO admiten LEFT/RIGHT/CENTER; INDIVIDUAL solo CENTER.
+    const floorDuctPosition = config.floorDuct?.position || 'CENTER';
+
     const floorDuct = resolveKoncisaFloorDuct({
       tipoPuesto,
       tipoPasoCable,
       referenceDuctType,
+      position: floorDuctPosition,
+      largoRealMm,
+      anchoRealMm,
     });
 
-    const basePosition = referenceDuct?.position || {
-      x: 0,
-      y: 0,
-      z: 0,
+    const basePosition = {
+      // Ancla en el centro geométrico del módulo (baseX), no en la posición
+      // visual del ducto horizontal: así TERMINAL/INTERMEDIO/INDIVIDUAL
+      // producen el mismo punto de referencia para una misma largoRealMm,
+      // y las fórmulas de offset (koncisaFloorDuctRules) son las únicas
+      // responsables de la ubicación final.
+      x: Number(referenceDuct?.meta?.baseX ?? 0),
+      y: referenceDuct?.position?.y || 0,
+      z: referenceDuct?.position?.z || 0,
     };
 
     const baseRotation = referenceDuct?.rotation || {
@@ -479,6 +493,13 @@ export function buildKoncisaPlus(config = {}) {
         referenceDuctCode: referenceDuct?.code || null,
         modelCode: floorDuct.modelCode,
         onePerIsland: true,
+        position: floorDuct.position,
+        // Base sin offset, usada para recalcular la posición al cambiar de lado en runtime.
+        basePositionMm: { x: basePosition.x || 0, y: basePosition.y || 0, z: basePosition.z || 0 },
+        baseRotationRad: { x: baseRotation.x || 0, y: baseRotation.y || 0, z: baseRotation.z || 0 },
+        // Medidas del puesto/superficie de referencia; la ecuación del offset depende de ellas.
+        largoRealMm,
+        anchoRealMm,
       },
     });
   }

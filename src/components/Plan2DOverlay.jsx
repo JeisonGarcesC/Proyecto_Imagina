@@ -10,10 +10,7 @@ import {
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
-import {
-  drawFurnitureFootprint2D,
-  FURNITURE_2D_RENDER_MODES,
-} from '../plan2d/furnitureRenderer2D';
+import { drawFurnitureFootprint2D, FURNITURE_2D_RENDER_MODES } from '../plan2d/furnitureRenderer2D';
 import { hitTestFootprint2D } from '../plan2d/footprintGeometry2D';
 import {
   collectSelected2DDetailKeys,
@@ -32,16 +29,53 @@ import {
   worldPointToDocument,
 } from '../core/plans/utils/planTransform';
 import { drawVectorPlan2D } from '../core/plans/renderers/vectorPlanRenderer2D';
+import {
+  getDuctCimbras,
+  pruneCimbraVisibility,
+  resolveSelectedKoncisaPostId,
+} from '../plan2d/koncisaCimbraGeometry2D';
+import { drawShapes2D } from '../plan2d/geometry2D/shapesRenderer2D';
+import { createTextAtPoint2D, moveText2D, rotateText2D } from '../plan2d/text2D/textEditor2D';
+import {
+  getTextHandles2D,
+  pickTextHandle2D,
+  selectTextAtPoint2D,
+} from '../plan2d/text2D/textInteraction2D';
+import { drawTexts2D } from '../plan2d/text2D/textRenderer2D';
+import { resolveFinishStyle2D } from '../plan2d/finishAppearance2D';
+import { createShapeFromTool } from '../plan2d/geometry2D/shapeEditor2D';
+import {
+  getShapeCenter2D,
+  getShapeHandles2D,
+  moveShape2D,
+  pickShapeHandle2D,
+  resizeShape2D,
+  rotateShape2D,
+  selectInteractiveShapeAtPoint,
+} from '../plan2d/geometry2D/shapeInteraction2D';
 import { getEdukWidthInfoByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { createWallDefinition } from '../core/architecture/walls/wallDefinition';
 import { selectWallAtPoint } from '../core/architecture/walls/wallInteraction2D';
-import { buildJoinedWallsGeometry2D, getJoinedWallGeometry } from '../core/architecture/walls/wallJoins2D';
-import { createColumnDefinition, COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition';
+import {
+  buildJoinedWallsGeometry2D,
+  getJoinedWallGeometry,
+} from '../core/architecture/walls/wallJoins2D';
+import {
+  createColumnDefinition,
+  COLUMN_SHAPES,
+} from '../core/architecture/columns/columnDefinition';
 import { buildColumnGeometry2D } from '../core/architecture/columns/columnGeometry2D';
 import { selectColumnAtPoint } from '../core/architecture/columns/columnInteraction2D';
 import { buildArchitectureSnapGeometry } from '../core/architecture/snapping/architectureSnapGeometry2D';
-import { createDoorDefinition, validateDoorPlacement } from '../core/architecture/openings/doorDefinition';
-import { buildDoorGeometry2D, buildWallSegmentPolygons2D, projectPointToWallSegment } from '../core/architecture/openings/doorGeometry2D';
+import {
+  createDoorDefinition,
+  validateDoorPlacement,
+} from '../core/architecture/openings/doorDefinition';
+import {
+  buildDoorGeometry2D,
+  buildWallSegmentPolygons2D,
+  projectPointToWallSegment,
+} from '../core/architecture/openings/doorGeometry2D';
 import { selectOpeningAtPoint } from '../core/architecture/openings/openingInteraction2D';
 
 //Zoom escalas del 2d
@@ -265,6 +299,20 @@ export default function Plan2DOverlay({
   onEndRotation2D,
   onCancelRotation2D,
   getRotationState2D,
+  shapes2D = [],
+  shapeTool2D = null,
+  selectedShape2DId = null,
+  onAddShape2D,
+  onSelectShape2D,
+  onReplaceShape2D,
+  onDeleteSelectedShape2D,
+  texts2D = [],
+  textTool2D = false,
+  selectedText2DId = null,
+  onAddText2D,
+  onSelectText2D,
+  onReplaceText2D,
+  onDeleteSelectedText2D,
 }) {
   const [measureMode, setMeasureMode] = useState(false);
   const [measureStart, setMeasureStart] = useState(null);
@@ -361,6 +409,8 @@ export default function Plan2DOverlay({
   const dimensionTextDragRef = useRef(null);
   const suppressNextClickRef = useRef(false);
   const rotationDragRef = useRef(null);
+  const shapeDragRef = useRef(null);
+  const textDragRef = useRef(null);
   const [isRotatingPiece, setIsRotatingPiece] = useState(false);
 
   const planImageRef = useRef(null);
@@ -504,6 +554,8 @@ export default function Plan2DOverlay({
   // visible toggle
   const [visible, setVisible] = useState(defaultVisible);
   const [viewMode, setViewMode] = useState('normal');
+  const [cimbraVisiblePostIds, setCimbraVisiblePostIds] = useState(() => new Set());
+  const [showFinishes2D, setShowFinishes2D] = useState(false);
   const latestSnapshotRef = useRef([]);
 
   // draft muros
@@ -821,21 +873,33 @@ export default function Plan2DOverlay({
     [architectureSnapGeometry, canvasToWorld]
   );
 
-  const resolveDoorAtCanvasPoint = useCallback((mx, my) => {
-    const worldPoint = canvasToWorld(mx, my);
-    if (!worldPoint) return null;
-    const joined = buildJoinedWallsGeometry2D(walls);
-    let best = null;
-    joined.wallGeometries.forEach((wallGeometry) => wallGeometry.segmentsGeometry.forEach((segment) => {
-      const projection = projectPointToWallSegment(worldPoint, segment);
-      if (!best || projection.distance < best.distance) best = { wallId: wallGeometry.wallId, segment, ...projection };
-    }));
-    const tolerance = 12 / Math.max(viewRef.current.s, Number.EPSILON);
-    if (!best || best.distance > tolerance) return null;
-    const door = createDoorDefinition({ wallId: best.wallId, segmentId: best.segment.segmentId, offset: best.offset, width: doorWidth, height: doorHeight });
-    const validation = validateDoorPlacement(door, walls, openings);
-    return { door, validation, geometry: buildDoorGeometry2D(door, walls, openings) };
-  }, [canvasToWorld, walls, openings, doorWidth, doorHeight]);
+  const resolveDoorAtCanvasPoint = useCallback(
+    (mx, my) => {
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint) return null;
+      const joined = buildJoinedWallsGeometry2D(walls);
+      let best = null;
+      joined.wallGeometries.forEach((wallGeometry) =>
+        wallGeometry.segmentsGeometry.forEach((segment) => {
+          const projection = projectPointToWallSegment(worldPoint, segment);
+          if (!best || projection.distance < best.distance)
+            best = { wallId: wallGeometry.wallId, segment, ...projection };
+        })
+      );
+      const tolerance = 12 / Math.max(viewRef.current.s, Number.EPSILON);
+      if (!best || best.distance > tolerance) return null;
+      const door = createDoorDefinition({
+        wallId: best.wallId,
+        segmentId: best.segment.segmentId,
+        offset: best.offset,
+        width: doorWidth,
+        height: doorHeight,
+      });
+      const validation = validateDoorPlacement(door, walls, openings);
+      return { door, validation, geometry: buildDoorGeometry2D(door, walls, openings) };
+    },
+    [canvasToWorld, walls, openings, doorWidth, doorHeight]
+  );
 
   useEffect(() => {
     if (isWallDrawMode || columnMode === 'PLACE' || openingMode === 'PLACE') return;
@@ -1061,6 +1125,58 @@ export default function Plan2DOverlay({
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+
+      const textDrag = textDragRef.current;
+      if (textDrag?.pointerId === e.pointerId) {
+        const world = canvasToWorld(mx, my);
+        if (!world) return;
+        const point = { x: world.x, y: world.z };
+        let nextText = textDrag.initialText;
+        if (textDrag.mode === 'move') {
+          nextText = moveText2D(textDrag.initialText, {
+            x: point.x - textDrag.startWorld.x,
+            y: point.y - textDrag.startWorld.y,
+          });
+        } else if (textDrag.mode === 'rotate') {
+          const center = textDrag.initialText.geometry;
+          const angle = Math.atan2(point.y - center.y, point.x - center.x);
+          nextText = rotateText2D(
+            textDrag.initialText,
+            textDrag.startRotation + angle - textDrag.startPointerAngle
+          );
+        }
+        textDrag.hasMoved = true;
+        onReplaceText2D?.(nextText);
+        e.preventDefault();
+        return;
+      }
+
+      const shapeDrag = shapeDragRef.current;
+      if (shapeDrag?.pointerId === e.pointerId) {
+        const world = canvasToWorld(mx, my);
+        if (!world) return;
+        const point = { x: world.x, y: world.z };
+        let nextShape = shapeDrag.initialShape;
+        if (shapeDrag.mode === 'move') {
+          nextShape = moveShape2D(shapeDrag.initialShape, {
+            x: point.x - shapeDrag.startWorld.x,
+            y: point.y - shapeDrag.startWorld.y,
+          });
+        } else if (shapeDrag.mode === 'resize') {
+          nextShape = resizeShape2D(shapeDrag.initialShape, shapeDrag.handleId, point);
+        } else if (shapeDrag.mode === 'rotate') {
+          const center = getShapeCenter2D(shapeDrag.initialShape);
+          const angle = Math.atan2(point.y - center.y, point.x - center.x);
+          nextShape = rotateShape2D(
+            shapeDrag.initialShape,
+            shapeDrag.startRotation + angle - shapeDrag.startPointerAngle
+          );
+        }
+        shapeDrag.hasMoved = true;
+        onReplaceShape2D?.(nextShape);
+        e.preventDefault();
+        return;
+      }
 
       if (scaleMode && scaleStartPx) {
         const w = rect.width || canvas.width;
@@ -1307,6 +1423,8 @@ export default function Plan2DOverlay({
       canvasToWorld,
       onPlanPositionChange,
       hitTestPlanAtCanvasPoint,
+      onReplaceShape2D,
+      onReplaceText2D,
     ]
   );
 
@@ -1368,6 +1486,24 @@ export default function Plan2DOverlay({
       const rotationDrag = rotationDragRef.current;
       const variantDrag = variantHandleDragRef.current;
       const planDrag = planDragRef.current;
+      const shapeDrag = shapeDragRef.current;
+      const textDrag = textDragRef.current;
+
+      if (textDrag?.pointerId === e.pointerId) {
+        textDragRef.current = null;
+        suppressNextClickRef.current = true;
+        if (canvas?.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
+
+      if (shapeDrag?.pointerId === e.pointerId) {
+        shapeDragRef.current = null;
+        suppressNextClickRef.current = true;
+        if (canvas?.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+        e.preventDefault();
+        return;
+      }
 
       if (planDrag?.pointerId === e.pointerId) {
         planDragRef.current = null;
@@ -1473,6 +1609,8 @@ export default function Plan2DOverlay({
   const handlePointerCancel = useCallback(
     (e) => {
       cancelVariantHandleDrag(e.pointerId);
+      shapeDragRef.current = null;
+      textDragRef.current = null;
       cancelSelectionDrag(e.pointerId);
       cancelDimensionTextDrag(e.pointerId);
       cancelPieceDrag();
@@ -1554,6 +1692,97 @@ export default function Plan2DOverlay({
 
       // drag de pieza con botón izquierdo
       if (e.button !== 0) return;
+
+      const shapeWorld = canvasToWorld(mx, my);
+      if (textTool2D && shapeWorld) {
+        onAddText2D?.(createTextAtPoint2D({ x: shapeWorld.x, y: shapeWorld.z }));
+        onPickIds?.([]);
+        e.preventDefault();
+        return;
+      }
+
+      if (shapeTool2D && shapeWorld) {
+        onAddShape2D?.(createShapeFromTool(shapeTool2D, { x: shapeWorld.x, y: shapeWorld.z }));
+        onPickIds?.([]);
+        e.preventDefault();
+        return;
+      }
+
+      if (shapeWorld) {
+        const point = { x: shapeWorld.x, y: shapeWorld.z };
+        const tolerance = 10 / Math.max(viewRef.current.s, Number.EPSILON);
+        const context = canvas.getContext('2d');
+        const selectedText = texts2D.find((textItem) => textItem.id === selectedText2DId);
+        const textHandle = selectedText
+          ? pickTextHandle2D(
+              context,
+              selectedText,
+              point,
+              viewRef.current.s,
+              tolerance,
+              28 / Math.max(viewRef.current.s, Number.EPSILON)
+            )
+          : null;
+        const pickedText = textHandle
+          ? selectedText
+          : selectTextAtPoint2D(context, texts2D, point, viewRef.current.s, tolerance);
+
+        if (pickedText) {
+          onSelectText2D?.(pickedText.id);
+          onSelectShape2D?.(null);
+          onPickIds?.([]);
+          textDragRef.current = {
+            pointerId: e.pointerId,
+            initialText: pickedText,
+            startWorld: point,
+            mode: textHandle?.kind || 'move',
+            startRotation: pickedText.geometry.rotation || 0,
+            startPointerAngle: Math.atan2(
+              point.y - pickedText.geometry.y,
+              point.x - pickedText.geometry.x
+            ),
+            hasMoved: false,
+          };
+          canvas.setPointerCapture?.(e.pointerId);
+          e.preventDefault();
+          return;
+        }
+
+        onSelectText2D?.(null);
+        const selectedShape = shapes2D.find((shape) => shape.id === selectedShape2DId);
+        const handle = selectedShape
+          ? pickShapeHandle2D(
+              selectedShape,
+              point,
+              tolerance,
+              28 / Math.max(viewRef.current.s, Number.EPSILON)
+            )
+          : null;
+        const pickedShape = handle
+          ? selectedShape
+          : selectInteractiveShapeAtPoint(shapes2D, point, tolerance);
+
+        if (pickedShape) {
+          onSelectShape2D?.(pickedShape.id);
+          onSelectText2D?.(null);
+          onPickIds?.([]);
+          const center = getShapeCenter2D(pickedShape);
+          shapeDragRef.current = {
+            pointerId: e.pointerId,
+            initialShape: pickedShape,
+            startWorld: point,
+            mode: handle?.kind || 'move',
+            handleId: handle?.id || null,
+            startRotation: pickedShape.geometry.rotation || 0,
+            startPointerAngle: Math.atan2(point.y - center.y, point.x - center.x),
+            hasMoved: false,
+          };
+          canvas.setPointerCapture?.(e.pointerId);
+          e.preventDefault();
+          return;
+        }
+        onSelectShape2D?.(null);
+      }
 
       if (openingMode === 'PLACE') {
         const preview = resolveDoorAtCanvasPoint(mx, my);
@@ -1817,12 +2046,25 @@ export default function Plan2DOverlay({
       processVariantHandleDragQueue,
       hitTestPlanAtCanvasPoint,
       getRuntimePlan,
+      shapes2D,
+      shapeTool2D,
+      texts2D,
+      textTool2D,
+      selectedText2DId,
+      selectedShape2DId,
+      onAddShape2D,
+      onAddText2D,
+      onSelectShape2D,
+      onSelectText2D,
+      onPickIds,
     ]
   );
 
   useEffect(() => {
     const onEscape = (e) => {
       if (e.key !== 'Escape') return;
+      shapeDragRef.current = null;
+      textDragRef.current = null;
       if (rotationDragRef.current) {
         rotationDragRef.current = null;
         setIsRotatingPiece(false);
@@ -1845,6 +2087,8 @@ export default function Plan2DOverlay({
 
   useEffect(() => {
     const cancelActiveDrag = () => {
+      shapeDragRef.current = null;
+      textDragRef.current = null;
       cancelVariantHandleDrag();
       cancelSelectionDrag();
       cancelDimensionTextDrag();
@@ -2060,6 +2304,10 @@ export default function Plan2DOverlay({
       onAddOpening,
       onSelectOpening,
       openings,
+      shapes2D,
+      shapeTool2D,
+      onAddShape2D,
+      onSelectShape2D,
     ]
   );
 
@@ -2110,6 +2358,20 @@ export default function Plan2DOverlay({
         });
       }
 
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedText2DId) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onDeleteSelectedText2D?.();
+        return;
+      }
+
+      if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedShape2DId) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onDeleteSelectedShape2D?.();
+        return;
+      }
+
       if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedDimensionId) {
         ev.preventDefault();
         ev.stopPropagation();
@@ -2151,6 +2413,10 @@ export default function Plan2DOverlay({
     recordDimensionHistoryAction,
     scaleMode,
     calibrationDraft,
+    selectedShape2DId,
+    onDeleteSelectedShape2D,
+    selectedText2DId,
+    onDeleteSelectedText2D,
   ]);
 
   useEffect(() => {
@@ -2199,6 +2465,10 @@ export default function Plan2DOverlay({
         }) || []
       ).filter(Boolean);
       latestSnapshotRef.current = snap;
+      const prunedCimbraPostIds = pruneCimbraVisibility(cimbraVisiblePostIds, snap);
+      if (prunedCimbraPostIds.size !== cimbraVisiblePostIds.size) {
+        setCimbraVisiblePostIds(prunedCimbraPostIds);
+      }
       const snapGeometry = buildSnapGeometry(snap);
       const { s, cx, cz } = viewRef.current;
 
@@ -2305,19 +2575,28 @@ export default function Plan2DOverlay({
         const geometry = getJoinedWallGeometry(joinedWallsGeometry, wall.id);
         if (!geometry) continue;
         for (const segment of geometry.segmentsGeometry) {
-          const segmentOpenings = openings.filter((opening) => opening.wallId === wall.id && opening.segmentId === segment.segmentId && validateDoorPlacement(opening, walls, openings).valid);
-          const polygons = segmentOpenings.length ? buildWallSegmentPolygons2D(segment, segmentOpenings) : [segment.polygon];
+          const segmentOpenings = openings.filter(
+            (opening) =>
+              opening.wallId === wall.id &&
+              opening.segmentId === segment.segmentId &&
+              validateDoorPlacement(opening, walls, openings).valid
+          );
+          const polygons = segmentOpenings.length
+            ? buildWallSegmentPolygons2D(segment, segmentOpenings)
+            : [segment.polygon];
           polygons.forEach((polygon) => {
             ctx.beginPath();
             polygon.forEach((point, index) => {
               const [x, y] = toCanvasLocal(point.x, point.z);
-              if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+              if (index === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
             });
             ctx.closePath();
             ctx.fillStyle = isSelected ? 'rgba(0,145,180,0.32)' : 'rgba(20,20,20,0.32)';
             ctx.strokeStyle = isSelected ? 'rgba(0,145,180,0.95)' : 'rgba(20,20,20,0.78)';
             ctx.lineWidth = isSelected ? 3 : 1;
-            ctx.fill(); ctx.stroke();
+            ctx.fill();
+            ctx.stroke();
           });
         }
 
@@ -2375,26 +2654,56 @@ export default function Plan2DOverlay({
         const [lx, ly] = toCanvasLocal(geometry.openEnd.x, geometry.openEnd.z);
         const [cx, cy] = toCanvasLocal(geometry.closedEnd.x, geometry.closedEnd.z);
         ctx.save();
-        ctx.strokeStyle = geometry.valid === false ? '#dc2626' : selected ? '#d97706' : preview ? '#16a34a' : '#505050';
+        ctx.strokeStyle =
+          geometry.valid === false
+            ? '#dc2626'
+            : selected
+              ? '#d97706'
+              : preview
+                ? '#16a34a'
+                : '#505050';
         ctx.lineWidth = selected ? 3 : 2;
-        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(lx, ly); ctx.stroke();
         ctx.beginPath();
-        ctx.arc(hx, hy, geometry.arc.radius * s, Math.atan2(cy - hy, cx - hx), Math.atan2(ly - hy, lx - hx), geometry.arc.counterClockwise !== invertZ);
+        ctx.moveTo(hx, hy);
+        ctx.lineTo(lx, ly);
         ctx.stroke();
-        ctx.beginPath(); ctx.arc(hx, hy, 3, 0, Math.PI * 2); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+        ctx.beginPath();
+        ctx.arc(
+          hx,
+          hy,
+          geometry.arc.radius * s,
+          Math.atan2(cy - hy, cx - hx),
+          Math.atan2(ly - hy, lx - hx),
+          geometry.arc.counterClockwise !== invertZ
+        );
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(hx, hy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
         ctx.restore();
       };
 
       for (const opening of openings || []) {
         if (opening?.visible === false) continue;
-        drawDoorSymbol(buildDoorGeometry2D(opening, walls, openings), opening.id === selectedOpeningId);
+        drawDoorSymbol(
+          buildDoorGeometry2D(opening, walls, openings),
+          opening.id === selectedOpeningId
+        );
       }
       if (openingMode === 'PLACE' && doorPreview?.geometry) {
         drawDoorSymbol(doorPreview.geometry, false, true);
-        const [tx, ty] = toCanvasLocal(doorPreview.geometry.center.x, doorPreview.geometry.center.z);
+        const [tx, ty] = toCanvasLocal(
+          doorPreview.geometry.center.x,
+          doorPreview.geometry.center.z
+        );
         ctx.fillStyle = doorPreview.validation.valid ? '#166534' : '#b91c1c';
         ctx.font = '12px sans-serif';
-        ctx.fillText(`${doorWidth.toFixed(2)} m${doorPreview.validation.valid ? '' : ' · no cabe'}`, tx + 10, ty - 10);
+        ctx.fillText(
+          `${doorWidth.toFixed(2)} m${doorPreview.validation.valid ? '' : ' · no cabe'}`,
+          tx + 10,
+          ty - 10
+        );
       }
 
       // Muro en construcción
@@ -2462,8 +2771,15 @@ export default function Plan2DOverlay({
         ctx.rotate(-(p.rotY || 0));
 
         const isSel = selSet.has(p.id);
-
-        ctx.fillStyle = isSel ? 'rgba(56, 194, 212, 0.28)' : 'rgba(0,0,0,0.07)';
+        // color 2D estandar o normal. azul clarito
+        const normalFill = isSel ? 'rgba(56, 194, 212, 0.28)' : 'rgba(0,0,0,0.07)';
+        const finishStyle = resolveFinishStyle2D(
+          { fill: true, fillColor: normalFill, fillOpacity: 1 },
+          p.appearance,
+          showFinishes2D,
+          p.type || p.kind
+        );
+        ctx.fillStyle = finishStyle.fillColor;
         ctx.strokeStyle = isSel ? 'rgba(56, 194, 212, 0.95)' : 'rgba(0,0,0,0.30)';
         ctx.lineWidth = isSel ? 2.2 : 1;
 
@@ -2474,7 +2790,10 @@ export default function Plan2DOverlay({
             ? FURNITURE_2D_RENDER_MODES.DETAILED
             : FURNITURE_2D_RENDER_MODES.NORMAL,
         });
+        const previousAlpha = ctx.globalAlpha;
+        ctx.globalAlpha = previousAlpha * (finishStyle.fillOpacity ?? 1);
         ctx.fill();
+        ctx.globalAlpha = previousAlpha;
         ctx.stroke();
 
         ctx.fillStyle = isSel ? 'rgba(56, 194, 212, 1)' : 'rgba(0,0,0,0.35)';
@@ -2483,6 +2802,98 @@ export default function Plan2DOverlay({
         ctx.fill();
 
         ctx.restore();
+      }
+
+      // Capa visual derivada: se dibuja sobre las huellas, sin participar
+      // en selección, movimiento ni persistencia.
+      if (cimbraVisiblePostIds.size) {
+        const cimbras = getDuctCimbras(snap, { visiblePostIds: cimbraVisiblePostIds });
+        drawShapes2D(ctx, cimbras, { toCanvas: toCanvasLocal, scale: s });
+      }
+
+      drawShapes2D(ctx, shapes2D, { toCanvas: toCanvasLocal, scale: s });
+      const selectedShape = shapes2D.find((shape) => shape.id === selectedShape2DId);
+      if (selectedShape) {
+        drawShapes2D(
+          ctx,
+          [
+            {
+              ...selectedShape,
+              style: { ...selectedShape.style, stroke: '#06b6d4', strokeWidth: 3 },
+            },
+          ],
+          { toCanvas: toCanvasLocal, scale: s }
+        );
+        const handles = getShapeHandles2D(selectedShape, 28 / Math.max(s, Number.EPSILON));
+        const resizeHandles = handles.filter((handle) => handle.kind === 'resize');
+        const rotationHandle = handles.find((handle) => handle.kind === 'rotate');
+        ctx.save();
+        ctx.strokeStyle = '#06b6d4';
+        ctx.fillStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        if (resizeHandles.length > 2 && selectedShape.type !== 'circle') {
+          ctx.beginPath();
+          resizeHandles.forEach((handle, index) => {
+            const [hx, hy] = toCanvasLocal(handle.x, handle.y);
+            if (index === 0) ctx.moveTo(hx, hy);
+            else ctx.lineTo(hx, hy);
+          });
+          ctx.closePath();
+          ctx.stroke();
+        }
+        if (rotationHandle) {
+          const center = getShapeCenter2D(selectedShape);
+          const [cx, cy] = toCanvasLocal(center.x, center.y);
+          const [rx, ry] = toCanvasLocal(rotationHandle.x, rotationHandle.y);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(rx, ry);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        handles.forEach((handle) => {
+          const [hx, hy] = toCanvasLocal(handle.x, handle.y);
+          ctx.beginPath();
+          ctx.arc(hx, hy, handle.kind === 'rotate' ? 6 : 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+
+      drawTexts2D(ctx, texts2D, {
+        toCanvas: toCanvasLocal,
+        scale: s,
+        selectedId: selectedText2DId,
+      });
+      const selectedText = texts2D.find((textItem) => textItem.id === selectedText2DId);
+      if (selectedText) {
+        const [rotationHandle] = getTextHandles2D(
+          ctx,
+          selectedText,
+          s,
+          28 / Math.max(s, Number.EPSILON)
+        );
+        if (rotationHandle) {
+          const [tx, ty] = toCanvasLocal(selectedText.geometry.x, selectedText.geometry.y);
+          const [rx, ry] = toCanvasLocal(rotationHandle.x, rotationHandle.y);
+          ctx.save();
+          ctx.strokeStyle = '#06b6d4';
+          ctx.fillStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(rx, ry);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.arc(rx, ry, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
       const activeVariantControl = resolveActiveVariantControl2D(snap);
@@ -2738,14 +3149,21 @@ export default function Plan2DOverlay({
     hoveredVariantHandleDir,
     isVariantHandleDragging,
     detailed2DIds,
+    cimbraVisiblePostIds,
+    showFinishes2D,
+    shapes2D,
+    selectedShape2DId,
+    texts2D,
+    selectedText2DId,
   ]);
 
-  const selectedDetailKeys = collectSelected2DDetailKeys(
-    selectedIds,
-    latestSnapshotRef.current
-  );
+  const selectedDetailKeys = collectSelected2DDetailKeys(selectedIds, latestSnapshotRef.current);
   const selectedAreDetailed =
     selectedDetailKeys.length > 0 && selectedDetailKeys.every((key) => detailed2DIds.has(key));
+  const selectedCimbraPostId = resolveSelectedKoncisaPostId(latestSnapshotRef.current, selectedIds);
+  const selectedPostCimbraVisible = selectedCimbraPostId
+    ? cimbraVisiblePostIds.has(selectedCimbraPostId)
+    : false;
 
   if (!visible) {
     return (
@@ -2831,14 +3249,8 @@ export default function Plan2DOverlay({
             padding: '6px 10px',
             borderRadius: 10,
             border: '1px solid rgba(0,0,0,0.14)',
-            background:
-              selectedAreDetailed
-                ? 'rgba(37, 99, 235, 0.14)'
-                : 'rgba(255,255,255,0.92)',
-            color:
-              selectedAreDetailed
-                ? 'rgba(30, 64, 175, 1)'
-                : 'inherit',
+            background: selectedAreDetailed ? 'rgba(37, 99, 235, 0.14)' : 'rgba(255,255,255,0.92)',
+            color: selectedAreDetailed ? 'rgba(30, 64, 175, 1)' : 'inherit',
             cursor: selectedDetailKeys.length ? 'pointer' : 'not-allowed',
             opacity: selectedDetailKeys.length ? 1 : 0.55,
           }}
@@ -3006,6 +3418,63 @@ export default function Plan2DOverlay({
             </button>
           </>
         ) : null}
+
+        <button
+          type="button"
+          onClick={() => setShowFinishes2D((current) => !current)}
+          aria-pressed={showFinishes2D}
+          title="Mostrar los colores reales de los acabados del modelo 3D"
+          style={{
+            padding: '6px 10px',
+            borderRadius: 10,
+            border: showFinishes2D
+              ? '1px solid rgba(37, 99, 235, 0.9)'
+              : '1px solid rgba(0,0,0,0.14)',
+            background: showFinishes2D ? 'rgba(219, 234, 254, 0.96)' : 'rgba(255,255,255,0.92)',
+            color: showFinishes2D ? '#1d4ed8' : 'inherit',
+            cursor: 'pointer',
+            fontWeight: 700,
+          }}
+        >
+          Acabados: {showFinishes2D ? 'ON' : 'OFF'}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const postId = resolveSelectedKoncisaPostId(latestSnapshotRef.current, selectedIds);
+            if (!postId) return;
+            setCimbraVisiblePostIds((current) => {
+              const next = new Set(current);
+              if (next.has(postId)) next.delete(postId);
+              else next.add(postId);
+              return next;
+            });
+          }}
+          disabled={!selectedCimbraPostId}
+          aria-pressed={selectedPostCimbraVisible}
+          title={
+            selectedCimbraPostId
+              ? 'Mostrar u ocultar cimbras del puesto KONCISA PLUS seleccionado'
+              : 'Selecciona un puesto KONCISA PLUS para controlar sus cimbras'
+          }
+          style={{
+            padding: '6px 10px',
+            borderRadius: 10,
+            border: selectedPostCimbraVisible
+              ? '1px solid rgba(220, 38, 38, 0.9)'
+              : '1px solid rgba(0,0,0,0.14)',
+            background: selectedPostCimbraVisible
+              ? 'rgba(254, 226, 226, 0.96)'
+              : 'rgba(255,255,255,0.92)',
+            color: selectedPostCimbraVisible ? '#b91c1c' : 'inherit',
+            cursor: selectedCimbraPostId ? 'pointer' : 'not-allowed',
+            opacity: selectedCimbraPostId ? 1 : 0.55,
+            fontWeight: 700,
+          }}
+        >
+          Cimbra: {selectedPostCimbraVisible ? 'ON' : 'OFF'}
+        </button>
 
         <button
           onClick={() => setVisible(false)}
@@ -3251,7 +3720,7 @@ export default function Plan2DOverlay({
           display: 'block',
           touchAction: 'none',
           cursor:
-            measureMode || isWallDrawMode || scaleMode || selectionDrag
+            measureMode || isWallDrawMode || shapeTool2D || textTool2D || scaleMode || selectionDrag
               ? 'crosshair'
               : isPlanDragging
                 ? 'grabbing'
@@ -3278,6 +3747,8 @@ export default function Plan2DOverlay({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={(event) => {
+          if (shapeDragRef.current?.pointerId === event.pointerId) shapeDragRef.current = null;
+          if (textDragRef.current?.pointerId === event.pointerId) textDragRef.current = null;
           if (planDragRef.current?.pointerId === event.pointerId) {
             planDragRef.current = null;
             setIsPlanDragging(false);

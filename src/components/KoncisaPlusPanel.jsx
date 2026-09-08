@@ -260,28 +260,14 @@ export default function KoncisaPlusPanel({ onCreate }) {
     });
   }, [puestos]);
 
-  const opcionesCostado =
-    tipoPuesto === 'sencillo'
-      ? [
-          { value: 'RECT', label: 'Rectangular' },
-          { value: 'TEK_DER', label: 'Tek derecho' },
-          { value: 'TEK_IZQ', label: 'Tek izquierdo' },
-          { value: 'ORTOGONAL_DER', label: 'Ortogonal derecho' },
-          { value: 'ORTOGONAL_IZQ', label: 'Ortogonal izquierdo' },
-          { value: 'O', label: 'O' },
-          { value: 'CURVO_DER', label: 'Curvo derecho' },
-          { value: 'CURVO_IZQ', label: 'Curvo izquierdo' },
-          { value: 'TRAP_DER', label: 'Trapecial derecho' },
-          { value: 'TRAP_IZQ', label: 'Trapecial izquierdo' },
-        ]
-      : [
-          { value: 'RECT', label: 'Rectangular' },
-          { value: 'TEK', label: 'Tek' },
-          { value: 'ORTOGONAL', label: 'Ortogonal' },
-          { value: 'O', label: 'O' },
-          { value: 'CURVO', label: 'Curvo' },
-          { value: 'TRAP', label: 'Trapecial' },
-        ];
+  const opcionesCostado = [
+    { value: 'RECT', label: 'Rectangular' },
+    { value: 'TEK', label: 'Tek' },
+    { value: 'ORTOGONAL', label: 'Ortogonal' },
+    { value: 'O', label: 'O' },
+    { value: 'CURVO', label: 'Curvo' },
+    { value: 'TRAP', label: 'Trapecial' },
+  ];
 
   //console.log('DUCT MODES PANEL', ductModes);
 

@@ -369,7 +369,9 @@ export function createKuoAVVertebraPart({
     existsInCatalog: true,
     rawCodigoPT: KUO_AV_SAP_CODES.VERTEBRA,
 
-    name: `Vértebra Pasacables Kuo AV ${isLateral ? 'Lateral' : 'Central'} (${lado.toUpperCase()})`,
+    name: `Vértebra Pasacables Kuo AV ${
+      isLateral ? `Lateral (${lado.toUpperCase()})` : 'Central'
+    }`,
 
     dimMm: {
       widthMm: 60,

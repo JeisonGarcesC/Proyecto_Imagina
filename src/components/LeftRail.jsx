@@ -6,6 +6,7 @@ export default function LeftRail({ active, onChange }) {
     { id: 'walls', label: 'Muros', icon: '🧱' },
     { id: 'columns', label: 'Columnas', icon: '▣' },
     { id: 'openings', label: 'Puertas/Ventanas', icon: '🚪' },
+    { id: 'elements2d', label: 'Elementos 2D', icon: '◇' },
     { id: 'materials', label: 'Materiales', icon: '🎨' },
     { id: 'plans', label: 'Planos', icon: '🗺️' },
     { id: 'sillas', label: 'Sillas', icon: '🪑' },

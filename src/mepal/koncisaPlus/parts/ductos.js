@@ -11,6 +11,8 @@ export function createDucto({
   tipoPuesto = 'sencillo',
   tipoModulo = 'terminal',
   nominalWidthMm = 1200,
+  moduleIndex = 0,
+  baseX = 0,
   x = 0,
   y = 0,
   z = 0,
@@ -74,6 +76,10 @@ export function createDucto({
       tipoPuesto,
       tipoModulo,
       nominalWidthMm,
+      moduleIndex,
+      // Centro geométrico del módulo, sin las correcciones visuales propias
+      // de terminal/intermedio/individual; ancla estable para piezas dependientes.
+      baseX,
 
       realWidthMm: isSpecial ? resolved?.realWidthMm || nominalWidthMm : nominalWidthMm,
       billingWidthMm: resolved?.billingWidthMm || nominalWidthMm,

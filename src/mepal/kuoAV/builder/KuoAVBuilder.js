@@ -65,12 +65,6 @@ export function buildKuoAV(config = {}) {
   // Accesorios opcionales con chequeo booleano estricto
   const kitFuente = typeof config.kitFuente === 'boolean' ? config.kitFuente : false;
   const elevarKitFIzquierdo = typeof config.elevarKitFIzquierdo === 'boolean' ? config.elevarKitFIzquierdo : false;
-  const vertebraEnabled =
-    typeof config.vertebraEnabled === 'boolean'
-      ? config.vertebraEnabled
-      : typeof config.vertebraLateral === 'boolean'
-      ? config.vertebraLateral
-      : false;
   const vertebraLateral =
     typeof config.vertebraLateral === 'boolean' ? config.vertebraLateral : false;
   const ladoVertebra = config.ladoVertebra === 'der' ? 'der' : 'izq';
@@ -304,15 +298,18 @@ export function buildKuoAV(config = {}) {
     parts.push(socketSupportPart);
   }
 
-  // 10. Vértebra Metálica Pasacables (ÚNICAMENTE si vertebraLateral === true)
-  if (vertebraEnabled) {
-    const calVert = vertebraLateral ? cal.vertebraLateral : cal.vertebraCentral;
-    const baseVert = calVert?.posicionMm || calVert?.posicionImaginaCanonicaMm || { x: -35.0, y: 25.0, z: -88.7 };
-    const vertX = baseVert.x + (calVert?.offsetMm?.x || 0);
-    const vertY = baseVert.y + (calVert?.offsetMm?.y || 0);
-    const vertZ = baseVert.z + (calVert?.offsetMm?.z || 0);
+  // 10. La vértebra central es estándar; el checkbox selecciona su variante lateral.
+  const calVert = vertebraLateral ? cal.vertebraLateral : cal.vertebraCentral;
+  const baseVert =
+    calVert?.posicionMm ||
+    calVert?.posicionImaginaCanonicaMm ||
+    { x: -35.0, y: 25.0, z: -88.7 };
+  const vertX = baseVert.x + (calVert?.offsetMm?.x || 0);
+  const vertY = baseVert.y + (calVert?.offsetMm?.y || 0);
+  const vertZ = baseVert.z + (calVert?.offsetMm?.z || 0);
 
-    const vertebraPart = createKuoAVVertebraPart({
+  parts.push(
+    createKuoAVVertebraPart({
       groupId,
       groupName,
       alturaMm,
@@ -321,10 +318,8 @@ export function buildKuoAV(config = {}) {
       x: vertX,
       y: vertY,
       z: vertZ,
-    });
-
-    parts.push(vertebraPart);
-  }
+    })
+  );
 
   // 11. Grommet Pasatapas (si está configurado y no es NONE)
   if (acabadoGrommet && acabadoGrommet !== 'NONE') {
@@ -385,7 +380,6 @@ export function buildKuoAV(config = {}) {
     kitFuente,
     kitFuenteColor: config.kitFuenteColor || config.acabadoParales || 'Blanco',
     elevarKitFIzquierdo,
-    vertebraEnabled,
     vertebraLateral,
     ladoVertebra,
     acabadoGrommet,
