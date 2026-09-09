@@ -69,6 +69,15 @@ function findCritterium8Assembly(object) {
   return null;
 }
 
+function findMilaAssembly(object) {
+  let current = object || null;
+  while (current) {
+    if (current.userData?.kind === 'MILA_ASSEMBLY') return current;
+    current = current.parent || null;
+  }
+  return null;
+}
+
 function serializeKoncisaAssembly(assembly, physicalParts) {
   const recipe = serializeKoncisaPlusRecipe({ assembly, physicalParts });
   const data = assembly.userData || {};
@@ -126,6 +135,34 @@ export function serializeCritterium8Entity(assembly) {
       provisionalGeometry: Array.isArray(data.renderReport?.diagnostics)
         ? data.renderReport.diagnostics.some((item) => item.code === 'PROVISIONAL_GEOMETRY')
         : false,
+    },
+  };
+}
+
+export function serializeMilaEntity(assembly, { collectFinishes } = {}) {
+  const data = assembly?.userData || {};
+  const instanceId = data.instanceId || data.code || assembly?.uuid || null;
+  const groupId = data.groupId || instanceId;
+
+  return {
+    kind: 'MILA',
+    instanceId,
+    assemblyId: instanceId,
+    groupId,
+    family: 'MILA',
+    codigoPT: data.codigoPT || groupId,
+    code: data.code || groupId,
+    config: cloneSerializable(data.config || {}),
+    transform: {
+      position: assembly.position.toArray(),
+      quaternion: assembly.quaternion.toArray(),
+      rotation: [assembly.rotation.x, assembly.rotation.y, assembly.rotation.z],
+      scale: assembly.scale.toArray(),
+    },
+    finishes: collectFinishes?.(assembly) || null,
+    metadata: {
+      line: data.line || 'MILA',
+      groupName: data.groupName || data.name || 'Mila',
     },
   };
 }
@@ -196,9 +233,19 @@ export function serializeProjectEntities(parts = [], options = {}) {
   });
 
   parts.forEach((partRecord) => {
+    const assembly = findMilaAssembly(partRecord?.obj);
+    if (!assembly) return;
+    const assemblyId = assembly.userData?.instanceId || assembly.userData?.code || assembly.uuid;
+    if (processedAssemblies.has(assemblyId)) return;
+    processedAssemblies.add(assemblyId);
+    entities.push(serializeMilaEntity(assembly, options));
+  });
+
+  parts.forEach((partRecord) => {
     if (
       findKoncisaAssembly(partRecord?.obj) ||
       findCritterium8Assembly(partRecord?.obj) ||
+      findMilaAssembly(partRecord?.obj) ||
       isKoncisaPersistenceObject(partRecord?.obj)
     ) {
       return;

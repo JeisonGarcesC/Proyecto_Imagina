@@ -1,6 +1,7 @@
 const LOADERS = {
   KONCISA_PLUS: (entity, context) => context.createKoncisaPlus(entity),
   CRITTERIUM_8: (entity, context) => context.createCritterium8(entity),
+  MILA: (entity, context) => context.createMila(entity),
   SURFACE: (entity, context) => context.createSurface(entity),
   CLAK: (entity, context) => context.addClak(entity.codigoPT, { variant: entity.metadata?.clakVariant }),
   EDUK: (entity, context) => context.addEduk(entity.codigoPT, { variant: entity.metadata?.edukVariant }),
@@ -25,7 +26,7 @@ export function getEntityLoader(kind) {
 export async function loadPersistedEntity(entity, context) {
   const loader = getEntityLoader(entity?.kind);
   if (!loader) throw new Error(`UNSUPPORTED_KIND:${entity?.kind || 'UNKNOWN'}`);
-  if (!entity?.codigoPT && !['SURFACE', 'CRITTERIUM_8', 'IMPORTED_MODEL'].includes(entity?.kind)) {
+  if (!entity?.codigoPT && !['SURFACE', 'CRITTERIUM_8', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
     throw new Error('MISSING_CODIGO_PT');
   }
 

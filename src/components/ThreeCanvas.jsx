@@ -8764,6 +8764,66 @@ export default function ThreeCanvas({
         }
       }
 
+      async function createPersistedMila(entity) {
+        if (!entity?.config || typeof entity.config !== 'object') {
+          throw new Error('MILA_MISSING_CONFIG');
+        }
+
+        let createdAssembly = null;
+        const factoryApi = {
+          createMilaAssemblyGroup: (config) => {
+            createdAssembly = createMilaAssemblyGroup(config);
+            return createdAssembly;
+          },
+          addExternalGlbPart,
+          selectObject: () => {},
+        };
+
+        try {
+          const result = await createMilaInstance({
+            api: factoryApi,
+            config: { ...entity.config, silentCreation: true },
+            notify: (message) => console.warn('[loadProject] Mila:', message),
+            buildHidden: true,
+            deferReveal: true,
+          });
+          const assembly = result?.assembly;
+          if (!assembly) throw new Error('MILA_FACTORY_DID_NOT_RETURN_ASSEMBLY');
+
+          const generatedGroupId = result.groupId || assembly.userData?.groupId;
+          const instanceId = entity.instanceId || entity.assemblyId || generatedGroupId;
+          const groupId = entity.groupId || instanceId;
+          const groupName = entity.metadata?.groupName || assembly.userData?.groupName || 'Mila';
+
+          assembly.traverse((node) => {
+            if (!node.userData) return;
+            if (node.userData.groupId === generatedGroupId) node.userData.groupId = groupId;
+            if (node.userData.parentAssemblyId === generatedGroupId) {
+              node.userData.parentAssemblyId = instanceId;
+            }
+            if (node.userData.groupName) node.userData.groupName = groupName;
+          });
+          assembly.userData = {
+            ...(assembly.userData || {}),
+            instanceId,
+            groupId,
+            groupName,
+            code: entity.code || instanceId,
+            codigoPT: entity.codigoPT || instanceId,
+            config: { ...entity.config },
+          };
+          assembly.name = groupName;
+          assembly.visible = true;
+          assembly.updateMatrixWorld(true);
+          return assembly;
+        } catch (error) {
+          if (createdAssembly) {
+            removePartObject(createdAssembly, { emitBom: false, disposeResources: true });
+          }
+          throw error;
+        }
+      }
+
       if (isVersionedEntityProject(project)) {
         const result = { loaded: [], failed: [] };
         const context = {
@@ -8778,6 +8838,7 @@ export default function ThreeCanvas({
           addCatalogItem,
           createKoncisaPlus: createPersistedKoncisaPlus,
           createCritterium8: createPersistedCritterium8,
+          createMila: createPersistedMila,
           createImportedModel: (entity) =>
             createImportedModel({
               ...(entity.metadata || {}),
