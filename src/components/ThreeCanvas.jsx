@@ -2627,7 +2627,8 @@ function ThreeCanvas({
         groupName,
         forcedPrices,
         groupCount,
-        groupInstanceId
+        groupInstanceId,
+        typologyReferenceCode
       ) {
         if (!code) return;
 
@@ -2668,6 +2669,7 @@ function ThreeCanvas({
           groupId: normalizedGroupId || null,
           groupName: groupName || null,
           groupCount: groupCount || null,
+          typologyReferenceCode: normalizeText(typologyReferenceCode) || null,
           _groupInstanceIds: new Set(),
         };
 
@@ -2696,6 +2698,8 @@ function ThreeCanvas({
           prices: finalPrices,
           groupId: normalizedGroupId || prev.groupId || null,
           groupName: groupName || prev.groupName || null,
+          typologyReferenceCode:
+            normalizeText(typologyReferenceCode) || prev.typologyReferenceCode || null,
           groupCount:
             Math.max(
               Number(groupCount || 0),
@@ -3336,6 +3340,10 @@ function ThreeCanvas({
           : obj.userData?.groupId || null;
         const groupName = koncisaAssembly?.userData?.groupName || obj.userData?.groupName || null;
         const groupInstanceId = resolveBomGroupInstanceId(obj, p.id);
+        const typologyReferenceCode =
+          koncisaAssembly?.userData?.bomTypologyCode ||
+          koncisaAssembly?.userData?.config?.bomTypologyCode ||
+          null;
 
         addRow(
           String(code),
@@ -3346,7 +3354,8 @@ function ThreeCanvas({
           groupName,
           obj.userData?.prices || undefined,
           null,
-          groupInstanceId
+          groupInstanceId,
+          typologyReferenceCode
         );
 
         // =====================================================
@@ -9326,6 +9335,41 @@ function ThreeCanvas({
       return group;
     }
 
+    function setKoncisaBomTypologyCode(groupId, value) {
+      const normalizedGroupId = String(groupId || '').trim();
+      const normalizedCode = String(value || '').replace(/\D+/g, '');
+      let targetAssembly = null;
+
+      scene.traverse((node) => {
+        if (targetAssembly || node.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY') return;
+        const ids = [node.userData?.groupId, node.userData?.instanceId, node.uuid]
+          .filter(Boolean)
+          .map(String);
+        if (ids.includes(normalizedGroupId)) targetAssembly = node;
+      });
+
+      if (!targetAssembly) return 0;
+      const configurationKey = resolveKoncisaBomConfigurationKey(targetAssembly);
+      let updatedCount = 0;
+
+      scene.traverse((node) => {
+        if (node.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY') return;
+        if (resolveKoncisaBomConfigurationKey(node) !== configurationKey) return;
+        node.userData = {
+          ...(node.userData || {}),
+          bomTypologyCode: normalizedCode || null,
+          config: {
+            ...(node.userData?.config || {}),
+            bomTypologyCode: normalizedCode || null,
+          },
+        };
+        updatedCount += 1;
+      });
+
+      emitBOM();
+      return updatedCount;
+    }
+
     function createMilaAssemblyGroup(config = {}) {
       const now = Date.now();
 
@@ -9381,6 +9425,7 @@ function ThreeCanvas({
       addKoncisaPrivacyPanel,
       updateActivePrivacyPanelFinish,
       createKoncisaPlusAssemblyGroup,
+      setKoncisaBomTypologyCode,
       createMilaAssemblyGroup,
       getActivePart: () => activePart,
       getSelectedObject: () => activePart,

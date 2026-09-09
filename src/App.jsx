@@ -1636,7 +1636,14 @@ export default function App() {
           />
 
           <BOMWindow open={bomOpen} title="BOM - Proyecto" onClose={() => setBomOpen(false)}>
-            <BOMView items={bomItems} defaultCountry="CO" catalogCountries={CATALOG_COUNTRIES} />
+            <BOMView
+              items={bomItems}
+              defaultCountry="CO"
+              catalogCountries={CATALOG_COUNTRIES}
+              onTypologyReferenceCodeChange={(groupId, code) =>
+                threeApiRef.current?.setKoncisaBomTypologyCode?.(groupId, code)
+              }
+            />
           </BOMWindow>
 
           {/* Help + PPT */}

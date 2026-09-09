@@ -39,6 +39,7 @@ export default function BOMView({
   items = [],
   defaultCountry = 'CO',
   catalogCountries = ['CO', 'EUC', 'USD'],
+  onTypologyReferenceCodeChange,
 }) {
   const [q, setQ] = useState('');
   const [localCountry, setLocalCountry] = useState(defaultCountry);
@@ -108,6 +109,7 @@ export default function BOMView({
         description: safeStr(it.description),
         qty,
         groupCount: Number(it.groupCount || 0),
+        typologyReferenceCode: safeStr(it.typologyReferenceCode).replace(/\D+/g, ''),
         unitPrice,
         total,
         prices,
@@ -367,7 +369,10 @@ export default function BOMView({
 
     for (const g of groupsToExport) {
       const typologyCode = g.key?.startsWith('T:') ? g.key.slice(2).trim() : '';
-      const typologyTitle = typologyCode ? `${typologyCode} - ${g.label}` : g.label;
+      const typologyReferenceCode =
+        g.items.find((item) => item.typologyReferenceCode)?.typologyReferenceCode || '';
+      const exportTypologyCode = typologyReferenceCode || typologyCode;
+      const typologyTitle = exportTypologyCode ? `${exportTypologyCode} - ${g.label}` : g.label;
       const isTypologyGroup = !!typologyCode;
       const typologyCount = isTypologyGroup
         ? Math.max(
@@ -378,9 +383,9 @@ export default function BOMView({
           )
         : 0;
 
-      if (typologyCode) {
+      if (exportTypologyCode) {
         const typologyImage = await fetchImageAsset(
-          buildImageAssetCandidates(typologyCode, ['tipologias'])
+          buildImageAssetCandidates(exportTypologyCode, ['tipologias'])
         );
 
         if (typologyImage) {
@@ -1180,6 +1185,89 @@ export default function BOMView({
                   />
                 </div>
               </div>
+              {groupMode === 'typology' &&
+                allGroups.some((group) => group.key.startsWith('T:KONCISA_')) && (
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      marginBottom: 6,
+                      color: palette.muted,
+                    }}
+                  >
+                    Código de tipología para imagen
+                  </label>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      maxHeight: 160,
+                      overflowY: 'auto',
+                      paddingRight: 4,
+                    }}
+                  >
+                    {allGroups
+                      .filter((group) => group.key.startsWith('T:KONCISA_'))
+                      .map((group) => {
+                        const generatedCode = group.key.slice(2).trim();
+                        const referenceCode =
+                          group.items.find((item) => item.typologyReferenceCode)
+                            ?.typologyReferenceCode || '';
+                        return (
+                          <div
+                            key={group.key}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'minmax(0, 1fr) 130px',
+                              gap: 8,
+                              alignItems: 'center',
+                            }}
+                          >
+                            <div
+                              title={generatedCode}
+                              style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                fontSize: 11,
+                                color: palette.soft,
+                              }}
+                            >
+                              {generatedCode} — {group.label}
+                            </div>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={referenceCode}
+                              disabled={isExporting}
+                              placeholder="Ej. 22000131999"
+                              onChange={(event) =>
+                                onTypologyReferenceCodeChange?.(
+                                  generatedCode,
+                                  event.target.value.replace(/\D+/g, '')
+                                )
+                              }
+                              style={{
+                                width: '100%',
+                                padding: '7px 8px',
+                                borderRadius: 8,
+                                border: `1px solid ${palette.line}`,
+                                fontSize: 11,
+                                boxSizing: 'border-box',
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                  </div>
+                  <div style={{ marginTop: 5, fontSize: 10.5, color: palette.soft }}>
+                    Se buscará la imagen en assets/imagen/tipologias usando PNG, JPEG, JPG o WEBP.
+                  </div>
+                </div>
+              )}
               <div>
                 <label
                   style={{

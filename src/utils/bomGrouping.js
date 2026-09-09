@@ -6,6 +6,7 @@ const RUNTIME_CONFIG_KEYS = new Set([
   'position',
   'transform',
   'silentCreation',
+  'bomTypologyCode',
 ]);
 
 export function getKoncisaPlusAssembly(object) {

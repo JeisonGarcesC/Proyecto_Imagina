@@ -60,8 +60,18 @@ test('identifica como iguales dos configuraciones Koncisa ubicadas en lugares di
   };
   const leaderA = createObject({ kind: 'KONCISA_PLUS_ASSEMBLY', uuid: 'leader-a' });
   const leaderB = createObject({ kind: 'KONCISA_PLUS_ASSEMBLY', uuid: 'leader-b' });
-  leaderA.userData.config = { ...config, groupId: 'KONCISA_A', position: [0, 0, 0] };
-  leaderB.userData.config = { ...config, groupId: 'KONCISA_B', position: [4, 0, 2] };
+  leaderA.userData.config = {
+    ...config,
+    groupId: 'KONCISA_A',
+    position: [0, 0, 0],
+    bomTypologyCode: '22000131997',
+  };
+  leaderB.userData.config = {
+    ...config,
+    groupId: 'KONCISA_B',
+    position: [4, 0, 2],
+    bomTypologyCode: '22000131999',
+  };
 
   assert.equal(
     resolveKoncisaBomConfigurationKey(leaderA),
