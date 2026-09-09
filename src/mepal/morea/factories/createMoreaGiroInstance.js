@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 export const MOREA_GIRO_DEFINITIONS = {
   45: {
     angleDeg: 45,
@@ -98,6 +100,15 @@ function resolveMoreaVariant(variant) {
   return String(variant || '').trim().toLowerCase() === 'double' ? 'double' : 'single';
 }
 
+function alignObjectBottomToFloor(object) {
+  if (!object) return;
+  object.updateMatrixWorld?.(true);
+  const bounds = new THREE.Box3().setFromObject(object);
+  if (!Number.isFinite(bounds.min.y)) return;
+  object.position.y -= bounds.min.y;
+  object.updateMatrixWorld?.(true);
+}
+
 export function resolveMoreaGiroDefinition(angle, variant = 'single', useGrommet = false) {
   const requestedAngleDeg = Number(angle);
   const hasInvertedAlias = Object.prototype.hasOwnProperty.call(
@@ -158,6 +169,7 @@ export async function createMoreaGiroInstance({ api, config = {} } = {}) {
   const requestedGrommet = Boolean(config.useGrommet);
   const variant = resolveMoreaVariant(config.giroVariant || config.variant);
   const resolvedByAngle = resolveMoreaGiroDefinition(angle, variant, requestedGrommet);
+  const spawnY = resolvedByAngle.angleDeg === 180 ? 0 : MOREA_GIRO_SPAWN_Y_MM;
   const def = {
     ...resolvedByAngle,
     code: explicitCode || resolvedByAngle.code,
@@ -166,8 +178,9 @@ export async function createMoreaGiroInstance({ api, config = {} } = {}) {
   };
 
   const instanceId = `MOREA_GIRO_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+  const isTerminalSurface = resolvedByAngle.angleDeg === 180;
 
-  await api.addExternalGlbPart({
+  const createdObject = await api.addExternalGlbPart({
     kind: 'MOREA_GIRO_SURFACE',
     type: 'MOREA_GIRO_SURFACE',
     line: 'MOREA',
@@ -176,7 +189,7 @@ export async function createMoreaGiroInstance({ api, config = {} } = {}) {
     codigoPT: def.code,
     name: `${def.label} Morea`,
     model: { src: def.modelSrc },
-    position: { x: 0, y: MOREA_GIRO_SPAWN_Y_MM, z: 0 },
+    position: { x: 0, y: spawnY, z: 0 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
     meta: {
@@ -197,6 +210,10 @@ export async function createMoreaGiroInstance({ api, config = {} } = {}) {
       moreaVariant: def.resolvedVariant,
     },
   });
+
+  if (isTerminalSurface && createdObject) {
+    alignObjectBottomToFloor(createdObject);
+  }
 
   return instanceId;
 }

@@ -786,6 +786,30 @@ function resolveOutwardLocalNormalForAnchor(localPos, localBounds, fallback = nu
   return best.normal;
 }
 
+function resolveDistanceToLocalBoundsEdge(localPos, localDir, localBounds) {
+  if (!localPos || !localDir || !localBounds) return 0;
+
+  const dir = localDir.clone();
+  dir.y = 0;
+  if (dir.lengthSq() < 1e-10) return 0;
+  dir.normalize();
+
+  const distances = [];
+  if (Math.abs(dir.x) > 1e-8) {
+    const xEdge = dir.x >= 0 ? localBounds.max.x : localBounds.min.x;
+    const tx = (xEdge - localPos.x) / dir.x;
+    if (Number.isFinite(tx) && tx >= 0) distances.push(tx);
+  }
+  if (Math.abs(dir.z) > 1e-8) {
+    const zEdge = dir.z >= 0 ? localBounds.max.z : localBounds.min.z;
+    const tz = (zEdge - localPos.z) / dir.z;
+    if (Number.isFinite(tz) && tz >= 0) distances.push(tz);
+  }
+
+  if (!distances.length) return 0;
+  return Math.min(...distances);
+}
+
 function resolveActiveMilaQuantity(activeAssembly) {
   return clampMilaQuantity(
     activeAssembly?.userData?.config?.quantity || activeAssembly?.userData?.quantity || 1
@@ -1182,8 +1206,6 @@ export function resolveMilaAssemblyConnectors(object) {
       const worldNormalRight = projectWorldNormal(finalLocalNormalRight, finalLocalNormalRight.x || 1);
 
       const isTerminalSurface = connectorAngleDeg === 180;
-      const localCenter = sidePorts.localLeft.clone().lerp(sidePorts.localRight, 0.5);
-      const worldCenter = localCenter.clone().applyMatrix4(targetObj.matrixWorld);
       const centerLocalNormal = finalLocalNormalLeft
         .clone()
         .add(finalLocalNormalRight)
@@ -1192,6 +1214,30 @@ export function resolveMilaAssemblyConnectors(object) {
         centerLocalNormal.lengthSq() > 1e-10
           ? centerLocalNormal.normalize()
           : finalLocalNormalLeft.clone();
+      const localCenter = isTerminalSurface && localBounds
+        ? (() => {
+            const topCenter = new THREE.Vector3(
+              (localBounds.min.x + localBounds.max.x) * 0.5,
+              localBounds.max.y,
+              (localBounds.min.z + localBounds.max.z) * 0.5
+            );
+            const forwardDir = effectiveCenterLocalNormal.clone().multiplyScalar(-1);
+            forwardDir.y = 0;
+            if (forwardDir.lengthSq() < 1e-10) {
+              forwardDir.set(0, 0, 1);
+            }
+            forwardDir.normalize();
+
+            const terminalBackShiftM = 0.14;
+            const connectorHalfDepthM = Number(MILA_CONNECTOR_CONFIG.CONNECTOR_THICKNESS_M || 0) * 0.5;
+            const distanceToEdge = resolveDistanceToLocalBoundsEdge(topCenter, forwardDir, localBounds);
+            // Base en borde: luego retrocede hacia el centro para evitar que quede demasiado afuera.
+            const edgeTouchOffsetM = distanceToEdge + connectorHalfDepthM;
+            const offsetToEdge = Math.max(0, edgeTouchOffsetM - terminalBackShiftM);
+            return topCenter.addScaledVector(forwardDir, offsetToEdge);
+          })()
+        : sidePorts.localLeft.clone().lerp(sidePorts.localRight, 0.5);
+      const worldCenter = localCenter.clone().applyMatrix4(targetObj.matrixWorld);
       const centerWorldNormal = projectWorldNormal(
         effectiveCenterLocalNormal,
         effectiveCenterLocalNormal.x || -1
@@ -1232,6 +1278,7 @@ export function resolveMilaAssemblyConnectors(object) {
         isGiro: true,
         isAccessory: false,
         isMorea: true,
+        isTerminalSurface,
         localLeft: isTerminalSurface ? localCenter : sidePorts.localLeft,
         localRight: isTerminalSurface ? localCenter : sidePorts.localRight,
         worldLeft: isTerminalSurface ? worldCenter : sidePorts.worldLeft,
@@ -1769,6 +1816,10 @@ export function findBestMilaConnectorSnap({
           const isStrictMoreaGiroChairSnap =
             isMixedGiroChairSnap &&
             Boolean(activeConnectors.isMorea || targetConnectors.isMorea);
+          const isTerminalSurfaceSnap = Boolean(
+            activeConnectors.isTerminalSurface || targetConnectors.isTerminalSurface
+          );
+          const isActiveTerminalSurface = Boolean(activeConnectors.isTerminalSurface);
           const giroDropM = isStrictMoreaGiroChairSnap
             ? MOREA_GIRO_CONNECTED_Y_DROP_M
             : (Number(MILA_GIRO_TUNE?.CONNECTED_Y_OFFSET_MM) || 0) / 1000;
@@ -1785,7 +1836,9 @@ export function findBestMilaConnectorSnap({
           const requiredYaw = Math.atan2(sinAlpha, cosAlpha);
           const yawCandidates =
             isMoreaGiroSnap
-              ? [requiredYaw]
+              ? isActiveTerminalSurface
+                ? [requiredYaw + Math.PI]
+                : [requiredYaw]
               : isMixedGiroChairSnap && !isStrictMoreaGiroChairSnap
               ? [requiredYaw, requiredYaw + Math.PI]
               : [requiredYaw];
@@ -1804,7 +1857,9 @@ export function findBestMilaConnectorSnap({
               targetPosY = activeAssembly.position.y;
             } else if (isGiroSnap) {
               if (activeConnectors.isGiro) {
-                targetPosY = (effectiveTargetPort.worldPos.y - rotatedOffset.y) + giroDropM;
+                targetPosY = isTerminalSurfaceSnap
+                  ? activeAssembly.position.y
+                  : (effectiveTargetPort.worldPos.y - rotatedOffset.y) + giroDropM;
               } else {
                 // Cuando la silla se acopla a una superficie de giro, no debe copiar la bajada
                 // propia del giro; la caída vertical solo se aplica si el giro es el activo.

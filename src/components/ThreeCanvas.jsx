@@ -290,7 +290,7 @@ function applyMoreaSeatTurn180(root, rotated180) {
   return true;
 }
 
-function ThreeCanvas({
+export default function ThreeCanvas({
   onApiReady,
   onSelectionChange,
   onBOMChange,
@@ -1459,6 +1459,8 @@ function ThreeCanvas({
           !isDragging &&
           (pRight?.isOccupied || connectorEngine.isPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
 
+        const hasCenterOnlyPort = !pLeft && !pRight && Boolean(pCenter);
+
         if (pLeft) {
           milaLeftConnector.position.copy(pLeft.worldPos);
           if (pLeft.worldNormal) {
@@ -1491,6 +1493,20 @@ function ThreeCanvas({
         } else {
           milaRightConnector.visible = false;
         }
+
+        if (hasCenterOnlyPort) {
+          milaLeftConnector.position.copy(pCenter.worldPos);
+          if (pCenter.worldNormal) {
+            milaLeftConnector.quaternion.setFromUnitVectors(
+              new THREE.Vector3(1, 0, 0),
+              pCenter.worldNormal
+            );
+          } else {
+            milaLeftConnector.rotation.set(0, connectors.yaw, 0);
+          }
+          milaLeftConnector.visible = !pCenter?.isOccupied;
+          milaRightConnector.visible = false;
+        }
       }
 
       let isSnapCandidate = false;
@@ -1500,8 +1516,14 @@ function ThreeCanvas({
           else if (connectors.accessoryRole === 'armrest-right') milaLeftConnector.visible = true;
           else milaLeftConnector.visible = true;
         } else {
-          milaLeftConnector.visible = !pLeft?.isOccupied;
-          milaRightConnector.visible = !pRight?.isOccupied;
+          const hasCenterOnlyPort = !pLeft && !pRight && Boolean(pCenter);
+          if (hasCenterOnlyPort) {
+            milaLeftConnector.visible = !pCenter?.isOccupied;
+            milaRightConnector.visible = false;
+          } else {
+            milaLeftConnector.visible = !pLeft?.isOccupied;
+            milaRightConnector.visible = !pRight?.isOccupied;
+          }
         }
 
         const {
@@ -17622,6 +17644,3 @@ function ThreeCanvas({
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
 }
-
-export { ThreeCanvas };
-export default ThreeCanvas;

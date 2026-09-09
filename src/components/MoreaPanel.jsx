@@ -39,31 +39,22 @@ const MOREA_GIRO_OPTIONS = [
     label: 'Superficie Curva Morea 90° Doble',
   },
   {
-    key: 'HSU060000_INV_120',
-    code: 'HSU060000',
-    modelTag: 'HSU060000',
-    angle: 120,
+    key: 'HSU010000_69',
+    code: 'HSU010000',
+    modelTag: 'HSU010000-69cm',
+    angle: 180,
     variant: 'single',
     useGrommet: false,
-    label: 'Superficie Curva Morea 120° (Invertida)',
+    label: 'Superficie Terminal Morea 69cm',
   },
   {
-    key: 'HSU020000_INV_135',
-    code: 'HSU020000',
-    modelTag: 'HSU020000',
-    angle: 135,
-    variant: 'single',
+    key: 'HSU010000_138',
+    code: 'HSU010000',
+    modelTag: 'HSU010000-138cm',
+    angle: 180,
+    variant: 'double',
     useGrommet: false,
-    label: 'Superficie Curva Morea 135° (Invertida)',
-  },
-  {
-    key: 'HSU030000_INV_270',
-    code: 'HSU030000',
-    modelTag: 'HSU030000',
-    angle: 270,
-    variant: 'single',
-    useGrommet: false,
-    label: 'Superficie Curva Morea 270° (Invertida)',
+    label: 'Superficie Terminal Doble Morea 138cm',
   },
 ];
 
@@ -220,6 +211,7 @@ export default function MoreaPanel({ onCreate, catalogByCode }) {
       >
         Agregar superficie giro Morea
       </button>
+
     </div>
   );
 }
