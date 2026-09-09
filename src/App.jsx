@@ -31,6 +31,7 @@ import BOMView from './components/BOMView';
 import { catalogByCodigoPT } from './catalog/catalogData';
 
 import Plan2DUploader from './components/Plan2DUploader';
+import ImportedModelUploader from './components/ImportedModelUploader';
 import {
   createPlanDefinition,
   legacyPlanStateToDefinition,
@@ -1306,6 +1307,10 @@ export default function App() {
               materialsByCode={materialsByCode}
               setSurfaceOpen={setSurfaceOpen}
               Plan2DUploader={Plan2DUploader}
+              ImportedModelUploader={ImportedModelUploader}
+              handleImportModel={(file, options) =>
+                threeApiRef.current?.importModelFile?.(file, options)
+              }
               handleLoadPlan2D={handleLoadPlan2D}
               planDefinition={activePlanDefinition}
               planEditMode={planEditMode}

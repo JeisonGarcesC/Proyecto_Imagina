@@ -9,6 +9,7 @@ export default function LeftRail({ active, onChange }) {
     { id: 'elements2d', label: 'Elementos 2D', icon: '◇' },
     { id: 'materials', label: 'Materiales', icon: '🎨' },
     { id: 'plans', label: 'Planos', icon: '🗺️' },
+    { id: 'importedModels', label: 'Importar objeto', icon: '⬡' },
     { id: 'sillas', label: 'Sillas', icon: '🪑' },
     {
       id: 'plants',

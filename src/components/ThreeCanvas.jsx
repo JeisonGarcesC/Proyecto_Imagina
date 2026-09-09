@@ -43,6 +43,12 @@ import { resolveFinishAppearance2D } from '../plan2d/finishAppearance2D';
 import { buildWallsGeometry3D } from '../core/architecture/walls/wallGeometry3D';
 import { buildColumnGeometry3D } from '../core/architecture/columns/columnGeometry3D';
 import { buildDoorGeometry2D } from '../core/architecture/openings/doorGeometry2D';
+import {
+  MAX_IMPORTED_MODEL_SIZE,
+  createImportedModelObject,
+  detectImportedModelFormat,
+  fileToDataUrl,
+} from '../importers/importedModelLoader.js';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
@@ -8353,6 +8359,97 @@ function ThreeCanvas({
       return removePartObject(found.obj);
     }
 
+    async function createImportedModel({
+      dataUrl,
+      format,
+      unit = 'mm',
+      fileName = 'Objeto importado',
+      instanceId = null,
+      position = null,
+      recordHistory = false,
+    } = {}) {
+      if (!dataUrl) throw new Error('El objeto importado no contiene el archivo original.');
+      const content = await createImportedModelObject({ dataUrl, format, unit, fileName });
+      const root = new THREE.Group();
+      const id = instanceId || `IMPORTED_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      root.name = fileName;
+      root.userData = {
+        kind: 'IMPORTED_MODEL',
+        isPartRoot: true,
+        instanceId: id,
+        code: id,
+        codigoPT: id,
+        description: fileName,
+        excludeFromBOM: true,
+        fileName,
+        format,
+        unit,
+        assetDataUrl: dataUrl,
+      };
+      root.add(content);
+      root.position.fromArray(
+        Array.isArray(position) ? position : [0.5 + parts.length * 0.35, 0, 0.5]
+      );
+
+      root.traverse((node) => {
+        node.userData = { ...(node.userData || {}), parentImportedModelId: id };
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+      root.userData.parentImportedModelId = null;
+      root.updateMatrixWorld(true);
+      const localBounds = computeBounds2D(root);
+      if (localBounds) {
+        root.userData.bounds2d = {
+          localCenter: localBounds.localCenter.toArray(),
+          sizeLocal: localBounds.sizeLocal.toArray(),
+        };
+      } else {
+        const bounds = new THREE.Box3().setFromObject(root);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        root.userData.bounds2d = {
+          localCenter: [center.x - root.position.x, 0, center.z - root.position.z],
+          sizeLocal: [Math.max(size.x, 0.001), Math.max(size.y, 0.001), Math.max(size.z, 0.001)],
+        };
+      }
+
+      scene.add(root);
+      parts.push({ code: id, obj: root });
+      pickables.push(root);
+      setActivePart(root);
+      refreshFloorAndGrid();
+      if (recordHistory) recordCreateObjects({ objects: [root] });
+      return root;
+    }
+
+    async function importModelFile(file, { unit = 'mm' } = {}) {
+      if (readOnly) return null;
+      if (!(file instanceof Blob)) throw new TypeError('Selecciona un archivo válido.');
+      if (file.size > MAX_IMPORTED_MODEL_SIZE) {
+        throw new Error('El archivo supera el límite de 50 MB. Optimízalo antes de importarlo.');
+      }
+      const format = detectImportedModelFormat(file.name);
+      if (!format || format === 'dwg') {
+        throw new Error(
+          format === 'dwg'
+            ? 'Convierte el DWG a STL para 3D o a DXF para 2D antes de importarlo.'
+            : 'Formato no soportado. Usa GLB, GLTF, STL, OBJ o DXF.'
+        );
+      }
+      const object = await createImportedModel({
+        dataUrl: await fileToDataUrl(file),
+        format,
+        unit,
+        fileName: file.name,
+        recordHistory: true,
+      });
+      frameToObject(object);
+      return object;
+    }
+
     async function loadProject(project) {
       //console.log('[loadProject] materialsByCodeRef size:', materialsByCodeRef.current?.size || 0);
 
@@ -8659,6 +8756,12 @@ function ThreeCanvas({
           addCatalogItem,
           createKoncisaPlus: createPersistedKoncisaPlus,
           createCritterium8: createPersistedCritterium8,
+          createImportedModel: (entity) =>
+            createImportedModel({
+              ...(entity.metadata || {}),
+              instanceId: entity.instanceId,
+              recordHistory: false,
+            }),
         };
 
         for (const [index, entity] of project.entities.entries()) {
@@ -9475,6 +9578,7 @@ function ThreeCanvas({
       addChair,
       addAres,
       addPlant,
+      importModelFile,
       addOfficeAccessory,
       addMepalSalud,
       addMepalTekSocial,

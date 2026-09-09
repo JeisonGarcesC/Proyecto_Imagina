@@ -348,7 +348,9 @@ export default function LeftPanel({
   onDeleteText2D,
   // otros
   Plan2DUploader,
+  ImportedModelUploader,
   handleLoadPlan2D,
+  handleImportModel,
   planDefinition,
   planEditMode,
   onPlanEditModeChange,
@@ -2056,6 +2058,13 @@ export default function LeftPanel({
             onReplaceFile={() => planUploaderRef.current?.open?.()}
             onDelete={onDeletePlan}
           />
+        </>
+      )}
+
+      {section === 'importedModels' && ImportedModelUploader && (
+        <>
+          <h3 style={{ margin: '0 0 12px 0' }}>Importar objeto</h3>
+          <ImportedModelUploader disabled={readOnly} onImport={handleImportModel} />
         </>
       )}
 
