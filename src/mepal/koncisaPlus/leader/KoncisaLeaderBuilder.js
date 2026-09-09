@@ -8,24 +8,9 @@ import { createLeaderCredenzaBeamDecoration, createLeaderMainBeam } from './part
 import { createLeaderCredenza } from './parts/leaderCredenzas';
 
 import { resolveLeaderCostadoWithOutlet } from './rules/leaderCostadoOutletRules';
+import { positionLeaderCostadoAssembly } from './rules/leaderCostadoPlacement.js';
 
 import { createLeaderMainSkirt } from './parts/leaderSkirts';
-
-function enableBoundedDepthForLeaderRect(costado, rootPositionMm) {
-  const isRectAssembly =
-    String(costado?.meta?.forma || '').toUpperCase() === 'RECT' &&
-    costado?.model?.kind === 'koncisa-costado-assembly';
-
-  if (!isRectAssembly) return costado;
-
-  costado.meta = {
-    ...(costado.meta || {}),
-    positioningMode: 'bounded-depth-leader-v1',
-    boundedDepthRootPositionMm: rootPositionMm,
-  };
-
-  return costado;
-}
 
 function resolveLeaderSurfaceAccessPosition({
   position = 'CENTER',
@@ -703,7 +688,7 @@ export function buildKoncisaLeader(config = {}) {
     hasOutletBox: false,
   };
 
-  enableBoundedDepthForLeaderRect(mainTerminalCostado, {
+  positionLeaderCostadoAssembly(mainTerminalCostado, {
     x: mainTerminalX,
     y: 0,
     z: 0,
@@ -792,7 +777,7 @@ export function buildKoncisaLeader(config = {}) {
       outletResolved?.descriptionSuffix || junctionCostado.meta?.descriptionSuffix || '',
   };
 
-  enableBoundedDepthForLeaderRect(junctionCostado, {
+  positionLeaderCostadoAssembly(junctionCostado, {
     x: junctionCostadoX,
     y: 0,
     z: 0,
@@ -977,7 +962,7 @@ export function buildKoncisaLeader(config = {}) {
       leaderSide: sideKey,
     };
 
-    enableBoundedDepthForLeaderRect(returnTerminalCostado, {
+    positionLeaderCostadoAssembly(returnTerminalCostado, {
       x: returnTerminalX,
       y: 0,
       z: returnTerminalZ,

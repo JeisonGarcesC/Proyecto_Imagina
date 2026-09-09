@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { resolveBomExportQuantities } from '../utils/bomExportQuantities.js';
 import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
 
 function moneyByCountry(v, country = 'CO') {
@@ -232,34 +233,13 @@ export default function BOMView({
 
   const totalItems = useMemo(() => groups.reduce((acc, g) => acc + g.items.length, 0), [groups]);
 
-  const exportToProfessionalExcel = async () => {
+  const exportToProfessionalExcel = async ({ browserFileHandle = null, suggestedName }) => {
     const groupsToExport = exportScope === 'filtered' ? groups : allGroups;
     const exportGrandTotal = groupsToExport.reduce(
       (sum, group) => sum + Number(group.subtotal || 0),
       0
     );
-    const suggestedName = `Cotizacion_${safeFilenameSegment(corporateData.proyecto, 'Proyecto')}_${safeFilenameSegment(corporateData.fecha, 'sin_fecha')}.xlsx`;
     const electronSave = window.electronAPI?.saveBomXlsx;
-    let browserFileHandle = null;
-
-    if (!electronSave && typeof window.showSaveFilePicker === 'function') {
-      try {
-        browserFileHandle = await window.showSaveFilePicker({
-          suggestedName,
-          types: [
-            {
-              description: 'Libro de Excel',
-              accept: {
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-              },
-            },
-          ],
-        });
-      } catch (error) {
-        if (error?.name === 'AbortError') return { saved: false, canceled: true };
-        throw error;
-      }
-    }
 
     const excelModule = await import('exceljs/dist/exceljs.min.js');
     const ExcelJS = excelModule.default || excelModule;
@@ -431,18 +411,18 @@ export default function BOMView({
       const itemRowNumbers = [];
       for (const r of g.items) {
         const aggregatedQty = Number(r.qty || 0);
-        const quantityBaseRaw = isTypologyGroup && typologyCount > 0 ? aggregatedQty / typologyCount : aggregatedQty;
-        const quantityBase = Number.isInteger(quantityBaseRaw)
-          ? quantityBaseRaw
-          : Number(quantityBaseRaw.toFixed(4));
-        const quantityTotal = isTypologyGroup ? quantityBase * typologyCount : aggregatedQty;
+        const { quantity, totalQuantity } = resolveBomExportQuantities(
+          aggregatedQty,
+          typologyCount,
+          isTypologyGroup
+        );
 
         const row = ws.addRow([
           r.code,
           r.description,
-          quantityBase,
+          quantity,
           '',
-          isTypologyGroup ? quantityTotal : '',
+          isTypologyGroup ? totalQuantity : '',
           r.unitPrice,
           r.total,
           '',
@@ -528,9 +508,41 @@ export default function BOMView({
 
   const handleExportProfessional = async () => {
     if (isExporting) return;
+
+    const suggestedName = `Cotizacion_${safeFilenameSegment(corporateData.proyecto, 'Proyecto')}_${safeFilenameSegment(corporateData.fecha, 'sin_fecha')}.xlsx`;
+    const electronSave = window.electronAPI?.saveBomXlsx;
+    let browserFileHandle = null;
+
+    // Debe solicitarse directamente desde el evento click, antes de cualquier
+    // actualización de React o trabajo asíncrono, para conservar userActivation.
+    if (!electronSave && typeof window.showSaveFilePicker === 'function') {
+      try {
+        browserFileHandle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: 'Libro de Excel',
+              accept: {
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+              },
+            },
+          ],
+        });
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+        if (error?.name === 'SecurityError') {
+          console.warn('El selector de archivos no está disponible; se usará la descarga del navegador.');
+        } else {
+          console.error('Error al abrir el selector de archivos:', error);
+          window.alert(`No se pudo iniciar la exportación: ${error?.message || 'error desconocido'}`);
+          return;
+        }
+      }
+    }
+
     setIsExporting(true);
     try {
-      const result = await exportToProfessionalExcel();
+      const result = await exportToProfessionalExcel({ browserFileHandle, suggestedName });
       if (result?.saved) setShowModal(false);
     } catch (error) {
       console.error('Error al exportar cotización:', error);

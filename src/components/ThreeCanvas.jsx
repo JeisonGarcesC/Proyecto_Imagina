@@ -27,6 +27,11 @@ import { applyMaterialToObject3D, applyMaterialToMesh } from '../materials/apply
 import { exportSceneToGLTF } from '../utils/exportGLTF';
 
 import { exportPlanToDXF } from '../utils/exportDXF';
+import {
+  getKoncisaPlusAssembly,
+  resolveBomGroupInstanceId,
+  resolveKoncisaBomConfigurationKey,
+} from '../utils/bomGrouping.js';
 import { getFootprint2D } from '../plan2d/extractFootprint2D';
 import {
   extractDetailedFootprint2D,
@@ -2560,6 +2565,7 @@ function ThreeCanvas({
 
     function emitBOM() {
       const rows = new Map();
+      const koncisaGroupIdsByConfiguration = new Map();
 
       function toFiniteNumber(v) {
         const n = Number(v);
@@ -3317,9 +3323,19 @@ function ThreeCanvas({
 
         const code = obj.userData?.codigoPT || obj.userData?.code || p.code;
 
-        const groupId = obj.userData?.groupId || null;
-        const groupName = obj.userData?.groupName || null;
-        const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+        const koncisaAssembly = getKoncisaPlusAssembly(obj);
+        const koncisaConfigurationKey = resolveKoncisaBomConfigurationKey(koncisaAssembly);
+        if (koncisaConfigurationKey && !koncisaGroupIdsByConfiguration.has(koncisaConfigurationKey)) {
+          koncisaGroupIdsByConfiguration.set(
+            koncisaConfigurationKey,
+            koncisaAssembly.userData?.groupId || koncisaAssembly.userData?.instanceId
+          );
+        }
+        const groupId = koncisaConfigurationKey
+          ? koncisaGroupIdsByConfiguration.get(koncisaConfigurationKey)
+          : obj.userData?.groupId || null;
+        const groupName = koncisaAssembly?.userData?.groupName || obj.userData?.groupName || null;
+        const groupInstanceId = resolveBomGroupInstanceId(obj, p.id);
 
         addRow(
           String(code),
@@ -16479,14 +16495,28 @@ function ThreeCanvas({
         .trim()
         .toUpperCase();
       const resolvedPositioningMode = part?.meta?.positioningMode || positioningMode;
+      const boundedMeasurements = [
+        leftMinZFromPivotMm,
+        leftMaxZFromPivotMm,
+        rightMinZFromPivotMm,
+        rightMaxZFromPivotMm,
+        centerBracketMinZFromPivotMm,
+        centerBracketMaxZFromPivotMm,
+        crossbarInsetXMm,
+      ];
+      const hasBoundedDepthMeasurements = boundedMeasurements.every(
+        (value) => value != null && Number.isFinite(Number(value))
+      );
       const usesStandardBoundedDepthPositioning =
         resolvedPositioningMode === 'bounded-depth-v1' &&
+        hasBoundedDepthMeasurements &&
         tipoPuesto === 'sencillo' &&
         forma === 'RECT' &&
         layoutType !== 'LEADER' &&
         (realDepthMm === 600 || realDepthMm === 750);
       const usesLeaderBoundedDepthPositioning =
         resolvedPositioningMode === 'bounded-depth-leader-v1' &&
+        hasBoundedDepthMeasurements &&
         tipoPuesto === 'sencillo' &&
         forma === 'RECT' &&
         layoutType === 'LEADER' &&
