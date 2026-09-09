@@ -27,6 +27,11 @@ import { applyMaterialToObject3D, applyMaterialToMesh } from '../materials/apply
 import { exportSceneToGLTF } from '../utils/exportGLTF';
 
 import { exportPlanToDXF } from '../utils/exportDXF';
+import {
+  getKoncisaPlusAssembly,
+  resolveBomGroupInstanceId,
+  resolveKoncisaBomConfigurationKey,
+} from '../utils/bomGrouping.js';
 import { getFootprint2D } from '../plan2d/extractFootprint2D';
 import {
   extractDetailedFootprint2D,
@@ -38,6 +43,12 @@ import { resolveFinishAppearance2D } from '../plan2d/finishAppearance2D';
 import { buildWallsGeometry3D } from '../core/architecture/walls/wallGeometry3D';
 import { buildColumnGeometry3D } from '../core/architecture/columns/columnGeometry3D';
 import { buildDoorGeometry2D } from '../core/architecture/openings/doorGeometry2D';
+import {
+  MAX_IMPORTED_MODEL_SIZE,
+  createImportedModelObject,
+  detectImportedModelFormat,
+  fileToDataUrl,
+} from '../importers/importedModelLoader.js';
 
 import { getTipologiaDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
@@ -2582,6 +2593,7 @@ export default function ThreeCanvas({
 
     function emitBOM() {
       const rows = new Map();
+      const koncisaGroupIdsByConfiguration = new Map();
 
       function toFiniteNumber(v) {
         const n = Number(v);
@@ -2643,7 +2655,8 @@ export default function ThreeCanvas({
         groupName,
         forcedPrices,
         groupCount,
-        groupInstanceId
+        groupInstanceId,
+        typologyReferenceCode
       ) {
         if (!code) return;
 
@@ -2684,6 +2697,7 @@ export default function ThreeCanvas({
           groupId: normalizedGroupId || null,
           groupName: groupName || null,
           groupCount: groupCount || null,
+          typologyReferenceCode: normalizeText(typologyReferenceCode) || null,
           _groupInstanceIds: new Set(),
         };
 
@@ -2712,6 +2726,8 @@ export default function ThreeCanvas({
           prices: finalPrices,
           groupId: normalizedGroupId || prev.groupId || null,
           groupName: groupName || prev.groupName || null,
+          typologyReferenceCode:
+            normalizeText(typologyReferenceCode) || prev.typologyReferenceCode || null,
           groupCount:
             Math.max(
               Number(groupCount || 0),
@@ -3339,9 +3355,23 @@ export default function ThreeCanvas({
 
         const code = obj.userData?.codigoPT || obj.userData?.code || p.code;
 
-        const groupId = obj.userData?.groupId || null;
-        const groupName = obj.userData?.groupName || null;
-        const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
+        const koncisaAssembly = getKoncisaPlusAssembly(obj);
+        const koncisaConfigurationKey = resolveKoncisaBomConfigurationKey(koncisaAssembly);
+        if (koncisaConfigurationKey && !koncisaGroupIdsByConfiguration.has(koncisaConfigurationKey)) {
+          koncisaGroupIdsByConfiguration.set(
+            koncisaConfigurationKey,
+            koncisaAssembly.userData?.groupId || koncisaAssembly.userData?.instanceId
+          );
+        }
+        const groupId = koncisaConfigurationKey
+          ? koncisaGroupIdsByConfiguration.get(koncisaConfigurationKey)
+          : obj.userData?.groupId || null;
+        const groupName = koncisaAssembly?.userData?.groupName || obj.userData?.groupName || null;
+        const groupInstanceId = resolveBomGroupInstanceId(obj, p.id);
+        const typologyReferenceCode =
+          koncisaAssembly?.userData?.bomTypologyCode ||
+          koncisaAssembly?.userData?.config?.bomTypologyCode ||
+          null;
 
         addRow(
           String(code),
@@ -3352,7 +3382,8 @@ export default function ThreeCanvas({
           groupName,
           obj.userData?.prices || undefined,
           null,
-          groupInstanceId
+          groupInstanceId,
+          typologyReferenceCode
         );
 
         // =====================================================
@@ -8350,6 +8381,97 @@ export default function ThreeCanvas({
       return removePartObject(found.obj);
     }
 
+    async function createImportedModel({
+      dataUrl,
+      format,
+      unit = 'mm',
+      fileName = 'Objeto importado',
+      instanceId = null,
+      position = null,
+      recordHistory = false,
+    } = {}) {
+      if (!dataUrl) throw new Error('El objeto importado no contiene el archivo original.');
+      const content = await createImportedModelObject({ dataUrl, format, unit, fileName });
+      const root = new THREE.Group();
+      const id = instanceId || `IMPORTED_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      root.name = fileName;
+      root.userData = {
+        kind: 'IMPORTED_MODEL',
+        isPartRoot: true,
+        instanceId: id,
+        code: id,
+        codigoPT: id,
+        description: fileName,
+        excludeFromBOM: true,
+        fileName,
+        format,
+        unit,
+        assetDataUrl: dataUrl,
+      };
+      root.add(content);
+      root.position.fromArray(
+        Array.isArray(position) ? position : [0.5 + parts.length * 0.35, 0, 0.5]
+      );
+
+      root.traverse((node) => {
+        node.userData = { ...(node.userData || {}), parentImportedModelId: id };
+        if (node.isMesh) {
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+      root.userData.parentImportedModelId = null;
+      root.updateMatrixWorld(true);
+      const localBounds = computeBounds2D(root);
+      if (localBounds) {
+        root.userData.bounds2d = {
+          localCenter: localBounds.localCenter.toArray(),
+          sizeLocal: localBounds.sizeLocal.toArray(),
+        };
+      } else {
+        const bounds = new THREE.Box3().setFromObject(root);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        root.userData.bounds2d = {
+          localCenter: [center.x - root.position.x, 0, center.z - root.position.z],
+          sizeLocal: [Math.max(size.x, 0.001), Math.max(size.y, 0.001), Math.max(size.z, 0.001)],
+        };
+      }
+
+      scene.add(root);
+      parts.push({ code: id, obj: root });
+      pickables.push(root);
+      setActivePart(root);
+      refreshFloorAndGrid();
+      if (recordHistory) recordCreateObjects({ objects: [root] });
+      return root;
+    }
+
+    async function importModelFile(file, { unit = 'mm' } = {}) {
+      if (readOnly) return null;
+      if (!(file instanceof Blob)) throw new TypeError('Selecciona un archivo válido.');
+      if (file.size > MAX_IMPORTED_MODEL_SIZE) {
+        throw new Error('El archivo supera el límite de 50 MB. Optimízalo antes de importarlo.');
+      }
+      const format = detectImportedModelFormat(file.name);
+      if (!format || format === 'dwg') {
+        throw new Error(
+          format === 'dwg'
+            ? 'Convierte el DWG a STL para 3D o a DXF para 2D antes de importarlo.'
+            : 'Formato no soportado. Usa GLB, GLTF, STL, OBJ o DXF.'
+        );
+      }
+      const object = await createImportedModel({
+        dataUrl: await fileToDataUrl(file),
+        format,
+        unit,
+        fileName: file.name,
+        recordHistory: true,
+      });
+      frameToObject(object);
+      return object;
+    }
+
     async function loadProject(project) {
       //console.log('[loadProject] materialsByCodeRef size:', materialsByCodeRef.current?.size || 0);
 
@@ -8656,6 +8778,12 @@ export default function ThreeCanvas({
           addCatalogItem,
           createKoncisaPlus: createPersistedKoncisaPlus,
           createCritterium8: createPersistedCritterium8,
+          createImportedModel: (entity) =>
+            createImportedModel({
+              ...(entity.metadata || {}),
+              instanceId: entity.instanceId,
+              recordHistory: false,
+            }),
         };
 
         for (const [index, entity] of project.entities.entries()) {
@@ -9332,6 +9460,41 @@ export default function ThreeCanvas({
       return group;
     }
 
+    function setKoncisaBomTypologyCode(groupId, value) {
+      const normalizedGroupId = String(groupId || '').trim();
+      const normalizedCode = String(value || '').replace(/\D+/g, '');
+      let targetAssembly = null;
+
+      scene.traverse((node) => {
+        if (targetAssembly || node.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY') return;
+        const ids = [node.userData?.groupId, node.userData?.instanceId, node.uuid]
+          .filter(Boolean)
+          .map(String);
+        if (ids.includes(normalizedGroupId)) targetAssembly = node;
+      });
+
+      if (!targetAssembly) return 0;
+      const configurationKey = resolveKoncisaBomConfigurationKey(targetAssembly);
+      let updatedCount = 0;
+
+      scene.traverse((node) => {
+        if (node.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY') return;
+        if (resolveKoncisaBomConfigurationKey(node) !== configurationKey) return;
+        node.userData = {
+          ...(node.userData || {}),
+          bomTypologyCode: normalizedCode || null,
+          config: {
+            ...(node.userData?.config || {}),
+            bomTypologyCode: normalizedCode || null,
+          },
+        };
+        updatedCount += 1;
+      });
+
+      emitBOM();
+      return updatedCount;
+    }
+
     function createMilaAssemblyGroup(config = {}) {
       const now = Date.now();
 
@@ -9387,6 +9550,7 @@ export default function ThreeCanvas({
       addKoncisaPrivacyPanel,
       updateActivePrivacyPanelFinish,
       createKoncisaPlusAssemblyGroup,
+      setKoncisaBomTypologyCode,
       createMilaAssemblyGroup,
       getActivePart: () => activePart,
       getSelectedObject: () => activePart,
@@ -9436,6 +9600,7 @@ export default function ThreeCanvas({
       addChair,
       addAres,
       addPlant,
+      importModelFile,
       addOfficeAccessory,
       addMepalSalud,
       addMepalTekSocial,
@@ -16387,7 +16552,7 @@ export default function ThreeCanvas({
         crossbar = {},
       } = assembly;
 
-      if (!leftLegSrc || !rightLegSrc || !centerBracketSrc) {
+      if (!leftLegSrc || !rightLegSrc) {
         console.warn('addKoncisaCostadoAssemblyPart: faltan modelos del ensamble', {
           leftLegSrc,
           rightLegSrc,
@@ -16434,15 +16599,18 @@ export default function ThreeCanvas({
 
       let leftGltf;
       let rightGltf;
-      let centerGltf;
+      let centerGltf = null;
       let outletBoxGltf = null;
 
       try {
-        const loadingTasks = [
-          loadCostadoModel(leftLegSrc),
-          loadCostadoModel(rightLegSrc),
-          loadCostadoModel(centerBracketSrc),
-        ];
+        const loadingTasks = [loadCostadoModel(leftLegSrc), loadCostadoModel(rightLegSrc)];
+        const centerBracketTaskIndex = centerBracketSrc ? loadingTasks.length : -1;
+
+        if (centerBracketSrc) {
+          loadingTasks.push(loadCostadoModel(centerBracketSrc));
+        }
+
+        const outletBoxTaskIndex = hasOutletBox && outletBoxSrc ? loadingTasks.length : -1;
 
         if (hasOutletBox && outletBoxSrc) {
           loadingTasks.push(loadCostadoModel(outletBoxSrc));
@@ -16452,9 +16620,8 @@ export default function ThreeCanvas({
 
         leftGltf = loadedModels[0];
         rightGltf = loadedModels[1];
-        centerGltf = loadedModels[2];
-
-        outletBoxGltf = hasOutletBox && outletBoxSrc ? loadedModels[3] || null : null;
+        centerGltf = centerBracketTaskIndex >= 0 ? loadedModels[centerBracketTaskIndex] : null;
+        outletBoxGltf = outletBoxTaskIndex >= 0 ? loadedModels[outletBoxTaskIndex] || null : null;
       } catch (error) {
         console.error('No fue posible cargar los modelos del costado ensamblado', error);
 
@@ -16463,11 +16630,13 @@ export default function ThreeCanvas({
 
       const leftLeg = leftGltf.scene.clone(true);
       const rightLeg = rightGltf.scene.clone(true);
-      const centerBracket = centerGltf.scene.clone(true);
+      const centerBracket = centerGltf?.scene ? centerGltf.scene.clone(true) : null;
 
       leftLeg.name = 'KONCISA_COSTADO_LEFT_LEG';
       rightLeg.name = 'KONCISA_COSTADO_RIGHT_LEG';
-      centerBracket.name = 'KONCISA_COSTADO_CENTER_BRACKET';
+      if (centerBracket) {
+        centerBracket.name = 'KONCISA_COSTADO_CENTER_BRACKET';
+      }
 
       const outletBox = outletBoxGltf?.scene ? outletBoxGltf.scene.clone(true) : null;
 
@@ -16497,20 +16666,36 @@ export default function ThreeCanvas({
         .trim()
         .toUpperCase();
       const resolvedPositioningMode = part?.meta?.positioningMode || positioningMode;
+      const boundedMeasurements = [
+        leftMinZFromPivotMm,
+        leftMaxZFromPivotMm,
+        rightMinZFromPivotMm,
+        rightMaxZFromPivotMm,
+        centerBracketMinZFromPivotMm,
+        centerBracketMaxZFromPivotMm,
+        crossbarInsetXMm,
+      ];
+      const hasBoundedDepthMeasurements = boundedMeasurements.every(
+        (value) => value != null && Number.isFinite(Number(value))
+      );
       const usesStandardBoundedDepthPositioning =
         resolvedPositioningMode === 'bounded-depth-v1' &&
+        hasBoundedDepthMeasurements &&
         tipoPuesto === 'sencillo' &&
         forma === 'RECT' &&
         layoutType !== 'LEADER' &&
         (realDepthMm === 600 || realDepthMm === 750);
       const usesLeaderBoundedDepthPositioning =
         resolvedPositioningMode === 'bounded-depth-leader-v1' &&
+        hasBoundedDepthMeasurements &&
         tipoPuesto === 'sencillo' &&
         forma === 'RECT' &&
         layoutType === 'LEADER' &&
         [600, 650, 700, 750].includes(realDepthMm);
       const usesMeasuredDoubleDepthPositioning =
         resolvedPositioningMode === 'measured-depth-double-v1';
+      const usesMeasuredIntermediatePositioning =
+        resolvedPositioningMode === 'measured-intermediate-v1';
       const usesBoundedDepthPositioning =
         usesStandardBoundedDepthPositioning || usesLeaderBoundedDepthPositioning;
 
@@ -16519,7 +16704,29 @@ export default function ThreeCanvas({
        * La resta permite acortar el travesaño para formas
        * trapezoidales, curvas u otras variantes.
        */
-      let crossbarLengthMm = Math.max(1, realDepthMm - endClearanceMm);
+      const crossbarLengthFactor = Number(crossbar?.lengthFactor ?? 1);
+      const crossbarLengthOffsetMm = Number(crossbar?.lengthOffsetMm ?? 0);
+      let crossbarLengthMm = Math.max(
+        1,
+        realDepthMm * crossbarLengthFactor + crossbarLengthOffsetMm - endClearanceMm
+      );
+
+      const resolveCrossbarCenterZMm = (config, lengthMm, fallbackZMm = 0) => {
+        const rawNegativeDepthInsetMm = config?.negativeDepthInsetMm;
+        const negativeDepthInsetMm = Number(rawNegativeDepthInsetMm);
+
+        if (rawNegativeDepthInsetMm != null && Number.isFinite(negativeDepthInsetMm)) {
+          return -realDepthMm / 2 + negativeDepthInsetMm + lengthMm / 2;
+        }
+
+        return Number(config?.offsetMm?.z ?? fallbackZMm);
+      };
+
+      crossbarOffsetMm.z = resolveCrossbarCenterZMm(
+        crossbar,
+        crossbarLengthMm,
+        crossbarOffsetMm.z
+      );
 
       /*
        * Las patas se separan usando el largo real del travesaño.
@@ -16620,6 +16827,49 @@ export default function ThreeCanvas({
         }
       }
 
+      if (usesMeasuredIntermediatePositioning) {
+        leftLeg.updateMatrixWorld(true);
+        rightLeg.updateMatrixWorld(true);
+        centerBracket?.updateMatrixWorld(true);
+
+        const leftBounds = new THREE.Box3().setFromObject(leftLeg);
+        const rightBounds = new THREE.Box3().setFromObject(rightLeg);
+        const bracketBounds = centerBracket ? new THREE.Box3().setFromObject(centerBracket) : null;
+        const boundsAreValid =
+          !leftBounds.isEmpty() &&
+          !rightBounds.isEmpty() &&
+          (!bracketBounds || !bracketBounds.isEmpty());
+
+        if (boundsAreValid) {
+          const crossbarStartZMm = crossbarOffsetMm.z - crossbarLengthMm / 2;
+          const crossbarEndZMm = crossbarOffsetMm.z + crossbarLengthMm / 2;
+          const leftCenterXMm = ((leftBounds.min.x + leftBounds.max.x) / 2) * 1000;
+          const rightCenterXMm = ((rightBounds.min.x + rightBounds.max.x) / 2) * 1000;
+          const bracketCenterXMm = bracketBounds
+            ? ((bracketBounds.min.x + bracketBounds.max.x) / 2) * 1000
+            : 0;
+          const bracketCenterZMm = bracketBounds
+            ? ((bracketBounds.min.z + bracketBounds.max.z) / 2) * 1000
+            : 0;
+
+          // Las patas se centran sobre la unión X de las superficies y sus
+          // caras interiores coinciden con el inicio y final del travesaño.
+          leftPositionMm.x = -leftCenterXMm + Number(leftOffsetMm?.x || 0);
+          rightPositionMm.x = -rightCenterXMm + Number(rightOffsetMm?.x || 0);
+          leftPositionMm.z =
+            crossbarStartZMm - leftBounds.max.z * 1000 + Number(leftOffsetMm?.z || 0);
+          rightPositionMm.z =
+            crossbarEndZMm - rightBounds.min.z * 1000 + Number(rightOffsetMm?.z || 0);
+
+          if (centerBracket) {
+            bracketPositionMm.x =
+              -bracketCenterXMm + Number(centerBracketOffsetMm?.x || 0);
+            bracketPositionMm.z =
+              crossbarOffsetMm.z - bracketCenterZMm + Number(centerBracketOffsetMm?.z || 0);
+          }
+        }
+      }
+
       // =====================================================
       // Posicionar las piezas GLB dentro del root
       // =====================================================
@@ -16636,11 +16886,13 @@ export default function ThreeCanvas({
         rightPositionMm.z / 1000
       );
 
-      centerBracket.position.set(
-        bracketPositionMm.x / 1000,
-        bracketPositionMm.y / 1000,
-        bracketPositionMm.z / 1000
-      );
+      if (centerBracket) {
+        centerBracket.position.set(
+          bracketPositionMm.x / 1000,
+          bracketPositionMm.y / 1000,
+          bracketPositionMm.z / 1000
+        );
+      }
 
       leftLeg.rotation.set(
         Number(leftRotation?.x || 0),
@@ -16654,7 +16906,7 @@ export default function ThreeCanvas({
         Number(rightRotation?.z || 0)
       );
 
-      centerBracket.rotation.set(
+      centerBracket?.rotation.set(
         Number(centerBracketRotation?.x || 0),
         Number(centerBracketRotation?.y || 0),
         Number(centerBracketRotation?.z || 0)
@@ -16662,7 +16914,7 @@ export default function ThreeCanvas({
 
       leftLeg.scale.setScalar(Number(leftScale || 1));
       rightLeg.scale.setScalar(Number(rightScale || 1));
-      centerBracket.scale.setScalar(Number(centerBracketScale || 1));
+      centerBracket?.scale.setScalar(Number(centerBracketScale || 1));
 
       if (outletBox) {
         outletBox.name = 'KONCISA_COSTADO_OUTLET_BOX';
@@ -16734,7 +16986,14 @@ export default function ThreeCanvas({
         const resolvedHeightMm = Number(config?.heightMm ?? crossbarHeightMm);
         const resolvedWidthMm = Number(config?.depthMm ?? crossbarWidthMm);
         const resolvedEndClearanceMm = Number(config?.endClearanceMm ?? endClearanceMm);
-        const resolvedLengthMm = Math.max(1, realDepthMm - resolvedEndClearanceMm);
+        const resolvedLengthFactor = Number(config?.lengthFactor ?? 1);
+        const resolvedLengthOffsetMm = Number(config?.lengthOffsetMm ?? 0);
+        const resolvedLengthMm = Math.max(
+          1,
+          realDepthMm * resolvedLengthFactor +
+            resolvedLengthOffsetMm -
+            resolvedEndClearanceMm
+        );
 
         const geometry = new THREE.BoxGeometry(
           resolvedHeightMm / 1000,
@@ -16750,10 +17009,16 @@ export default function ThreeCanvas({
             ? 'KONCISA_COSTADO_CROSSBAR'
             : `KONCISA_COSTADO_CROSSBAR_${key.toUpperCase()}`;
 
+        const resolvedCenterZMm = resolveCrossbarCenterZMm(
+          config,
+          resolvedLengthMm,
+          crossbarOffsetMm.z
+        );
+
         mesh.position.set(
           Number(offset.x ?? crossbarOffsetMm.x) / 1000,
           Number(offset.y ?? crossbarOffsetMm.y) / 1000,
-          Number(offset.z ?? crossbarOffsetMm.z) / 1000
+          resolvedCenterZMm / 1000
         );
 
         mesh.castShadow = true;
@@ -16781,14 +17046,16 @@ export default function ThreeCanvas({
         costadoComponent: 'RIGHT_LEG',
       };
 
-      centerBracket.userData = {
-        ...(centerBracket.userData || {}),
-        costadoComponent: 'CENTER_BRACKET',
-      };
+      if (centerBracket) {
+        centerBracket.userData = {
+          ...(centerBracket.userData || {}),
+          costadoComponent: 'CENTER_BRACKET',
+        };
+      }
 
       root.add(leftLeg);
       root.add(rightLeg);
-      root.add(centerBracket);
+      if (centerBracket) root.add(centerBracket);
       crossbarMeshes.forEach((mesh) => root.add(mesh));
 
       // =====================================================

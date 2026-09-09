@@ -222,7 +222,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
       floorDuct: {
         enabled: includeFloorDuct,
       },
-
     });
 
     // TEMPORAL: prueba de pantalla lateral visible
@@ -266,7 +265,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
     { value: 'ORTOGONAL', label: 'Ortogonal' },
     { value: 'O', label: 'O' },
     { value: 'CURVO', label: 'Curvo' },
-    { value: 'TRAP', label: 'Trapecial' },
+    { value: 'TRAP', label: 'Trapezoidal' },
   ];
 
   //console.log('DUCT MODES PANEL', ductModes);

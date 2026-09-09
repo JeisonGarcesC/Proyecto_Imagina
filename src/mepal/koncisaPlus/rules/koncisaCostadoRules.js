@@ -1,6 +1,6 @@
 // src/koncisaPlus/rules/koncisaCostadoRules.js
 
-function createCostadoAssembly({
+export function createCostadoAssembly({
   positioningMode = null,
   leftLegSrc,
   rightLegSrc,

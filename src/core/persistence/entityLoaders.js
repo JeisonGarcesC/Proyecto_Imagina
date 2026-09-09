@@ -12,6 +12,7 @@ const LOADERS = {
     context.addZen(entity.codigoPT, { variant: entity.metadata?.almacenVariant || 'base' }),
   OFFICE_ACCESSORY: (entity, context) =>
     context.addOfficeAccessory(entity.metadata?.accessoryName || entity.codigoPT),
+  IMPORTED_MODEL: (entity, context) => context.createImportedModel(entity),
   PART: (entity, context) => context.addCatalogItem(entity.codigoPT),
   CATALOG_PRODUCT: (entity, context) => context.addCatalogItem(entity.codigoPT),
   TYPOLOGY: (entity, context) => context.addCatalogItem(entity.codigoPT),
@@ -24,7 +25,7 @@ export function getEntityLoader(kind) {
 export async function loadPersistedEntity(entity, context) {
   const loader = getEntityLoader(entity?.kind);
   if (!loader) throw new Error(`UNSUPPORTED_KIND:${entity?.kind || 'UNKNOWN'}`);
-  if (!entity?.codigoPT && !['SURFACE', 'CRITTERIUM_8'].includes(entity?.kind)) {
+  if (!entity?.codigoPT && !['SURFACE', 'CRITTERIUM_8', 'IMPORTED_MODEL'].includes(entity?.kind)) {
     throw new Error('MISSING_CODIGO_PT');
   }
 

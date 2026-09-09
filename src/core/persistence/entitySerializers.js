@@ -14,6 +14,7 @@ const SUPPORTED_KINDS = new Set([
   'MEPAL_TEK_SOCIAL',
   'ALMACENAMIENTO',
   'OFFICE_ACCESSORY',
+  'IMPORTED_MODEL',
 ]);
 
 const METADATA_FIELDS = {
@@ -34,6 +35,7 @@ const METADATA_FIELDS = {
     'almacenVariants',
   ],
   OFFICE_ACCESSORY: ['accessoryName'],
+  IMPORTED_MODEL: ['fileName', 'format', 'unit', 'assetDataUrl', 'bounds2d'],
 };
 
 function cloneSerializable(value) {
