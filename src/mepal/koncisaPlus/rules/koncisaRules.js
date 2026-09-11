@@ -255,6 +255,7 @@ export function getPasacablesConfig({
   position = 'CENTER',
 }) {
   const out = [];
+  const pasacableOffsetZMmDoble = 88.5;
 
   for (let i = 0; i < puestos; i++) {
     const baseX = i * largoRealMm;
@@ -271,7 +272,7 @@ export function getPasacablesConfig({
         index: i,
         x: baseX - 50 + mover,
         y: 690, //altura Pasacable
-        z: -180 - 45,
+        z: -216.5,
         rotY: 0,
       });
     }
@@ -279,33 +280,105 @@ export function getPasacablesConfig({
     if (tipoPuesto === 'doble') {
       switch (position) {
         case 'CENTER':
-          out.push({ index: `${i}_f`, x: baseX - 38, y: 690, z: -111, rotY: 0 });
-          out.push({ index: `${i}_b`, x: baseX + 38, y: 690, z: 111, rotY: Math.PI });
+          out.push({
+            index: `${i}_f`,
+            x: baseX - 38,
+            y: 690,
+            z: -pasacableOffsetZMmDoble,
+            rotY: 0,
+          });
+          out.push({
+            index: `${i}_b`,
+            x: baseX + 38,
+            y: 690,
+            z: pasacableOffsetZMmDoble,
+            rotY: Math.PI,
+          });
           break;
 
         case 'LEFT_RIGHT':
-          out.push({ index: `${i}_l`, x: baseX - 544, y: 690, z: -111, rotY: 0 });
-          out.push({ index: `${i}_r`, x: baseX + 555, y: 690, z: 111, rotY: Math.PI });
+          out.push({
+            index: `${i}_l`,
+            x: baseX - 544,
+            y: 690,
+            z: -pasacableOffsetZMmDoble,
+            rotY: 0,
+          });
+          out.push({
+            index: `${i}_r`,
+            x: baseX + 555,
+            y: 690,
+            z: pasacableOffsetZMmDoble,
+            rotY: Math.PI,
+          });
           break;
 
         case 'RIGHT_LEFT':
-          out.push({ index: `${i}_l`, x: baseX + 479, y: 690, z: -111, rotY: 0 });
-          out.push({ index: `${i}_r`, x: baseX - 468, y: 690, z: 111, rotY: Math.PI });
+          out.push({
+            index: `${i}_l`,
+            x: baseX + 479,
+            y: 690,
+            z: -pasacableOffsetZMmDoble,
+            rotY: 0,
+          });
+          out.push({
+            index: `${i}_r`,
+            x: baseX - 468,
+            y: 690,
+            z: pasacableOffsetZMmDoble,
+            rotY: Math.PI,
+          });
           break;
 
         case 'LEFT_LEFT':
-          out.push({ index: `${i}_l1`, x: baseX - 544, y: 690, z: -111, rotY: 0 });
-          out.push({ index: `${i}_l2`, x: baseX - 468, y: 690, z: 111, rotY: Math.PI });
+          out.push({
+            index: `${i}_l1`,
+            x: baseX - 544,
+            y: 690,
+            z: -pasacableOffsetZMmDoble,
+            rotY: 0,
+          });
+          out.push({
+            index: `${i}_l2`,
+            x: baseX - 468,
+            y: 690,
+            z: pasacableOffsetZMmDoble,
+            rotY: Math.PI,
+          });
           break;
 
         case 'RIGHT_RIGHT':
-          out.push({ index: `${i}_r1`, x: baseX + 479, y: 690, z: -111, rotY: 0 });
-          out.push({ index: `${i}_r2`, x: baseX + 555, y: 690, z: 111, rotY: Math.PI });
+          out.push({
+            index: `${i}_r1`,
+            x: baseX + 479,
+            y: 690,
+            z: -pasacableOffsetZMmDoble,
+            rotY: 0,
+          });
+          out.push({
+            index: `${i}_r2`,
+            x: baseX + 555,
+            y: 690,
+            z: pasacableOffsetZMmDoble,
+            rotY: Math.PI,
+          });
           break;
 
         default:
-          out.push({ index: `${i}_f`, x: baseX - 38, y: 690, z: -111, rotY: 0 });
-          out.push({ index: `${i}_b`, x: baseX + 38, y: 690, z: 111, rotY: Math.PI });
+          out.push({
+            index: `${i}_f`,
+            x: baseX - 38,
+            y: 690,
+            z: -pasacableOffsetZMmDoble,
+            rotY: 0,
+          });
+          out.push({
+            index: `${i}_b`,
+            x: baseX + 38,
+            y: 690,
+            z: pasacableOffsetZMmDoble,
+            rotY: Math.PI,
+          });
           break;
       }
     }
@@ -424,8 +497,8 @@ export function getDuctosConfig({
     PASACABLE: {
       TERMINAL: ({ baseX, largoRealMm: width, side: terminalSide }) =>
         terminalSide === 'LEFT'
-          ? { x: baseX + width / 2, y: 510, z: -129, rotY: Math.PI }
-          : { x: baseX - width / 2, y: 510, z: 129, rotY: 0 },
+          ? { x: baseX + width / 2 + 32, y: 510 + 68, z: -129 + 23, rotY: Math.PI }
+          : { x: baseX - width / 2 - 32, y: 510 + 68, z: 129 + 23, rotY: 0 },
       INTERMEDIO: ({ moduleStartX }) => ({
         x: moduleStartX - 30,
         y: 510 + 65,

@@ -1,4 +1,11 @@
-export default function DuctConfigModal({ open, onClose, puestos, ductModes, setDuctModes }) {
+export default function DuctConfigModal({
+  open,
+  onClose,
+  puestos,
+  ductModes,
+  setDuctModes,
+  tipoPasoCable = 'grommet',
+}) {
   if (!open) return null;
 
   const updateMode = (index, value) => {
@@ -39,7 +46,7 @@ export default function DuctConfigModal({ open, onClose, puestos, ductModes, set
             >
               <option value="TERMINAL">Terminal</option>
               <option value="INTERMEDIO">Intermedio</option>
-              <option value="INDIVIDUAL">Individual</option>
+              {tipoPasoCable !== 'pasacable' && <option value="INDIVIDUAL">Individual</option>}
             </select>
           </div>
         ))}

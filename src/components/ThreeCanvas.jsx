@@ -984,7 +984,9 @@ export default function ThreeCanvas({
     function isClakConnectorEnabledObject(obj) {
       if (!obj) return false;
       if (obj.userData?.kind !== 'CLAK') return false;
-      const normalizedCode = normalizeClakConnectorCode(obj.userData?.code || obj.userData?.codigoPT);
+      const normalizedCode = normalizeClakConnectorCode(
+        obj.userData?.code || obj.userData?.codigoPT
+      );
       return CLAK_CONNECTOR_CODES.has(normalizedCode);
     }
 
@@ -993,9 +995,15 @@ export default function ThreeCanvas({
       const localNormal = new THREE.Vector3();
 
       if (Array.isArray(provided) && provided.length === 3) {
-        localNormal.set(Number(provided[0]) || 0, Number(provided[1]) || 0, Number(provided[2]) || 0);
+        localNormal.set(
+          Number(provided[0]) || 0,
+          Number(provided[1]) || 0,
+          Number(provided[2]) || 0
+        );
       } else {
-        const normalizedCode = normalizeClakConnectorCode(obj?.userData?.code || obj?.userData?.codigoPT);
+        const normalizedCode = normalizeClakConnectorCode(
+          obj?.userData?.code || obj?.userData?.codigoPT
+        );
         if (normalizedCode === 'BP') {
           localNormal.set(0, 0, 1);
         } else {
@@ -1013,10 +1021,7 @@ export default function ThreeCanvas({
         .normalize();
     }
 
-    function resolveBestConnectorSnap(
-      activeObj,
-      { includeSameGroup = false } = {}
-    ) {
+    function resolveBestConnectorSnap(activeObj, { includeSameGroup = false } = {}) {
       if (!activeObj) return null;
 
       const activeCode = activeObj.userData?.code || activeObj.userData?.codigoPT;
@@ -1038,7 +1043,8 @@ export default function ThreeCanvas({
 
       for (const p of parts) {
         if (!p?.obj || p.obj === activeObj) continue;
-        if (!includeSameGroup && activeGroupId && p.obj.userData?.groupId === activeGroupId) continue;
+        if (!includeSameGroup && activeGroupId && p.obj.userData?.groupId === activeGroupId)
+          continue;
 
         const targetConnectors = resolveObjectConnectors(p.obj, p.code);
         if (!targetConnectors.length) continue;
@@ -1167,7 +1173,8 @@ export default function ThreeCanvas({
         clakSnapTargetConnector.visible = false;
       }
 
-      clakConnectorHandleGroup.visible = clakActiveConnector.visible || clakSnapTargetConnector.visible;
+      clakConnectorHandleGroup.visible =
+        clakActiveConnector.visible || clakSnapTargetConnector.visible;
       clakConnectorHandleGroup.updateMatrixWorld(true);
     }
 
@@ -1249,7 +1256,11 @@ export default function ThreeCanvas({
       return null;
     }
 
-    function collectConnectorCandidatesByScope(targetObj, scopeLine, { excludeSameGroup = false } = {}) {
+    function collectConnectorCandidatesByScope(
+      targetObj,
+      scopeLine,
+      { excludeSameGroup = false } = {}
+    ) {
       const allAssemblies = [];
       const allGiroSurfaces = [];
       const allAccessories = [];
@@ -1343,12 +1354,8 @@ export default function ThreeCanvas({
         return;
       }
 
-      const {
-        allAssemblies,
-        allGiroSurfaces,
-        allAccessories,
-        allPanelDivisors,
-      } = collectConnectorCandidatesByScope(targetObj, connectorScopeLine);
+      const { allAssemblies, allGiroSurfaces, allAccessories, allPanelDivisors } =
+        collectConnectorCandidatesByScope(targetObj, connectorScopeLine);
       const allSceneObjects = [
         ...allAssemblies,
         ...allGiroSurfaces,
@@ -1465,10 +1472,12 @@ export default function ThreeCanvas({
       } else {
         isLeftOccupied =
           !isDragging &&
-          (pLeft?.isOccupied || connectorEngine.isPortOccupied(pLeft?.worldPos, targetObj, allSceneObjects));
+          (pLeft?.isOccupied ||
+            connectorEngine.isPortOccupied(pLeft?.worldPos, targetObj, allSceneObjects));
         isRightOccupied =
           !isDragging &&
-          (pRight?.isOccupied || connectorEngine.isPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
+          (pRight?.isOccupied ||
+            connectorEngine.isPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
 
         const hasCenterOnlyPort = !pLeft && !pRight && Boolean(pCenter);
 
@@ -3357,7 +3366,10 @@ export default function ThreeCanvas({
 
         const koncisaAssembly = getKoncisaPlusAssembly(obj);
         const koncisaConfigurationKey = resolveKoncisaBomConfigurationKey(koncisaAssembly);
-        if (koncisaConfigurationKey && !koncisaGroupIdsByConfiguration.has(koncisaConfigurationKey)) {
+        if (
+          koncisaConfigurationKey &&
+          !koncisaGroupIdsByConfiguration.has(koncisaConfigurationKey)
+        ) {
           koncisaGroupIdsByConfiguration.set(
             koncisaConfigurationKey,
             koncisaAssembly.userData?.groupId || koncisaAssembly.userData?.instanceId
@@ -4079,7 +4091,10 @@ export default function ThreeCanvas({
         activeObj.position.add(best.delta);
         activeObj.updateMatrixWorld(true);
 
-        if (isClakConnectorEnabledObject(activeObj) && isClakConnectorEnabledObject(best.targetObj)) {
+        if (
+          isClakConnectorEnabledObject(activeObj) &&
+          isClakConnectorEnabledObject(best.targetObj)
+        ) {
           unifyMilaConnectedAssemblies(activeObj, best.targetObj);
         }
 
@@ -5933,7 +5948,9 @@ export default function ThreeCanvas({
 
     async function addKuoAVPantalla(config = {}) {
       if (readOnly) return;
-      const _countPan = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY').length;
+      const _countPan = parts.filter(
+        ({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY'
+      ).length;
       let result;
       try {
         result = await createKuoAVPantallaInstance({
@@ -6323,7 +6340,10 @@ export default function ThreeCanvas({
         String(meta.role || '').toLowerCase() === 'seat';
 
       if (!isMoreaSeat) {
-        console.warn('[swapMoreaSeatVariant] La pieza no es un puesto editable de Morea:', instanceId);
+        console.warn(
+          '[swapMoreaSeatVariant] La pieza no es un puesto editable de Morea:',
+          instanceId
+        );
         return;
       }
 
@@ -6348,7 +6368,14 @@ export default function ThreeCanvas({
           if (node.userData?.kind !== 'GLB_PART') return;
           if (String(node.userData?.line || '').toUpperCase() !== 'MOREA') return;
           const role = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
-          if (!(role === 'side-left' || role === 'side-right' || role.startsWith('side-center-support'))) return;
+          if (
+            !(
+              role === 'side-left' ||
+              role === 'side-right' ||
+              role.startsWith('side-center-support')
+            )
+          )
+            return;
 
           const box = new THREE.Box3().setFromObject(node);
           if (Number.isFinite(box.max.y)) topYs.push(box.max.y);
@@ -6380,7 +6407,13 @@ export default function ThreeCanvas({
           box.getSize(size);
           box.getCenter(center);
 
-          if (!Number.isFinite(box.min.y) || !Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z)) return;
+          if (
+            !Number.isFinite(box.min.y) ||
+            !Number.isFinite(size.x) ||
+            !Number.isFinite(size.y) ||
+            !Number.isFinite(size.z)
+          )
+            return;
 
           const area = size.x * size.z;
           const maxHorizontal = Math.max(size.x, size.z);
@@ -6446,7 +6479,10 @@ export default function ThreeCanvas({
       }
 
       if (!gltf?.scene) {
-        console.error('[swapMoreaSeatVariant] No se pudo parsear el GLB destino:', nextVariant.modelSrc);
+        console.error(
+          '[swapMoreaSeatVariant] No se pudo parsear el GLB destino:',
+          nextVariant.modelSrc
+        );
         return;
       }
 
@@ -6471,17 +6507,15 @@ export default function ThreeCanvas({
       const nextUnitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
-      const nextPrices =
-        catalogItem?.prices ||
-        catalogItem?.raw?.prices ||
-        {
+      const nextPrices = catalogItem?.prices ||
+        catalogItem?.raw?.prices || {
           CO: nextUnitPrice,
         };
 
@@ -6668,7 +6702,10 @@ export default function ThreeCanvas({
       }
 
       if (!anchorObj) {
-        console.warn('[swapMoreaPedestalVariant] No se encontró el ensamble/pieza Morea:', targetIdentifier);
+        console.warn(
+          '[swapMoreaPedestalVariant] No se encontró el ensamble/pieza Morea:',
+          targetIdentifier
+        );
         return;
       }
 
@@ -6679,7 +6716,10 @@ export default function ThreeCanvas({
         String(assemblyRoot?.userData?.type || '').toLowerCase() === 'morea';
 
       if (!isMoreaAssembly) {
-        console.warn('[swapMoreaPedestalVariant] El objetivo no pertenece a un ensamble Morea:', targetIdentifier);
+        console.warn(
+          '[swapMoreaPedestalVariant] El objetivo no pertenece a un ensamble Morea:',
+          targetIdentifier
+        );
         return;
       }
 
@@ -6690,10 +6730,10 @@ export default function ThreeCanvas({
       const woodOutwardOffsetMm =
         moreaVariant === 'double'
           ? Number(
-            MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
-              MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
-              12
-          )
+              MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+                MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+                12
+            )
           : Number(MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM || 12);
 
       const sideTargets = [];
@@ -6708,7 +6748,9 @@ export default function ThreeCanvas({
       });
 
       if (!sideTargets.length) {
-        console.warn('[swapMoreaPedestalVariant] No se encontraron pedestales laterales en el ensamble Morea.');
+        console.warn(
+          '[swapMoreaPedestalVariant] No se encontraron pedestales laterales en el ensamble Morea.'
+        );
         return;
       }
 
@@ -6817,7 +6859,10 @@ export default function ThreeCanvas({
       }
 
       if (!gltf?.scene) {
-        console.error('[swapMoreaPedestalVariant] No se pudo parsear el GLB destino:', nextVariant.modelSrc);
+        console.error(
+          '[swapMoreaPedestalVariant] No se pudo parsear el GLB destino:',
+          nextVariant.modelSrc
+        );
         return;
       }
 
@@ -6831,17 +6876,15 @@ export default function ThreeCanvas({
       const nextUnitPriceBase =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
-      const nextPricesBase =
-        catalogItem?.prices ||
-        catalogItem?.raw?.prices ||
-        {
+      const nextPricesBase = catalogItem?.prices ||
+        catalogItem?.raw?.prices || {
           CO: nextUnitPriceBase,
         };
 
@@ -12338,7 +12381,7 @@ export default function ThreeCanvas({
       const rotationY = side === 'left' ? Math.PI : 0;
       const moduleType = normalizeDuctModuleType(root.userData?.meta?.tipoModulo);
       const usesDuctCoverAdjustment = moduleType === 'intermedio' || moduleType === 'terminal';
-      const horizontalInset = usesDuctCoverAdjustment ? 31 / 1000 : 0;
+      const horizontalInset = usesDuctCoverAdjustment ? 56 / 1000 : 0;
       const depthOffset = usesDuctCoverAdjustment ? -23 / 1000 : 0;
       const rotationMatrix = new THREE.Matrix4().makeRotationY(rotationY);
       const rotatedCoverBox = new THREE.Box3();
@@ -12444,7 +12487,18 @@ export default function ThreeCanvas({
         const { minX: rotatedMinX } = getBoundsXInParent();
 
         if (Number.isFinite(rotatedMinX)) {
-          root.position.x += oppositeSurfaceStartX - rotatedMinX;
+          const ductMeta = root.userData?.meta || {};
+          const isDoublePasacable =
+            String(ductMeta.tipoPuesto || '').toUpperCase() === 'DOBLE' &&
+            String(ductMeta.accesoCableado || '').toUpperCase() === 'PASACABLE';
+          // La posición inicial del terminal doble pasacable queda 32 mm por fuera
+          // del extremo. Al girarlo, el offset cambia de +32 a -32 (64 mm totales).
+          const terminalOffsetCorrectionM = isDoublePasacable
+            ? (String(ductMeta.side || 'LEFT').toUpperCase() === 'LEFT' ? -64 : 64) / 1000
+            : 0;
+
+          root.position.x +=
+            oppositeSurfaceStartX - rotatedMinX + terminalOffsetCorrectionM;
         }
         root.userData.ductRotated180 = true;
       } else {
@@ -13660,7 +13714,18 @@ export default function ThreeCanvas({
 
       if (
         (isMilaRoot || isMoreaRoot) &&
-        !['armrest-left', 'armrest-right', 'armrest-center', 'screen', 'giro-surface', 'accessory', 'panel-divisor', 'booth-table', 'screen-izq', 'screen-der'].includes(
+        ![
+          'armrest-left',
+          'armrest-right',
+          'armrest-center',
+          'screen',
+          'giro-surface',
+          'accessory',
+          'panel-divisor',
+          'booth-table',
+          'screen-izq',
+          'screen-der',
+        ].includes(
           String(root?.userData?.meta?.role || root?.userData?.role || '').toLowerCase()
         ) &&
         root?.userData?.kind !== 'MILA_GIRO_SURFACE' &&
@@ -13798,15 +13863,19 @@ export default function ThreeCanvas({
           hasScreen: popupSeats ? root.userData?._milaHasScreen || false : undefined,
           backrestRotated180: popupSeats
             ? Boolean(
-              popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
-              popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
-              root.userData?.meta?.backrestRotated180 ||
-              root.userData?._moreaBackrestRotated180
-            )
+                popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
+                popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
+                root.userData?.meta?.backrestRotated180 ||
+                root.userData?._moreaBackrestRotated180
+              )
             : undefined,
-          quantity: popupSeats ? root.userData?._milaQuantity || (popupSeats?.length ?? 1) : undefined,
+          quantity: popupSeats
+            ? root.userData?._milaQuantity || (popupSeats?.length ?? 1)
+            : undefined,
           moreaVariant: isMoreaRoot ? root.userData?._moreaVariant || 'single' : undefined,
-          moreaPedestalMode: isMoreaRoot ? root.userData?._moreaPedestalMode || 'normal' : undefined,
+          moreaPedestalMode: isMoreaRoot
+            ? root.userData?._moreaPedestalMode || 'normal'
+            : undefined,
           assemblyGroupId: root.userData?.groupId || root.userData?.instanceId || root.uuid,
         },
       });
@@ -14165,14 +14234,10 @@ export default function ThreeCanvas({
         return { snapped: false, mergeCandidate: null };
       }
 
-      const {
-        allAssemblies,
-        allGiroSurfaces,
-        allAccessories,
-        allPanelDivisors,
-      } = collectConnectorCandidatesByScope(targetObj, connectorScopeLine, {
-        excludeSameGroup: true,
-      });
+      const { allAssemblies, allGiroSurfaces, allAccessories, allPanelDivisors } =
+        collectConnectorCandidatesByScope(targetObj, connectorScopeLine, {
+          excludeSameGroup: true,
+        });
       const activeGroupId = targetObj.userData?.groupId;
 
       const snapResult = connectorEngine.findBestSnap({
@@ -14462,7 +14527,8 @@ export default function ThreeCanvas({
     function resnapGiroSurfaceToAssembly(giroRoot, targetAssembly) {
       if (!giroRoot || !targetAssembly) return false;
 
-      const connectorContext = resolveConnectorContext(giroRoot) || resolveConnectorContext(targetAssembly);
+      const connectorContext =
+        resolveConnectorContext(giroRoot) || resolveConnectorContext(targetAssembly);
       const connectorEngine = connectorContext?.engine || null;
       if (!connectorEngine) return false;
 
@@ -16783,11 +16849,7 @@ export default function ThreeCanvas({
         return Number(config?.offsetMm?.z ?? fallbackZMm);
       };
 
-      crossbarOffsetMm.z = resolveCrossbarCenterZMm(
-        crossbar,
-        crossbarLengthMm,
-        crossbarOffsetMm.z
-      );
+      crossbarOffsetMm.z = resolveCrossbarCenterZMm(crossbar, crossbarLengthMm, crossbarOffsetMm.z);
 
       /*
        * Las patas se separan usando el largo real del travesaño.
@@ -16923,8 +16985,7 @@ export default function ThreeCanvas({
             crossbarEndZMm - rightBounds.min.z * 1000 + Number(rightOffsetMm?.z || 0);
 
           if (centerBracket) {
-            bracketPositionMm.x =
-              -bracketCenterXMm + Number(centerBracketOffsetMm?.x || 0);
+            bracketPositionMm.x = -bracketCenterXMm + Number(centerBracketOffsetMm?.x || 0);
             bracketPositionMm.z =
               crossbarOffsetMm.z - bracketCenterZMm + Number(centerBracketOffsetMm?.z || 0);
           }
@@ -17051,9 +17112,7 @@ export default function ThreeCanvas({
         const resolvedLengthOffsetMm = Number(config?.lengthOffsetMm ?? 0);
         const resolvedLengthMm = Math.max(
           1,
-          realDepthMm * resolvedLengthFactor +
-            resolvedLengthOffsetMm -
-            resolvedEndClearanceMm
+          realDepthMm * resolvedLengthFactor + resolvedLengthOffsetMm - resolvedEndClearanceMm
         );
 
         const geometry = new THREE.BoxGeometry(

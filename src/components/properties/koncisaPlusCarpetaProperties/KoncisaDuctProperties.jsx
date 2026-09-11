@@ -8,6 +8,10 @@ function normalizeTipoModulo(value) {
 
 export default function KoncisaDuctProperties({ part, api }) {
   const tipoModulo = normalizeTipoModulo(part?.meta?.tipoModulo);
+  const accesoCableado = String(
+    part?.meta?.accesoCableado || part?.meta?.tipoPasoCable || ''
+  ).toUpperCase();
+  const isPasacable = accesoCableado === 'PASACABLE';
 
   const ductCovers =
     part?.ductCovers ||
@@ -34,7 +38,7 @@ export default function KoncisaDuctProperties({ part, api }) {
       >
         <option value="TERMINAL">Terminal</option>
         <option value="INTERMEDIO">Intermedio</option>
-        <option value="INDIVIDUAL">Individual</option>
+        {!isPasacable && <option value="INDIVIDUAL">Individual</option>}
       </select>
 
       {tipoModulo === 'TERMINAL' && (
@@ -129,7 +133,7 @@ export default function KoncisaDuctProperties({ part, api }) {
         )}
       </div>
 
-      {tipoModulo !== 'INDIVIDUAL' && (
+      {tipoModulo !== 'INDIVIDUAL' && !isPasacable && (
         <div style={{ marginTop: 14 }}>
           <label style={labelStyle}>Ducto bajante a techo</label>
 
@@ -140,9 +144,7 @@ export default function KoncisaDuctProperties({ part, api }) {
                   type="checkbox"
                   checked={!!ceilingDucts.left}
                   disabled={!!ceilingDucts.right}
-                  onChange={(e) =>
-                    api?.updateSelectedCeilingDucts?.({ left: e.target.checked })
-                  }
+                  onChange={(e) => api?.updateSelectedCeilingDucts?.({ left: e.target.checked })}
                 />
                 Bajante lado izquierdo
               </label>
@@ -151,9 +153,7 @@ export default function KoncisaDuctProperties({ part, api }) {
                   type="checkbox"
                   checked={!!ceilingDucts.right}
                   disabled={!!ceilingDucts.left}
-                  onChange={(e) =>
-                    api?.updateSelectedCeilingDucts?.({ right: e.target.checked })
-                  }
+                  onChange={(e) => api?.updateSelectedCeilingDucts?.({ right: e.target.checked })}
                 />
                 Bajante lado derecho
               </label>
@@ -163,9 +163,7 @@ export default function KoncisaDuctProperties({ part, api }) {
               <input
                 type="checkbox"
                 checked={!!ceilingDucts.single}
-                onChange={(e) =>
-                  api?.updateSelectedCeilingDucts?.({ single: e.target.checked })
-                }
+                onChange={(e) => api?.updateSelectedCeilingDucts?.({ single: e.target.checked })}
               />
               Incluir en el extremo abierto
             </label>

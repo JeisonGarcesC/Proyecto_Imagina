@@ -253,6 +253,18 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [ductModes, setDuctModes] = useState([]);
 
   useEffect(() => {
+    if (tipoPasoCable !== 'pasacable') return;
+
+    setDuctModes((prev) =>
+      Array.from({ length: puestos }, (_, index) =>
+        String(prev[index] || 'TERMINAL').toUpperCase() === 'INDIVIDUAL'
+          ? 'TERMINAL'
+          : prev[index] || 'TERMINAL'
+      )
+    );
+  }, [tipoPasoCable, puestos]);
+
+  useEffect(() => {
     setDuctModes((prev) => {
       const next = Array.from({ length: puestos }, (_, i) => prev[i] || 'TERMINAL');
       return next;
@@ -952,6 +964,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
             puestos={puestos}
             ductModes={ductModes}
             setDuctModes={setDuctModes}
+            tipoPasoCable={tipoPasoCable}
           />
 
           <div>
