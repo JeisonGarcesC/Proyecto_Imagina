@@ -25,6 +25,24 @@ export const KONCISA_INTEGRATION_CABLE_ACCESS_TYPE = {
   PASACABLE: 'pasacable',
 };
 
+function createDoubleIntegrationLegAssembly() {
+  return {
+    positioningMode: 'measured-depth-double-v1',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO347000_Generico.glb',
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO347000_Generico.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE_INTEGRACION.glb',
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+    centerBracketOffsetMm: { x: 40, y: 0, z: 0 },
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+      endClearanceMm: 0,
+      offsetMm: { x: 30, y: 685, z: 0 },
+    },
+  };
+}
+
 export const KONCISA_INTEGRATION_RULES = {
   // =========================
   // ACOPLES
@@ -89,7 +107,7 @@ export const KONCISA_INTEGRATION_RULES = {
       logicalCode: 'KONPLUSSGROMMET4TOMAS-ALUMINIUM',
       codigoPT: '22000023626',
       modelCode: 'LKAC250000',
-      modelSrc: null,
+      modelSrc: '/assets/models/koncisaPlus/LKAC250000.glb',
       name: 'GROMMET ALUMINIO 4 TOMAS ACCESORIO LINK LKAC250000',
       qty: 1,
     },
@@ -139,6 +157,7 @@ export const KONCISA_INTEGRATION_RULES = {
       codigoPT: '22000132926',
       modelCode: '2KSO347000_120',
       modelSrc: '/assets/models/koncisaPlus/2KSO347000_120.glb',
+      assembly: createDoubleIntegrationLegAssembly(),
       name: 'COSTADO DOBLE INTEGRACION 120CM PINTADO KONCISA PLUS 2KSO347000',
       qty: 1,
     },
@@ -148,6 +167,7 @@ export const KONCISA_INTEGRATION_RULES = {
       codigoPT: '22000132927',
       modelCode: '2KSO347000_150',
       modelSrc: '/assets/models/koncisaPlus/2KSO347000_150.glb',
+      assembly: createDoubleIntegrationLegAssembly(),
       name: 'COSTADO DOBLE INTEGRACION 150CM PINTADO KONCISA PLUS 2KSO347000',
       qty: 1,
     },

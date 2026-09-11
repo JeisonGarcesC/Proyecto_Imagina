@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { getDuctosConfig } from '../src/mepal/koncisaPlus/rules/koncisaRules.js';
+import { resolveKoncisaIntegrationPackage } from '../src/mepal/koncisaPlus/rules/koncisaIntegrationRules.js';
 
 function getDoubleDuct(tipoPasoCable, tipoModulo, side = 'LEFT') {
   return getDuctosConfig({
@@ -32,11 +33,11 @@ test('conserva la orientación específica de cada lado en el terminal doble', (
   const right = getDoubleDuct('pasacable', 'TERMINAL', 'RIGHT');
   assert.deepEqual(
     { x: left.x, z: left.z, rotY: left.rotY },
-    { x: 600, z: -129, rotY: Math.PI }
+    { x: 632, z: -106, rotY: Math.PI }
   );
   assert.deepEqual(
     { x: right.x, z: right.z, rotY: right.rotY },
-    { x: -600, z: 129, rotY: 0 }
+    { x: -632, z: 152, rotY: 0 }
   );
 });
 
@@ -67,4 +68,26 @@ test('ubica cada terminal doble en su propio puesto y no depende de la profundid
     deep.map(({ moduleIndex, x }) => ({ moduleIndex, x })),
     standard.map(({ moduleIndex, x }) => ({ moduleIndex, x }))
   );
+});
+
+test('el costado doble de integración usa el ensamble genérico para ambas medidas', () => {
+  for (const widthMm of [1200, 1500]) {
+    const leg = resolveKoncisaIntegrationPackage({ widthMm }).doubleIntegrationLeg;
+    assert.equal(leg.nominalWidthMm, widthMm);
+    assert.match(leg.assembly.leftLegSrc, /LEFT_2KSO347000_Generico\.glb$/);
+    assert.match(leg.assembly.rightLegSrc, /RIGHT_2KSO347000_Generico\.glb$/);
+    assert.match(leg.assembly.centerBracketSrc, /CENTER_BRACKET_DOBLE_INTEGRACION\.glb$/);
+    assert.equal(leg.assembly.positioningMode, 'measured-depth-double-v1');
+    assert.equal(leg.assembly.crossbar.offsetMm.y, 685);
+  }
+});
+
+
+test('la integracion con grommet usa el modelo LKAC250000', () => {
+  const cableAccess = resolveKoncisaIntegrationPackage({
+    cableAccessType: 'grommet',
+  }).cableAccess;
+
+  assert.equal(cableAccess.modelCode, 'LKAC250000');
+  assert.match(cableAccess.modelSrc, /LKAC250000\.glb$/);
 });

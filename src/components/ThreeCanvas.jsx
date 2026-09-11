@@ -11067,6 +11067,9 @@ export default function ThreeCanvas({
       });
 
       const originalCostadoSnapshot = {
+        creatorKind: costadoObj.userData?.meta?.costadoAssembly
+          ? 'koncisa-costado-assembly'
+          : 'glb',
         type: 'costado',
         line: costadoObj.userData?.line || 'KONCISA.PLUS',
         code: costadoObj.userData?.code || costadoObj.userData?.codigoPT || null,
@@ -11450,9 +11453,15 @@ export default function ThreeCanvas({
       // LEFT sale hacia Z positivo; RIGHT sale hacia Z negativo.
       const outwardSign = integrationSide === 'left' ? 1 : -1;
 
-      const mmToWorldX = (mm) => basePos.x * 1000 + Number(mm || 0);
-      const _mmToWorldY = (mm) => basePos.y * 1000 + Number(mm || 0);
-      const mmToWorldZ = (mm) => basePos.z * 1000 + Number(mm || 0) * outwardSign;
+      const localToWorldMm = (localX = 0, outwardZ = 0) => {
+        const localZ = Number(outwardZ || 0) * outwardSign;
+        const cosY = Math.cos(baseRot.y);
+        const sinY = Math.sin(baseRot.y);
+        return {
+          x: basePos.x * 1000 + Number(localX || 0) * cosY + localZ * sinY,
+          z: basePos.z * 1000 - Number(localX || 0) * sinY + localZ * cosY,
+        };
+      };
 
       // =====================================================
       // 1. Costado doble integración: reemplaza costado terminal
@@ -11461,7 +11470,39 @@ export default function ThreeCanvas({
 
       let newIntegrationLegObj = null;
 
-      if (integrationLeg?.modelSrc) {
+      if (integrationLeg?.assembly) {
+        newIntegrationLegObj = await addKoncisaCostadoAssemblyPart({
+          type: 'costado',
+          line: 'KONCISA.PLUS',
+          code: integrationLeg.codigoPT,
+          logicalCode: integrationLeg.logicalCode,
+          name: integrationLeg.name,
+          groupId,
+          groupName,
+          parentGroup,
+          dimMm: { depthMm: normalizedWidthMm, realDepthMm: normalizedWidthMm },
+          position: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
+          rotation: { x: baseRot.x, y: baseRot.y, z: baseRot.z },
+          meta: {
+            category: 'costados',
+            tipoPuesto: 'doble',
+            tipoModulo: 'terminal',
+            moduleIndex,
+            replaceZone,
+            integrationSetId,
+            isIntegrationLeg: true,
+            replacesCostado: true,
+            costadoAssembly: integrationLeg.assembly,
+            realDepthMm: normalizedWidthMm,
+            originalCostadoSnapshot,
+            originalCostadoCode: costadoObj.userData?.code || null,
+          },
+        });
+      } else if (integrationLeg?.modelSrc) {
         newIntegrationLegObj = await addExternalGlbPart({
           type: 'costado',
           line: 'KONCISA.PLUS',
@@ -11561,7 +11602,22 @@ export default function ThreeCanvas({
         variant,
       });
 
-      const surfaceCenterOffsetZ = normalizedDepthMm / 2 + 8;
+      // The selected terminal side is the center of the removed costado.
+      // The integration surface connects by its inner corner, so its center
+      // advances half its depth laterally and half its length longitudinally.
+      const lateralSign = integrationSide === 'left' ? 1 : -1;
+      const integrationCenterLocalX = lateralSign * (normalizedDepthMm / 2);
+
+      // This is the shared center of the complete integration package.
+      // It is the simplified result of the calibrated 1200/1500 placement:
+      // depth + width / 2 + (-width / 2 - 750) = depth - 750.
+      const integrationCenterOutwardZ = normalizedDepthMm - 750;
+      const integrationNearEdgeOutwardZ = integrationCenterOutwardZ - normalizedWidthMm / 2;
+      const integrationFarEdgeOutwardZ = integrationCenterOutwardZ + normalizedWidthMm / 2;
+      const integrationSurfaceCenter = localToWorldMm(
+        integrationCenterLocalX,
+        integrationCenterOutwardZ
+      );
 
       const surfaceCatalogItem =
         catalogByCodeRef.current?.get?.(String(resolvedSurface.codigoPT)) || null;
@@ -11596,9 +11652,9 @@ export default function ThreeCanvas({
           },
 
           position: {
-            x: basePos.x,
+            x: integrationSurfaceCenter.x / 1000,
             y: 0.71,
-            z: (basePos.z * 1000 + surfaceCenterOffsetZ * outwardSign) / 1000,
+            z: integrationSurfaceCenter.z / 1000,
           },
 
           groupId,
@@ -11618,7 +11674,7 @@ export default function ThreeCanvas({
       );
 
       if (integrationSurfaceObj) {
-        integrationSurfaceObj.rotation.y = Math.PI / 2;
+        integrationSurfaceObj.rotation.y = baseRot.y + Math.PI / 2;
         integrationSurfaceObj.userData.meta = {
           ...(integrationSurfaceObj.userData.meta || {}),
           category: 'superficies',
@@ -11649,14 +11705,17 @@ export default function ThreeCanvas({
       // =====================================================
       const unitLeg = pkg.unitLeg;
 
+      const unitLegOuterX = lateralSign * (normalizedDepthMm - 35);
       const unitLegPositions = [
         {
-          x: 0 - normalizedWidthMm / 2 + 35,
-          z: normalizedDepthMm + 8,
+          x: unitLegOuterX,
+          z: integrationNearEdgeOutwardZ + 35,
+          rotY: 0,
         },
         {
-          x: 0 + normalizedWidthMm / 2 - 35,
-          z: normalizedDepthMm + 8,
+          x: lateralSign * 35,
+          z: integrationFarEdgeOutwardZ - 35,
+          rotY: Math.PI,
         },
       ];
 
@@ -11673,15 +11732,14 @@ export default function ThreeCanvas({
           parentGroup,
 
           position: {
-            x: mmToWorldX(pos.x),
+            ...localToWorldMm(pos.x, pos.z),
             y: basePos.y * 1000,
-            z: mmToWorldZ(pos.z),
           },
 
           rotation: {
             x: baseRot.x,
-            y: baseRot.y,
-            z: baseRot.z,
+            y: baseRot.y + Number(pos.rotY || 0),
+            z: Math.PI,
           },
 
           model: {
@@ -11704,6 +11762,24 @@ export default function ThreeCanvas({
       // 4. Ducto individual de integración
       // =====================================================
       const individualDuct = pkg.individualDuct;
+      let referenceDoubleDuct = null;
+      parentGroup?.traverse((node) => {
+        if (referenceDoubleDuct || node.userData?.isPartRoot !== true) return;
+        const nodeMeta = node.userData?.meta || {};
+        const isMatchingDuct =
+          node.userData?.kind === 'ducto' &&
+          String(nodeMeta.tipoPuesto || '').toLowerCase() === 'doble' &&
+          Number(nodeMeta.moduleIndex ?? 0) === Number(moduleIndex);
+        if (isMatchingDuct) referenceDoubleDuct = node;
+      });
+      const referenceDuctHeightMm = referenceDoubleDuct
+        ? referenceDoubleDuct.position.y * 1000
+        : 510;
+      const integrationCenter = integrationSurfaceCenter;
+      const integrationConnectionCenter = localToWorldMm(
+        integrationCenterLocalX,
+        integrationNearEdgeOutwardZ
+      );
 
       await addExternalGlbPart({
         type: 'ducto',
@@ -11717,9 +11793,9 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: basePos.x * 1000,
-          y: basePos.y * 1000,
-          z: mmToWorldZ(130),
+          x: integrationCenter.x - 230,
+          y: referenceDuctHeightMm,
+          z: integrationCenter.z - 320,
         },
 
         rotation: {
@@ -11763,15 +11839,15 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: basePos.x * 1000,
-          y: basePos.y * 1000,
-          z: mmToWorldZ(35),
+          x: 692, //integrationConnectionCenter.x,//mover unos 10 mm menos
+          y: referenceDuctHeightMm + 100,
+          z: -123, //integrationConnectionCenter.z,
         },
 
         rotation: {
-          x: baseRot.x,
-          y: baseRot.y + Math.PI / 2,
-          z: baseRot.z,
+          x: 0, //baseRot.x + Math.PI / 2,
+          y: 0, //baseRot.y + Math.PI / 2,
+          z: Math.PI / 2, //baseRot.z,
         },
 
         model: {
@@ -11795,8 +11871,12 @@ export default function ThreeCanvas({
       // Después podemos cambiarlo por geometría/modelo visual si quieres.
       // =====================================================
       const cableAccess = pkg.cableAccess;
+      const cableAccessCenter = localToWorldMm(
+        integrationCenterLocalX,
+        integrationCenterOutwardZ + 150
+      );
 
-      addNativeBlockPart({
+      const cableAccessPart = {
         type: cableAccess.type === 'pasacable' ? 'pasacable' : 'grommet',
         line: 'KONCISA.PLUS',
         code: cableAccess.codigoPT,
@@ -11807,16 +11887,10 @@ export default function ThreeCanvas({
         groupName,
         parentGroup,
 
-        dimMm: {
-          widthMm: 120,
-          heightMm: 8,
-          depthMm: 60,
-        },
-
         position: {
-          x: basePos.x * 1000,
-          y: 740,
-          z: mmToWorldZ(normalizedDepthMm / 2),
+          x: cableAccessCenter.x - 180,
+          y: 740 + 20,
+          z: cableAccessCenter.z - 150,
         },
 
         rotation: {
@@ -11833,7 +11907,26 @@ export default function ThreeCanvas({
           tipoPuesto: 'integracion',
           cableAccessType: cableAccess.type,
         },
-      });
+      };
+
+      if (cableAccess.type === 'grommet') {
+        await addExternalGlbPart({
+          ...cableAccessPart,
+          model: {
+            kind: 'glb',
+            src: cableAccess.modelSrc,
+          },
+        });
+      } else {
+        addNativeBlockPart({
+          ...cableAccessPart,
+          dimMm: {
+            widthMm: 120,
+            heightMm: 8,
+            depthMm: 60,
+          },
+        });
+      }
 
       // =====================================================
       // 7. Refuerzo superficie a pedestal o integración
@@ -11858,9 +11951,9 @@ export default function ThreeCanvas({
         },
 
         position: {
-          x: basePos.x * 1000,
+          x: integrationCenter.x,
           y: 690,
-          z: mmToWorldZ(normalizedDepthMm / 2),
+          z: integrationCenter.z,
         },
 
         rotation: {
@@ -11880,7 +11973,9 @@ export default function ThreeCanvas({
       });
 
       // Finalmente eliminamos el costado terminal original.
-      removePartObject(costadoObj);
+      // El costado pertenece al assembly KONCISA_PLUS. Sin exactTarget,
+      // removePartObject resuelve la raíz y elimina también la integración recién creada.
+      removePartObject(costadoObj, { exactTarget: true });
 
       if (newIntegrationLegObj) {
         setActivePart(newIntegrationLegObj);
@@ -11949,13 +12044,20 @@ export default function ThreeCanvas({
         }
       }
 
-      if (!originalCostadoSnapshot?.code || !originalCostadoSnapshot?.model?.src) {
+      const isCostadoAssembly =
+        originalCostadoSnapshot?.creatorKind === 'koncisa-costado-assembly' ||
+        !!originalCostadoSnapshot?.meta?.costadoAssembly;
+
+      if (
+        !originalCostadoSnapshot?.code ||
+        (!isCostadoAssembly && !originalCostadoSnapshot?.model?.src)
+      ) {
         alert('No se puede restaurar el costado original porque falta el snapshot del costado.');
         return false;
       }
 
       // Restaurar costado terminal original
-      const restoredObj = await addExternalGlbPart({
+      const restorePayload = {
         ...originalCostadoSnapshot,
         type: 'costado',
         parentGroup,
@@ -11971,11 +12073,16 @@ export default function ThreeCanvas({
           integrationLegObj?.userData?.groupName ||
           parentGroup?.userData?.name ||
           null,
-      });
+      };
+      const restoredObj = isCostadoAssembly
+        ? await addKoncisaCostadoAssemblyPart(restorePayload)
+        : await addExternalGlbPart(restorePayload);
 
       // Quitar todas las piezas de esta integración
       for (const obj of objectsToRemove) {
-        removePartObject(obj);
+        // Cada pieza vive dentro del assembly principal; retirar solamente
+        // el componente de este integrationSetId conserva el puesto base.
+        removePartObject(obj, { exactTarget: true });
       }
 
       if (restoredObj) {
@@ -12497,8 +12604,7 @@ export default function ThreeCanvas({
             ? (String(ductMeta.side || 'LEFT').toUpperCase() === 'LEFT' ? -64 : 64) / 1000
             : 0;
 
-          root.position.x +=
-            oppositeSurfaceStartX - rotatedMinX + terminalOffsetCorrectionM;
+          root.position.x += oppositeSurfaceStartX - rotatedMinX + terminalOffsetCorrectionM;
         }
         root.userData.ductRotated180 = true;
       } else {
