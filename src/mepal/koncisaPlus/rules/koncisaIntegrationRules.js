@@ -127,11 +127,20 @@ export const KONCISA_INTEGRATION_RULES = {
   // Cantidad: 1
   // =========================
   REINFORCEMENTS: {
+    1000: {
+      logicalCode: 'KONPLUSSSUPCHANNEL_16_260_100',
+      codigoPT: '22000132923',
+      modelCode: '2KAC262000_100',
+      modelSrc: '/assets/models/koncisaPlus/2KAC262000_100.glb',
+      name: 'REFUERZO SUPERFICIE A PEDESTAL O INTEGRACION 100CM KONCISA PLUS 2KAC262000',
+      qty: 1,
+    },
+
     1200: {
       logicalCode: 'KONPLUSSSUPCHANNEL_16_260_120',
       codigoPT: '22000132924',
-      modelCode: '2KAC262000',
-      modelSrc: '/assets/models/koncisaPlus/2KAC262000.glb',
+      modelCode: '2KAC262000_120',
+      modelSrc: '/assets/models/koncisaPlus/2KAC262000_120.glb',
       name: 'REFUERZO SUPERFICIE A PEDESTAL O INTEGRACION 120CM KONCISA PLUS 2KAC262000',
       qty: 1,
     },
@@ -139,8 +148,8 @@ export const KONCISA_INTEGRATION_RULES = {
     1500: {
       logicalCode: 'KONPLUSSSUPCHANNEL_16_260_150',
       codigoPT: '22000132925',
-      modelCode: '2KAC262000',
-      modelSrc: '/assets/models/koncisaPlus/2KAC262000.glb',
+      modelCode: '2KAC262000_150',
+      modelSrc: '/assets/models/koncisaPlus/2KAC262000_150.glb',
       name: 'REFUERZO SUPERFICIE A PEDESTAL O INTEGRACION 150CM KONCISA PLUS 2KAC262000',
       qty: 1,
     },
@@ -274,13 +283,16 @@ export function resolveKoncisaIntegrationCableAccess({
 }
 
 export function resolveKoncisaIntegrationReinforcement({ widthMm = 1200 } = {}) {
-  const normalizedWidthMm = normalizeIntegrationWidthMm(widthMm);
-  const found = KONCISA_INTEGRATION_RULES.REINFORCEMENTS[normalizedWidthMm];
+  const requestedWidthMm = Math.round(Number(widthMm || 1200));
+  const exact = KONCISA_INTEGRATION_RULES.REINFORCEMENTS[requestedWidthMm];
+  const fallbackWidthMm = normalizeIntegrationWidthMm(requestedWidthMm);
+  const found = exact || KONCISA_INTEGRATION_RULES.REINFORCEMENTS[fallbackWidthMm];
 
   return {
-    nominalWidthMm: normalizedWidthMm,
+    nominalWidthMm: requestedWidthMm,
     ...found,
     exists: !!found,
+    usesStandardModel: !!exact,
   };
 }
 

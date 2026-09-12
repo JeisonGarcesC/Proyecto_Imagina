@@ -130,6 +130,7 @@ import {
   normalizeIntegrationSide,
   normalizeIntegrationWidthMm,
   resolveKoncisaIntegrationPackage,
+  resolveKoncisaIntegrationReinforcement,
 } from '../mepal/koncisaPlus/rules/koncisaIntegrationRules';
 
 import {
@@ -11611,7 +11612,13 @@ export default function ThreeCanvas({
       // This is the shared center of the complete integration package.
       // It is the simplified result of the calibrated 1200/1500 placement:
       // depth + width / 2 + (-width / 2 - 750) = depth - 750.
-      const integrationCenterOutwardZ = normalizedDepthMm - 750;
+      const integrationCenterOutwardZByWidth = {
+        1200: 0,
+        1500: 0,
+      };
+
+      const integrationCenterOutwardZ = integrationCenterOutwardZByWidth[normalizedWidthMm] ?? 0;
+
       const integrationNearEdgeOutwardZ = integrationCenterOutwardZ - normalizedWidthMm / 2;
       const integrationFarEdgeOutwardZ = integrationCenterOutwardZ + normalizedWidthMm / 2;
       const integrationSurfaceCenter = localToWorldMm(
@@ -11708,14 +11715,14 @@ export default function ThreeCanvas({
       const unitLegOuterX = lateralSign * (normalizedDepthMm - 35);
       const unitLegPositions = [
         {
-          x: unitLegOuterX,
-          z: integrationNearEdgeOutwardZ + 35,
+          x: unitLegOuterX - 34,
+          z: integrationNearEdgeOutwardZ + 35 - 37,
           rotY: 0,
         },
         {
-          x: lateralSign * 35,
-          z: integrationFarEdgeOutwardZ - 35,
-          rotY: Math.PI,
+          x: -normalizedDepthMm, //lateralSign * 35,
+          z: integrationFarEdgeOutwardZ - 35 + 34,
+          rotY: -Math.PI / 2, //Math.PI / 4, //Math.PI,
         },
       ];
 
@@ -11739,7 +11746,7 @@ export default function ThreeCanvas({
           rotation: {
             x: baseRot.x,
             y: baseRot.y + Number(pos.rotY || 0),
-            z: Math.PI,
+            z: baseRot.z,
           },
 
           model: {
@@ -11781,6 +11788,8 @@ export default function ThreeCanvas({
         integrationNearEdgeOutwardZ
       );
 
+      const ductoIndividualOffsetXmm = normalizedDepthMm === 600 ? 75 : 0;
+
       await addExternalGlbPart({
         type: 'ducto',
         line: 'KONCISA.PLUS',
@@ -11793,9 +11802,9 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: integrationCenter.x - 230,
+          x: integrationCenter.x - 230 - 68 - 20 - 28 + ductoIndividualOffsetXmm,
           y: referenceDuctHeightMm,
-          z: integrationCenter.z - 320,
+          z: integrationCenter.z - 320 - 27,
         },
 
         rotation: {
@@ -11827,6 +11836,11 @@ export default function ThreeCanvas({
       // =====================================================
       const couple = pkg.couple;
 
+      const coupleOffsetXmm = normalizedDepthMm === 600 ? -228 : -305;
+
+      const coupleOffsetZmm =
+        normalizedWidthMm === 1200 ? -477 : normalizedWidthMm === 1500 ? -477 - 150 : 0;
+
       await addExternalGlbPart({
         type: 'acopleDucto',
         line: 'KONCISA.PLUS',
@@ -11839,9 +11853,9 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: 692, //integrationConnectionCenter.x,//mover unos 10 mm menos
+          x: integrationConnectionCenter.x + coupleOffsetXmm, //,//mover unos 10 mm menos 692 - 20 - 2
           y: referenceDuctHeightMm + 100,
-          z: -123, //integrationConnectionCenter.z,
+          z: integrationConnectionCenter.z - coupleOffsetZmm,
         },
 
         rotation: {
@@ -11876,6 +11890,8 @@ export default function ThreeCanvas({
         integrationCenterOutwardZ + 150
       );
 
+      const grommetOffsetXmm = cableAccess.type === 'grommet' && normalizedDepthMm === 600 ? 75 : 0;
+
       const cableAccessPart = {
         type: cableAccess.type === 'pasacable' ? 'pasacable' : 'grommet',
         line: 'KONCISA.PLUS',
@@ -11888,8 +11904,8 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: cableAccessCenter.x - 180,
-          y: 740 + 20,
+          x: cableAccessCenter.x + grommetOffsetXmm - 271,
+          y: 745,
           z: cableAccessCenter.z - 150,
         },
 
@@ -11931,9 +11947,24 @@ export default function ThreeCanvas({
       // =====================================================
       // 7. Refuerzo superficie a pedestal o integración
       // =====================================================
-      const reinforcement = pkg.reinforcement;
+      const reinforcement = resolveKoncisaIntegrationReinforcement({
+        widthMm: originalWidthMm,
+      });
 
-      addNativeBlockPart({
+      const reinforcementOffsetZByWidth = {
+        1000: 0, // Ajuste para superficie de 100 cm -78
+        1200: -320, // Ajuste para superficie de 120 cm 690
+        1500: -470, // Ajuste para superficie de 150 cm -320
+      };
+
+      const reinforcementOffsetZ = reinforcementOffsetZByWidth[Number(originalWidthMm)] ?? 0;
+
+      const reinforcementPosition = localToWorldMm(
+        integrationCenterLocalX,
+        integrationCenterOutwardZ + reinforcementOffsetZ
+      );
+
+      const reinforcementPart = {
         type: 'refuerzoSuperficieIntegracion',
         line: 'KONCISA.PLUS',
         code: reinforcement.codigoPT,
@@ -11944,17 +11975,19 @@ export default function ThreeCanvas({
         groupName,
         parentGroup,
 
-        dimMm: {
-          widthMm: normalizedWidthMm === 1200 ? 640 : 940,
-          heightMm: 35,
-          depthMm: 155,
+        position: {
+          x: reinforcementPosition.x - 78,
+          y: 690,
+          z: reinforcementPosition.z,
         },
 
+        /*
         position: {
-          x: integrationCenter.x,
+          x: integrationCenter.x - 78,
           y: 690,
-          z: integrationCenter.z,
+          z: integrationCenter.z - 320,
         },
+*/
 
         rotation: {
           x: 0,
@@ -11968,9 +12001,29 @@ export default function ThreeCanvas({
           moduleIndex,
           replaceZone,
           tipoPuesto: 'integracion',
-          nominalWidthMm: normalizedWidthMm,
+          nominalWidthMm: reinforcement.nominalWidthMm,
+          usesStandardModel: reinforcement.usesStandardModel,
         },
-      });
+      };
+
+      if (reinforcement.usesStandardModel && reinforcement.modelSrc) {
+        await addExternalGlbPart({
+          ...reinforcementPart,
+          model: {
+            kind: 'glb',
+            src: reinforcement.modelSrc,
+          },
+        });
+      } else {
+        addNativeBlockPart({
+          ...reinforcementPart,
+          dimMm: {
+            widthMm: Math.max(1, Number(originalWidthMm || normalizedWidthMm) - 560),
+            heightMm: 35,
+            depthMm: 155,
+          },
+        });
+      }
 
       // Finalmente eliminamos el costado terminal original.
       // El costado pertenece al assembly KONCISA_PLUS. Sin exactTarget,

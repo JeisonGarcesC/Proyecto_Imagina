@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { getDuctosConfig } from '../src/mepal/koncisaPlus/rules/koncisaRules.js';
-import { resolveKoncisaIntegrationPackage } from '../src/mepal/koncisaPlus/rules/koncisaIntegrationRules.js';
+import {
+  resolveKoncisaIntegrationPackage,
+  resolveKoncisaIntegrationReinforcement,
+} from '../src/mepal/koncisaPlus/rules/koncisaIntegrationRules.js';
 
 function getDoubleDuct(tipoPasoCable, tipoModulo, side = 'LEFT') {
   return getDuctosConfig({
@@ -90,4 +93,20 @@ test('la integracion con grommet usa el modelo LKAC250000', () => {
 
   assert.equal(cableAccess.modelCode, 'LKAC250000');
   assert.match(cableAccess.modelSrc, /LKAC250000\.glb$/);
+});
+
+
+test('usa GLB exacto para refuerzos de integracion de 100, 120 y 150 cm', () => {
+  for (const widthMm of [1000, 1200, 1500]) {
+    const reinforcement = resolveKoncisaIntegrationReinforcement({ widthMm });
+    assert.equal(reinforcement.nominalWidthMm, widthMm);
+    assert.equal(reinforcement.usesStandardModel, true);
+    assert.match(reinforcement.modelSrc, new RegExp('2KAC262000_' + widthMm / 10 + '\\.glb$'));
+  }
+});
+
+test('marca medidas especiales para usar el refuerzo nativo', () => {
+  const reinforcement = resolveKoncisaIntegrationReinforcement({ widthMm: 1350 });
+  assert.equal(reinforcement.nominalWidthMm, 1350);
+  assert.equal(reinforcement.usesStandardModel, false);
 });
