@@ -130,6 +130,7 @@ import {
   normalizeIntegrationSide,
   normalizeIntegrationWidthMm,
   resolveKoncisaIntegrationPackage,
+  resolveKoncisaIntegrationPlacement,
   resolveKoncisaIntegrationReinforcement,
 } from '../mepal/koncisaPlus/rules/koncisaIntegrationRules';
 
@@ -11450,12 +11451,8 @@ export default function ThreeCanvas({
         },
       };
 
-      // Dirección hacia afuera del puesto doble.
-      // LEFT sale hacia Z positivo; RIGHT sale hacia Z negativo.
-      const outwardSign = integrationSide === 'left' ? 1 : -1;
-
-      const localToWorldMm = (localX = 0, outwardZ = 0) => {
-        const localZ = Number(outwardZ || 0) * outwardSign;
+      // La rotación del costado (0 para LEFT, PI para RIGHT) resuelve la lateralidad.
+      const localToWorldMm = (localX = 0, localZ = 0) => {
         const cosY = Math.cos(baseRot.y);
         const sinY = Math.sin(baseRot.y);
         return {
@@ -11606,21 +11603,15 @@ export default function ThreeCanvas({
       // The selected terminal side is the center of the removed costado.
       // The integration surface connects by its inner corner, so its center
       // advances half its depth laterally and half its length longitudinally.
-      const lateralSign = integrationSide === 'left' ? 1 : -1;
-      const integrationCenterLocalX = lateralSign * (normalizedDepthMm / 2);
-
-      // This is the shared center of the complete integration package.
-      // It is the simplified result of the calibrated 1200/1500 placement:
-      // depth + width / 2 + (-width / 2 - 750) = depth - 750.
-      const integrationCenterOutwardZByWidth = {
-        1200: 0,
-        1500: 0,
-      };
-
-      const integrationCenterOutwardZ = integrationCenterOutwardZByWidth[normalizedWidthMm] ?? 0;
-
-      const integrationNearEdgeOutwardZ = integrationCenterOutwardZ - normalizedWidthMm / 2;
-      const integrationFarEdgeOutwardZ = integrationCenterOutwardZ + normalizedWidthMm / 2;
+      const placement = resolveKoncisaIntegrationPlacement({
+        widthMm: normalizedWidthMm,
+        depthMm: normalizedDepthMm,
+        side: integrationSide,
+        cableAccessType,
+      });
+      const integrationCenterLocalX = placement.surfaceCenter.x;
+      const integrationCenterOutwardZ = placement.surfaceCenter.z;
+      const integrationNearEdgeOutwardZ = placement.nearEdgeZ;
       const integrationSurfaceCenter = localToWorldMm(
         integrationCenterLocalX,
         integrationCenterOutwardZ
@@ -11712,19 +11703,7 @@ export default function ThreeCanvas({
       // =====================================================
       const unitLeg = pkg.unitLeg;
 
-      const unitLegOuterX = lateralSign * (normalizedDepthMm - 35);
-      const unitLegPositions = [
-        {
-          x: unitLegOuterX - 34,
-          z: integrationNearEdgeOutwardZ + 35 - 37,
-          rotY: 0,
-        },
-        {
-          x: -normalizedDepthMm, //lateralSign * 35,
-          z: integrationFarEdgeOutwardZ - 35 + 34,
-          rotY: -Math.PI / 2, //Math.PI / 4, //Math.PI,
-        },
-      ];
+      const unitLegPositions = placement.unitLegs;
 
       for (const [index, pos] of unitLegPositions.entries()) {
         await addExternalGlbPart({
@@ -11782,13 +11761,7 @@ export default function ThreeCanvas({
       const referenceDuctHeightMm = referenceDoubleDuct
         ? referenceDoubleDuct.position.y * 1000
         : 510;
-      const integrationCenter = integrationSurfaceCenter;
-      const integrationConnectionCenter = localToWorldMm(
-        integrationCenterLocalX,
-        integrationNearEdgeOutwardZ
-      );
-
-      const ductoIndividualOffsetXmm = normalizedDepthMm === 600 ? 75 : 0;
+      const ductPosition = localToWorldMm(placement.duct.x, placement.duct.z);
 
       await addExternalGlbPart({
         type: 'ducto',
@@ -11802,14 +11775,14 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: integrationCenter.x - 230 - 68 - 20 - 28 + ductoIndividualOffsetXmm,
+          x: ductPosition.x,
           y: referenceDuctHeightMm,
-          z: integrationCenter.z - 320 - 27,
+          z: ductPosition.z,
         },
 
         rotation: {
           x: baseRot.x,
-          y: baseRot.y + Math.PI / 2,
+          y: baseRot.y + placement.duct.rotY,
           z: baseRot.z,
         },
 
@@ -11836,10 +11809,7 @@ export default function ThreeCanvas({
       // =====================================================
       const couple = pkg.couple;
 
-      const coupleOffsetXmm = normalizedDepthMm === 600 ? -228 : -305;
-
-      const coupleOffsetZmm =
-        normalizedWidthMm === 1200 ? -477 : normalizedWidthMm === 1500 ? -477 - 150 : 0;
+      const couplePosition = localToWorldMm(placement.couple.x, placement.couple.z);
 
       await addExternalGlbPart({
         type: 'acopleDucto',
@@ -11853,15 +11823,15 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: integrationConnectionCenter.x + coupleOffsetXmm, //,//mover unos 10 mm menos 692 - 20 - 2
+          x: couplePosition.x,
           y: referenceDuctHeightMm + 100,
-          z: integrationConnectionCenter.z - coupleOffsetZmm,
+          z: couplePosition.z,
         },
 
         rotation: {
-          x: 0, //baseRot.x + Math.PI / 2,
-          y: 0, //baseRot.y + Math.PI / 2,
-          z: Math.PI / 2, //baseRot.z,
+          x: baseRot.x,
+          y: baseRot.y + placement.couple.rotY,
+          z: baseRot.z + placement.couple.rotZ,
         },
 
         model: {
@@ -11886,11 +11856,9 @@ export default function ThreeCanvas({
       // =====================================================
       const cableAccess = pkg.cableAccess;
       const cableAccessCenter = localToWorldMm(
-        integrationCenterLocalX,
-        integrationCenterOutwardZ + 150
+        placement.cableAccess.x,
+        placement.cableAccess.z
       );
-
-      const grommetOffsetXmm = cableAccess.type === 'grommet' && normalizedDepthMm === 600 ? 75 : 0;
 
       const cableAccessPart = {
         type: cableAccess.type === 'pasacable' ? 'pasacable' : 'grommet',
@@ -11904,14 +11872,14 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: cableAccessCenter.x + grommetOffsetXmm - 271,
+          x: cableAccessCenter.x,
           y: 745,
-          z: cableAccessCenter.z - 150,
+          z: cableAccessCenter.z,
         },
 
         rotation: {
           x: 0,
-          y: baseRot.y + Math.PI / 2,
+          y: baseRot.y + placement.cableAccess.rotY,
           z: 0,
         },
 
@@ -11951,17 +11919,9 @@ export default function ThreeCanvas({
         widthMm: originalWidthMm,
       });
 
-      const reinforcementOffsetZByWidth = {
-        1000: 0, // Ajuste para superficie de 100 cm -78
-        1200: -320, // Ajuste para superficie de 120 cm 690
-        1500: -470, // Ajuste para superficie de 150 cm -320
-      };
-
-      const reinforcementOffsetZ = reinforcementOffsetZByWidth[Number(originalWidthMm)] ?? 0;
-
       const reinforcementPosition = localToWorldMm(
-        integrationCenterLocalX,
-        integrationCenterOutwardZ + reinforcementOffsetZ
+        placement.reinforcement.x,
+        placement.reinforcement.z
       );
 
       const reinforcementPart = {
@@ -11976,7 +11936,7 @@ export default function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: reinforcementPosition.x - 78,
+          x: reinforcementPosition.x,
           y: 690,
           z: reinforcementPosition.z,
         },
@@ -11991,7 +11951,7 @@ export default function ThreeCanvas({
 
         rotation: {
           x: 0,
-          y: baseRot.y + Math.PI / 2,
+          y: baseRot.y + placement.reinforcement.rotY,
           z: 0,
         },
 

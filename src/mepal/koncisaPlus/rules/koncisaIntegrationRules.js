@@ -197,6 +197,90 @@ export function normalizeIntegrationDepthMm(value = 600) {
   return 750;
 }
 
+export function resolveKoncisaIntegrationPlacement({
+  widthMm = 1200,
+  depthMm = 600,
+  side = KONCISA_INTEGRATION_SIDE.RIGHT,
+  cableAccessType = KONCISA_INTEGRATION_CABLE_ACCESS_TYPE.GROMMET,
+} = {}) {
+  const normalizedWidthMm = normalizeIntegrationWidthMm(widthMm);
+  const normalizedDepthMm = normalizeIntegrationDepthMm(depthMm);
+  const normalizedSide = normalizeIntegrationSide(side);
+  const normalizedCableAccessType = normalizeIntegrationCableAccessType(cableAccessType);
+  const centerX = -normalizedDepthMm / 2;
+  const centerZByWidth = {
+    1200: 0,
+    1500: 0,
+  };
+  const centerZ = centerZByWidth[normalizedWidthMm] ?? 0;
+  const nearEdgeZ = centerZ - normalizedWidthMm / 2;
+  const farEdgeZ = centerZ + normalizedWidthMm / 2;
+
+  const ductXFromCenterByDepth = {
+    600: 271,
+    750: 346,
+  };
+  const coupleXFromCenterByDepth = {
+    600: 228,
+    750: 305,
+  };
+  const cableAccessXFromCenter =
+    normalizedCableAccessType === KONCISA_INTEGRATION_CABLE_ACCESS_TYPE.GROMMET &&
+    normalizedDepthMm === 600
+      ? 196
+      : 271;
+  const reinforcementZFromCenterByWidth = {
+    1000: 0,
+    1200: -320,
+    1500: -470,
+  };
+
+  return {
+    normalizedWidthMm,
+    normalizedDepthMm,
+    side: normalizedSide,
+    cableAccessType: normalizedCableAccessType,
+    surfaceCenter: { x: centerX, z: centerZ },
+    nearEdgeZ,
+    farEdgeZ,
+    unitLegs: [
+      {
+        x: -(normalizedDepthMm - 1),
+        z: -nearEdgeZ + 2,
+        rotY: 0,
+      },
+      {
+        x: -normalizedDepthMm,
+        z: -farEdgeZ + 1,
+        rotY: -Math.PI / 2,
+      },
+    ],
+    duct: {
+      x: centerX + (ductXFromCenterByDepth[normalizedDepthMm] ?? 346),
+      z: centerZ + 347,
+      rotY: Math.PI / 2,
+    },
+    couple: {
+      x: centerX + (coupleXFromCenterByDepth[normalizedDepthMm] ?? 305),
+      z: 123,
+      rotY: Math.PI,
+      rotZ: Math.PI / 2,
+    },
+    cableAccess: {
+      x: centerX + cableAccessXFromCenter,
+      z: centerZ,
+      rotY: Math.PI / 2,
+    },
+    reinforcement: {
+      x: centerX + 78,
+      z:
+        centerZ +
+        -(reinforcementZFromCenterByWidth[Number(widthMm)] ?? 0),
+      rotY: Math.PI / 2,
+    },
+  };
+}
+
 export function normalizeIntegrationSide(value = KONCISA_INTEGRATION_SIDE.RIGHT) {
   const v = String(value || '')
     .trim()
