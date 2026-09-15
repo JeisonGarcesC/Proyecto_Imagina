@@ -3,11 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import './PropertiesPanel.css';
 import Critterium8Properties from '../mepal/critterium8/properties/Critterium8Properties.jsx';
 
-import {
-  KONCISA_PRIVACY_PANEL_FINISH_OPTIONS,
-  getKoncisaPrivacyPanelFinishById,
-} from '../mepal/koncisaPlus/rules/koncisaPrivacyPanelFinishOptions';
-
 export default function PropertiesPanel({
   part,
   partAcabado,
@@ -214,25 +209,34 @@ export default function PropertiesPanel({
         </div>
       )}
 
-      {part?.type === 'pantalla' && (
+      {part?.kind === 'PRIVACY_PANEL' && part?.subtype === 'lateral' && (
         <div className="pp-section">
-          <div className="pp-field-label" style={{ marginBottom: 6 }}>Acabado de pantalla</div>
-          <select className="pp-select"
-            value={part?.privacyPanelFinishId || ''}
-            onChange={(e) => {
-              const selected = getKoncisaPrivacyPanelFinishById(e.target.value);
-              api?.updateActivePrivacyPanelFinish?.({
-                ...selected,
-                privacyPanelFinishId: selected.id,
-              });
-            }}
-            disabled={readOnly}
-          >
-            <option value="">Seleccionar acabado de pantalla</option>
-            {KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>{option.label}</option>
-            ))}
-          </select>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <div className="pp-field-label">Posición lateral (pasos de 50 mm)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => api?.moveActiveKoncisaLateralPanel?.('LEFT')}
+                  disabled={readOnly}
+                >
+                  Mover izquierda
+                </button>
+                <button
+                  type="button"
+                  onClick={() => api?.moveActiveKoncisaLateralPanel?.('RIGHT')}
+                  disabled={readOnly}
+                >
+                  Mover derecha
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => api?.removeActiveKoncisaLateralPanel?.()}
+                disabled={readOnly}
+              >
+                Eliminar pantalla
+              </button>
+            </div>
         </div>
       )}
     </div>

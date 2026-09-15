@@ -44,7 +44,7 @@ export const KONCISA_PRIVACY_PANEL_SUPPORTS = {
     offsetZMm: 0,
 
     // El eje largo del GLB ya está sobre Z, igual que la pantalla lateral.
-    rotation: [0, 0, 0],
+    rotation: [0, Math.PI, 0],
   },
 
   lateral75: {
@@ -60,7 +60,7 @@ export const KONCISA_PRIVACY_PANEL_SUPPORTS = {
     offsetYMm: -20,
     offsetZMm: 0,
 
-    rotation: [0, 0, 0],
+    rotation: [0, Math.PI, 0],
   },
 
   frontal: {
@@ -298,16 +298,21 @@ export function resolveKoncisaPrivacyPanelPlacement({
   anchoRealMm = 600,
   largoNominalMm = 1200,
   anchoNominalMm = 600,
+  modoEspecial = false,
+  stationXMm = null,
 } = {}) {
   const isFrontal = tipo === 'frontal';
   const isDouble = String(tipoPuesto).toLowerCase() === 'doble';
 
   return {
     lengthMm: isFrontal
-      ? Math.max(0, Number(largoNominalMm) - 100)
+      ? Math.max(0, Number(largoRealMm) - 100)
       : Math.max(0, Number(anchoNominalMm) - 10),
     skuLengthMm: isFrontal ? Number(largoNominalMm) : Number(anchoNominalMm),
-    x: Number(moduleIndex) * Number(largoRealMm),
+    descriptionLengthMm: isFrontal ? Number(largoRealMm) : Number(anchoRealMm),
+    x: stationXMm != null && Number.isFinite(Number(stationXMm))
+      ? Number(stationXMm)
+      : Number(moduleIndex) * Number(largoRealMm),
     y: 900,
     z: isFrontal && !isDouble ? -Number(anchoRealMm) / 2 + 30 : 0,
   };
@@ -323,9 +328,24 @@ export function resolveKoncisaPrivacyPanelPlacements(options = {}) {
   const lengthMm = Math.max(0, nominalLengthMm - 10);
   const halfOffsetMm = lengthMm / 2;
   return [
-    { ...base, lengthMm, skuLengthMm: nominalLengthMm, z: -halfOffsetMm },
-    { ...base, lengthMm, skuLengthMm: nominalLengthMm, z: halfOffsetMm },
+    { ...base, lengthMm, skuLengthMm: nominalLengthMm, z: -halfOffsetMm, supportEdge: 'start' },
+    { ...base, lengthMm, skuLengthMm: nominalLengthMm, z: halfOffsetMm, supportEdge: 'end' },
   ];
+}
+
+export function resolveKoncisaLateralPanelStations({
+  puestos = 1,
+  largoRealMm = 1200,
+  mode = 'ALL_BOUNDARIES',
+} = {}) {
+  const count = Math.max(1, Number(puestos) || 1);
+  const first = mode === 'INTERSECTIONS_ONLY' ? 1 : 0;
+  const last = mode === 'INTERSECTIONS_ONLY' ? count - 1 : count;
+  const stations = [];
+  for (let boundary = first; boundary <= last; boundary += 1) {
+    stations.push(-Number(largoRealMm) / 2 + boundary * Number(largoRealMm));
+  }
+  return stations;
 }
 
 export function normalizePanelLengthMm(lengthMm) {
@@ -463,6 +483,9 @@ export function createKoncisaPrivacyPanelProcedural({
   code,
   skuLengthMm = lengthMm,
   surfaceThicknessMm = 30, //30
+  modoEspecial = false,
+  descriptionLengthMm = lengthMm,
+  supportEdge = 'start',
   privacyPanelFinishId = null,
 }) {
   const normalizedLengthMm = normalizePanelLengthMm(lengthMm);
@@ -533,7 +556,7 @@ export function createKoncisaPrivacyPanelProcedural({
       group.add(
         createBox({
           name: 'CANTO_SUPERIOR',
-          widthM: lengthM + cantoM * 2,
+          widthM: lengthM,
           heightM: cantoM,
           depthM: thickM, // + cantoM,
           material: cantoMat,
@@ -548,7 +571,7 @@ export function createKoncisaPrivacyPanelProcedural({
       group.add(
         createBox({
           name: 'CANTO_INFERIOR',
-          widthM: lengthM + cantoM * 2,
+          widthM: lengthM,
           heightM: cantoM,
           depthM: thickM, // + cantoM,
           material: cantoMat,
@@ -567,7 +590,7 @@ export function createKoncisaPrivacyPanelProcedural({
           heightM,
           depthM: thickM, // + cantoM,
           material: cantoMat,
-          position: [-lengthM / 2 - cantoM / 2, 0, 0],
+          position: [-lengthM / 2 + cantoM / 2, 0, 0],
           userData: {
             subKey: 'canto',
             category: 'cantos',
@@ -582,7 +605,7 @@ export function createKoncisaPrivacyPanelProcedural({
           heightM,
           depthM: thickM, // + cantoM,
           material: cantoMat,
-          position: [lengthM / 2 + cantoM / 2, 0, 0],
+          position: [lengthM / 2 - cantoM / 2, 0, 0],
           userData: {
             subKey: 'canto',
             category: 'cantos',
@@ -669,10 +692,13 @@ export function createKoncisaPrivacyPanelProcedural({
   const materialLabel =
     materialLabelMap[String(material || '').toLowerCase()] || String(material || '').toUpperCase();
 
-  const panelDescription =
+  const basePanelDescription =
     tipo === 'lateral'
       ? `PANTALLA LATERAL ${lengthCm}X${heightCm}CM ${materialLabel} KONCISA PLUS`
       : `PANTALLA FRONTAL ${lengthCm}X${heightCm}CM ${materialLabel} KONCISA PLUS`;
+  const panelDescription = modoEspecial
+    ? `ESPECIAL - ${basePanelDescription} - Medida real ${Math.round(descriptionLengthMm / 10)} cm`
+    : basePanelDescription;
 
   const typologyParts = [
     {
@@ -723,6 +749,7 @@ export function createKoncisaPrivacyPanelProcedural({
 
     hasCanto,
     hasBacker: material === 'tela-backer',
+    modoEspecial,
 
     dim: {
       lengthMm: normalizedLengthMm,
@@ -747,6 +774,7 @@ export function createKoncisaPrivacyPanelProcedural({
       material,
       lengthMm: normalizedLengthMm,
       heightMm,
+      supportEdge,
     }),
 
     meta: {
@@ -766,6 +794,7 @@ export function getPrivacyPanelSupportAnchors({
   material = 'formica',
   lengthMm = 1200,
   heightMm = 300,
+  supportEdge = 'start',
 }) {
   const normalizedLengthMm = normalizePanelLengthMm(lengthMm);
 
@@ -786,11 +815,13 @@ export function getPrivacyPanelSupportAnchors({
 
   // ✅ LATERAL: un solo soporte
   if (tipo === 'lateral') {
+    const edgeZ = (supportEdge === 'end' ? 1 : -1) * lengthM / 2;
     return [
       {
         role: 'center',
         supportCode: supportConfig.code,
-        position: [offsetXM, bottomY, offsetZM],
+        supportEdge,
+        position: [offsetXM, bottomY, edgeZ + offsetZM],
         rotation: supportConfig.rotation || [0, Math.PI / 2, 0],
       },
     ];

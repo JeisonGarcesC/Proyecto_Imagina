@@ -9217,6 +9217,10 @@ export default function ThreeCanvas({
       material = 'formica',
       lengthMm = 1200,
       skuLengthMm = lengthMm,
+      surfaceThicknessMm = 30,
+      modoEspecial = false,
+      descriptionLengthMm = lengthMm,
+      supportEdge = 'start',
       heightMm = 300,
       thickMm,
       finishCode = '22008689',
@@ -9239,6 +9243,10 @@ export default function ThreeCanvas({
         material,
         lengthMm,
         skuLengthMm,
+        surfaceThicknessMm,
+        modoEspecial,
+        descriptionLengthMm,
+        supportEdge,
         heightMm,
         thickMm,
         finishCode,
@@ -9303,11 +9311,12 @@ export default function ThreeCanvas({
           support.position.set(0, 0, 0);
           support.updateMatrixWorld(true);
           const supportBounds = new THREE.Box3().setFromObject(support);
-          const supportCenter = supportBounds.getCenter(new THREE.Vector3());
+          const supportZEdge =
+            anchor.supportEdge === 'end' ? supportBounds.max.z : supportBounds.min.z;
           support.position.set(
             anchor.position?.[0] || 0,
             (anchor.position?.[1] || 0) - supportBounds.min.y,
-            (anchor.position?.[2] || 0) - supportCenter.z
+            (anchor.position?.[2] || 0) - supportZEdge
           );
 
           support.traverse((node) => {
@@ -9518,6 +9527,38 @@ export default function ThreeCanvas({
       return true;
     }
 
+    function moveActiveKoncisaLateralPanel(direction) {
+      if (readOnly) return false;
+      const root = getActiveEditablePartObject();
+      const isLateral =
+        root?.userData?.kind === 'PRIVACY_PANEL' &&
+        (String(root.userData?.subtype || '').toLowerCase() === 'lateral' ||
+          String(root.userData?.description || root.name || '').toUpperCase().includes('PANTALLA LATERAL'));
+      if (!isLateral) {
+        return false;
+      }
+      const sign = String(direction).toUpperCase() === 'LEFT' ? -1 : 1;
+      root.position.x += sign * 0.05;
+      root.userData.manualLateralOffsetMm = Number(root.userData.manualLateralOffsetMm || 0) + sign * 50;
+      root.updateMatrixWorld(true);
+      selectionHelper?.update?.();
+      emitBOM();
+      return true;
+    }
+
+    function removeActiveKoncisaLateralPanel() {
+      if (readOnly) return false;
+      const root = getActiveEditablePartObject();
+      const isLateral =
+        root?.userData?.kind === 'PRIVACY_PANEL' &&
+        (String(root.userData?.subtype || '').toLowerCase() === 'lateral' ||
+          String(root.userData?.description || root.name || '').toUpperCase().includes('PANTALLA LATERAL'));
+      if (!isLateral) {
+        return false;
+      }
+      return removePartObject(root);
+    }
+
     function createKoncisaPlusAssemblyGroup(config = {}) {
       const now = Date.now();
 
@@ -9657,6 +9698,8 @@ export default function ThreeCanvas({
       addSurface,
       addKoncisaPrivacyPanel,
       updateActivePrivacyPanelFinish,
+      moveActiveKoncisaLateralPanel,
+      removeActiveKoncisaLateralPanel,
       createKoncisaPlusAssemblyGroup,
       setKoncisaBomTypologyCode,
       createMilaAssemblyGroup,

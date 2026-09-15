@@ -54,6 +54,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
   const [includePrivacyPanel, setIncludePrivacyPanel] = useState(false);
   const [privacyPanelType, setPrivacyPanelType] = useState('lateral');
+  const [lateralPanelPlacementMode, setLateralPanelPlacementMode] = useState('ALL_BOUNDARIES');
   const [selectedPrivacyPanelFinishId, setSelectedPrivacyPanelFinishId] = useState(
     'PANEL_LATERAL_FORMICA_22008689'
   );
@@ -228,6 +229,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
         heightMm: selectedPrivacyPanelFinish.heightMm,
         hasCanto: selectedPrivacyPanelFinish.hasCanto,
         hasBacker: selectedPrivacyPanelFinish.hasBacker,
+        lateralPlacementMode: lateralPanelPlacementMode,
 
         lengthMm: selectedPrivacyPanelFinish.tipo === 'lateral' ? anchoCobroMm : largoCobroMm,
       },
@@ -976,6 +978,20 @@ export default function KoncisaPlusPanel({ onCreate }) {
                     ))}
                   </select>
                 </div>
+
+                {privacyPanelType === 'lateral' && (
+                  <div>
+                    <label>Ubicación de pantallas laterales</label>
+                    <select
+                      value={lateralPanelPlacementMode}
+                      onChange={(e) => setLateralPanelPlacementMode(e.target.value)}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="ALL_BOUNDARIES">Esquinas e intersecciones</option>
+                      <option value="INTERSECTIONS_ONLY">Solo entre superficies</option>
+                    </select>
+                  </div>
+                )}
 
                 <div style={{ fontSize: 12, opacity: 0.8 }}>
                   <div>Tipo: {selectedPrivacyPanelFinish.tipo}</div>
