@@ -1,5 +1,6 @@
 // src/koncisaPlus/createKoncisaPlusInstance.js
 import { buildKoncisaPlus } from '../builders/KoncisaPlusBuilder';
+import { resolveKoncisaPrivacyPanelPlacements } from '../parts/pantallas';
 
 function defaultNotify(message) {
   globalThis.alert?.(message);
@@ -343,20 +344,32 @@ export async function createKoncisaPlusInstance({
 
   if (config.privacyPanel?.enabled) {
     for (let index = 0; index < config.puestos; index += 1) {
-      const offsetXMm = index * config.largoCobroMm;
-      await api.addKoncisaPrivacyPanel?.({
+      const placements = resolveKoncisaPrivacyPanelPlacements({
         tipo: config.privacyPanel.tipo,
-        material: config.privacyPanel.material,
-        lengthMm: config.privacyPanel.lengthMm,
-        heightMm: config.privacyPanel.heightMm,
-        finishCode: config.privacyPanel.finishCode,
-        finishLabel: config.privacyPanel.finishLabel,
-        privacyPanelFinishId: config.privacyPanel.privacyPanelFinishId,
-        x: offsetXMm,
-        y: 900,
-        z: -config.anchoCobroMm / 2,
-        parentGroup: puestoGroup,
+        tipoPuesto: config.tipoPuesto,
+        moduleIndex: index,
+        largoRealMm: config.largoRealMm,
+        anchoRealMm: config.anchoRealMm,
+        largoNominalMm: config.largoCobroMm,
+        anchoNominalMm: config.anchoCobroMm,
       });
+      for (const placement of placements) {
+        await api.addKoncisaPrivacyPanel?.({
+          tipo: config.privacyPanel.tipo,
+          material: config.privacyPanel.material,
+          lengthMm: placement.lengthMm,
+          skuLengthMm: placement.skuLengthMm,
+          surfaceThicknessMm: config.thickMm,
+          heightMm: config.privacyPanel.heightMm,
+          finishCode: config.privacyPanel.finishCode,
+          finishLabel: config.privacyPanel.finishLabel,
+          privacyPanelFinishId: config.privacyPanel.privacyPanelFinishId,
+          x: placement.x,
+          y: placement.y,
+          z: placement.z,
+          parentGroup: puestoGroup,
+        });
+      }
     }
   }
 

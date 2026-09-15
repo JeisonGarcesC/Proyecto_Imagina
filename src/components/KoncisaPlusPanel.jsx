@@ -53,6 +53,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [selectedFinishId, setSelectedFinishId] = useState('FORMICA_30');
 
   const [includePrivacyPanel, setIncludePrivacyPanel] = useState(false);
+  const [privacyPanelType, setPrivacyPanelType] = useState('lateral');
   const [selectedPrivacyPanelFinishId, setSelectedPrivacyPanelFinishId] = useState(
     'PANEL_LATERAL_FORMICA_22008689'
   );
@@ -70,6 +71,17 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const selectedPrivacyPanelFinish = useMemo(() => {
     return getKoncisaPrivacyPanelFinishById(selectedPrivacyPanelFinishId);
   }, [selectedPrivacyPanelFinishId]);
+
+  const visiblePrivacyPanelFinishOptions = useMemo(
+    () => KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.filter((option) => option.tipo === privacyPanelType),
+    [privacyPanelType]
+  );
+
+  const handlePrivacyPanelTypeChange = (tipo) => {
+    setPrivacyPanelType(tipo);
+    const firstOption = KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.find((option) => option.tipo === tipo);
+    if (firstOption) setSelectedPrivacyPanelFinishId(firstOption.id);
+  };
 
   const largoCobroMm = useMemo(() => {
     return redondearLargo(largoRealMm);
@@ -212,6 +224,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
         material: selectedPrivacyPanelFinish.material,
         finishCode: selectedPrivacyPanelFinish.finishCode,
         finishLabel: selectedPrivacyPanelFinish.label,
+        privacyPanelFinishId: selectedPrivacyPanelFinish.id,
         heightMm: selectedPrivacyPanelFinish.heightMm,
         hasCanto: selectedPrivacyPanelFinish.hasCanto,
         hasBacker: selectedPrivacyPanelFinish.hasBacker,
@@ -673,7 +686,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   <option value="ALUMINIUM">Aluminium</option>
                   <option value="PAINTED">Painted</option>
                   <option value="METALICO">Metálico</option>
-                  <option value="ALUMINIUM_PINTADO">Aluminium pintado</option>
                 </select>
               </div>
             )}
@@ -929,13 +941,35 @@ export default function KoncisaPlusPanel({ onCreate }) {
             {includePrivacyPanel && (
               <>
                 <div>
-                  <label>Acabado / tipo de pantalla</label>
+                  <label>Ubicación de pantalla</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => handlePrivacyPanelTypeChange('lateral')}
+                      aria-pressed={privacyPanelType === 'lateral'}
+                      style={{ fontWeight: privacyPanelType === 'lateral' ? 700 : 400 }}
+                    >
+                      Lateral
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePrivacyPanelTypeChange('frontal')}
+                      aria-pressed={privacyPanelType === 'frontal'}
+                      style={{ fontWeight: privacyPanelType === 'frontal' ? 700 : 400 }}
+                    >
+                      Frontal
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label>Acabado de pantalla {privacyPanelType}</label>
                   <select
                     value={selectedPrivacyPanelFinishId}
                     onChange={(e) => setSelectedPrivacyPanelFinishId(e.target.value)}
                     style={{ width: '100%' }}
                   >
-                    {KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.map((option) => (
+                    {visiblePrivacyPanelFinishOptions.map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.label}
                       </option>
@@ -1052,7 +1086,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
                 <option value="ALUMINIUM">Aluminium</option>
                 <option value="PAINTED">Painted</option>
                 <option value="METALICO">Metálico</option>
-                <option value="ALUMINIUM_PINTADO">Aluminium pintado</option>
               </select>
             </div>
           )}
