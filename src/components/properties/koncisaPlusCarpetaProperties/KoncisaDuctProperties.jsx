@@ -12,6 +12,9 @@ export default function KoncisaDuctProperties({ part, api }) {
     part?.meta?.accesoCableado || part?.meta?.tipoPasoCable || ''
   ).toUpperCase();
   const isPasacable = accesoCableado === 'PASACABLE';
+  const tipoPuesto = String(part?.meta?.tipoPuesto || '').trim().toLowerCase();
+  const isIndividualSencillo = tipoModulo === 'INDIVIDUAL' && tipoPuesto === 'sencillo';
+  const hasWallCoupling = Boolean(part?.wallCoupling ?? part?.meta?.wallCoupling);
 
   const ductCovers =
     part?.ductCovers ||
@@ -132,6 +135,24 @@ export default function KoncisaDuctProperties({ part, api }) {
           </label>
         )}
       </div>
+
+      {isIndividualSencillo && (
+        <div style={{ marginTop: 14 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={hasWallCoupling}
+              onChange={(e) =>
+                api?.updateSelectedIndividualDuctWallCoupling?.(
+                  e.target.checked,
+                  part?.instanceId
+                )
+              }
+            />
+            Agregar acople a pared
+          </label>
+        </div>
+      )}
 
       {tipoModulo !== 'INDIVIDUAL' && !isPasacable && (
         <div style={{ marginTop: 14 }}>

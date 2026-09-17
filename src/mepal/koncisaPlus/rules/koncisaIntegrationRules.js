@@ -51,9 +51,9 @@ export const KONCISA_INTEGRATION_RULES = {
     KONPLUSSCOUPLETOWALL: {
       logicalCode: 'KONPLUSSCOUPLETOWALL',
       codigoPT: '22000132906',
-      modelCode: '2KAC210000',
-      modelSrc: '/assets/models/koncisaPlus/2KAC210000.glb',
-      name: 'ACOPLE DUCTO A PARED PINTADO KONCISA PLUS 2KAC210000',
+      modelCode: '2KAC267000',
+      modelSrc: '/assets/models/koncisaPlus/2KAC267000.glb',
+      name: 'ACOPLE DUCTO A PARED PINTADO KONCISA PLUS 2KAC267000',
     },
 
     KONPLUSSCOUPLETODUCT: {

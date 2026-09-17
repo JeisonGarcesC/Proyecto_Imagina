@@ -129,6 +129,7 @@ import {
   normalizeIntegrationDepthMm,
   normalizeIntegrationSide,
   normalizeIntegrationWidthMm,
+  resolveKoncisaIntegrationCouple,
   resolveKoncisaIntegrationPackage,
   resolveKoncisaIntegrationPlacement,
   resolveKoncisaIntegrationReinforcement,
@@ -9221,6 +9222,7 @@ export default function ThreeCanvas({
       modoEspecial = false,
       descriptionLengthMm = lengthMm,
       supportEdge = 'start',
+      supportOffsetZMm = 0,
       heightMm = 300,
       thickMm,
       finishCode = '22008689',
@@ -9230,6 +9232,7 @@ export default function ThreeCanvas({
       x = 0,
       y = 900,
       z = 0,
+      rotationY = 0,
 
       color,
       cantoColor,
@@ -9247,12 +9250,14 @@ export default function ThreeCanvas({
         modoEspecial,
         descriptionLengthMm,
         supportEdge,
+        supportOffsetZMm,
         heightMm,
         thickMm,
         finishCode,
         x,
         y,
         z,
+        rotationY,
         color,
         cantoColor,
         privacyPanelFinishId,
@@ -9533,13 +9538,16 @@ export default function ThreeCanvas({
       const isLateral =
         root?.userData?.kind === 'PRIVACY_PANEL' &&
         (String(root.userData?.subtype || '').toLowerCase() === 'lateral' ||
-          String(root.userData?.description || root.name || '').toUpperCase().includes('PANTALLA LATERAL'));
+          String(root.userData?.description || root.name || '')
+            .toUpperCase()
+            .includes('PANTALLA LATERAL'));
       if (!isLateral) {
         return false;
       }
       const sign = String(direction).toUpperCase() === 'LEFT' ? -1 : 1;
       root.position.x += sign * 0.05;
-      root.userData.manualLateralOffsetMm = Number(root.userData.manualLateralOffsetMm || 0) + sign * 50;
+      root.userData.manualLateralOffsetMm =
+        Number(root.userData.manualLateralOffsetMm || 0) + sign * 50;
       root.updateMatrixWorld(true);
       selectionHelper?.update?.();
       emitBOM();
@@ -9552,11 +9560,13 @@ export default function ThreeCanvas({
       const isLateral =
         root?.userData?.kind === 'PRIVACY_PANEL' &&
         (String(root.userData?.subtype || '').toLowerCase() === 'lateral' ||
-          String(root.userData?.description || root.name || '').toUpperCase().includes('PANTALLA LATERAL'));
+          String(root.userData?.description || root.name || '')
+            .toUpperCase()
+            .includes('PANTALLA LATERAL'));
       if (!isLateral) {
         return false;
       }
-      return removePartObject(root);
+      return removePartObject(root, { exactTarget: true });
     }
 
     function createKoncisaPlusAssemblyGroup(config = {}) {
@@ -9889,6 +9899,7 @@ export default function ThreeCanvas({
       removeActiveOrGroup: () => removeTargetOrGroup(activePart),
       updateSelectedDuctType,
       updateSelectedDuctCovers,
+      updateSelectedIndividualDuctWallCoupling,
       updateSelectedCeilingDucts,
       updateSelectedCeilingDuctSide,
       updateSelectedFloorDuctPosition,
@@ -11900,10 +11911,7 @@ export default function ThreeCanvas({
       // Después podemos cambiarlo por geometría/modelo visual si quieres.
       // =====================================================
       const cableAccess = pkg.cableAccess;
-      const cableAccessCenter = localToWorldMm(
-        placement.cableAccess.x,
-        placement.cableAccess.z
-      );
+      const cableAccessCenter = localToWorldMm(placement.cableAccess.x, placement.cableAccess.z);
 
       const cableAccessPart = {
         type: cableAccess.type === 'pasacable' ? 'pasacable' : 'grommet',
@@ -12934,6 +12942,7 @@ export default function ThreeCanvas({
         description: root.userData?.description || null,
         ductCovers: root.userData?.ductCovers || null,
         ceilingDucts: root.userData?.ceilingDucts || null,
+        wallCoupling: Boolean(root.userData?.wallCoupling || root.userData?.meta?.wallCoupling),
         transformMm: {
           x: Math.round(root.position.x * 1000),
           y: Math.round(root.position.y * 1000),
@@ -13157,6 +13166,94 @@ export default function ThreeCanvas({
       emitBOM?.();
 
       return true;
+    }
+
+    function removeIndividualDuctWallCouplingChildren(root) {
+      const children =
+        root?.children?.filter((child) => child?.userData?.isKoncisaWallCoupling) || [];
+      children.forEach((child) =>
+        removePartObject(child, { exactTarget: true, emitBom: false, disposeResources: false })
+      );
+    }
+
+    async function syncIndividualDuctWallCoupling(root, enabled) {
+      if (!root || root.userData?.kind !== 'ducto') return false;
+      const tipoModulo = normalizeDuctModuleType(root.userData?.meta?.tipoModulo);
+      const tipoPuesto = String(root.userData?.meta?.tipoPuesto || '')
+        .trim()
+        .toLowerCase();
+      if (tipoModulo !== 'individual' || tipoPuesto !== 'sencillo') return false;
+
+      const nextEnabled = Boolean(enabled);
+      root.userData.wallCoupling = nextEnabled;
+      root.userData.meta = { ...(root.userData.meta || {}), wallCoupling: nextEnabled };
+      removeIndividualDuctWallCouplingChildren(root);
+
+      if (nextEnabled) {
+        const asset = resolveKoncisaIntegrationCouple({ type: 'wall' });
+        if (!asset?.exists || !asset.modelSrc) return false;
+
+        const ductBounds = computeBounds2D(root, {
+          exclude: (node) => node?.userData?.isKoncisaWallCoupling === true,
+        });
+        const coupling = await addExternalGlbPart({
+          type: 'acopleDuctoPared',
+          subtype: 'individual',
+          line: root.userData?.line || 'KONCISA.PLUS',
+          code: asset.codigoPT,
+          logicalCode: asset.logicalCode,
+          name: asset.name,
+          groupId: root.userData?.groupId || null,
+          groupName: root.userData?.groupName || null,
+          parentGroup: root,
+          position: { x: 0, y: 0, z: -128 },
+          rotation: { x: 0, y: 0, z: 0 },
+          model: { kind: 'glb', src: asset.modelSrc },
+          meta: {
+            category: 'acoples-ducto',
+            role: 'individual-wall-coupling',
+            tipoPuesto: 'sencillo',
+            tipoModulo: 'INDIVIDUAL',
+          },
+          extraUserData: { isKoncisaWallCoupling: true },
+        });
+        if (!coupling) return false;
+
+        const couplingBounds = computeBounds2D(coupling);
+        if (ductBounds && couplingBounds) {
+          coupling.position.x += ductBounds.localCenter.x - couplingBounds.localCenter.x;
+        }
+        coupling.updateMatrixWorld(true);
+      }
+
+      setActivePart(root);
+      root.updateMatrixWorld(true);
+      selectionHelper?.update?.();
+      onSelectionChange?.(buildDuctPopupPart(root));
+      onFloatingEditorRequest?.({
+        open: true,
+        x: 120,
+        y: 120,
+        part: buildDuctPopupPart(root),
+        ductCovers: root.userData?.ductCovers || null,
+      });
+      refreshFloorAndGrid();
+      emitBOM?.();
+      return true;
+    }
+
+    async function updateSelectedIndividualDuctWallCoupling(enabled, instanceId = null) {
+      if (readOnly) return false;
+      let ductObj = getActiveEditablePartObject();
+      if (instanceId) {
+        const requestedDuct = parts.find(
+          ({ obj }) =>
+            obj?.userData?.kind === 'ducto' &&
+            String(obj.userData?.instanceId || obj.uuid) === String(instanceId)
+        )?.obj;
+        if (requestedDuct) ductObj = requestedDuct;
+      }
+      return syncIndividualDuctWallCoupling(ductObj, enabled);
     }
 
     async function updateSelectedDuctCovers(patch = {}) {

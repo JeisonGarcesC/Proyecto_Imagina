@@ -40,11 +40,11 @@ export const KONCISA_PRIVACY_PANEL_SUPPORTS = {
     qty: 1,
 
     offsetXMm: 0,
-    offsetYMm: -20,
-    offsetZMm: 0,
+    offsetYMm: -40,
+    offsetZMm: 157, //-26-0.18
 
     // El eje largo del GLB ya está sobre Z, igual que la pantalla lateral.
-    rotation: [0, Math.PI, 0],
+    rotation: [0, 0, 0], //Math.PI
   },
 
   lateral75: {
@@ -57,10 +57,10 @@ export const KONCISA_PRIVACY_PANEL_SUPPORTS = {
     qty: 1,
 
     offsetXMm: 0,
-    offsetYMm: -20,
-    offsetZMm: 0,
+    offsetYMm: -40,
+    offsetZMm: 157 + 150,
 
-    rotation: [0, Math.PI, 0],
+    rotation: [0, 0, 0],
   },
 
   frontal: {
@@ -310,9 +310,10 @@ export function resolveKoncisaPrivacyPanelPlacement({
       : Math.max(0, Number(anchoNominalMm) - 10),
     skuLengthMm: isFrontal ? Number(largoNominalMm) : Number(anchoNominalMm),
     descriptionLengthMm: isFrontal ? Number(largoRealMm) : Number(anchoRealMm),
-    x: stationXMm != null && Number.isFinite(Number(stationXMm))
-      ? Number(stationXMm)
-      : Number(moduleIndex) * Number(largoRealMm),
+    x:
+      stationXMm != null && Number.isFinite(Number(stationXMm))
+        ? Number(stationXMm)
+        : Number(moduleIndex) * Number(largoRealMm),
     y: 900,
     z: isFrontal && !isDouble ? -Number(anchoRealMm) / 2 + 30 : 0,
   };
@@ -327,9 +328,43 @@ export function resolveKoncisaPrivacyPanelPlacements(options = {}) {
   const nominalLengthMm = Number(options.anchoNominalMm) / 2;
   const lengthMm = Math.max(0, nominalLengthMm - 10);
   const halfOffsetMm = lengthMm / 2;
+
+  const firstPanelOffsetZMm = 0; //240
+  const secondPanelOffsetZMm = 0; //172
+
+  // Mueven solo cada soporte del puesto doble, sin desplazar las pantallas.
+
+  const doubleWidthMm = Number(options.anchoNominalMm);
+
+  const firstSupportOffsetZMm = doubleWidthMm === 1500 ? 745 : 595;
+  const secondSupportOffsetZMm = 447;
+
+  const firstPanelRotationY = 0;
+  const secondPanelRotationY = Math.PI;
+
   return [
-    { ...base, lengthMm, skuLengthMm: nominalLengthMm, z: -halfOffsetMm, supportEdge: 'start' },
-    { ...base, lengthMm, skuLengthMm: nominalLengthMm, z: halfOffsetMm, supportEdge: 'end' },
+    {
+      ...base,
+      lengthMm,
+      skuLengthMm: nominalLengthMm,
+
+      z: -halfOffsetMm + firstPanelOffsetZMm,
+      rotationY: firstPanelRotationY,
+
+      supportEdge: 'start',
+      supportOffsetZMm: firstSupportOffsetZMm,
+    },
+    {
+      ...base,
+      lengthMm,
+      skuLengthMm: nominalLengthMm,
+
+      z: halfOffsetMm + secondPanelOffsetZMm,
+      rotationY: secondPanelRotationY,
+
+      supportEdge: 'end',
+      supportOffsetZMm: secondSupportOffsetZMm,
+    },
   ];
 }
 
@@ -478,6 +513,7 @@ export function createKoncisaPrivacyPanelProcedural({
   x = 0,
   y = 750,
   z = 0,
+  rotationY = 0,
   color,
   cantoColor = 0x2f2f2f,
   code,
@@ -486,6 +522,7 @@ export function createKoncisaPrivacyPanelProcedural({
   modoEspecial = false,
   descriptionLengthMm = lengthMm,
   supportEdge = 'start',
+  supportOffsetZMm = 0,
   privacyPanelFinishId = null,
 }) {
   const normalizedLengthMm = normalizePanelLengthMm(lengthMm);
@@ -519,6 +556,7 @@ export function createKoncisaPrivacyPanelProcedural({
 
   // Esta posición SÍ debe ir en el grupo padre.
   group.position.set(x * MM_TO_M, y * MM_TO_M, z * MM_TO_M);
+  group.rotation.y = Number.isFinite(Number(rotationY)) ? Number(rotationY) : 0;
 
   const lengthM = normalizedLengthMm * MM_TO_M;
   const heightM = heightMm * MM_TO_M;
@@ -775,6 +813,7 @@ export function createKoncisaPrivacyPanelProcedural({
       lengthMm: normalizedLengthMm,
       heightMm,
       supportEdge,
+      supportOffsetZMm,
     }),
 
     meta: {
@@ -795,6 +834,7 @@ export function getPrivacyPanelSupportAnchors({
   lengthMm = 1200,
   heightMm = 300,
   supportEdge = 'start',
+  supportOffsetZMm = 0,
 }) {
   const normalizedLengthMm = normalizePanelLengthMm(lengthMm);
 
@@ -809,13 +849,13 @@ export function getPrivacyPanelSupportAnchors({
   const insetM = (supportConfig.insetMm ?? 93.5) * MM_TO_M;
   const offsetXM = (supportConfig.offsetXMm ?? 0) * MM_TO_M;
   const offsetYM = (supportConfig.offsetYMm ?? -20) * MM_TO_M;
-  const offsetZM = (supportConfig.offsetZMm ?? 0) * MM_TO_M;
+  const offsetZM = ((supportConfig.offsetZMm ?? 0) + (Number(supportOffsetZMm) || 0)) * MM_TO_M;
 
   const bottomY = -(heightMm * MM_TO_M) / 2 + offsetYM;
 
   // ✅ LATERAL: un solo soporte
   if (tipo === 'lateral') {
-    const edgeZ = (supportEdge === 'end' ? 1 : -1) * lengthM / 2;
+    const edgeZ = ((supportEdge === 'end' ? 1 : -1) * lengthM) / 2;
     return [
       {
         role: 'center',

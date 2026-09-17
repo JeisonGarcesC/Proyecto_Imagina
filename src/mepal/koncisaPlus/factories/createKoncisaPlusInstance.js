@@ -377,6 +377,7 @@ export async function createKoncisaPlusInstance({
           modoEspecial: config.modoEspecial,
           descriptionLengthMm: placement.descriptionLengthMm,
           supportEdge: placement.supportEdge,
+          supportOffsetZMm: placement.supportOffsetZMm,
           heightMm: config.privacyPanel.heightMm,
           finishCode: config.privacyPanel.finishCode,
           finishLabel: config.privacyPanel.finishLabel,
@@ -384,6 +385,7 @@ export async function createKoncisaPlusInstance({
           x: placement.x,
           y: placement.y,
           z: placement.z,
+          rotationY: placement.rotationY,
           parentGroup: puestoGroup,
         });
       }

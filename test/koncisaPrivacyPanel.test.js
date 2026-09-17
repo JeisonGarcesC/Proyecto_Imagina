@@ -62,8 +62,11 @@ test('ancla los soportes laterales en el extremo exterior de cada mitad doble', 
   const end = getPrivacyPanelSupportAnchors({
     tipo: 'lateral', material: 'formica', lengthMm: 590, supportEdge: 'end',
   });
-  assert.equal(start[0].position[2], -0.295);
-  assert.equal(end[0].position[2], 0.295);
+  const offsetZM = getPrivacyPanelSupportConfig({
+    tipo: 'lateral', material: 'formica', lengthMm: 590,
+  }).offsetZMm / 1000;
+  assert.equal(start[0].position[2], -0.295 + offsetZM);
+  assert.equal(end[0].position[2], 0.295 + offsetZM);
 });
 
 test('resuelve SKU lateral por material, profundidad y espesor de superficie', () => {
@@ -143,4 +146,36 @@ test('aplica el ajuste vertical vigente a los soportes frontales', () => {
   assert.equal(anchors.length, 2);
   assert.ok(Math.abs(anchors[0].position[1] - expectedY) < 1e-12);
   assert.ok(Math.abs(anchors[1].position[1] - expectedY) < 1e-12);
+});
+
+
+test('aplica rotationY al grupo procedural', () => {
+  const panel = createKoncisaPrivacyPanelProcedural({
+    tipo: 'lateral',
+    material: 'formica',
+    lengthMm: 590,
+    heightMm: 300,
+    rotationY: Math.PI,
+  });
+
+  assert.equal(panel.rotation.y, Math.PI);
+});
+
+
+test('permite desplazar solamente el soporte lateral doble en Z', () => {
+  const base = getPrivacyPanelSupportAnchors({
+    tipo: 'lateral',
+    material: 'formica',
+    lengthMm: 590,
+    supportEdge: 'start',
+  });
+  const shifted = getPrivacyPanelSupportAnchors({
+    tipo: 'lateral',
+    material: 'formica',
+    lengthMm: 590,
+    supportEdge: 'start',
+    supportOffsetZMm: 45,
+  });
+
+  assert.ok(Math.abs(shifted[0].position[2] - base[0].position[2] - 0.045) < 1e-12);
 });
