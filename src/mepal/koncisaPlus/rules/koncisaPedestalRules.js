@@ -16,22 +16,23 @@ export const KONCISA_PEDESTAL = {
  * z = profundidad
  *
  * Para DOBLE normalmente los dos pedestales deben separarse en Z.
+ * rotationYDeg permite girar cada pedestal de forma independiente en grados.
  */
 export const KONCISA_PEDESTAL_OFFSETS_FROM_COSTADO = {
   sencillo: {
     LEFT: {
-      LEFT: { x: 0, y: 0, z: 0, rotY: 0 },
-      RIGHT: { x: 0, y: 0, z: 0, rotY: 0 },
+      LEFT: { x: 0, y: 0, z: 130 + 205, rotY: 0 },
+      RIGHT: { x: 0, y: 0, z: 130 + 205, rotY: 0 },
     },
 
     RIGHT: {
       LEFT: { x: 0, y: 0, z: 0, rotY: 0 },
-      RIGHT: { x: 0, y: 0, z: 0, rotY: 0 },
+      RIGHT: { x: -368, y: 0, z: 333, rotY: Math.PI },
     },
 
     INTERMEDIO: {
-      LEFT: { x: 0, y: 0, z: -220, rotY: 0 },
-      RIGHT: { x: 0, y: 0, z: 220, rotY: 0 },
+      LEFT: { x: 0, y: 0, z: 0, rotY: 0 },
+      RIGHT: { x: 0, y: 0, z: 333, rotY: 0 },
     },
   },
 
@@ -41,24 +42,24 @@ export const KONCISA_PEDESTAL_OFFSETS_FROM_COSTADO = {
      * Se crean 2 pedestales, separados en profundidad.
      */
     LEFT: {
-      LEFT: { x: 0, y: 0, z: -300, rotY: 0 },
-      RIGHT: { x: 0, y: 0, z: 300, rotY: 0 },
+      LEFT: { x: 0, y: 0, z: 0, rotationYDeg: 0 },
+      RIGHT: { x: 0, y: 0, z: 0, rotationYDeg: 0 },
     },
 
     /**
      * Costado terminal derecho de puesto doble.
      */
     RIGHT: {
-      LEFT: { x: 0, y: 0, z: -300, rotY: 0 },
-      RIGHT: { x: 0, y: 0, z: 300, rotY: 0 },
+      LEFT: { x: -368, y: 0, z: 634, rotationYDeg: 180 },
+      RIGHT: { x: 0, y: 0, z: -634, rotationYDeg: 0 },
     },
 
     /**
      * Costado intermedio de puesto doble.
      */
     INTERMEDIO: {
-      LEFT: { x: 0, y: 0, z: -300, rotY: 0 },
-      RIGHT: { x: 0, y: 0, z: 300, rotY: 0 },
+      LEFT: { x: 0, y: 0, z: -300, rotationYDeg: 0 },
+      RIGHT: { x: 0, y: 0, z: 300, rotationYDeg: 0 },
     },
   },
 };
@@ -105,11 +106,21 @@ export function resolvePedestalFromCostado({ costado, placementSide = 'RIGHT' } 
 
   const side = normalizePedestalPlacementSide(placementSide);
 
-  const offset = KONCISA_PEDESTAL_OFFSETS_FROM_COSTADO?.[tipoPuesto]?.[replaceZone]?.[side] || {
+  const configuredOffset = KONCISA_PEDESTAL_OFFSETS_FROM_COSTADO?.[tipoPuesto]?.[replaceZone]?.[
+    side
+  ] || {
     x: 0,
     y: 0,
     z: 0,
     rotY: 0,
+  };
+
+  const rotationYDeg = Number(configuredOffset.rotationYDeg);
+  const offset = {
+    ...configuredOffset,
+    rotY: Number.isFinite(rotationYDeg)
+      ? (rotationYDeg * Math.PI) / 180
+      : Number(configuredOffset.rotY || 0),
   };
 
   return {

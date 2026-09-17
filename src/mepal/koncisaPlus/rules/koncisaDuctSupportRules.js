@@ -29,22 +29,22 @@ export const KONCISA_DUCT_SUPPORT_OFFSETS_FROM_PEDESTAL = {
   sencillo: {
     LEFT: {
       x: 0,
-      y: 710,
-      z: 0,
+      y: 710 - 120,
+      z: -290 - 180,
       rotY: 0,
     },
 
     RIGHT: {
-      x: 0,
-      y: 710,
-      z: 0,
+      x: 230,
+      y: 710 - 120,
+      z: -470,
       rotY: 0,
     },
 
     INTERMEDIO: {
       x: 0,
-      y: 710,
-      z: 0,
+      y: 710 - 120,
+      z: 480,
       rotY: 0,
     },
   },
@@ -52,21 +52,21 @@ export const KONCISA_DUCT_SUPPORT_OFFSETS_FROM_PEDESTAL = {
   doble: {
     LEFT: {
       x: 0,
-      y: 710,
-      z: 0,
+      y: 710 - 120,
+      z: -549,
       rotY: 0,
     },
 
     RIGHT: {
-      x: 0,
-      y: 710,
-      z: 0,
+      x: 250,
+      y: 710 - 120,
+      z: -549,
       rotY: 0,
     },
 
     INTERMEDIO: {
       x: 0,
-      y: 710,
+      y: 710 - 120,
       z: 0,
       rotY: 0,
     },

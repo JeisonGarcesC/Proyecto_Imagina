@@ -71,6 +71,9 @@ import {
 import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekSocialInstance';
 import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
 import { createCritterium8Instance } from '../mepal/critterium8/factories/createCritterium8Instance.js';
+import { createVetroInstance } from '../mepal/vetro/factories/createVetroInstance.js';
+import { registerVetroInstance, unregisterVetroInstance } from '../mepal/vetro/integration/vetroRegistration.js';
+import { rebuildVetroInstance } from '../mepal/vetro/integration/rebuildVetroInstance.js';
 import { registerCritterium8Instance } from '../mepal/critterium8/integration/critterium8Registration.js';
 import { rebuildCritterium8Instance } from '../mepal/critterium8/integration/rebuildCritterium8Instance.js';
 import { patchCritterium8TileConfig } from '../mepal/critterium8/integration/critterium8Config.js';
@@ -1998,7 +2001,7 @@ export default function ThreeCanvas({
 
       syncGridVisibility();
 
-      if (activePart) {
+      if (activePart && activePart.userData?.hasVisual !== false) {
         selectionHelper = new THREE.BoxHelper(activePart, 0xffcc00);
         scene.add(selectionHelper);
         selectionHelper.update();
@@ -2295,6 +2298,9 @@ export default function ThreeCanvas({
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
+          if (obj.userData?.kind === 'VETRO_PRODUCT' && obj.userData?.hasVisual !== true) {
+            return null;
+          }
 
           obj.updateMatrixWorld(true);
           const finishSnapshot = extractFinishAppearanceSnapshot2D(obj);
@@ -5059,6 +5065,45 @@ export default function ThreeCanvas({
       if (parts.length === assembly.children.length + 1) frameObject(assembly);
       refreshFloorAndGrid();
       return instance;
+    }
+
+    async function addVetro(config = {}, options = {}) {
+      if (readOnly) return null;
+      const instance = await createVetroInstance({ config, transform: options.transform });
+      if (!instance.success || !instance.object) {
+        console.warn('[VETRO] Combinacion no documentada.', instance.diagnostics);
+        return instance;
+      }
+      const object = registerVetroInstance({
+        instance,
+        parent: options.parentGroup || scene,
+        partsRegistry: parts,
+        pickables,
+      });
+      object.updateMatrixWorld(true);
+      setActivePart(object);
+      recordCreateObjects({ objects: [object] });
+      emitBOM();
+      refreshFloorAndGrid();
+      return instance;
+    }
+
+    async function updateSelectedVetro(patch = {}) {
+      if (readOnly || activePart?.userData?.kind !== 'VETRO_PRODUCT') {
+        return { success: false, reason: 'VETRO_PRODUCT_REQUIRED' };
+      }
+      const current = activePart;
+      const parent = current.parent || scene;
+      const replacement = await rebuildVetroInstance({ object: current, patch });
+      if (!replacement.success || !replacement.object) {
+        return { success: false, reason: replacement.diagnostics?.[0]?.code || 'VETRO_CODE_NOT_DOCUMENTED', diagnostics: replacement.diagnostics || [] };
+      }
+      unregisterVetroInstance({ object: current, partsRegistry: parts, pickables });
+      const object = registerVetroInstance({ instance: replacement, parent, partsRegistry: parts, pickables });
+      setActivePart(object);
+      emitBOM();
+      refreshFloorAndGrid();
+      return { success: true, object, diagnostics: replacement.diagnostics || [] };
     }
 
     function getSelectedCritterium8Sequence() {
@@ -8810,6 +8855,25 @@ export default function ThreeCanvas({
         }
       }
 
+      async function createPersistedVetro(entity) {
+        if (!entity?.config || typeof entity.config !== 'object') {
+          throw new Error('VETRO_MISSING_CONFIG');
+        }
+        const instance = await createVetroInstance({
+          config: entity.config,
+          instanceId: entity.instanceId,
+          transform: entity.transform,
+        });
+        if (!instance.success || !instance.object) {
+          const error = new Error(instance.diagnostics?.[0]?.code || 'VETRO_CODE_NOT_DOCUMENTED');
+          error.diagnostics = instance.diagnostics || [];
+          throw error;
+        }
+        registerVetroInstance({ instance, parent: scene, partsRegistry: parts, pickables });
+        instance.object.updateMatrixWorld(true);
+        return instance.object;
+      }
+
       async function createPersistedMila(entity) {
         if (!entity?.config || typeof entity.config !== 'object') {
           throw new Error('MILA_MISSING_CONFIG');
@@ -8884,6 +8948,7 @@ export default function ThreeCanvas({
           addCatalogItem,
           createKoncisaPlus: createPersistedKoncisaPlus,
           createCritterium8: createPersistedCritterium8,
+          createVetro: createPersistedVetro,
           createMila: createPersistedMila,
           createImportedModel: (entity) =>
             createImportedModel({
@@ -9769,6 +9834,8 @@ export default function ThreeCanvas({
       addEduk,
       addZen,
       addCritterium8,
+      addVetro,
+      updateSelectedVetro,
       buildCritterium8SequenceFromSelectedFrames,
       createCritterium8SequenceFromSelection,
       createCritterium8SequenceFromFrames,
@@ -11254,7 +11321,9 @@ export default function ThreeCanvas({
         console.warn('No se pudo crear soporte ducto: no se encontró pedestal base.');
       }
 
-      removePartObject(costadoObj);
+      // El costado es una pieza interna de KONCISA_PLUS_ASSEMBLY. La eliminacion
+      // generica asciende hasta la raiz del puesto; aqui solo se reemplaza esta pieza.
+      removePartObject(costadoObj, { exactTarget: true });
 
       emitBOM();
       refreshFloorAndGrid();
@@ -11280,7 +11349,11 @@ export default function ThreeCanvas({
       const meta = pedestalObj.userData?.meta || {};
       const snapshot = meta.originalCostadoSnapshot || null;
 
-      if (!snapshot?.code || !snapshot?.model?.src) {
+      const isCostadoAssembly =
+        snapshot?.creatorKind === 'koncisa-costado-assembly' ||
+        !!snapshot?.meta?.costadoAssembly;
+
+      if (!snapshot?.code || (!isCostadoAssembly && !snapshot?.model?.src)) {
         alert('No se puede restaurar el costado: falta información del costado original.');
         return false;
       }
@@ -11310,7 +11383,7 @@ export default function ThreeCanvas({
         pedestalsToRemove.push(pedestalObj);
       }
 
-      await addExternalGlbPart({
+      const restorePayload = {
         ...snapshot,
         type: 'costado',
         parentGroup,
@@ -11324,7 +11397,16 @@ export default function ThreeCanvas({
           pedestalObj.userData?.groupName ||
           parentGroup?.userData?.name ||
           null,
-      });
+      };
+
+      const restoredCostadoObj = isCostadoAssembly
+        ? await addKoncisaCostadoAssemblyPart(restorePayload)
+        : await addExternalGlbPart(restorePayload);
+
+      if (!restoredCostadoObj) {
+        alert('No se pudo reconstruir el costado original. El pedestal se conserva.');
+        return false;
+      }
 
       await restoreVigasFromPedestalReinforcement({
         parentGroup,
@@ -11338,8 +11420,10 @@ export default function ThreeCanvas({
       });
 
       for (const obj of pedestalsToRemove) {
-        removePartObject(obj);
+        removePartObject(obj, { exactTarget: true });
       }
+
+      setActivePart(restoredCostadoObj);
 
       emitBOM();
       refreshFloorAndGrid();
@@ -12283,7 +12367,7 @@ export default function ThreeCanvas({
           },
         });
 
-        removePartObject(vigaObj);
+        removePartObject(vigaObj, { exactTarget: true });
       }
 
       return originalVigaSnapshots;
@@ -12325,7 +12409,7 @@ export default function ThreeCanvas({
       }
 
       for (const refuerzoObj of refuerzosToRemove) {
-        removePartObject(refuerzoObj);
+        removePartObject(refuerzoObj, { exactTarget: true });
       }
 
       return true;
@@ -12424,7 +12508,7 @@ export default function ThreeCanvas({
       });
 
       for (const supportObj of supportsToRemove) {
-        removePartObject(supportObj);
+        removePartObject(supportObj, { exactTarget: true });
       }
 
       return true;
