@@ -14,8 +14,12 @@ import {
   KONCISA_DUCT_SUPPORT_DEPTH_Z_ADJUSTMENTS_MM,
   KONCISA_DUCT_SUPPORT_OFFSETS_FROM_PEDESTAL,
   resolveKoncisaDuctSupport,
+  shouldCreateKoncisaPedestalDuctSupport,
 } from '../src/mepal/koncisaPlus/rules/koncisaDuctSupportRules.js';
-import { resolveKoncisaPedestalReinforcementPosition } from '../src/mepal/koncisaPlus/rules/koncisaPedestalReinforcementRules.js';
+import {
+  resolveKoncisaPedestalReinforcementPosition,
+  shouldReplaceKoncisaBeamWithPedestalReinforcement,
+} from '../src/mepal/koncisaPlus/rules/koncisaPedestalReinforcementRules.js';
 
 const DEPTH_MM = 600;
 const FORMS = ['RECT', 'TEK', 'TRAP', 'CURVO', 'O'];
@@ -142,6 +146,24 @@ test('el soporte de ducto conserva una calibración adicional por profundidad', 
     support.offsetMm.z,
     KONCISA_DUCT_SUPPORT_OFFSETS_FROM_PEDESTAL.doble.RIGHT.z + adjustment
   );
+});
+
+test('omite el soporte de ducto en pedestales de puestos líder', () => {
+  assert.equal(shouldCreateKoncisaPedestalDuctSupport({ layoutType: 'LEADER' }), false);
+  assert.equal(shouldCreateKoncisaPedestalDuctSupport({ layoutType: 'STANDARD' }), true);
+  assert.equal(shouldCreateKoncisaPedestalDuctSupport({}), true);
+});
+
+test('conserva la viga refuerzo original en puestos líder', () => {
+  assert.equal(
+    shouldReplaceKoncisaBeamWithPedestalReinforcement({ layoutType: 'LEADER' }),
+    false
+  );
+  assert.equal(
+    shouldReplaceKoncisaBeamWithPedestalReinforcement({ layoutType: 'STANDARD' }),
+    true
+  );
+  assert.equal(shouldReplaceKoncisaBeamWithPedestalReinforcement({}), true);
 });
 
 test('mueve el refuerzo 120 mm hacia el costado sin depender del eje global', () => {

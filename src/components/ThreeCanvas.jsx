@@ -124,8 +124,12 @@ import {
 import {
   resolveKoncisaPedestalReinforcement,
   resolveKoncisaPedestalReinforcementPosition,
+  shouldReplaceKoncisaBeamWithPedestalReinforcement,
 } from '../mepal/koncisaPlus/rules/koncisaPedestalReinforcementRules';
-import { resolveKoncisaDuctSupport } from '../mepal/koncisaPlus/rules/koncisaDuctSupportRules';
+import {
+  resolveKoncisaDuctSupport,
+  shouldCreateKoncisaPedestalDuctSupport,
+} from '../mepal/koncisaPlus/rules/koncisaDuctSupportRules';
 
 import { resolveKoncisaSurfaceCodigoPT } from '../mepal/koncisaPlus/rules/koncisaSurfaceRules';
 import {
@@ -11201,16 +11205,23 @@ export default function ThreeCanvas({
 
       const pedestalSetId = `PEDSET_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 
-      const originalVigaSnapshots = await replaceVigasWithPedestalReinforcement({
-        parentGroup,
-        moduleIndex,
-        pedestalSetId,
-        costadoPositionMm: {
-          x: basePos.x * 1000,
-          y: basePos.y * 1000,
-          z: basePos.z * 1000,
-        },
+      const layoutType =
+        costadoObj.userData?.meta?.layoutType || costadoObj.userData?.layoutType || null;
+      const shouldReplaceVigas = shouldReplaceKoncisaBeamWithPedestalReinforcement({
+        layoutType,
       });
+      const originalVigaSnapshots = shouldReplaceVigas
+        ? await replaceVigasWithPedestalReinforcement({
+            parentGroup,
+            moduleIndex,
+            pedestalSetId,
+            costadoPositionMm: {
+              x: basePos.x * 1000,
+              y: basePos.y * 1000,
+              z: basePos.z * 1000,
+            },
+          })
+        : [];
 
       const originalCostadoSnapshot = {
         creatorKind: costadoObj.userData?.meta?.costadoAssembly
@@ -11330,9 +11341,11 @@ export default function ThreeCanvas({
         }
       }
 
-      console.log('PEDESTAL BASE PARA SOPORTE DUCTO:', firstPedestalObj);
+      const shouldCreateDuctSupport = shouldCreateKoncisaPedestalDuctSupport({
+        layoutType,
+      });
 
-      if (firstPedestalObj) {
+      if (firstPedestalObj && shouldCreateDuctSupport) {
         await addDuctSupportForPedestalSet({
           parentGroup,
           basePedestalObj: firstPedestalObj,
@@ -11342,7 +11355,7 @@ export default function ThreeCanvas({
           moduleIndex,
           pedestalSetId,
         });
-      } else {
+      } else if (!firstPedestalObj) {
         console.warn('No se pudo crear soporte ducto: no se encontró pedestal base.');
       }
 

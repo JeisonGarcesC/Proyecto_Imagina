@@ -104,6 +104,10 @@ export function normalizeDuctSupportZone(value) {
   return 'RIGHT';
 }
 
+export function shouldCreateKoncisaPedestalDuctSupport({ layoutType } = {}) {
+  return String(layoutType || '').trim().toUpperCase() !== 'LEADER';
+}
+
 export function resolveKoncisaDuctSupport({
   tipoPuesto = 'sencillo',
   replaceZone = 'RIGHT',
