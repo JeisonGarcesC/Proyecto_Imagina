@@ -1,7 +1,7 @@
 import { VETRO_FAMILY } from '../catalog/vetroCategories.js';
 import { VETRO_PANEL_MATERIALS } from '../catalog/panelCatalog.js';
 import { VETRO_DOOR_LEAF_VARIANTS } from '../catalog/doorLeafCatalog.js';
-import { VETRO_DOOR_FRAME_VARIANTS } from '../catalog/doorFrameCatalog.js';
+import { VETRO_DOOR_FRAME_VARIANTS, VETRO_PROFILE_FINISHES } from '../catalog/doorFrameCatalog.js';
 import { resolveVetroProductCode } from './vetroProductCodeResolver.js';
 import { getVetroTechnicalDiagnostics } from '../rules/vetroTechnicalDiagnostics.js';
 
@@ -28,6 +28,40 @@ function displayName(config, entry) {
   return entry?.label || 'Producto Vetro';
 }
 
+function dimensionText(widthCm, heightCm) {
+  const values = [widthCm, heightCm].filter((value) => Number.isFinite(Number(value)));
+  return values.length === 2 ? `${values[0]}X${values[1]}CM` : '';
+}
+
+function commercialDescription(config, entry) {
+  if (!entry) return null;
+
+  const reference = entry.reference ? String(entry.reference) : '';
+  const finish = entry.finish ? VETRO_PROFILE_FINISHES[entry.finish] || entry.finish : '';
+  const size = dimensionText(entry.nominalWidthCm, entry.nominalHeightCm);
+  let parts;
+
+  switch (config.productType) {
+    case 'PANEL':
+      parts = ['PANEL', VETRO_PANEL_MATERIALS[config.material]?.label, size, 'VETRO', reference];
+      break;
+    case 'DOOR_LEAF':
+      parts = [VETRO_DOOR_LEAF_VARIANTS[config.variant]?.label, size, 'VIDRIO TEMPLADO 10 MM', 'VETRO', reference];
+      break;
+    case 'DOOR_FRAME':
+      parts = [VETRO_DOOR_FRAME_VARIANTS[config.variant]?.label, size, finish, 'VETRO', reference];
+      break;
+    case 'PROFILE':
+      parts = [entry.label, entry.nominalLengthCm ? `${entry.nominalLengthCm}CM` : '', finish, 'VETRO', reference];
+      break;
+    default:
+      parts = [entry.label, finish, 'VETRO', reference];
+      break;
+  }
+
+  return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
 export function resolveVetroProduct(input = {}) {
   const config = normalizeVetroConfig(input);
   const codeResolution = resolveVetroProductCode(config);
@@ -46,7 +80,12 @@ export function resolveVetroProduct(input = {}) {
   return {
     family: VETRO_FAMILY,
     ...config,
-    commercial: { reference: entry?.reference ?? null, variant: config.variant, displayName: displayName(config, entry) },
+    commercial: {
+      reference: entry?.reference ?? null,
+      variant: config.variant,
+      displayName: displayName(config, entry),
+      description: commercialDescription(config, entry),
+    },
     panelMaterial: config.material ? { type: config.material, documentedThicknessMm: VETRO_PANEL_MATERIALS[config.material]?.documentedThicknessMm ?? null } : null,
     profileFinish: config.finish ? { type: config.finish } : null,
     dimensions,

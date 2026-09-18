@@ -2298,7 +2298,7 @@ export default function ThreeCanvas({
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
-          if (obj.userData?.kind === 'VETRO_PRODUCT' && obj.userData?.hasVisual !== true) {
+          if (obj.userData?.kind === 'VETRO_PRODUCT') {
             return null;
           }
 

@@ -27,19 +27,21 @@ export async function createVetroInstance(options = {}) {
   const product = createVetroProductDefinition(resolved);
   const instanceId = String(options.instanceId || createVetroInstanceId());
   const definition = createVetroInstanceDefinition({ instanceId, config, product, transform: options.transform });
-  const asset = resolveVetroAsset(product);
-  const rendered = await renderVetroProduct({ instanceId, product, asset });
+  const asset = resolveVetroAsset(product, { registry: options.assetRegistry });
+  const rendered = await renderVetroProduct({ instanceId, product, asset, loadAsset: options.loadAsset });
   const object = applyVetroTransform(rendered.root, options.transform || {});
   const code = product.codeResolution.code;
   object.userData = {
     ...object.userData,
     kind: 'VETRO_PRODUCT', family: 'VETRO', type: 'vetro-product', line: 'VETRO',
     code, codigoPT: code, instanceId, groupId: instanceId, groupName: 'Vetro',
-    description: product.commercial?.displayName || 'Producto Vetro',
+    description: product.commercial?.description || product.commercial?.displayName || 'Producto Vetro',
     config: definition.config, product, definition,
-    diagnostics: product.diagnostics, renderStatus: rendered.renderStatus,
-    hasVisual: rendered.hasVisual, isPartRoot: true, excludeFromBOM: false,
+    diagnostics: [...product.diagnostics, ...(rendered.diagnostics || [])], renderStatus: rendered.renderStatus,
+    visualSource: rendered.visualSource || null, approximationFlags: rendered.approximationFlags || [],
+    productKey: rendered.productKey || asset.productKey || null, shape2D: rendered.shape2D || null,
+    hasVisual: rendered.hasVisual, asset: rendered.assetMetadata || null, isPartRoot: true, excludeFromBOM: false,
     dim: dimensionsMm(product),
   };
-  return { success: true, object, config, product, definition, asset, diagnostics: product.diagnostics };
+  return { success: true, object, config, product, definition, asset, diagnostics: object.userData.diagnostics };
 }
