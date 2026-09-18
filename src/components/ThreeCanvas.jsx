@@ -10000,6 +10000,7 @@ export default function ThreeCanvas({
       updateFloorVisualOptions,
       replaceSelectedCostadoWithPedestal,
       replaceSelectedPedestalWithCostado,
+      moveSelectedKoncisaPedestal,
       replaceSelectedCostadoWithIntegration,
       removeSelectedIntegrationAndRestoreCostado,
       rotateSelectedDuct180,
@@ -11288,6 +11289,8 @@ export default function ThreeCanvas({
             replaceZone,
             moduleIndex,
             placementSide: pedestal.placementSide,
+            realDepthMm: pedestal.realDepthMm,
+            depthZAdjustmentMm: pedestal.depthZAdjustmentMm,
 
             pedestalSetId,
 
@@ -11328,6 +11331,28 @@ export default function ThreeCanvas({
       emitBOM();
       refreshFloorAndGrid();
 
+      return true;
+    }
+
+    function moveSelectedKoncisaPedestal(direction) {
+      if (readOnly) return false;
+
+      const pedestalObj = getActiveEditablePartObject();
+      const isPedestal =
+        pedestalObj?.userData?.kind === 'pedestal' ||
+        pedestalObj?.userData?.meta?.category === 'pedestales';
+      if (!isPedestal) return false;
+
+      const sign = String(direction || '').toUpperCase() === 'LEFT' ? -1 : 1;
+      pedestalObj.position.x += sign * 0.065;
+      pedestalObj.userData = {
+        ...(pedestalObj.userData || {}),
+        manualPedestalOffsetXmm:
+          Number(pedestalObj.userData?.manualPedestalOffsetXmm || 0) + sign * 65,
+      };
+      pedestalObj.updateMatrixWorld(true);
+      selectionHelper?.update?.();
+      emitBOM();
       return true;
     }
 
@@ -12428,6 +12453,9 @@ export default function ThreeCanvas({
       const support = resolveKoncisaDuctSupport({
         tipoPuesto,
         replaceZone,
+        realDepthMm:
+          basePedestalObj.userData?.meta?.realDepthMm ||
+          basePedestalObj.userData?.realDepthMm,
       });
 
       const offset = support.offsetMm || {};
@@ -12478,6 +12506,8 @@ export default function ThreeCanvas({
           modelCode: support.modelCode,
           tipoPuesto,
           replaceZone,
+          realDepthMm: support.realDepthMm,
+          depthZAdjustmentMm: support.depthZAdjustmentMm,
           moduleIndex,
           pedestalSetId,
           onePerPedestalSet: tipoPuesto === 'doble',

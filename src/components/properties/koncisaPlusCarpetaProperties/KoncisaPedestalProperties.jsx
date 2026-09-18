@@ -19,6 +19,18 @@ export default function KoncisaPedestalProperties({ part, api, onClose }) {
         </div>
       </div>
 
+      <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 700 }}>Posición (pasos de 65 mm)</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <button type="button" onClick={() => api?.moveSelectedKoncisaPedestal?.('LEFT')}>
+            Mover izquierda
+          </button>
+          <button type="button" onClick={() => api?.moveSelectedKoncisaPedestal?.('RIGHT')}>
+            Mover derecha
+          </button>
+        </div>
+      </div>
+
       <button
         type="button"
         style={dangerBtnStyle}

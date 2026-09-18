@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import { positionLeaderCostadoAssembly } from '../src/mepal/koncisaPlus/leader/rules/leaderCostadoPlacement.js';
 import { resolveKoncisaCostadoTerminal } from '../src/mepal/koncisaPlus/rules/koncisaCostadoRules.js';
+import { resolvePedestalFromCostado } from '../src/mepal/koncisaPlus/rules/koncisaPedestalRules.js';
+import { resolveKoncisaDuctSupport } from '../src/mepal/koncisaPlus/rules/koncisaDuctSupportRules.js';
 
 const DEPTH_MM = 600;
 const FORMS = ['RECT', 'TEK', 'TRAP', 'CURVO', 'O'];
@@ -51,4 +53,44 @@ test('mantiene la raíz calculada del costado del retorno', () => {
   positionLeaderCostadoAssembly(costado, returnRoot);
 
   assert.deepEqual(costado.position, returnRoot);
+});
+
+test('ajusta el pedestal sencillo en z según la profundidad real del costado', () => {
+  const costado = {
+    userData: {
+      meta: { tipoPuesto: 'sencillo', replaceZone: 'LEFT', realDepthMm: 750 },
+    },
+  };
+  const pedestal = resolvePedestalFromCostado({ costado, placementSide: 'LEFT' });
+
+  assert.equal(pedestal.realDepthMm, 750);
+  assert.equal(pedestal.depthZAdjustmentMm, 150);
+  assert.equal(pedestal.offsetMm.z, 485);
+});
+
+test('permite signos opuestos para los pedestales dobles de 1500 mm', () => {
+  const costado = {
+    userData: {
+      meta: { tipoPuesto: 'doble', replaceZone: 'RIGHT', realDepthMm: 1500 },
+    },
+  };
+  const left = resolvePedestalFromCostado({ costado, placementSide: 'LEFT' });
+  const right = resolvePedestalFromCostado({ costado, placementSide: 'RIGHT' });
+
+  assert.equal(left.depthZAdjustmentMm, 150);
+  assert.equal(left.offsetMm.z, 784);
+  assert.equal(right.depthZAdjustmentMm, -150);
+  assert.equal(right.offsetMm.z, -784);
+});
+
+test('el soporte de ducto conserva una calibración adicional por profundidad', () => {
+  const support = resolveKoncisaDuctSupport({
+    tipoPuesto: 'doble',
+    replaceZone: 'RIGHT',
+    realDepthMm: 1500,
+  });
+
+  assert.equal(support.realDepthMm, 1500);
+  assert.equal(support.depthZAdjustmentMm, 0);
+  assert.equal(support.offsetMm.z, -549);
 });
