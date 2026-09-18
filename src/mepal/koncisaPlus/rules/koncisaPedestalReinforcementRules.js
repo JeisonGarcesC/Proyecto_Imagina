@@ -54,6 +54,10 @@ export function resolveKoncisaPedestalReinforcement({ nominalWidthMm = 1200 } = 
   };
 }
 
+export function shouldReplaceKoncisaBeamWithPedestalReinforcement({ layoutType } = {}) {
+  return String(layoutType || '').trim().toUpperCase() !== 'LEADER';
+}
+
 export function resolveKoncisaPedestalReinforcementPosition({
   reinforcementPositionMm,
   costadoPositionMm,
