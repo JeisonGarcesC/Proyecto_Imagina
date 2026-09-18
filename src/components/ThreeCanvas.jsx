@@ -72,7 +72,10 @@ import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekS
 import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
 import { createCritterium8Instance } from '../mepal/critterium8/factories/createCritterium8Instance.js';
 import { createVetroInstance } from '../mepal/vetro/factories/createVetroInstance.js';
-import { registerVetroInstance, unregisterVetroInstance } from '../mepal/vetro/integration/vetroRegistration.js';
+import {
+  registerVetroInstance,
+  unregisterVetroInstance,
+} from '../mepal/vetro/integration/vetroRegistration.js';
 import { rebuildVetroInstance } from '../mepal/vetro/integration/rebuildVetroInstance.js';
 import { registerCritterium8Instance } from '../mepal/critterium8/integration/critterium8Registration.js';
 import { rebuildCritterium8Instance } from '../mepal/critterium8/integration/rebuildCritterium8Instance.js';
@@ -118,7 +121,10 @@ import {
   getPedestalSidesForCostado,
 } from '../mepal/koncisaPlus/rules/koncisaPedestalRules';
 
-import { resolveKoncisaPedestalReinforcement } from '../mepal/koncisaPlus/rules/koncisaPedestalReinforcementRules';
+import {
+  resolveKoncisaPedestalReinforcement,
+  resolveKoncisaPedestalReinforcementPosition,
+} from '../mepal/koncisaPlus/rules/koncisaPedestalReinforcementRules';
 import { resolveKoncisaDuctSupport } from '../mepal/koncisaPlus/rules/koncisaDuctSupportRules';
 
 import { resolveKoncisaSurfaceCodigoPT } from '../mepal/koncisaPlus/rules/koncisaSurfaceRules';
@@ -5096,10 +5102,19 @@ export default function ThreeCanvas({
       const parent = current.parent || scene;
       const replacement = await rebuildVetroInstance({ object: current, patch });
       if (!replacement.success || !replacement.object) {
-        return { success: false, reason: replacement.diagnostics?.[0]?.code || 'VETRO_CODE_NOT_DOCUMENTED', diagnostics: replacement.diagnostics || [] };
+        return {
+          success: false,
+          reason: replacement.diagnostics?.[0]?.code || 'VETRO_CODE_NOT_DOCUMENTED',
+          diagnostics: replacement.diagnostics || [],
+        };
       }
       unregisterVetroInstance({ object: current, partsRegistry: parts, pickables });
-      const object = registerVetroInstance({ instance: replacement, parent, partsRegistry: parts, pickables });
+      const object = registerVetroInstance({
+        instance: replacement,
+        parent,
+        partsRegistry: parts,
+        pickables,
+      });
       setActivePart(object);
       emitBOM();
       refreshFloorAndGrid();
@@ -11190,6 +11205,11 @@ export default function ThreeCanvas({
         parentGroup,
         moduleIndex,
         pedestalSetId,
+        costadoPositionMm: {
+          x: basePos.x * 1000,
+          y: basePos.y * 1000,
+          z: basePos.z * 1000,
+        },
       });
 
       const originalCostadoSnapshot = {
@@ -11289,6 +11309,8 @@ export default function ThreeCanvas({
             replaceZone,
             moduleIndex,
             placementSide: pedestal.placementSide,
+            layoutType: pedestal.layoutType,
+            leaderSide: pedestal.leaderSide,
             realDepthMm: pedestal.realDepthMm,
             depthZAdjustmentMm: pedestal.depthZAdjustmentMm,
 
@@ -11375,8 +11397,7 @@ export default function ThreeCanvas({
       const snapshot = meta.originalCostadoSnapshot || null;
 
       const isCostadoAssembly =
-        snapshot?.creatorKind === 'koncisa-costado-assembly' ||
-        !!snapshot?.meta?.costadoAssembly;
+        snapshot?.creatorKind === 'koncisa-costado-assembly' || !!snapshot?.meta?.costadoAssembly;
 
       if (!snapshot?.code || (!isCostadoAssembly && !snapshot?.model?.src)) {
         alert('No se puede restaurar el costado: falta información del costado original.');
@@ -12308,6 +12329,7 @@ export default function ThreeCanvas({
       parentGroup,
       moduleIndex,
       pedestalSetId,
+      costadoPositionMm,
     } = {}) {
       if (!parentGroup || !pedestalSetId) return [];
 
@@ -12352,6 +12374,16 @@ export default function ThreeCanvas({
           nominalWidthMm,
         });
 
+        const reinforcementPosition = resolveKoncisaPedestalReinforcementPosition({
+          reinforcementPositionMm: {
+            x: vigaObj.position.x * 1000, //-120
+            y: vigaObj.position.y * 1000,
+            z: vigaObj.position.z * 1000,
+          },
+          costadoPositionMm,
+          towardCostadoMm: -120,
+        });
+
         await addNativeBlockPart({
           type: 'refuerzoSuperficiePedestal',
           line: 'KONCISA.PLUS',
@@ -12370,9 +12402,9 @@ export default function ThreeCanvas({
           },
 
           position: {
-            x: vigaObj.position.x * 1000,
-            y: vigaObj.position.y * 1000,
-            z: vigaObj.position.z * 1000,
+            x: reinforcementPosition.x,
+            y: reinforcementPosition.y,
+            z: reinforcementPosition.z,
           },
 
           rotation: {
@@ -12387,6 +12419,7 @@ export default function ThreeCanvas({
             nominalWidthMm: refuerzo.nominalWidthMm,
             moduleIndex: Number(moduleIndex || 0),
             pedestalSetId,
+            towardCostadoOffsetMm: 120,
             replacesViga: true,
             originalVigaCode: vigaObj.userData?.code || null,
           },
@@ -12454,8 +12487,7 @@ export default function ThreeCanvas({
         tipoPuesto,
         replaceZone,
         realDepthMm:
-          basePedestalObj.userData?.meta?.realDepthMm ||
-          basePedestalObj.userData?.realDepthMm,
+          basePedestalObj.userData?.meta?.realDepthMm || basePedestalObj.userData?.realDepthMm,
       });
 
       const offset = support.offsetMm || {};

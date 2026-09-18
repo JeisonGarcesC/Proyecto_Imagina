@@ -31,8 +31,8 @@ export const KONCISA_PEDESTAL_OFFSETS_FROM_COSTADO = {
     },
 
     INTERMEDIO: {
-      LEFT: { x: -368, y: 0, z: 333, rotY: 0 },
-      RIGHT: { x: 0, y: 0, z: 0, rotY: 0 },
+      LEFT: { x: -368 + 25, y: 0, z: 333, rotY: 0 },
+      RIGHT: { x: -25, y: 0, z: 333, rotY: 0 },
     },
   },
 
@@ -58,8 +58,8 @@ export const KONCISA_PEDESTAL_OFFSETS_FROM_COSTADO = {
      * Costado intermedio de puesto doble.
      */
     INTERMEDIO: {
-      LEFT: { x: 368, y: 0, z: -634, rotationYDeg: 0 },
-      RIGHT: { x: 0, y: 0, z: 0, rotationYDeg: 0 },
+      LEFT: { x: 368 - 25, y: 0, z: -634, rotationYDeg: 180 },
+      RIGHT: { x: -25, y: 0, z: 634, rotationYDeg: 0 },
     },
   },
 };
@@ -94,6 +94,31 @@ export const KONCISA_PEDESTAL_DEPTH_Z_ADJUSTMENTS_MM = {
       LEFT: { 1200: 0, 1300: -50, 1400: -100, 1500: -150 },
       RIGHT: { 1200: 0, 1300: 50, 1400: 100, 1500: 150 },
     },
+  },
+};
+
+// Configuración exclusiva de puestos líder. Se inicializa con los valores que los
+// líderes usaban desde la tabla sencilla para conservar su posición actual.
+// Modificar esta tabla no altera los puestos estándar.
+export const KONCISA_LEADER_PEDESTAL_OFFSETS_FROM_COSTADO = {
+  LEFT: {
+    LEFT: { x: 333, y: 0, z: 370, rotY: Math.PI },
+    RIGHT: { x: 333, y: 0, z: 370, rotY: Math.PI },
+  },
+  RIGHT: {
+    LEFT: { x: -333, y: 0, z: 0, rotY: 0 },
+    RIGHT: { x: -333, y: 0, z: 0, rotY: 0 },
+  },
+};
+
+export const KONCISA_LEADER_PEDESTAL_DEPTH_Z_ADJUSTMENTS_MM = {
+  LEFT: {
+    LEFT: { 600: 0, 700: 0, 750: 0 },
+    RIGHT: { 600: 0, 700: 100, 750: 75 },
+  },
+  RIGHT: {
+    LEFT: { 600: 0, 700: 0, 750: 0 },
+    RIGHT: { 600: 0, 700: 100, 750: 75 },
   },
 };
 
@@ -138,6 +163,13 @@ export function resolvePedestalFromCostado({ costado, placementSide = 'RIGHT' } 
   );
 
   const side = normalizePedestalPlacementSide(placementSide);
+  const layoutType = String(
+    costado?.userData?.meta?.layoutType || costado?.userData?.layoutType || ''
+  ).toUpperCase();
+  const isLeader = layoutType === 'LEADER';
+  const leaderSide = normalizeCostadoReplaceZone(
+    costado?.userData?.meta?.leaderSide || costado?.userData?.leaderSide || 'RIGHT'
+  );
 
   const realDepthMm = Number(
     costado?.userData?.meta?.realDepthMm ??
@@ -149,9 +181,9 @@ export function resolvePedestalFromCostado({ costado, placementSide = 'RIGHT' } 
       (tipoPuesto === 'doble' ? 1200 : 600)
   );
 
-  const configuredOffset = KONCISA_PEDESTAL_OFFSETS_FROM_COSTADO?.[tipoPuesto]?.[replaceZone]?.[
-    side
-  ] || {
+  const configuredOffset = (isLeader
+    ? KONCISA_LEADER_PEDESTAL_OFFSETS_FROM_COSTADO?.[leaderSide]?.[side]
+    : KONCISA_PEDESTAL_OFFSETS_FROM_COSTADO?.[tipoPuesto]?.[replaceZone]?.[side]) || {
     x: 0,
     y: 0,
     z: 0,
@@ -159,7 +191,11 @@ export function resolvePedestalFromCostado({ costado, placementSide = 'RIGHT' } 
   };
 
   const depthZAdjustmentMm = Number(
-    KONCISA_PEDESTAL_DEPTH_Z_ADJUSTMENTS_MM?.[tipoPuesto]?.[replaceZone]?.[side]?.[realDepthMm] || 0
+    (isLeader
+      ? KONCISA_LEADER_PEDESTAL_DEPTH_Z_ADJUSTMENTS_MM?.[leaderSide]?.[side]?.[realDepthMm]
+      : KONCISA_PEDESTAL_DEPTH_Z_ADJUSTMENTS_MM?.[tipoPuesto]?.[replaceZone]?.[side]?.[
+          realDepthMm
+        ]) || 0
   );
 
   const rotationYDeg = Number(configuredOffset.rotationYDeg);
@@ -175,6 +211,8 @@ export function resolvePedestalFromCostado({ costado, placementSide = 'RIGHT' } 
     ...KONCISA_PEDESTAL,
     tipoPuesto,
     replaceZone,
+    layoutType: isLeader ? 'LEADER' : 'STANDARD',
+    leaderSide: isLeader ? leaderSide : null,
     placementSide: side,
     realDepthMm,
     depthZAdjustmentMm,
