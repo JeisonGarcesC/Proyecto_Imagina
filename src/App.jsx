@@ -2,7 +2,7 @@
 import './App.css';
 import { useEffect, useRef, useState, useMemo } from 'react';
 
-import ThreeCanvas from './components/ThreeCanvas';
+import ThreeCanvas from './components/ThreeCanvas.jsx';
 import { pasteClipboard } from './clipboard/pasteClipboard';
 import CatalogPanel from './components/CatalogPanel';
 import PropertiesPanel from './components/PropertiesPanel';

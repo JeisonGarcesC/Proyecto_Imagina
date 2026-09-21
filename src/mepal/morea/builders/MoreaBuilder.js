@@ -3,6 +3,8 @@ import {
   MOREA_DOUBLE_BUILDER_TUNE,
   MOREA_MODEL_SOURCES,
   MOREA_DOUBLE_MODEL_SOURCES,
+  MOREA_ACCESSORY_CATALOG,
+  MOREA_ACCESSORY_OFFSETS_MM,
   resolveMoreaPedestalVariantByMode,
   resolveMoreaSeatVariantByMode,
   resolveMoreaCenterSupportOffsetsMm,
@@ -205,7 +207,131 @@ function createSupportParts({
   return supportParts;
 }
 
-export function buildMorea({ quantity = 1, moduleSpacingMm, pedestalMode = 'normal', variant = 'single' } = {}) {
+function createMoreaArmrestLeftPart({
+  groupId,
+  groupName,
+  variant = 'single',
+  moduleSpacingMm,
+}) {
+  const cat = MOREA_ACCESSORY_CATALOG.armrestLeft;
+  const offset = MOREA_ACCESSORY_OFFSETS_MM.armrestLeft;
+
+  return {
+    type: 'GLB_PART',
+    subtype: 'armrest-left',
+    line: 'MOREA',
+    groupId,
+    groupName,
+    code: cat.code,
+    logicalCode: `${variant === 'double' ? 'MOREA_DOUBLE' : 'MOREA'}_ARMREST_LEFT`,
+    name: `${variant === 'double' ? 'Morea doble' : 'Morea'} apoyabrazos izquierdo`,
+    description: cat.description,
+    prices: cat.prices,
+    model: { src: cat.modelSrc },
+    position: {
+      x: Number(offset.x || 0),
+      y: Number(offset.y || 0),
+      z: Number(offset.z || 0),
+    },
+    rotation: { x: 0, y: Math.PI, z: 0 },
+    meta: {
+      category: 'morea',
+      role: 'armrest-left',
+      moreaVariant: variant,
+      moduleSpacingMm,
+    },
+  };
+}
+
+function createMoreaArmrestRightPart({
+  groupId,
+  groupName,
+  variant = 'single',
+  quantity,
+  moduleSpacingMm,
+}) {
+  const cat = MOREA_ACCESSORY_CATALOG.armrestRight;
+  const offset = MOREA_ACCESSORY_OFFSETS_MM.armrestRight;
+  const rightAnchorSeat = Math.max(1, quantity);
+  const rightAnchorX = (rightAnchorSeat - 1) * moduleSpacingMm;
+  const seatWidthMm = variant === 'double' ? 609.97 : 609.97;
+
+  return {
+    type: 'GLB_PART',
+    subtype: 'armrest-right',
+    line: 'MOREA',
+    groupId,
+    groupName,
+    code: cat.code,
+    logicalCode: `${variant === 'double' ? 'MOREA_DOUBLE' : 'MOREA'}_ARMREST_RIGHT`,
+    name: `${variant === 'double' ? 'Morea doble' : 'Morea'} apoyabrazos derecho`,
+    description: cat.description,
+    prices: cat.prices,
+    model: { src: cat.modelSrc },
+    position: {
+      x: rightAnchorX + seatWidthMm + Number(offset.x || 0),
+      y: Number(offset.y || 0),
+      z: Number(offset.z || 0),
+    },
+    rotation: { x: 0, y: 0, z: 0 },
+    meta: {
+      category: 'morea',
+      role: 'armrest-right',
+      moreaVariant: variant,
+      quantity,
+      moduleSpacingMm,
+    },
+  };
+}
+
+function createMoreaArmrestCenterPart({
+  groupId,
+  groupName,
+  variant = 'single',
+  seamIndex = 1,
+  moduleSpacingMm,
+}) {
+  const cat = MOREA_ACCESSORY_CATALOG.armrestCenter;
+  const offset = MOREA_ACCESSORY_OFFSETS_MM.armrestCenter;
+  const seamX = seamIndex * moduleSpacingMm;
+
+  return {
+    type: 'GLB_PART',
+    subtype: 'armrest-center',
+    line: 'MOREA',
+    groupId,
+    groupName,
+    code: cat.code,
+    logicalCode: `${variant === 'double' ? 'MOREA_DOUBLE' : 'MOREA'}_ARMREST_CENTER_${seamIndex}`,
+    name: `${variant === 'double' ? 'Morea doble' : 'Morea'} apoyabrazos intermedio ${seamIndex}`,
+    description: cat.description,
+    prices: cat.prices,
+    model: { src: cat.modelSrc },
+    position: {
+      x: seamX + Number(offset.x || 0),
+      y: Number(offset.y || 0),
+      z: Number(offset.z || 0),
+    },
+    rotation: { x: 0, y: 0, z: 0 },
+    meta: {
+      category: 'morea',
+      role: 'armrest-center',
+      moreaVariant: variant,
+      seamIndex,
+      moduleSpacingMm,
+    },
+  };
+}
+
+export function buildMorea({
+  quantity = 1,
+  moduleSpacingMm,
+  pedestalMode = 'normal',
+  variant = 'single',
+  armrestLeft = false,
+  armrestRight = false,
+  armrestCenter = false,
+} = {}) {
   const resolvedVariant = resolveMoreaVariant(variant);
   const tune = resolvedVariant === 'double' ? MOREA_DOUBLE_BUILDER_TUNE : MOREA_BUILDER_TUNE;
   const resolvedModuleSpacingMm =
@@ -241,6 +367,43 @@ export function buildMorea({ quantity = 1, moduleSpacingMm, pedestalMode = 'norm
       variant: resolvedVariant,
     })
   );
+
+  if (armrestLeft) {
+    parts.push(
+      createMoreaArmrestLeftPart({
+        groupId,
+        groupName,
+        variant: resolvedVariant,
+        moduleSpacingMm: resolvedModuleSpacingMm,
+      })
+    );
+  }
+
+  if (armrestRight) {
+    parts.push(
+      createMoreaArmrestRightPart({
+        groupId,
+        groupName,
+        variant: resolvedVariant,
+        quantity: normalizedQuantity,
+        moduleSpacingMm: resolvedModuleSpacingMm,
+      })
+    );
+  }
+
+  if (armrestCenter && normalizedQuantity > 1) {
+    for (let seamIndex = 1; seamIndex < normalizedQuantity; seamIndex += 1) {
+      parts.push(
+        createMoreaArmrestCenterPart({
+          groupId,
+          groupName,
+          variant: resolvedVariant,
+          seamIndex,
+          moduleSpacingMm: resolvedModuleSpacingMm,
+        })
+      );
+    }
+  }
 
   return {
     groupId,

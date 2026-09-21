@@ -50,7 +50,7 @@ import {
   fileToDataUrl,
 } from '../importers/importedModelLoader.js';
 
-import { getTipologiaDetalle } from '../services/tipologiasDetalle';
+import { getTipologiaDetalle, loadTipologiasDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
 import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
@@ -177,6 +177,8 @@ import {
   resolveMoreaPedestalModeByCode,
   resolveMoreaPedestalVariantByMode,
   normalizeMoreaPedestalMode,
+  MOREA_ACCESSORY_CATALOG,
+  MOREA_ACCESSORY_OFFSETS_MM,
   MOREA_BUILDER_TUNE,
   MOREA_DOUBLE_BUILDER_TUNE,
 } from '../mepal/morea/config/moreaTunables';
@@ -203,6 +205,7 @@ import {
   MOREA_GIRO_DEFINITIONS,
   resolveMoreaGiroDefinition,
 } from '../mepal/morea/factories/createMoreaGiroInstance.js';
+import { realignMoreaAssemblyByRoot } from '../mepal/morea/factories/createMoreaInstance.js';
 
 const MM_TO_M = 1 / 1000;
 const ALMACENAMIENTO_CUSHION_CODE = '22000008239';
@@ -268,6 +271,263 @@ function resolveMilaSeatVariantByMode(mode) {
   return MILA_SINGLE_SEAT_VARIANTS[normalizedMode] || MILA_SINGLE_SEAT_VARIANTS.chair;
 }
 
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+function buildMoreaTypologyKey({ variant = 'single', quantity = 1, hasArmrests = false } = {}) {
+  const normalizedVariant = String(variant || 'single')
+    .trim()
+    .toLowerCase();
+  const normalizedQty = Math.max(1, Math.trunc(Number(quantity) || 1));
+  const armrestKey = hasArmrests ? 'with-armrests' : 'without-armrests';
+  return `${normalizedVariant}|${normalizedQty}|${armrestKey}`;
+}
+
+function buildMoreaTypologyIndex(detailMap) {
+  const index = new Map();
+  if (!(detailMap instanceof Map)) return index;
+
+  for (const detail of detailMap.values()) {
+    const description = normalizeSearchText(detail?.descripcion || '');
+    if (!description.startsWith('SOFA MOREA')) continue;
+
+    const hasArmrests = description.includes('CON BRAZOS');
+    const variant = description.includes('SOFA MOREA DOBLE') ? 'double' : 'single';
+    const pairMatch = description.match(/\((\d+)\s*-\s*(\d+)\)/);
+    const qtyMatch = description.match(/\b(\d+)\s+PUESTOS?\b/);
+
+    let quantity = Number.NaN;
+    if (variant === 'double') {
+      const leftPair = Number(pairMatch?.[1] || 0);
+      const rightPair = Number(pairMatch?.[2] || 0);
+      if (leftPair > 0 && rightPair > 0 && leftPair === rightPair) {
+        quantity = leftPair;
+      } else {
+        const totalSeats = Number(qtyMatch?.[1] || 0);
+        if (totalSeats > 0) quantity = Math.max(1, Math.round(totalSeats / 2));
+      }
+    } else {
+      quantity = Number(qtyMatch?.[1] || 0);
+    }
+
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+
+    const key = buildMoreaTypologyKey({
+      variant,
+      quantity,
+      hasArmrests,
+    });
+    index.set(key, detail);
+  }
+
+  return index;
+}
+
+const MOREA_CHAIR_BOM_BREAKDOWN = Object.freeze({
+  single: Object.freeze({
+    1: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 1 }),
+      Object.freeze({ code: '22000126784', qty: 2 }),
+      Object.freeze({ code: '22000126781', qty: 1 }),
+      Object.freeze({ code: '22000126765', qty: 3 }),
+    ]),
+    2: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 2 }),
+      Object.freeze({ code: '22000126784', qty: 2 }),
+      Object.freeze({ code: '22000126781', qty: 2 }),
+      Object.freeze({ code: '22000126766', qty: 3 }),
+    ]),
+    3: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 3 }),
+      Object.freeze({ code: '22000126784', qty: 2 }),
+      Object.freeze({ code: '22000126781', qty: 3 }),
+      Object.freeze({ code: '22000126767', qty: 4 }),
+      Object.freeze({ code: '22000126770', qty: 2 }),
+      Object.freeze({ code: '22000126773', qty: 1 }),
+    ]),
+    4: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 4 }),
+      Object.freeze({ code: '22000126784', qty: 2 }),
+      Object.freeze({ code: '22000126781', qty: 4 }),
+      Object.freeze({ code: '22000126766', qty: 4 }),
+      Object.freeze({ code: '22000126768', qty: 2 }),
+      Object.freeze({ code: '22000126773', qty: 1 }),
+    ]),
+    5: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 5 }),
+      Object.freeze({ code: '22000126784', qty: 2 }),
+      Object.freeze({ code: '22000126781', qty: 5 }),
+      Object.freeze({ code: '22000126767', qty: 4 }),
+      Object.freeze({ code: '22000126766', qty: 2 }),
+      Object.freeze({ code: '22000127152', qty: 1 }),
+      Object.freeze({ code: '22000126770', qty: 2 }),
+      Object.freeze({ code: '22000126773', qty: 2 }),
+    ]),
+    6: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 6 }),
+      Object.freeze({ code: '22000126773', qty: 2 }),
+      Object.freeze({ code: '22000126784', qty: 2 }),
+      Object.freeze({ code: '22000126781', qty: 6 }),
+      Object.freeze({ code: '22000126766', qty: 6 }),
+      Object.freeze({ code: '22000126768', qty: 2 }),
+      Object.freeze({ code: '22000127152', qty: 1 }),
+    ]),
+    7: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 7 }),
+      Object.freeze({ code: '22000126773', qty: 3 }),
+      Object.freeze({ code: '22000126784', qty: 2 }),
+      Object.freeze({ code: '22000126781', qty: 7 }),
+      Object.freeze({ code: '22000126767', qty: 4 }),
+      Object.freeze({ code: '22000126766', qty: 4 }),
+      Object.freeze({ code: '22000126770', qty: 2 }),
+      Object.freeze({ code: '22000127152', qty: 2 }),
+    ]),
+    8: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 8 }),
+      Object.freeze({ code: '22000126773', qty: 3 }),
+      Object.freeze({ code: '22000126784', qty: 2 }),
+      Object.freeze({ code: '22000126781', qty: 8 }),
+      Object.freeze({ code: '22000126766', qty: 8 }),
+      Object.freeze({ code: '22000126768', qty: 2 }),
+      Object.freeze({ code: '22000127152', qty: 2 }),
+    ]),
+  }),
+  double: Object.freeze({
+    1: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 2 }),
+      Object.freeze({ code: '22000126774', qty: 2 }),
+      Object.freeze({ code: '22000128196', qty: 1 }),
+      Object.freeze({ code: '22000126765', qty: 6 }),
+    ]),
+    2: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 4 }),
+      Object.freeze({ code: '22000126774', qty: 2 }),
+      Object.freeze({ code: '22000128196', qty: 2 }),
+      Object.freeze({ code: '22000126766', qty: 6 }),
+    ]),
+    3: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 6 }),
+      Object.freeze({ code: '22000126774', qty: 2 }),
+      Object.freeze({ code: '22000128196', qty: 3 }),
+      Object.freeze({ code: '22000126767', qty: 4 }),
+      Object.freeze({ code: '22000126770', qty: 8 }),
+      Object.freeze({ code: '22000126775', qty: 1 }),
+    ]),
+    4: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 8 }),
+      Object.freeze({ code: '22000126774', qty: 2 }),
+      Object.freeze({ code: '22000128196', qty: 4 }),
+      Object.freeze({ code: '22000126766', qty: 4 }),
+      Object.freeze({ code: '22000126770', qty: 8 }),
+      Object.freeze({ code: '22000126775', qty: 1 }),
+    ]),
+    5: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 10 }),
+      Object.freeze({ code: '22000126774', qty: 2 }),
+      Object.freeze({ code: '22000128196', qty: 5 }),
+      Object.freeze({ code: '22000126767', qty: 4 }),
+      Object.freeze({ code: '22000126766', qty: 2 }),
+      Object.freeze({ code: '22000126770', qty: 8 }),
+      Object.freeze({ code: '22000127152', qty: 4 }),
+      Object.freeze({ code: '22000126775', qty: 2 }),
+    ]),
+    6: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 12 }),
+      Object.freeze({ code: '22000126775', qty: 2 }),
+      Object.freeze({ code: '22000126774', qty: 2 }),
+      Object.freeze({ code: '22000128196', qty: 6 }),
+      Object.freeze({ code: '22000126766', qty: 6 }),
+      Object.freeze({ code: '22000126768', qty: 8 }),
+      Object.freeze({ code: '22000127152', qty: 4 }),
+    ]),
+    7: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 14 }),
+      Object.freeze({ code: '22000126775', qty: 3 }),
+      Object.freeze({ code: '22000126774', qty: 2 }),
+      Object.freeze({ code: '22000128196', qty: 7 }),
+      Object.freeze({ code: '22000126767', qty: 4 }),
+      Object.freeze({ code: '22000126766', qty: 4 }),
+      Object.freeze({ code: '22000126770', qty: 8 }),
+      Object.freeze({ code: '22000127152', qty: 8 }),
+    ]),
+    8: Object.freeze([
+      Object.freeze({ code: '22000126782', qty: 16 }),
+      Object.freeze({ code: '22000126775', qty: 3 }),
+      Object.freeze({ code: '22000126774', qty: 2 }),
+      Object.freeze({ code: '22000128196', qty: 8 }),
+      Object.freeze({ code: '22000126766', qty: 8 }),
+      Object.freeze({ code: '22000126768', qty: 8 }),
+      Object.freeze({ code: '22000127152', qty: 8 }),
+    ]),
+  }),
+});
+
+const MOREA_ARMREST_BOM_CODES = Object.freeze({
+  terminal: '22000126783',
+  center: '22000127870',
+});
+
+const MOREA_GIRO_BOM_QTY_MULTIPLIER = 1;
+
+const MOREA_GIRO_BOM_CODE_MAP = Object.freeze({
+  HSU020000: '22000126743',
+  HSU060000: '22000126739',
+  HSU030000: '22000126744',
+  HSU070000: '22000130184',
+  HSU010000_SINGLE: '22000126740',
+  HSU010000_DOUBLE: '22000126742',
+});
+
+function resolveMoreaGiroBomCode({ rawCode, variant, modelSrc, angleDeg }) {
+  const normalizedCode = String(rawCode || '').trim().toUpperCase();
+  const normalizedVariant = String(variant || '').trim().toLowerCase() === 'double'
+    ? 'double'
+    : 'single';
+  const normalizedModelSrc = String(modelSrc || '').trim().toLowerCase();
+  const normalizedAngle = Number(angleDeg);
+
+  if (normalizedCode === 'HSU010000') {
+    const isDoubleModel = normalizedModelSrc.includes('138') || normalizedVariant === 'double';
+    return isDoubleModel
+      ? MOREA_GIRO_BOM_CODE_MAP.HSU010000_DOUBLE
+      : MOREA_GIRO_BOM_CODE_MAP.HSU010000_SINGLE;
+  }
+
+  if (normalizedCode === 'HSU070000') return MOREA_GIRO_BOM_CODE_MAP.HSU070000;
+  if (normalizedCode === 'HSU060000') return MOREA_GIRO_BOM_CODE_MAP.HSU060000;
+  if (normalizedCode === 'HSU020000') return MOREA_GIRO_BOM_CODE_MAP.HSU020000;
+  if (normalizedCode === 'HSU030000') return MOREA_GIRO_BOM_CODE_MAP.HSU030000;
+
+  if (normalizedAngle === 45) return MOREA_GIRO_BOM_CODE_MAP.HSU020000;
+  if (normalizedAngle === 60 || normalizedAngle === 120) return MOREA_GIRO_BOM_CODE_MAP.HSU060000;
+  if (normalizedAngle === 90 || normalizedAngle === 270) {
+    return normalizedVariant === 'double'
+      ? MOREA_GIRO_BOM_CODE_MAP.HSU070000
+      : MOREA_GIRO_BOM_CODE_MAP.HSU030000;
+  }
+  if (normalizedAngle === 180) {
+    return normalizedVariant === 'double'
+      ? MOREA_GIRO_BOM_CODE_MAP.HSU010000_DOUBLE
+      : MOREA_GIRO_BOM_CODE_MAP.HSU010000_SINGLE;
+  }
+
+  return null;
+}
+
+function resolveMoreaChairBreakdown(variant = 'single', quantity = 1) {
+  const normalizedVariant = String(variant || 'single').trim().toLowerCase() === 'double'
+    ? 'double'
+    : 'single';
+  const normalizedQty = Math.max(1, Math.trunc(Number(quantity) || 1));
+  return MOREA_CHAIR_BOM_BREAKDOWN[normalizedVariant]?.[normalizedQty] || null;
+}
+
 function resolveMilaSeatOffsetMmByMode(mode) {
   const normalizedMode = normalizeMilaSeatMode(mode);
   return MILA_SINGLE_SEAT_MODE_OFFSETS_MM[normalizedMode] || MILA_SINGLE_SEAT_MODE_OFFSETS_MM.chair;
@@ -301,7 +561,7 @@ function applyMoreaSeatTurn180(root, rotated180) {
   return true;
 }
 
-export default function ThreeCanvas({
+function ThreeCanvas({
   onApiReady,
   onSelectionChange,
   onBOMChange,
@@ -342,6 +602,7 @@ export default function ThreeCanvas({
   const loadProjectRef = useRef(null);
 
   const countryRef = useRef(country);
+  const moreaTypologyByKeyRef = useRef(new Map());
   const emitBOMRef = useRef(null);
   const transformToolRef = useRef(transformTool);
   const cancelRotationRef = useRef(null);
@@ -370,6 +631,26 @@ export default function ThreeCanvas({
   useEffect(() => {
     countryRef.current = country;
     emitBOMRef.current?.();
+  }, [country]);
+
+  useEffect(() => {
+    let alive = true;
+
+    loadTipologiasDetalle(country)
+      .then((detailMap) => {
+        if (!alive) return;
+        moreaTypologyByKeyRef.current = buildMoreaTypologyIndex(detailMap);
+        emitBOMRef.current?.();
+      })
+      .catch((error) => {
+        console.warn('No se pudo cargar el despiece comercial de Morea desde tipologias:', error);
+        if (!alive) return;
+        moreaTypologyByKeyRef.current = new Map();
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [country]);
 
   //use effect 4
@@ -2594,6 +2875,7 @@ export default function ThreeCanvas({
     function emitBOM() {
       const rows = new Map();
       const koncisaGroupIdsByConfiguration = new Map();
+      const handledMoreaAssemblies = new WeakSet();
 
       function toFiniteNumber(v) {
         const n = Number(v);
@@ -2738,6 +3020,201 @@ export default function ThreeCanvas({
         });
       }
 
+      function processMoreaAssembly(assemblyRoot, fallbackPartId) {
+        if (!assemblyRoot || assemblyRoot.userData?.kind !== 'MOREA_ASSEMBLY') return false;
+
+        function isDescendantOfAssembly(node) {
+          let current = node;
+          while (current) {
+            if (current === assemblyRoot) return true;
+            current = current.parent || null;
+          }
+          return false;
+        }
+
+        function collectExternalMoreaArmrestCounts() {
+          const counts = {
+            left: 0,
+            right: 0,
+            center: 0,
+          };
+
+          const assemblyInstanceId = normalizeText(
+            assemblyRoot.userData?.instanceId || assemblyRoot.uuid || ''
+          );
+          const assemblyGroupId = normalizeText(assemblyRoot.userData?.groupId || '');
+
+          for (const entry of parts) {
+            const candidate = entry?.obj;
+            if (!candidate || candidate === assemblyRoot) continue;
+            if (isDescendantOfAssembly(candidate)) continue;
+
+            const role = String(candidate.userData?.meta?.role || candidate.userData?.role || '')
+              .trim()
+              .toLowerCase();
+            if (
+              role !== 'armrest-left' &&
+              role !== 'armrest-right' &&
+              role !== 'armrest-center'
+            ) {
+              continue;
+            }
+
+            const line = String(
+              candidate.userData?.line ||
+                candidate.userData?.meta?.line ||
+                candidate.userData?.meta?.category ||
+                ''
+            )
+              .trim()
+              .toUpperCase();
+            if (line !== 'MOREA') continue;
+
+            const parentAssemblyId = normalizeText(
+              candidate.userData?.parentAssemblyId || candidate.userData?.meta?.parentAssemblyId || ''
+            );
+            const candidateGroupId = normalizeText(
+              candidate.userData?.groupId || candidate.userData?.meta?.groupId || ''
+            );
+
+            const belongsByParentId =
+              Boolean(parentAssemblyId) &&
+              (parentAssemblyId === assemblyInstanceId || parentAssemblyId === normalizeText(assemblyRoot.uuid));
+            const belongsByGroupId =
+              Boolean(candidateGroupId) && Boolean(assemblyGroupId) && candidateGroupId === assemblyGroupId;
+
+            if (!belongsByParentId && !belongsByGroupId) continue;
+
+            if (role === 'armrest-left') counts.left += 1;
+            if (role === 'armrest-right') counts.right += 1;
+            if (role === 'armrest-center') counts.center += 1;
+          }
+
+          return counts;
+        }
+
+        const groupInstanceId =
+          assemblyRoot.userData?.instanceId || assemblyRoot.uuid || fallbackPartId || null;
+        if (handledMoreaAssemblies.has(assemblyRoot)) {
+          return true;
+        }
+
+        const groupId = assemblyRoot.userData?.groupId || groupInstanceId;
+        const groupName = assemblyRoot.userData?.groupName || 'Morea';
+        let seatQuantity = 0;
+        let armrestLeftCount = 0;
+        let armrestRightCount = 0;
+        let armrestCenterCount = 0;
+        assemblyRoot.traverse((node) => {
+          if (!node || node === assemblyRoot) return;
+          const role = String(node.userData?.meta?.role || '').toLowerCase();
+          if (role === 'seat') seatQuantity += 1;
+          if (role === 'armrest-left') armrestLeftCount += 1;
+          if (role === 'armrest-right') armrestRightCount += 1;
+          if (role === 'armrest-center') armrestCenterCount += 1;
+        });
+
+        const externalArmrests = collectExternalMoreaArmrestCounts();
+        armrestLeftCount += Number(externalArmrests.left || 0);
+        armrestRightCount += Number(externalArmrests.right || 0);
+        armrestCenterCount += Number(externalArmrests.center || 0);
+
+        seatQuantity = Math.max(1, Math.trunc(seatQuantity || 1));
+
+        const moreaVariant = String(
+          assemblyRoot.userData?.meta?.moreaVariant || assemblyRoot.userData?.config?.variant || 'single'
+        )
+          .trim()
+          .toLowerCase();
+
+        const breakdown = resolveMoreaChairBreakdown(moreaVariant, seatQuantity);
+        const hasAnyArmrest = armrestLeftCount > 0 || armrestRightCount > 0 || armrestCenterCount > 0;
+        const typologyKey = buildMoreaTypologyKey({
+          variant: moreaVariant,
+          quantity: seatQuantity,
+          hasArmrests: hasAnyArmrest,
+        });
+        const detail = moreaTypologyByKeyRef.current?.get?.(typologyKey) || null;
+        const rowsToEmit = breakdown ||
+          (Array.isArray(detail?.hijos)
+            ? detail.hijos
+                .map((child) => ({
+                  code: String(child?.producto?.codigo || '').trim(),
+                  qty: Number(child?.cantidad || 0),
+                  description: child?.producto?.descripcion || '',
+                }))
+                .filter((child) => child.code && child.qty > 0)
+            : []);
+
+        if (!rowsToEmit.length) {
+          return false;
+        }
+
+        for (const child of rowsToEmit) {
+          const childCode = String(child.code || '').trim();
+          const childQty = Number(child.qty || 0);
+          if (!childCode || childQty <= 0) continue;
+
+          addRow(
+            childCode,
+            childQty,
+            resolveCatalogDescription(childCode, child.description || ''),
+            null,
+            groupId,
+            groupName,
+            undefined,
+            null,
+            `${groupInstanceId}_${childCode}`
+          );
+        }
+
+        const emittedQtyByCode = new Map();
+        for (const child of rowsToEmit) {
+          const childCode = String(child.code || '').trim();
+          const childQty = Number(child.qty || 0);
+          if (!childCode || childQty <= 0) continue;
+          emittedQtyByCode.set(childCode, (emittedQtyByCode.get(childCode) || 0) + childQty);
+        }
+
+        const terminalArmrestQty = armrestLeftCount + armrestRightCount;
+        const terminalCode = MOREA_ARMREST_BOM_CODES.terminal;
+        const existingTerminalQty = Number(emittedQtyByCode.get(terminalCode) || 0);
+        const pendingTerminalQty = Math.max(0, terminalArmrestQty - existingTerminalQty);
+        if (pendingTerminalQty > 0) {
+          addRow(
+            terminalCode,
+            pendingTerminalQty,
+            resolveCatalogDescription(terminalCode, ''),
+            null,
+            groupId,
+            groupName,
+            undefined,
+            null,
+            `${groupInstanceId}_${terminalCode}_ARMREST_TERMINAL`
+          );
+        }
+
+        const centerCode = MOREA_ARMREST_BOM_CODES.center;
+        const existingCenterQty = Number(emittedQtyByCode.get(centerCode) || 0);
+        const pendingCenterQty = Math.max(0, armrestCenterCount - existingCenterQty);
+        if (pendingCenterQty > 0) {
+          addRow(
+            centerCode,
+            pendingCenterQty,
+            resolveCatalogDescription(centerCode, ''),
+            null,
+            groupId,
+            groupName,
+            undefined,
+            null,
+            `${groupInstanceId}_${centerCode}_ARMREST_CENTER`
+          );
+        }
+
+        handledMoreaAssemblies.add(assemblyRoot);
+        return true;
+      }
+
       for (const p of parts) {
         const obj = p.obj;
         if (!obj) continue;
@@ -2796,6 +3273,72 @@ export default function ThreeCanvas({
           continue;
         }
 
+        if (obj.userData?.kind === 'MOREA_ASSEMBLY') {
+          if (processMoreaAssembly(obj, p.id)) continue;
+        }
+
+        if (
+          obj.userData?.kind === 'MOREA_GIRO_SURFACE' ||
+          obj.userData?.type === 'MOREA_GIRO_SURFACE' ||
+          (obj.userData?.meta?.role === 'giro-surface' &&
+            String(obj.userData?.line || obj.userData?.meta?.line || '').toUpperCase() === 'MOREA')
+        ) {
+          const rawCode =
+            obj.userData?.codigoPT ||
+            obj.userData?.code ||
+            obj.userData?.meta?.code ||
+            '';
+          const variant =
+            obj.userData?.meta?.moreaVariant ||
+            obj.userData?.moreaVariant ||
+            obj.userData?.variant ||
+            'single';
+          const modelSrc =
+            obj.userData?.model?.src ||
+            obj.userData?.meta?.modelSrc ||
+            '';
+          const angleDeg = Number(
+            obj.userData?.angleDeg ||
+            obj.userData?.meta?.angleDeg ||
+            60
+          );
+
+          const commercialCode = resolveMoreaGiroBomCode({
+            rawCode,
+            variant,
+            modelSrc,
+            angleDeg,
+          });
+          const resolvedCode = commercialCode || String(rawCode || '').trim();
+
+          const baseQty = Math.max(
+            1,
+            Math.trunc(
+              Number(
+                obj.userData?.meta?.quantity ||
+                  obj.userData?.quantity ||
+                  1
+              ) || 1
+            )
+          );
+          const emittedQty = baseQty * MOREA_GIRO_BOM_QTY_MULTIPLIER;
+
+          if (resolvedCode) {
+            addRow(
+              resolvedCode,
+              emittedQty,
+              resolveCatalogDescription(resolvedCode, obj.userData?.description || ''),
+              null,
+              null,
+              null,
+              undefined,
+              null,
+              obj.userData?.instanceId || obj.uuid || p.id
+            );
+          }
+          continue;
+        }
+
         // Si es una pieza hija de un ensamblaje, la raíz ya procesó el BOM
         // Excepto para piezas de Mila cuyos ensamblajes no procesan el BOM directamente en la raíz
         const isMilaPart =
@@ -2814,8 +3357,49 @@ export default function ThreeCanvas({
               String(obj.userData.kind).startsWith('MOREA')));
 
         const isKoncisaPart = belongsToKoncisaPlusAssembly(obj);
+        const moreaAssembly = getAssemblyObject(obj);
+        if (moreaAssembly?.userData?.kind === 'MOREA_ASSEMBLY') {
+          if (handledMoreaAssemblies.has(moreaAssembly)) {
+            continue;
+          }
+          if (processMoreaAssembly(moreaAssembly, p.id)) {
+            continue;
+          }
+        }
 
         if (obj.userData?.parentAssemblyId && !isMilaPart && !isKoncisaPart) {
+          continue;
+        }
+
+        const moreaAccessoryRole = String(
+          obj.userData?.meta?.role || obj.userData?.role || ''
+        ).toLowerCase();
+        const moreaAccessoryLine = String(
+          obj.userData?.line || obj.userData?.meta?.line || obj.userData?.meta?.category || ''
+        ).toUpperCase();
+        const isStandaloneMoreaAccessory =
+          (moreaAccessoryRole === 'armrest-left' ||
+            moreaAccessoryRole === 'armrest-right' ||
+            moreaAccessoryRole === 'armrest-center') &&
+          moreaAccessoryLine === 'MOREA';
+
+        if (isStandaloneMoreaAccessory) {
+          const accessoryCode =
+            moreaAccessoryRole === 'armrest-center'
+              ? MOREA_ARMREST_BOM_CODES.center
+              : MOREA_ARMREST_BOM_CODES.terminal;
+
+          addRow(
+            accessoryCode,
+            1,
+            resolveCatalogDescription(accessoryCode, obj.userData?.description || ''),
+            null,
+            null,
+            null,
+            undefined,
+            null,
+            obj.userData?.instanceId || obj.uuid || p.id
+          );
           continue;
         }
 
@@ -7353,9 +7937,22 @@ export default function ThreeCanvas({
       const groupId =
         assemblyGroup.userData?.groupId || targetObj.userData?.groupId || assemblyGroup.uuid;
       const groupName = assemblyGroup.userData?.groupName || 'Mila';
+      const isMoreaRoot =
+        assemblyGroup.userData?.kind === 'MOREA_ASSEMBLY' ||
+        String(assemblyGroup.userData?.line || '').toUpperCase() === 'MOREA' ||
+        String(assemblyGroup.userData?.meta?.category || '').toLowerCase() === 'morea';
       const isMilaDouble =
         assemblyGroup.userData?.line === 'MILA_DOUBLE' ||
         assemblyGroup.userData?.meta?.category === 'mila-double';
+      const accessoryCatalog = isMoreaRoot
+        ? MOREA_ACCESSORY_CATALOG
+        : MILA_ACCESSORY_CATALOG;
+      const accessoryOffsets = isMoreaRoot
+        ? MOREA_ACCESSORY_OFFSETS_MM
+        : MILA_ACCESSORY_OFFSETS_MM;
+      const assemblyLine = isMoreaRoot ? 'MOREA' : isMilaDouble ? 'MILA_DOUBLE' : 'MILA';
+      const accessoryCategory = isMoreaRoot ? 'morea' : isMilaDouble ? 'mila-double' : 'mila';
+      const rightSeatWidthMm = isMoreaRoot ? 609.97 : 600;
 
       const seatNodes = [];
       assemblyGroup.traverse((node) => {
@@ -7397,12 +7994,12 @@ export default function ThreeCanvas({
       if (accessoryType === 'armrest-left') {
         removePartsByRole('armrest-left');
         if (enabled) {
-          const item = MILA_ACCESSORY_CATALOG.armrestLeft;
-          const offset = MILA_ACCESSORY_OFFSETS_MM.armrestLeft;
+          const item = accessoryCatalog.armrestLeft;
+          const offset = accessoryOffsets.armrestLeft;
           await addExternalGlbPart({
             kind: 'GLB_PART',
             type: 'GLB_PART',
-            line: isMilaDouble ? 'MILA_DOUBLE' : 'MILA',
+            line: assemblyLine,
             groupId,
             groupName,
             code: item.code,
@@ -7416,10 +8013,10 @@ export default function ThreeCanvas({
               y: Number(offset.y || 0),
               z: Number(offset.z || 0),
             },
-            rotation: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: isMoreaRoot ? Math.PI : 0, z: 0 },
             parentGroup: assemblyGroup,
             meta: {
-              category: isMilaDouble ? 'mila-double' : 'mila',
+              category: accessoryCategory,
               role: 'armrest-left',
               moduleSpacingMm,
             },
@@ -7428,13 +8025,13 @@ export default function ThreeCanvas({
       } else if (accessoryType === 'armrest-right') {
         removePartsByRole('armrest-right');
         if (enabled) {
-          const item = MILA_ACCESSORY_CATALOG.armrestRight;
-          const offset = MILA_ACCESSORY_OFFSETS_MM.armrestRight;
+          const item = accessoryCatalog.armrestRight;
+          const offset = accessoryOffsets.armrestRight;
           const rightAnchorX = (quantity - 1) * moduleSpacingMm;
           await addExternalGlbPart({
             kind: 'GLB_PART',
             type: 'GLB_PART',
-            line: isMilaDouble ? 'MILA_DOUBLE' : 'MILA',
+            line: assemblyLine,
             groupId,
             groupName,
             code: item.code,
@@ -7444,14 +8041,14 @@ export default function ThreeCanvas({
             prices: item.prices,
             model: { src: item.modelSrc },
             position: {
-              x: rightAnchorX + 600 + Number(offset.x || 0),
+              x: rightAnchorX + rightSeatWidthMm + Number(offset.x || 0),
               y: Number(offset.y || 0),
               z: Number(offset.z || 0),
             },
             rotation: { x: 0, y: 0, z: 0 },
             parentGroup: assemblyGroup,
             meta: {
-              category: isMilaDouble ? 'mila-double' : 'mila',
+              category: accessoryCategory,
               role: 'armrest-right',
               quantity,
               moduleSpacingMm,
@@ -7461,14 +8058,14 @@ export default function ThreeCanvas({
       } else if (accessoryType === 'armrest-center') {
         removePartsByRole('armrest-center');
         if (enabled && quantity > 1) {
-          const item = MILA_ACCESSORY_CATALOG.armrestCenter;
-          const offset = MILA_ACCESSORY_OFFSETS_MM.armrestCenter;
+          const item = accessoryCatalog.armrestCenter;
+          const offset = accessoryOffsets.armrestCenter;
           for (let seamIndex = 1; seamIndex < quantity; seamIndex += 1) {
             const seamX = seamIndex * moduleSpacingMm;
             await addExternalGlbPart({
               kind: 'GLB_PART',
               type: 'GLB_PART',
-              line: isMilaDouble ? 'MILA_DOUBLE' : 'MILA',
+              line: assemblyLine,
               groupId,
               groupName,
               code: item.code,
@@ -7485,7 +8082,7 @@ export default function ThreeCanvas({
               rotation: { x: 0, y: 0, z: 0 },
               parentGroup: assemblyGroup,
               meta: {
-                category: isMilaDouble ? 'mila-double' : 'mila',
+                category: accessoryCategory,
                 role: 'armrest-center',
                 seamIndex,
                 moduleSpacingMm,
@@ -7526,6 +8123,106 @@ export default function ThreeCanvas({
           });
         }
       }
+
+      const alignMoreaArmrestHeights = () => {
+        if (!isMoreaRoot) return;
+
+        const moreaVariant = String(assemblyGroup.userData?.meta?.moreaVariant || 'single')
+          .trim()
+          .toLowerCase();
+        const isMoreaDouble = moreaVariant === 'double';
+        const armrestTopDropM = Math.max(
+          0,
+          Number(
+            (isMoreaDouble
+              ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_TOP_DROP_MM
+              : MOREA_BUILDER_TUNE.ARMREST_TOP_DROP_MM) || 0
+          )
+        ) / 1000;
+
+        const getBounds = (obj) => {
+          if (!obj) return null;
+          obj.updateMatrixWorld?.(true);
+          const box = new THREE.Box3().setFromObject(obj);
+          if (!Number.isFinite(box.min.y) || !Number.isFinite(box.max.y)) return null;
+          return box;
+        };
+
+        const seatEntries = [];
+        assemblyGroup.traverse((node) => {
+          const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+          if (role !== 'seat') return;
+          const bounds = getBounds(node);
+          if (!bounds) return;
+          const centerX = (bounds.min.x + bounds.max.x) / 2;
+          seatEntries.push({ obj: node, bounds, centerX });
+        });
+
+        if (!seatEntries.length) return;
+        seatEntries.sort((a, b) => a.centerX - b.centerX);
+
+        const armrestEntries = [];
+        assemblyGroup.traverse((node) => {
+          const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+          if (role === 'armrest-left' || role === 'armrest-right' || role === 'armrest-center') {
+            armrestEntries.push({
+              obj: node,
+              role,
+              seamIndex: Number(node?.userData?.meta?.seamIndex || node?.userData?.seamIndex || 1),
+            });
+          }
+        });
+
+        armrestEntries.forEach(({ obj, role, seamIndex }) => {
+          const armrestBounds = getBounds(obj);
+          if (!armrestBounds) return;
+
+          let leftSeatBounds = null;
+          let rightSeatBounds = null;
+          if (role === 'armrest-left') {
+            leftSeatBounds = seatEntries[0]?.bounds || null;
+            rightSeatBounds = leftSeatBounds;
+          } else if (role === 'armrest-right') {
+            rightSeatBounds = seatEntries[seatEntries.length - 1]?.bounds || null;
+            leftSeatBounds = rightSeatBounds;
+          } else {
+            const maxSeam = Math.max(1, seatEntries.length - 1);
+            const normalizedSeam = THREE.MathUtils.clamp(
+              Math.trunc(Number.isFinite(seamIndex) ? seamIndex : 1),
+              1,
+              maxSeam
+            );
+            leftSeatBounds = seatEntries[normalizedSeam - 1]?.bounds || null;
+            rightSeatBounds = seatEntries[normalizedSeam]?.bounds || null;
+          }
+
+          if (!leftSeatBounds || !rightSeatBounds) return;
+
+          const roleOffsetY = Number(MOREA_ACCESSORY_OFFSETS_MM?.[role]?.y || 0) / 1000;
+          const centerLiftM = role === 'armrest-center'
+            ? Math.max(
+              0,
+              Number(
+                (isMoreaDouble
+                  ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM
+                  : MOREA_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM) || 0
+              )
+            ) / 1000
+            : 0;
+          const targetTopY = Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) - armrestTopDropM + roleOffsetY + centerLiftM;
+          const armrestHeight = Math.max(0.001, armrestBounds.max.y - armrestBounds.min.y);
+          const desiredMinY = targetTopY - armrestHeight;
+          const deltaY = desiredMinY - armrestBounds.min.y;
+
+          if (Math.abs(deltaY) > 0.0005) {
+            obj.position.y += deltaY;
+            obj.updateMatrixWorld?.(true);
+          }
+        });
+      };
+
+      alignMoreaArmrestHeights();
+      updateMilaConnectors();
 
       emitBOM();
       refreshFloorAndGrid();
@@ -14122,7 +14819,186 @@ export default function ThreeCanvas({
         allPanelDivisors,
       });
 
+      const alignMoreaCenterArmrestsImmediately = (assemblyRoot) => {
+        if (!assemblyRoot) return;
+
+        const seatEntries = [];
+        const centerArmrests = [];
+        const sideArmrestTopYs = [];
+
+        assemblyRoot.traverse((node) => {
+          const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+          if (role === 'seat') {
+            node.updateMatrixWorld?.(true);
+            const seatBounds = new THREE.Box3().setFromObject(node);
+            if (!Number.isFinite(seatBounds.min.y) || !Number.isFinite(seatBounds.max.y)) return;
+            seatEntries.push({
+              bounds: seatBounds,
+              centerX: (seatBounds.min.x + seatBounds.max.x) / 2,
+            });
+          }
+          if (role === 'armrest-left' || role === 'armrest-right') {
+            node.updateMatrixWorld?.(true);
+            const armrestBounds = new THREE.Box3().setFromObject(node);
+            if (!Number.isFinite(armrestBounds.max.y)) return;
+            sideArmrestTopYs.push(armrestBounds.max.y);
+          }
+          if (role === 'armrest-center') {
+            centerArmrests.push({
+              obj: node,
+              seamIndex: Number(node?.userData?.meta?.seamIndex ?? node?.userData?.seamIndex ?? 1),
+            });
+          }
+        });
+
+        if (seatEntries.length < 2 || !centerArmrests.length) return;
+        seatEntries.sort((a, b) => a.centerX - b.centerX);
+
+        const isMoreaDouble = String(assemblyRoot?.userData?.meta?.moreaVariant || 'single')
+          .trim()
+          .toLowerCase() === 'double';
+        const armrestTopDropM = Math.max(
+          0,
+          Number(
+            (isMoreaDouble
+              ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_TOP_DROP_MM
+              : MOREA_BUILDER_TUNE.ARMREST_TOP_DROP_MM) || 0
+          )
+        ) / 1000;
+        const sideArmrestOffsetY = Number(MOREA_ACCESSORY_OFFSETS_MM?.armrestLeft?.y || 0) / 1000;
+        const hasSideArmrestReference = sideArmrestTopYs.length > 0;
+        const sideArmrestReferenceTopY = hasSideArmrestReference
+          ? sideArmrestTopYs.reduce((sum, value) => sum + value, 0) / sideArmrestTopYs.length
+          : null;
+
+        centerArmrests.forEach(({ obj: armrestObj, seamIndex: rawSeamIndex }) => {
+          const seamIndex = THREE.MathUtils.clamp(
+            Math.trunc(Number.isFinite(rawSeamIndex) ? rawSeamIndex : 1),
+            1,
+            seatEntries.length - 1
+          );
+
+          const leftSeatBounds = seatEntries[seamIndex - 1]?.bounds || null;
+          const rightSeatBounds = seatEntries[seamIndex]?.bounds || null;
+          if (!leftSeatBounds || !rightSeatBounds) return;
+
+          armrestObj.rotation.set(0, 0, 0);
+          armrestObj.updateMatrixWorld?.(true);
+
+          const armrestBounds = new THREE.Box3().setFromObject(armrestObj);
+          if (!Number.isFinite(armrestBounds.min.y) || !Number.isFinite(armrestBounds.max.y)) return;
+          const armrestHeight = Math.max(0.001, armrestBounds.max.y - armrestBounds.min.y);
+
+          const targetMinX = leftSeatBounds.max.x;
+          const targetMaxX = rightSeatBounds.min.x;
+          const centerFromLeft = targetMinX - armrestBounds.min.x;
+          const centerFromRight = targetMaxX - armrestBounds.max.x;
+          const deltaX = (centerFromLeft + centerFromRight) / 2;
+
+          const targetTopY =
+            Number.isFinite(sideArmrestReferenceTopY)
+              ? sideArmrestReferenceTopY
+              : Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) -
+                armrestTopDropM +
+                sideArmrestOffsetY;
+          const desiredMinY = targetTopY - armrestHeight;
+          const deltaY = desiredMinY - armrestBounds.min.y;
+          const targetBackZ = Math.min(leftSeatBounds.max.z, rightSeatBounds.max.z);
+          const deltaZ = targetBackZ - armrestBounds.max.z;
+
+          if (Math.abs(deltaX) > 0.0005 || Math.abs(deltaY) > 0.0005 || Math.abs(deltaZ) > 0.0005) {
+            armrestObj.position.x += deltaX;
+            armrestObj.position.y += deltaY;
+            armrestObj.position.z += deltaZ;
+            armrestObj.updateMatrixWorld?.(true);
+          }
+        });
+      };
+
       if (snapResult && snapResult.targetTransform && snapResult.targetObj) {
+        const resolveSeamIndexFromSnapResult = (result) => {
+          const explicitSeam = Number(result?.targetPort?.seamIndex);
+          if (Number.isFinite(explicitSeam)) return Math.trunc(explicitSeam);
+
+          const targetSide = String(result?.targetSide || '').trim().toLowerCase();
+          const seamMatch = targetSide.match(/^seam_(\d+)$/);
+          if (!seamMatch) return null;
+
+          const parsedSeam = Number(seamMatch[1]);
+          return Number.isFinite(parsedSeam) ? Math.trunc(parsedSeam) : null;
+        };
+
+        const activeRole = String(targetObj?.userData?.meta?.role || targetObj?.userData?.role || '').toLowerCase();
+        if (connectorScopeLine === 'MOREA' && activeRole === 'armrest-center') {
+          const seamIndexFromTarget = resolveSeamIndexFromSnapResult(snapResult);
+          if (Number.isFinite(seamIndexFromTarget)) {
+            targetObj.userData = {
+              ...(targetObj.userData || {}),
+              seamIndex: Math.trunc(seamIndexFromTarget),
+              meta: {
+                ...(targetObj.userData?.meta || {}),
+                seamIndex: Math.trunc(seamIndexFromTarget),
+              },
+            };
+          }
+        }
+
+        const shouldMoveTargetGiroInstead = false;
+
+        if (shouldMoveTargetGiroInstead) {
+          const reverseSnap = connectorEngine.findBestSnap({
+            activeAssembly: snapResult.targetObj,
+            allAssemblies: [targetObj],
+            allGiroSurfaces: [],
+            allAccessories: [],
+            allPanelDivisors: [],
+          });
+
+          if (reverseSnap?.targetTransform) {
+            const giroObj = snapResult.targetObj;
+            const giroGroupId = giroObj.userData?.groupId;
+            const giroPosBefore = giroObj.position.clone();
+            const giroRotBefore = giroObj.rotation.y;
+            const giroPosAfter = new THREE.Vector3(
+              reverseSnap.targetTransform.x,
+              reverseSnap.targetTransform.y,
+              reverseSnap.targetTransform.z
+            );
+            const giroRotAfter = reverseSnap.targetTransform.rotY;
+            const deltaRot = giroRotAfter - giroRotBefore;
+            const deltaQuat = new THREE.Quaternion().setFromAxisAngle(
+              new THREE.Vector3(0, 1, 0),
+              deltaRot
+            );
+
+            if (giroGroupId) {
+              scene.children.forEach((node) => {
+                if (node.userData?.groupId === giroGroupId && node !== giroObj) {
+                  const rel = node.position.clone().sub(giroPosBefore).applyQuaternion(deltaQuat);
+                  node.position.copy(giroPosAfter.clone().add(rel));
+                  node.rotation.y += deltaRot;
+                  node.updateMatrixWorld(true);
+                }
+              });
+            }
+
+            giroObj.position.copy(giroPosAfter);
+            giroObj.rotation.set(0, giroRotAfter, 0);
+            giroObj.updateMatrixWorld(true);
+
+            connectorEngine.unifyConnectedAssemblies(targetObj, giroObj);
+            updateMilaConnectors();
+
+            return {
+              snapped: true,
+              mergeCandidate: {
+                activeObj: targetObj,
+                targetObj: giroObj,
+              },
+            };
+          }
+        }
+
         const posBefore = targetObj.position.clone();
         const rotBefore = targetObj.rotation.y;
         const posAfter = new THREE.Vector3(
@@ -14155,6 +15031,58 @@ export default function ThreeCanvas({
         targetObj.updateMatrixWorld(true);
 
         connectorEngine.unifyConnectedAssemblies(targetObj, snapResult.targetObj);
+
+        if (connectorScopeLine === 'MOREA') {
+          const activeRole = String(
+            targetObj?.userData?.meta?.role || targetObj?.userData?.role || ''
+          ).toLowerCase();
+          const targetRole = String(
+            snapResult?.targetObj?.userData?.meta?.role || snapResult?.targetObj?.userData?.role || ''
+          ).toLowerCase();
+          const targetSeamIndex = resolveSeamIndexFromSnapResult(snapResult);
+          const armrestRoles = new Set(['armrest-left', 'armrest-right', 'armrest-center']);
+          let assemblyToRealign = null;
+
+          if (armrestRoles.has(activeRole)) {
+            assemblyToRealign = getMoreaAssemblyRoot(snapResult.targetObj) || snapResult.targetObj;
+
+            if (assemblyToRealign && targetObj.parent !== assemblyToRealign) {
+              const targetAssemblyId =
+                assemblyToRealign.userData?.instanceId || assemblyToRealign.userData?.code || null;
+              const targetGroupId =
+                assemblyToRealign.userData?.groupId || targetObj.userData?.groupId || null;
+
+              assemblyToRealign.attach(targetObj);
+              targetObj.updateMatrixWorld(true);
+
+              targetObj.userData = {
+                ...(targetObj.userData || {}),
+                line: 'MOREA',
+                groupId: targetGroupId,
+                parentAssemblyId: targetAssemblyId,
+                meta: {
+                  ...(targetObj.userData?.meta || {}),
+                  line: 'MOREA',
+                  category: 'morea',
+                  role: activeRole,
+                  groupId: targetGroupId,
+                  parentAssemblyId: targetAssemblyId,
+                  ...(activeRole === 'armrest-center' && Number.isFinite(targetSeamIndex)
+                    ? { seamIndex: Math.trunc(targetSeamIndex) }
+                    : {}),
+                },
+              };
+            }
+          } else if (armrestRoles.has(targetRole)) {
+            assemblyToRealign = getMoreaAssemblyRoot(targetObj) || targetObj;
+          }
+
+          if (assemblyToRealign) {
+            realignMoreaAssemblyByRoot(assemblyToRealign);
+            alignMoreaCenterArmrestsImmediately(assemblyToRealign);
+          }
+        }
+
         updateMilaConnectors();
         return {
           snapped: true,
@@ -17911,3 +18839,5 @@ export default function ThreeCanvas({
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
 }
+
+export default ThreeCanvas;

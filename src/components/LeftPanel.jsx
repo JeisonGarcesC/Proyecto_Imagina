@@ -29,6 +29,7 @@ import { createMilaAccessoryInstance } from '../mepal/mila/factories/createMilaA
 import { createMilaPanelDivisorInstance } from '../mepal/mila/factories/createMilaPanelDivisorInstance';
 import { createMoreaInstance } from '../mepal/morea/factories/createMoreaInstance';
 import { createMoreaGiroInstance } from '../mepal/morea/factories/createMoreaGiroInstance';
+import { createMoreaAccessoryInstance } from '../mepal/morea/factories/createMoreaAccessoryInstance';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,
@@ -2473,6 +2474,8 @@ export default function LeftPanel({
 
               if (config?.type === 'giro') {
                 await createMoreaGiroInstance({ api, config });
+              } else if (config?.type === 'accessory') {
+                await createMoreaAccessoryInstance({ api, config });
               } else {
                 await createMoreaInstance({ api, config });
               }

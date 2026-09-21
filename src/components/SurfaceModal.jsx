@@ -1,5 +1,5 @@
 // src/components/SurfaceModal.jsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { resolveSurfaceCodigoPT } from '../rules/surfaceRules';
 
 const overlayStyle = {
@@ -79,13 +79,17 @@ export default function SurfaceModal({
   const [depthMm, setDepthMm] = useState(600);
   const [thickMm, setThickMm] = useState(25);
 
-  useEffect(() => {
-    if (!open) return;
+  const resetForm = useCallback(() => {
     setLine(defaultLine);
     setWidthMm(1200);
     setDepthMm(600);
     setThickMm(25);
-  }, [open, defaultLine]);
+  }, [defaultLine]);
+
+  const handleClose = useCallback(() => {
+    resetForm();
+    onClose?.();
+  }, [onClose, resetForm]);
 
   const validDims = useMemo(
     () =>
@@ -107,20 +111,20 @@ export default function SurfaceModal({
 
   useEffect(() => {
     function onKey(e) {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') handleClose();
     }
     if (open) window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, handleClose]);
 
   if (!open) return null;
 
   return (
-    <div style={overlayStyle} onMouseDown={onClose}>
+    <div style={overlayStyle} onMouseDown={handleClose}>
       <div style={modalStyle} onMouseDown={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div style={{ fontWeight: 900, fontSize: 16 }}>Crear superficie</div>
-          <button style={btnStyle} onClick={onClose} aria-label="Cerrar">
+          <button style={btnStyle} onClick={handleClose} aria-label="Cerrar">
             ✕
           </button>
         </div>
@@ -187,7 +191,7 @@ export default function SurfaceModal({
         </div>
 
         <div style={btnRowStyle}>
-          <button style={btnStyle} onClick={onClose}>
+          <button style={btnStyle} onClick={handleClose}>
             Cancelar
           </button>
           <button
