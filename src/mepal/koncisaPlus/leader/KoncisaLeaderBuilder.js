@@ -406,7 +406,7 @@ export function buildKoncisaLeader(config = {}) {
               z: 0,
             },
             rotation: {
-              x: 0,
+              x: 0, //Math.PI / 2,
               y: 0,
               z: 0,
             },
@@ -812,13 +812,13 @@ export function buildKoncisaLeader(config = {}) {
           placement: {
             // Posición manual del acople asociado a la caja del costado.
             position: {
-              x: sideKey === 'RIGHT' ? 0 : -0,
-              y: 0,
-              z: 0,
+              x: 745, //sideKey === 'RIGHT' ? 0 : -0,
+              y: 655,
+              z: 139,
             },
             rotation: {
               x: 0,
-              y: sideKey === 'RIGHT' ? 0 : -0,
+              y: Math.PI / 2, //sideKey === 'RIGHT' ? 0 : -0,
               z: 0,
             },
           },

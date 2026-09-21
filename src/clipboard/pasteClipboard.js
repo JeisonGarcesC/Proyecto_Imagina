@@ -48,6 +48,13 @@ async function executeInstruction(api, instruction) {
   const payload = createPartPayload(instruction);
 
   switch (instruction.constructor) {
+    case CLIPBOARD_CONSTRUCTORS.ADD_LOCKER: {
+      const config = instruction.payload?.configuration?.config;
+      if (!config) throw new Error('LOCKER_MISSING_CONFIG');
+      const result = await api.addLocker?.(config, { recordHistory: false });
+      if (!result?.success) throw new Error('LOCKER_PASTE_FAILED');
+      return result.object;
+    }
     case CLIPBOARD_CONSTRUCTORS.ADD_KONCISA_ASSEMBLY: {
       const config = instruction.payload?.configuration?.config;
       if (!config) throw new Error('El puesto Koncisa copiado no contiene su configuración.');

@@ -73,6 +73,7 @@ export default function LeftRail({ active, onChange }) {
     },
     { id: 'critterium8', label: 'Critterium 8', icon: '▒' },
     { id: 'vetro', label: 'VETRO', icon: 'V' },
+    { id: 'lockers', label: 'LOCKERS', icon: 'L' },
     {
       id: 'morea',
       label: 'Morea',

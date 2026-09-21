@@ -71,6 +71,9 @@ import {
 import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekSocialInstance';
 import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
 import { createCritterium8Instance } from '../mepal/critterium8/factories/createCritterium8Instance.js';
+import { createLockerInstance } from '../mepal/lockers/factories/createLockerInstance.js';
+import { registerLockerInstance } from '../mepal/lockers/integration/lockerRegistration.js';
+import { rebuildLockerInstance } from '../mepal/lockers/integration/rebuildLockerInstance.js';
 import { createVetroInstance } from '../mepal/vetro/factories/createVetroInstance.js';
 import {
   registerVetroInstance,
@@ -2589,7 +2592,7 @@ function ThreeCanvas({
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
-          if (obj.userData?.kind === 'VETRO_PRODUCT') {
+          if (['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(obj.userData?.kind)) {
             return null;
           }
 
@@ -3248,6 +3251,14 @@ function ThreeCanvas({
         if (!obj) continue;
 
         if (obj.userData?.excludeFromBOM) continue;
+
+        if (obj.userData?.kind === 'LOCKER_PRODUCT') {
+          for (const item of obj.userData.bom || []) {
+            addRow(item.code, item.quantity, resolveCatalogDescription(item.code, item.description),
+              null, obj.userData.groupId, 'Lockers', undefined, null, obj.userData.instanceId);
+          }
+          continue;
+        }
 
         if (obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
           const bomList = obj.userData?.bom || [];
@@ -5659,6 +5670,43 @@ function ThreeCanvas({
       if (parts.length === assembly.children.length + 1) frameObject(assembly);
       refreshFloorAndGrid();
       return instance;
+    }
+
+    function addLocker(config = {}, options = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const instance = createLockerInstance({ config, transform: options.transform });
+      if (!instance.success) return instance;
+      const object = registerLockerInstance({ instance, parent: options.parentGroup || scene, partsRegistry: parts, pickables });
+      if (!options.transform) object.position.set(0.5 + (parts.length - 1) * 0.9, 0, 0.5);
+      object.updateMatrixWorld(true);
+      syncSelectedIds3D([object.userData.instanceId]);
+      setActivePart(object);
+      if (options.recordHistory !== false) recordCreateObjects({ objects: [object] });
+      emitBOM();
+      refreshFloorAndGrid();
+      return instance;
+    }
+
+    function applyLockerConfiguration(object, config, recordHistory = true) {
+      if (object?.userData?.kind !== 'LOCKER_PRODUCT') return { success: false, reason: 'LOCKER_PRODUCT_REQUIRED' };
+      const before = JSON.parse(JSON.stringify(object.userData.config));
+      const result = rebuildLockerInstance({ object, patch: config });
+      if (!result.success) return { ...result, reason: result.diagnostics?.[0]?.code || 'LOCKER_INVALID_CONFIGURATION' };
+      const partRecord = parts.find(p => p.obj === object);
+      if (partRecord) partRecord.code = object.userData.codigoPT;
+      if (recordHistory && JSON.stringify(before) !== JSON.stringify(object.userData.config)) {
+        historyManager.pushAction({ type: HISTORY_ACTION_TYPES.LOCKER_CONFIG_CHANGE,
+          instanceId: object.userData.instanceId, before, after: JSON.parse(JSON.stringify(object.userData.config)) });
+      }
+      setActivePart(object, { targetIds: selectedIds3D, subMesh: null });
+      emitBOM();
+      refreshFloorAndGrid();
+      return result;
+    }
+
+    function updateSelectedLocker(config) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      return applyLockerConfiguration(activePart, config);
     }
 
     async function addVetro(config = {}, options = {}) {
@@ -9571,6 +9619,16 @@ function ThreeCanvas({
         }
       }
 
+      function createPersistedLocker(entity) {
+        if (!entity?.config || typeof entity.config !== 'object') throw new Error('LOCKER_MISSING_CONFIG');
+        const instance = createLockerInstance({ config: entity.config, instanceId: entity.instanceId, transform: entity.transform });
+        if (!instance.success) throw new Error(instance.diagnostics?.[0]?.code || 'LOCKER_INVALID_CONFIGURATION');
+        if (entity.codigoPT && instance.object.userData.codigoPT !== entity.codigoPT) throw new Error('LOCKER_CODE_MISMATCH');
+        if (entity.groupId) instance.object.traverse(node => { node.userData.groupId = entity.groupId; });
+        registerLockerInstance({ instance, parent: scene, partsRegistry: parts, pickables });
+        return instance.object;
+      }
+
       async function createPersistedVetro(entity) {
         if (!entity?.config || typeof entity.config !== 'object') {
           throw new Error('VETRO_MISSING_CONFIG');
@@ -9665,6 +9723,7 @@ function ThreeCanvas({
           createKoncisaPlus: createPersistedKoncisaPlus,
           createCritterium8: createPersistedCritterium8,
           createVetro: createPersistedVetro,
+          createLocker: createPersistedLocker,
           createMila: createPersistedMila,
           createImportedModel: (entity) =>
             createImportedModel({
@@ -10551,6 +10610,8 @@ function ThreeCanvas({
       addZen,
       addCritterium8,
       addVetro,
+      addLocker,
+      updateSelectedLocker,
       updateSelectedVetro,
       buildCritterium8SequenceFromSelectedFrames,
       createCritterium8SequenceFromSelection,
@@ -11522,6 +11583,10 @@ function ThreeCanvas({
           restoreDeletedObjects(action.createdObjects || []);
           selectCreatedHistoryObjects(action.selectionObjects || []);
         }
+      } else if (action.type === HISTORY_ACTION_TYPES.LOCKER_CONFIG_CHANGE) {
+        const result = applyLockerConfiguration(findPartById(action.instanceId), state, false);
+        if (!result.success) throw new Error(result.reason || 'LOCKER_HISTORY_REBUILD_FAILED');
+        return result;
       } else if (action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_CONFIG_CHANGE) {
         const assembly = findPartById(action.instanceId);
         return rebuildCritterium8Assembly(assembly, state || {}, {

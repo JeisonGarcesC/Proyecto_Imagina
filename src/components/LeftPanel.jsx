@@ -24,6 +24,7 @@ import KuoAVPanel from './KuoAVPanel';
 import MilaPanel from './MilaPanel';
 import MoreaPanel from './MoreaPanel';
 import VetroPanel from '../mepal/vetro/ui/VetroPanel.jsx';
+import LockersPanel from '../mepal/lockers/ui/LockersPanel.jsx';
 import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import { createMilaGiroInstance } from '../mepal/mila/factories/createMilaGiroInstance';
 import { createMilaAccessoryInstance } from '../mepal/mila/factories/createMilaAccessoryInstance';
@@ -296,6 +297,7 @@ export default function LeftPanel({
   onAddEduk,
   onAddCritterium8,
   onAddVetro,
+  onAddLocker,
   onToggleSnap,
   // muros
   wallMode,
@@ -2783,6 +2785,7 @@ export default function LeftPanel({
           )}
         </>
       )}
+      {section === 'lockers' && <LockersPanel onCreate={onAddLocker} readOnly={readOnly} />}
       {section === 'vetro' && (
         <VetroPanel onCreate={onAddVetro} readOnly={readOnly} />
       )}

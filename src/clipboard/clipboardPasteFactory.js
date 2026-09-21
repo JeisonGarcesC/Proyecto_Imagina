@@ -3,6 +3,7 @@ import { CLIPBOARD_VERSION } from './clipboardManager.js';
 
 export const CLIPBOARD_CONSTRUCTORS = Object.freeze({
   ADD_CATALOG_ITEM: 'ADD_CATALOG_ITEM',
+  ADD_LOCKER: 'ADD_LOCKER',
   ADD_EXTERNAL_GLB: 'ADD_EXTERNAL_GLB',
   ADD_NATIVE_BLOCK: 'ADD_NATIVE_BLOCK',
   ADD_NATIVE_DUCT: 'ADD_NATIVE_DUCT',
@@ -110,6 +111,10 @@ function createBaseInstruction(item, constructor) {
 }
 
 const instructionAdapters = [
+  {
+    matches: (item) => item.kind === 'LOCKER_PRODUCT',
+    build: (item) => createBaseInstruction(item, CLIPBOARD_CONSTRUCTORS.ADD_LOCKER),
+  },
   {
     matches: (item) => item.creation?.constructor,
     build: (item) => {

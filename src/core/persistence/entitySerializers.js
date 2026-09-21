@@ -1,5 +1,7 @@
 import { serializeKoncisaPlusRecipe } from '../../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe.js';
 
+import { serializeLockerEntity } from '../../mepal/lockers/integration/lockerPersistence.js';
+
 export const PROJECT_SCHEMA_VERSION = 2;
 
 const SUPPORTED_KINDS = new Set([
@@ -266,11 +268,11 @@ export function serializeProjectEntities(parts = [], options = {}) {
 
   parts.forEach((partRecord) => {
     const object = partRecord?.obj;
-    if (object?.userData?.kind !== 'VETRO_PRODUCT') return;
+    if (!['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(object?.userData?.kind)) return;
     const instanceId = object.userData?.instanceId || object.uuid;
     if (processedAssemblies.has(instanceId)) return;
     processedAssemblies.add(instanceId);
-    entities.push(serializeVetroEntity(object));
+    entities.push(object.userData.kind === 'LOCKER_PRODUCT' ? serializeLockerEntity(object) : serializeVetroEntity(object));
   });
 
   parts.forEach((partRecord) => {
@@ -278,7 +280,7 @@ export function serializeProjectEntities(parts = [], options = {}) {
       findKoncisaAssembly(partRecord?.obj) ||
       findCritterium8Assembly(partRecord?.obj) ||
       findMilaAssembly(partRecord?.obj) ||
-      partRecord?.obj?.userData?.kind === 'VETRO_PRODUCT' ||
+      ['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(partRecord?.obj?.userData?.kind) ||
       isKoncisaPersistenceObject(partRecord?.obj)
     ) {
       return;

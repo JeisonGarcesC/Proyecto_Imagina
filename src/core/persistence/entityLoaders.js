@@ -1,4 +1,5 @@
 const LOADERS = {
+  LOCKER_PRODUCT: (entity, context) => context.createLocker(entity),
   KONCISA_PLUS: (entity, context) => context.createKoncisaPlus(entity),
   CRITTERIUM_8: (entity, context) => context.createCritterium8(entity),
   VETRO_PRODUCT: (entity, context) => context.createVetro(entity),

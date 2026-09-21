@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import './PropertiesPanel.css';
 import Critterium8Properties from '../mepal/critterium8/properties/Critterium8Properties.jsx';
 import VetroProperties from '../mepal/vetro/properties/VetroProperties.jsx';
+import LockersProperties from '../mepal/lockers/properties/LockersProperties.jsx';
 
 export default function PropertiesPanel({
   part,
@@ -94,6 +95,8 @@ export default function PropertiesPanel({
   if (part?.critterium8 || part?.critterium8Sequence) {
     return <Critterium8Properties part={part} api={api} readOnly={readOnly} />;
   }
+
+  if (part?.kind === 'LOCKER_PRODUCT') return <LockersProperties part={part} api={api} readOnly={readOnly} />;
 
   if (part?.kind === 'VETRO_PRODUCT') {
     return <VetroProperties part={part} api={api} readOnly={readOnly} />;

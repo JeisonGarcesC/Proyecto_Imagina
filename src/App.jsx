@@ -1297,6 +1297,7 @@ export default function App() {
               onAddCritterium8={(config) =>
                 !readOnly && threeApiRef.current?.addCritterium8?.(config)
               }
+              onAddLocker={(config) => !readOnly && threeApiRef.current?.addLocker?.(config)}
               onAddVetro={(config) =>
                 !readOnly && threeApiRef.current?.addVetro?.(config)
               }
