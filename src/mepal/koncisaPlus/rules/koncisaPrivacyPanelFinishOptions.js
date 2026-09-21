@@ -1,104 +1,45 @@
 export const KONCISA_PRIVACY_PANEL_FINISH_OPTIONS = [
-  // =========================
-  // LATERAL - FORMICA
-  // =========================
   {
-    id: 'PANEL_LATERAL_FORMICA_22008689',
-    label: 'Pantalla lateral Formica',
-    tipo: 'lateral',
-    material: 'formica',
-    finishCode: '22008689',
-    heightMm: 300,
-    hasCanto: true,
-    hasBacker: false,
+    id: 'PANEL_LATERAL_VIDRIO', label: 'Pantalla lateral Vidrio laminado 4+4',
+    tipo: 'lateral', material: 'vidrio', finishCode: '22006318', heightMm: 300,
+    hasCanto: false, hasBacker: false,
+  },
+  {
+    id: 'PANEL_LATERAL_MELAMINA', label: 'Pantalla lateral Melamina',
+    tipo: 'lateral', material: 'melamina', finishCode: '22008556', heightMm: 300,
+    hasCanto: true, hasBacker: false,
+  },
+  {
+    id: 'PANEL_LATERAL_FORMICA_22008689', label: 'Pantalla lateral Formica',
+    tipo: 'lateral', material: 'formica', finishCode: '22008689', heightMm: 300,
+    hasCanto: true, hasBacker: false,
+  },
+  {
+    id: 'PANEL_LATERAL_TELA', label: 'Pantalla lateral Tela',
+    tipo: 'lateral', material: 'tela', finishCode: '22010282', heightMm: 300,
+    hasCanto: false, hasBacker: false,
   },
 
   // =========================
-  // LATERAL - TELA BACKER
+  // FRONTAL / FALDA - FORMICA Y TELAS
   // =========================
   {
-    id: 'PANEL_LATERAL_TELA_BACKER_LAFAYETE_22010282',
-    label: 'Pantalla lateral tela Backer Lafayette',
-    tipo: 'lateral',
-    material: 'tela-backer',
-    finishCode: '22010282',
-    heightMm: 300,
-    hasCanto: false,
-    hasBacker: true,
+    id: 'PANEL_FRONTAL_FORMICA_22008689',
+    label: 'Falda / pantalla frontal Formica',
+    tipo: 'frontal', material: 'formica', finishCode: '22008689', heightMm: 300,
+    hasCanto: true, hasBacker: false,
   },
   {
-    id: 'PANEL_LATERAL_TELA_BACKER_GAMA2_22021827',
-    label: 'Pantalla lateral tela Backer Gama 2',
-    tipo: 'lateral',
-    material: 'tela-backer',
-    finishCode: '22021827',
-    heightMm: 300,
-    hasCanto: false,
-    hasBacker: true,
+    id: 'PANEL_FRONTAL_TELA_BACKER',
+    label: 'Falda / pantalla frontal Tela con Backer',
+    tipo: 'frontal', material: 'tela-backer', finishCode: '22010282', heightMm: 300,
+    hasCanto: false, hasBacker: true,
   },
   {
-    id: 'PANEL_LATERAL_TELA_BACKER_NUVANT_22222222',
-    label: 'Pantalla lateral tela Backer Nuvant',
-    tipo: 'lateral',
-    material: 'tela-backer',
-    finishCode: '22222222',
-    heightMm: 300,
-    hasCanto: false,
-    hasBacker: true,
-  },
-  {
-    id: 'PANEL_LATERAL_TELA_BACKER_PROQUINAL_22021826',
-    label: 'Pantalla lateral tela Backer Proquinal',
-    tipo: 'lateral',
-    material: 'tela-backer',
-    finishCode: '22021826',
-    heightMm: 300,
-    hasCanto: false,
-    hasBacker: true,
-  },
-
-  // =========================
-  // LATERAL - TELA SIN BACKER
-  // =========================
-  {
-    id: 'PANEL_LATERAL_TELA_LAFAYETE_22010282',
-    label: 'Pantalla lateral tela sin Backer Lafayette',
-    tipo: 'lateral',
-    material: 'tela',
-    finishCode: '22010282',
-    heightMm: 300,
-    hasCanto: false,
-    hasBacker: false,
-  },
-  {
-    id: 'PANEL_LATERAL_TELA_GAMA2_22021827',
-    label: 'Pantalla lateral tela sin Backer Gama 2',
-    tipo: 'lateral',
-    material: 'tela',
-    finishCode: '22021827',
-    heightMm: 300,
-    hasCanto: false,
-    hasBacker: false,
-  },
-  {
-    id: 'PANEL_LATERAL_TELA_NUVANT_22222222',
-    label: 'Pantalla lateral tela sin Backer Nuvant',
-    tipo: 'lateral',
-    material: 'tela',
-    finishCode: '22222222',
-    heightMm: 300,
-    hasCanto: false,
-    hasBacker: false,
-  },
-  {
-    id: 'PANEL_LATERAL_TELA_PROQUINAL_22021826',
-    label: 'Pantalla lateral tela sin Backer Proquinal',
-    tipo: 'lateral',
-    material: 'tela',
-    finishCode: '22021826',
-    heightMm: 300,
-    hasCanto: false,
-    hasBacker: false,
+    id: 'PANEL_FRONTAL_TELA',
+    label: 'Falda / pantalla frontal Tela sin Backer',
+    tipo: 'frontal', material: 'tela', finishCode: '22010282', heightMm: 300,
+    hasCanto: false, hasBacker: false,
   },
 
   // =========================

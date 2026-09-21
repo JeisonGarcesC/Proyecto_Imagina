@@ -29,47 +29,62 @@ export const KONCISA_DUCT_SUPPORT_OFFSETS_FROM_PEDESTAL = {
   sencillo: {
     LEFT: {
       x: 0,
-      y: 710,
-      z: 0,
+      y: 710 - 100,
+      z: -290 - 180,
       rotY: 0,
     },
 
     RIGHT: {
-      x: 0,
-      y: 710,
-      z: 0,
+      x: 230,
+      y: 710 - 100,
+      z: -470,
       rotY: 0,
     },
 
     INTERMEDIO: {
-      x: 0,
-      y: 710,
-      z: 0,
+      x: -44, //ojo toca tener un condiciona para cuando sea izquierdo
+      y: 710 - 100,
+      z: -475,
       rotY: 0,
     },
   },
 
   doble: {
     LEFT: {
-      x: 0,
-      y: 710,
-      z: 0,
+      x: -250,
+      y: 710 - 100,
+      z: 549,
       rotY: 0,
     },
 
     RIGHT: {
-      x: 0,
-      y: 710,
-      z: 0,
+      x: 250,
+      y: 710 - 100,
+      z: -549,
       rotY: 0,
     },
 
     INTERMEDIO: {
-      x: 0,
-      y: 710,
-      z: 0,
+      x: -284,
+      y: 710 - 100,
+      z: 549,
       rotY: 0,
     },
+  },
+};
+
+// El soporte ya hereda el desplazamiento del pedestal porque su posición se calcula
+// desde este. Esta tabla suma únicamente una calibración relativa adicional.
+export const KONCISA_DUCT_SUPPORT_DEPTH_Z_ADJUSTMENTS_MM = {
+  sencillo: {
+    LEFT: { 600: 0, 700: 0, 750: 75 },
+    RIGHT: { 600: 0, 700: 0, 750: 75 },
+    INTERMEDIO: { 600: 0, 700: 0, 750: 75 },
+  },
+  doble: {
+    LEFT: { 1200: 0, 1300: 0, 1400: 0, 1500: 150 },
+    RIGHT: { 1200: 0, 1300: 0, 1400: 0, 1500: 150 },
+    INTERMEDIO: { 1200: 0, 1300: 0, 1400: 0, 1500: 150 },
   },
 };
 
@@ -89,23 +104,41 @@ export function normalizeDuctSupportZone(value) {
   return 'RIGHT';
 }
 
-export function resolveKoncisaDuctSupport({ tipoPuesto = 'sencillo', replaceZone = 'RIGHT' } = {}) {
+export function shouldCreateKoncisaPedestalDuctSupport({ layoutType } = {}) {
+  return String(layoutType || '').trim().toUpperCase() !== 'LEADER';
+}
+
+export function resolveKoncisaDuctSupport({
+  tipoPuesto = 'sencillo',
+  replaceZone = 'RIGHT',
+  realDepthMm,
+} = {}) {
   const puestoKey = normalizeDuctSupportTipoPuesto(tipoPuesto);
   const zoneKey = normalizeDuctSupportZone(replaceZone);
+  const resolvedDepthMm = Number(realDepthMm || (puestoKey === 'doble' ? 1200 : 600));
 
   const support = KONCISA_DUCT_SUPPORTS[puestoKey];
 
-  const offset = KONCISA_DUCT_SUPPORT_OFFSETS_FROM_PEDESTAL?.[puestoKey]?.[zoneKey] || {
+  const configuredOffset = KONCISA_DUCT_SUPPORT_OFFSETS_FROM_PEDESTAL?.[puestoKey]?.[zoneKey] || {
     x: 0,
     y: 710,
     z: 0,
     rotY: 0,
+  };
+  const depthZAdjustmentMm = Number(
+    KONCISA_DUCT_SUPPORT_DEPTH_Z_ADJUSTMENTS_MM?.[puestoKey]?.[zoneKey]?.[resolvedDepthMm] || 0
+  );
+  const offset = {
+    ...configuredOffset,
+    z: Number(configuredOffset.z || 0) + depthZAdjustmentMm,
   };
 
   return {
     ...support,
     tipoPuesto: puestoKey,
     replaceZone: zoneKey,
+    realDepthMm: resolvedDepthMm,
+    depthZAdjustmentMm,
     offsetMm: offset,
   };
 }

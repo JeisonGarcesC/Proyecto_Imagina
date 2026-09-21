@@ -25,6 +25,24 @@ export const KONCISA_INTEGRATION_CABLE_ACCESS_TYPE = {
   PASACABLE: 'pasacable',
 };
 
+function createDoubleIntegrationLegAssembly() {
+  return {
+    positioningMode: 'measured-depth-double-v1',
+    leftLegSrc: '/assets/models/koncisaPlus/LEFT_2KSO347000_Generico.glb',
+    rightLegSrc: '/assets/models/koncisaPlus/RIGHT_2KSO347000_Generico.glb',
+    centerBracketSrc: '/assets/models/koncisaPlus/CENTER_BRACKET_DOBLE_INTEGRACION.glb',
+    leftStructuralDepthMm: 50,
+    rightStructuralDepthMm: 50,
+    centerBracketOffsetMm: { x: 40, y: 0, z: 0 },
+    crossbar: {
+      heightMm: 25.4,
+      depthMm: 50.8,
+      endClearanceMm: 0,
+      offsetMm: { x: 30, y: 685, z: 0 },
+    },
+  };
+}
+
 export const KONCISA_INTEGRATION_RULES = {
   // =========================
   // ACOPLES
@@ -33,9 +51,9 @@ export const KONCISA_INTEGRATION_RULES = {
     KONPLUSSCOUPLETOWALL: {
       logicalCode: 'KONPLUSSCOUPLETOWALL',
       codigoPT: '22000132906',
-      modelCode: '2KAC210000',
-      modelSrc: '/assets/models/koncisaPlus/2KAC210000.glb',
-      name: 'ACOPLE DUCTO A PARED PINTADO KONCISA PLUS 2KAC210000',
+      modelCode: '2KAC267000',
+      modelSrc: '/assets/models/koncisaPlus/2KAC267000.glb',
+      name: 'ACOPLE DUCTO A PARED PINTADO KONCISA PLUS 2KAC267000',
     },
 
     KONPLUSSCOUPLETODUCT: {
@@ -89,7 +107,7 @@ export const KONCISA_INTEGRATION_RULES = {
       logicalCode: 'KONPLUSSGROMMET4TOMAS-ALUMINIUM',
       codigoPT: '22000023626',
       modelCode: 'LKAC250000',
-      modelSrc: null,
+      modelSrc: '/assets/models/koncisaPlus/LKAC250000.glb',
       name: 'GROMMET ALUMINIO 4 TOMAS ACCESORIO LINK LKAC250000',
       qty: 1,
     },
@@ -109,11 +127,20 @@ export const KONCISA_INTEGRATION_RULES = {
   // Cantidad: 1
   // =========================
   REINFORCEMENTS: {
+    1000: {
+      logicalCode: 'KONPLUSSSUPCHANNEL_16_260_100',
+      codigoPT: '22000132923',
+      modelCode: '2KAC262000_100',
+      modelSrc: '/assets/models/koncisaPlus/2KAC262000_100.glb',
+      name: 'REFUERZO SUPERFICIE A PEDESTAL O INTEGRACION 100CM KONCISA PLUS 2KAC262000',
+      qty: 1,
+    },
+
     1200: {
       logicalCode: 'KONPLUSSSUPCHANNEL_16_260_120',
       codigoPT: '22000132924',
-      modelCode: '2KAC262000',
-      modelSrc: '/assets/models/koncisaPlus/2KAC262000.glb',
+      modelCode: '2KAC262000_120',
+      modelSrc: '/assets/models/koncisaPlus/2KAC262000_120.glb',
       name: 'REFUERZO SUPERFICIE A PEDESTAL O INTEGRACION 120CM KONCISA PLUS 2KAC262000',
       qty: 1,
     },
@@ -121,8 +148,8 @@ export const KONCISA_INTEGRATION_RULES = {
     1500: {
       logicalCode: 'KONPLUSSSUPCHANNEL_16_260_150',
       codigoPT: '22000132925',
-      modelCode: '2KAC262000',
-      modelSrc: '/assets/models/koncisaPlus/2KAC262000.glb',
+      modelCode: '2KAC262000_150',
+      modelSrc: '/assets/models/koncisaPlus/2KAC262000_150.glb',
       name: 'REFUERZO SUPERFICIE A PEDESTAL O INTEGRACION 150CM KONCISA PLUS 2KAC262000',
       qty: 1,
     },
@@ -139,6 +166,7 @@ export const KONCISA_INTEGRATION_RULES = {
       codigoPT: '22000132926',
       modelCode: '2KSO347000_120',
       modelSrc: '/assets/models/koncisaPlus/2KSO347000_120.glb',
+      assembly: createDoubleIntegrationLegAssembly(),
       name: 'COSTADO DOBLE INTEGRACION 120CM PINTADO KONCISA PLUS 2KSO347000',
       qty: 1,
     },
@@ -148,6 +176,7 @@ export const KONCISA_INTEGRATION_RULES = {
       codigoPT: '22000132927',
       modelCode: '2KSO347000_150',
       modelSrc: '/assets/models/koncisaPlus/2KSO347000_150.glb',
+      assembly: createDoubleIntegrationLegAssembly(),
       name: 'COSTADO DOBLE INTEGRACION 150CM PINTADO KONCISA PLUS 2KSO347000',
       qty: 1,
     },
@@ -166,6 +195,90 @@ export function normalizeIntegrationDepthMm(value = 600) {
 
   if (n <= 600) return 600;
   return 750;
+}
+
+export function resolveKoncisaIntegrationPlacement({
+  widthMm = 1200,
+  depthMm = 600,
+  side = KONCISA_INTEGRATION_SIDE.RIGHT,
+  cableAccessType = KONCISA_INTEGRATION_CABLE_ACCESS_TYPE.GROMMET,
+} = {}) {
+  const normalizedWidthMm = normalizeIntegrationWidthMm(widthMm);
+  const normalizedDepthMm = normalizeIntegrationDepthMm(depthMm);
+  const normalizedSide = normalizeIntegrationSide(side);
+  const normalizedCableAccessType = normalizeIntegrationCableAccessType(cableAccessType);
+  const centerX = -normalizedDepthMm / 2;
+  const centerZByWidth = {
+    1200: 0,
+    1500: 0,
+  };
+  const centerZ = centerZByWidth[normalizedWidthMm] ?? 0;
+  const nearEdgeZ = centerZ - normalizedWidthMm / 2;
+  const farEdgeZ = centerZ + normalizedWidthMm / 2;
+
+  const ductXFromCenterByDepth = {
+    600: 271,
+    750: 346,
+  };
+  const coupleXFromCenterByDepth = {
+    600: 228,
+    750: 305,
+  };
+  const cableAccessXFromCenter =
+    normalizedCableAccessType === KONCISA_INTEGRATION_CABLE_ACCESS_TYPE.GROMMET &&
+    normalizedDepthMm === 600
+      ? 196
+      : 271;
+  const reinforcementZFromCenterByWidth = {
+    1000: 0,
+    1200: -320,
+    1500: -470,
+  };
+
+  return {
+    normalizedWidthMm,
+    normalizedDepthMm,
+    side: normalizedSide,
+    cableAccessType: normalizedCableAccessType,
+    surfaceCenter: { x: centerX, z: centerZ },
+    nearEdgeZ,
+    farEdgeZ,
+    unitLegs: [
+      {
+        x: -(normalizedDepthMm - 1),
+        z: -nearEdgeZ + 2,
+        rotY: 0,
+      },
+      {
+        x: -normalizedDepthMm,
+        z: -farEdgeZ + 1,
+        rotY: -Math.PI / 2,
+      },
+    ],
+    duct: {
+      x: centerX + (ductXFromCenterByDepth[normalizedDepthMm] ?? 346),
+      z: centerZ + 347,
+      rotY: Math.PI / 2,
+    },
+    couple: {
+      x: centerX + (coupleXFromCenterByDepth[normalizedDepthMm] ?? 305),
+      z: 123,
+      rotY: Math.PI,
+      rotZ: Math.PI / 2,
+    },
+    cableAccess: {
+      x: centerX + cableAccessXFromCenter,
+      z: centerZ,
+      rotY: Math.PI / 2,
+    },
+    reinforcement: {
+      x: centerX + 78,
+      z:
+        centerZ +
+        -(reinforcementZFromCenterByWidth[Number(widthMm)] ?? 0),
+      rotY: Math.PI / 2,
+    },
+  };
 }
 
 export function normalizeIntegrationSide(value = KONCISA_INTEGRATION_SIDE.RIGHT) {
@@ -254,13 +367,16 @@ export function resolveKoncisaIntegrationCableAccess({
 }
 
 export function resolveKoncisaIntegrationReinforcement({ widthMm = 1200 } = {}) {
-  const normalizedWidthMm = normalizeIntegrationWidthMm(widthMm);
-  const found = KONCISA_INTEGRATION_RULES.REINFORCEMENTS[normalizedWidthMm];
+  const requestedWidthMm = Math.round(Number(widthMm || 1200));
+  const exact = KONCISA_INTEGRATION_RULES.REINFORCEMENTS[requestedWidthMm];
+  const fallbackWidthMm = normalizeIntegrationWidthMm(requestedWidthMm);
+  const found = exact || KONCISA_INTEGRATION_RULES.REINFORCEMENTS[fallbackWidthMm];
 
   return {
-    nominalWidthMm: normalizedWidthMm,
+    nominalWidthMm: requestedWidthMm,
     ...found,
     exists: !!found,
+    usesStandardModel: !!exact,
   };
 }
 

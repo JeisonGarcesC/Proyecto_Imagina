@@ -18,7 +18,7 @@ export const KONCISA_DUCTO_RULES = {
   },
   KONPLUSSCABLEDUCTINT120: {
     codigoPT: '22000132412',
-    modelSrc: '/assets/models/koncisaPlus/2KSO332000_120.glb',
+    modelSrc: '/assets/models/koncisaPlus/2KSO367000_120.glb',
   },
   KONPLUSSCABLEDUCTINT150: {
     codigoPT: '22000132413',

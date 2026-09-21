@@ -1297,6 +1297,9 @@ export default function App() {
               onAddCritterium8={(config) =>
                 !readOnly && threeApiRef.current?.addCritterium8?.(config)
               }
+              onAddVetro={(config) =>
+                !readOnly && threeApiRef.current?.addVetro?.(config)
+              }
               onToggleSnap={() => !readOnly && threeApiRef.current?.toggleSnap?.()}
               onApplyGlobalMaterial={(code, scope = 'ALL') => {
                 if (readOnly) return;

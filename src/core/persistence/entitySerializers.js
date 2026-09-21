@@ -69,6 +69,15 @@ function findCritterium8Assembly(object) {
   return null;
 }
 
+function findMilaAssembly(object) {
+  let current = object || null;
+  while (current) {
+    if (current.userData?.kind === 'MILA_ASSEMBLY') return current;
+    current = current.parent || null;
+  }
+  return null;
+}
+
 function serializeKoncisaAssembly(assembly, physicalParts) {
   const recipe = serializeKoncisaPlusRecipe({ assembly, physicalParts });
   const data = assembly.userData || {};
@@ -126,6 +135,57 @@ export function serializeCritterium8Entity(assembly) {
       provisionalGeometry: Array.isArray(data.renderReport?.diagnostics)
         ? data.renderReport.diagnostics.some((item) => item.code === 'PROVISIONAL_GEOMETRY')
         : false,
+    },
+  };
+}
+
+export function serializeVetroEntity(object) {
+  const data = object?.userData || {};
+  return {
+    kind: 'VETRO_PRODUCT',
+    family: 'VETRO',
+    instanceId: data.instanceId || object?.uuid || null,
+    codigoPT: data.codigoPT || data.code || null,
+    code: data.code || data.codigoPT || null,
+    config: cloneSerializable(data.config || {}),
+    product: cloneSerializable(data.product || {}),
+    transform: {
+      position: object.position.toArray(),
+      quaternion: object.quaternion.toArray(),
+      rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
+      scale: object.scale.toArray(),
+    },
+    metadata: {
+      line: 'VETRO',
+      renderStatus: data.renderStatus || 'ASSET_NOT_AVAILABLE',
+    },
+  };
+}
+
+export function serializeMilaEntity(assembly, { collectFinishes } = {}) {
+  const data = assembly?.userData || {};
+  const instanceId = data.instanceId || data.code || assembly?.uuid || null;
+  const groupId = data.groupId || instanceId;
+
+  return {
+    kind: 'MILA',
+    instanceId,
+    assemblyId: instanceId,
+    groupId,
+    family: 'MILA',
+    codigoPT: data.codigoPT || groupId,
+    code: data.code || groupId,
+    config: cloneSerializable(data.config || {}),
+    transform: {
+      position: assembly.position.toArray(),
+      quaternion: assembly.quaternion.toArray(),
+      rotation: [assembly.rotation.x, assembly.rotation.y, assembly.rotation.z],
+      scale: assembly.scale.toArray(),
+    },
+    finishes: collectFinishes?.(assembly) || null,
+    metadata: {
+      line: data.line || 'MILA',
+      groupName: data.groupName || data.name || 'Mila',
     },
   };
 }
@@ -196,9 +256,29 @@ export function serializeProjectEntities(parts = [], options = {}) {
   });
 
   parts.forEach((partRecord) => {
+    const assembly = findMilaAssembly(partRecord?.obj);
+    if (!assembly) return;
+    const assemblyId = assembly.userData?.instanceId || assembly.userData?.code || assembly.uuid;
+    if (processedAssemblies.has(assemblyId)) return;
+    processedAssemblies.add(assemblyId);
+    entities.push(serializeMilaEntity(assembly, options));
+  });
+
+  parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
+    if (object?.userData?.kind !== 'VETRO_PRODUCT') return;
+    const instanceId = object.userData?.instanceId || object.uuid;
+    if (processedAssemblies.has(instanceId)) return;
+    processedAssemblies.add(instanceId);
+    entities.push(serializeVetroEntity(object));
+  });
+
+  parts.forEach((partRecord) => {
     if (
       findKoncisaAssembly(partRecord?.obj) ||
       findCritterium8Assembly(partRecord?.obj) ||
+      findMilaAssembly(partRecord?.obj) ||
+      partRecord?.obj?.userData?.kind === 'VETRO_PRODUCT' ||
       isKoncisaPersistenceObject(partRecord?.obj)
     ) {
       return;

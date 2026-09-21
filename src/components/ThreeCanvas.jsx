@@ -71,6 +71,12 @@ import {
 import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekSocialInstance';
 import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
 import { createCritterium8Instance } from '../mepal/critterium8/factories/createCritterium8Instance.js';
+import { createVetroInstance } from '../mepal/vetro/factories/createVetroInstance.js';
+import {
+  registerVetroInstance,
+  unregisterVetroInstance,
+} from '../mepal/vetro/integration/vetroRegistration.js';
+import { rebuildVetroInstance } from '../mepal/vetro/integration/rebuildVetroInstance.js';
 import { registerCritterium8Instance } from '../mepal/critterium8/integration/critterium8Registration.js';
 import { rebuildCritterium8Instance } from '../mepal/critterium8/integration/rebuildCritterium8Instance.js';
 import { patchCritterium8TileConfig } from '../mepal/critterium8/integration/critterium8Config.js';
@@ -115,8 +121,15 @@ import {
   getPedestalSidesForCostado,
 } from '../mepal/koncisaPlus/rules/koncisaPedestalRules';
 
-import { resolveKoncisaPedestalReinforcement } from '../mepal/koncisaPlus/rules/koncisaPedestalReinforcementRules';
-import { resolveKoncisaDuctSupport } from '../mepal/koncisaPlus/rules/koncisaDuctSupportRules';
+import {
+  resolveKoncisaPedestalReinforcement,
+  resolveKoncisaPedestalReinforcementPosition,
+  shouldReplaceKoncisaBeamWithPedestalReinforcement,
+} from '../mepal/koncisaPlus/rules/koncisaPedestalReinforcementRules';
+import {
+  resolveKoncisaDuctSupport,
+  shouldCreateKoncisaPedestalDuctSupport,
+} from '../mepal/koncisaPlus/rules/koncisaDuctSupportRules';
 
 import { resolveKoncisaSurfaceCodigoPT } from '../mepal/koncisaPlus/rules/koncisaSurfaceRules';
 import {
@@ -129,7 +142,10 @@ import {
   normalizeIntegrationDepthMm,
   normalizeIntegrationSide,
   normalizeIntegrationWidthMm,
+  resolveKoncisaIntegrationCouple,
   resolveKoncisaIntegrationPackage,
+  resolveKoncisaIntegrationPlacement,
+  resolveKoncisaIntegrationReinforcement,
 } from '../mepal/koncisaPlus/rules/koncisaIntegrationRules';
 
 import {
@@ -1265,7 +1281,9 @@ function ThreeCanvas({
     function isClakConnectorEnabledObject(obj) {
       if (!obj) return false;
       if (obj.userData?.kind !== 'CLAK') return false;
-      const normalizedCode = normalizeClakConnectorCode(obj.userData?.code || obj.userData?.codigoPT);
+      const normalizedCode = normalizeClakConnectorCode(
+        obj.userData?.code || obj.userData?.codigoPT
+      );
       return CLAK_CONNECTOR_CODES.has(normalizedCode);
     }
 
@@ -1274,9 +1292,15 @@ function ThreeCanvas({
       const localNormal = new THREE.Vector3();
 
       if (Array.isArray(provided) && provided.length === 3) {
-        localNormal.set(Number(provided[0]) || 0, Number(provided[1]) || 0, Number(provided[2]) || 0);
+        localNormal.set(
+          Number(provided[0]) || 0,
+          Number(provided[1]) || 0,
+          Number(provided[2]) || 0
+        );
       } else {
-        const normalizedCode = normalizeClakConnectorCode(obj?.userData?.code || obj?.userData?.codigoPT);
+        const normalizedCode = normalizeClakConnectorCode(
+          obj?.userData?.code || obj?.userData?.codigoPT
+        );
         if (normalizedCode === 'BP') {
           localNormal.set(0, 0, 1);
         } else {
@@ -1294,10 +1318,7 @@ function ThreeCanvas({
         .normalize();
     }
 
-    function resolveBestConnectorSnap(
-      activeObj,
-      { includeSameGroup = false } = {}
-    ) {
+    function resolveBestConnectorSnap(activeObj, { includeSameGroup = false } = {}) {
       if (!activeObj) return null;
 
       const activeCode = activeObj.userData?.code || activeObj.userData?.codigoPT;
@@ -1319,7 +1340,8 @@ function ThreeCanvas({
 
       for (const p of parts) {
         if (!p?.obj || p.obj === activeObj) continue;
-        if (!includeSameGroup && activeGroupId && p.obj.userData?.groupId === activeGroupId) continue;
+        if (!includeSameGroup && activeGroupId && p.obj.userData?.groupId === activeGroupId)
+          continue;
 
         const targetConnectors = resolveObjectConnectors(p.obj, p.code);
         if (!targetConnectors.length) continue;
@@ -1448,7 +1470,8 @@ function ThreeCanvas({
         clakSnapTargetConnector.visible = false;
       }
 
-      clakConnectorHandleGroup.visible = clakActiveConnector.visible || clakSnapTargetConnector.visible;
+      clakConnectorHandleGroup.visible =
+        clakActiveConnector.visible || clakSnapTargetConnector.visible;
       clakConnectorHandleGroup.updateMatrixWorld(true);
     }
 
@@ -1530,7 +1553,11 @@ function ThreeCanvas({
       return null;
     }
 
-    function collectConnectorCandidatesByScope(targetObj, scopeLine, { excludeSameGroup = false } = {}) {
+    function collectConnectorCandidatesByScope(
+      targetObj,
+      scopeLine,
+      { excludeSameGroup = false } = {}
+    ) {
       const allAssemblies = [];
       const allGiroSurfaces = [];
       const allAccessories = [];
@@ -1624,12 +1651,8 @@ function ThreeCanvas({
         return;
       }
 
-      const {
-        allAssemblies,
-        allGiroSurfaces,
-        allAccessories,
-        allPanelDivisors,
-      } = collectConnectorCandidatesByScope(targetObj, connectorScopeLine);
+      const { allAssemblies, allGiroSurfaces, allAccessories, allPanelDivisors } =
+        collectConnectorCandidatesByScope(targetObj, connectorScopeLine);
       const allSceneObjects = [
         ...allAssemblies,
         ...allGiroSurfaces,
@@ -1746,10 +1769,12 @@ function ThreeCanvas({
       } else {
         isLeftOccupied =
           !isDragging &&
-          (pLeft?.isOccupied || connectorEngine.isPortOccupied(pLeft?.worldPos, targetObj, allSceneObjects));
+          (pLeft?.isOccupied ||
+            connectorEngine.isPortOccupied(pLeft?.worldPos, targetObj, allSceneObjects));
         isRightOccupied =
           !isDragging &&
-          (pRight?.isOccupied || connectorEngine.isPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
+          (pRight?.isOccupied ||
+            connectorEngine.isPortOccupied(pRight?.worldPos, targetObj, allSceneObjects));
 
         const hasCenterOnlyPort = !pLeft && !pRight && Boolean(pCenter);
 
@@ -2267,7 +2292,7 @@ function ThreeCanvas({
 
       syncGridVisibility();
 
-      if (activePart) {
+      if (activePart && activePart.userData?.hasVisual !== false) {
         selectionHelper = new THREE.BoxHelper(activePart, 0xffcc00);
         scene.add(selectionHelper);
         selectionHelper.update();
@@ -2564,6 +2589,9 @@ function ThreeCanvas({
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
+          if (obj.userData?.kind === 'VETRO_PRODUCT') {
+            return null;
+          }
 
           obj.updateMatrixWorld(true);
           const finishSnapshot = extractFinishAppearanceSnapshot2D(obj);
@@ -3941,7 +3969,10 @@ function ThreeCanvas({
 
         const koncisaAssembly = getKoncisaPlusAssembly(obj);
         const koncisaConfigurationKey = resolveKoncisaBomConfigurationKey(koncisaAssembly);
-        if (koncisaConfigurationKey && !koncisaGroupIdsByConfiguration.has(koncisaConfigurationKey)) {
+        if (
+          koncisaConfigurationKey &&
+          !koncisaGroupIdsByConfiguration.has(koncisaConfigurationKey)
+        ) {
           koncisaGroupIdsByConfiguration.set(
             koncisaConfigurationKey,
             koncisaAssembly.userData?.groupId || koncisaAssembly.userData?.instanceId
@@ -4663,7 +4694,10 @@ function ThreeCanvas({
         activeObj.position.add(best.delta);
         activeObj.updateMatrixWorld(true);
 
-        if (isClakConnectorEnabledObject(activeObj) && isClakConnectorEnabledObject(best.targetObj)) {
+        if (
+          isClakConnectorEnabledObject(activeObj) &&
+          isClakConnectorEnabledObject(best.targetObj)
+        ) {
           unifyMilaConnectedAssemblies(activeObj, best.targetObj);
         }
 
@@ -5627,6 +5661,54 @@ function ThreeCanvas({
       return instance;
     }
 
+    async function addVetro(config = {}, options = {}) {
+      if (readOnly) return null;
+      const instance = await createVetroInstance({ config, transform: options.transform });
+      if (!instance.success || !instance.object) {
+        console.warn('[VETRO] Combinacion no documentada.', instance.diagnostics);
+        return instance;
+      }
+      const object = registerVetroInstance({
+        instance,
+        parent: options.parentGroup || scene,
+        partsRegistry: parts,
+        pickables,
+      });
+      object.updateMatrixWorld(true);
+      setActivePart(object);
+      recordCreateObjects({ objects: [object] });
+      emitBOM();
+      refreshFloorAndGrid();
+      return instance;
+    }
+
+    async function updateSelectedVetro(patch = {}) {
+      if (readOnly || activePart?.userData?.kind !== 'VETRO_PRODUCT') {
+        return { success: false, reason: 'VETRO_PRODUCT_REQUIRED' };
+      }
+      const current = activePart;
+      const parent = current.parent || scene;
+      const replacement = await rebuildVetroInstance({ object: current, patch });
+      if (!replacement.success || !replacement.object) {
+        return {
+          success: false,
+          reason: replacement.diagnostics?.[0]?.code || 'VETRO_CODE_NOT_DOCUMENTED',
+          diagnostics: replacement.diagnostics || [],
+        };
+      }
+      unregisterVetroInstance({ object: current, partsRegistry: parts, pickables });
+      const object = registerVetroInstance({
+        instance: replacement,
+        parent,
+        partsRegistry: parts,
+        pickables,
+      });
+      setActivePart(object);
+      emitBOM();
+      refreshFloorAndGrid();
+      return { success: true, object, diagnostics: replacement.diagnostics || [] };
+    }
+
     function getSelectedCritterium8Sequence() {
       return (
         getCritterium8SequenceRoot(activePart) ||
@@ -6517,7 +6599,9 @@ function ThreeCanvas({
 
     async function addKuoAVPantalla(config = {}) {
       if (readOnly) return;
-      const _countPan = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY').length;
+      const _countPan = parts.filter(
+        ({ obj }) => obj?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY'
+      ).length;
       let result;
       try {
         result = await createKuoAVPantallaInstance({
@@ -6907,7 +6991,10 @@ function ThreeCanvas({
         String(meta.role || '').toLowerCase() === 'seat';
 
       if (!isMoreaSeat) {
-        console.warn('[swapMoreaSeatVariant] La pieza no es un puesto editable de Morea:', instanceId);
+        console.warn(
+          '[swapMoreaSeatVariant] La pieza no es un puesto editable de Morea:',
+          instanceId
+        );
         return;
       }
 
@@ -6932,7 +7019,14 @@ function ThreeCanvas({
           if (node.userData?.kind !== 'GLB_PART') return;
           if (String(node.userData?.line || '').toUpperCase() !== 'MOREA') return;
           const role = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
-          if (!(role === 'side-left' || role === 'side-right' || role.startsWith('side-center-support'))) return;
+          if (
+            !(
+              role === 'side-left' ||
+              role === 'side-right' ||
+              role.startsWith('side-center-support')
+            )
+          )
+            return;
 
           const box = new THREE.Box3().setFromObject(node);
           if (Number.isFinite(box.max.y)) topYs.push(box.max.y);
@@ -6964,7 +7058,13 @@ function ThreeCanvas({
           box.getSize(size);
           box.getCenter(center);
 
-          if (!Number.isFinite(box.min.y) || !Number.isFinite(size.x) || !Number.isFinite(size.y) || !Number.isFinite(size.z)) return;
+          if (
+            !Number.isFinite(box.min.y) ||
+            !Number.isFinite(size.x) ||
+            !Number.isFinite(size.y) ||
+            !Number.isFinite(size.z)
+          )
+            return;
 
           const area = size.x * size.z;
           const maxHorizontal = Math.max(size.x, size.z);
@@ -7030,7 +7130,10 @@ function ThreeCanvas({
       }
 
       if (!gltf?.scene) {
-        console.error('[swapMoreaSeatVariant] No se pudo parsear el GLB destino:', nextVariant.modelSrc);
+        console.error(
+          '[swapMoreaSeatVariant] No se pudo parsear el GLB destino:',
+          nextVariant.modelSrc
+        );
         return;
       }
 
@@ -7055,17 +7158,15 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
-      const nextPrices =
-        catalogItem?.prices ||
-        catalogItem?.raw?.prices ||
-        {
+      const nextPrices = catalogItem?.prices ||
+        catalogItem?.raw?.prices || {
           CO: nextUnitPrice,
         };
 
@@ -7252,7 +7353,10 @@ function ThreeCanvas({
       }
 
       if (!anchorObj) {
-        console.warn('[swapMoreaPedestalVariant] No se encontró el ensamble/pieza Morea:', targetIdentifier);
+        console.warn(
+          '[swapMoreaPedestalVariant] No se encontró el ensamble/pieza Morea:',
+          targetIdentifier
+        );
         return;
       }
 
@@ -7263,7 +7367,10 @@ function ThreeCanvas({
         String(assemblyRoot?.userData?.type || '').toLowerCase() === 'morea';
 
       if (!isMoreaAssembly) {
-        console.warn('[swapMoreaPedestalVariant] El objetivo no pertenece a un ensamble Morea:', targetIdentifier);
+        console.warn(
+          '[swapMoreaPedestalVariant] El objetivo no pertenece a un ensamble Morea:',
+          targetIdentifier
+        );
         return;
       }
 
@@ -7274,10 +7381,10 @@ function ThreeCanvas({
       const woodOutwardOffsetMm =
         moreaVariant === 'double'
           ? Number(
-            MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
-              MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
-              12
-          )
+              MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+                MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+                12
+            )
           : Number(MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM || 12);
 
       const sideTargets = [];
@@ -7292,7 +7399,9 @@ function ThreeCanvas({
       });
 
       if (!sideTargets.length) {
-        console.warn('[swapMoreaPedestalVariant] No se encontraron pedestales laterales en el ensamble Morea.');
+        console.warn(
+          '[swapMoreaPedestalVariant] No se encontraron pedestales laterales en el ensamble Morea.'
+        );
         return;
       }
 
@@ -7401,7 +7510,10 @@ function ThreeCanvas({
       }
 
       if (!gltf?.scene) {
-        console.error('[swapMoreaPedestalVariant] No se pudo parsear el GLB destino:', nextVariant.modelSrc);
+        console.error(
+          '[swapMoreaPedestalVariant] No se pudo parsear el GLB destino:',
+          nextVariant.modelSrc
+        );
         return;
       }
 
@@ -7415,17 +7527,15 @@ function ThreeCanvas({
       const nextUnitPriceBase =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-          catalogItem?.prices?.CO ??
-          catalogItem?.prices?.co ??
-          catalogItem?.raw?.prices?.[countryRef.current] ??
-          catalogItem?.raw?.prices?.CO ??
-          catalogItem?.raw?.price ??
-          0
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
         ) || 0;
-      const nextPricesBase =
-        catalogItem?.prices ||
-        catalogItem?.raw?.prices ||
-        {
+      const nextPricesBase = catalogItem?.prices ||
+        catalogItem?.raw?.prices || {
           CO: nextUnitPriceBase,
         };
 
@@ -9461,6 +9571,85 @@ function ThreeCanvas({
         }
       }
 
+      async function createPersistedVetro(entity) {
+        if (!entity?.config || typeof entity.config !== 'object') {
+          throw new Error('VETRO_MISSING_CONFIG');
+        }
+        const instance = await createVetroInstance({
+          config: entity.config,
+          instanceId: entity.instanceId,
+          transform: entity.transform,
+        });
+        if (!instance.success || !instance.object) {
+          const error = new Error(instance.diagnostics?.[0]?.code || 'VETRO_CODE_NOT_DOCUMENTED');
+          error.diagnostics = instance.diagnostics || [];
+          throw error;
+        }
+        registerVetroInstance({ instance, parent: scene, partsRegistry: parts, pickables });
+        instance.object.updateMatrixWorld(true);
+        return instance.object;
+      }
+
+      async function createPersistedMila(entity) {
+        if (!entity?.config || typeof entity.config !== 'object') {
+          throw new Error('MILA_MISSING_CONFIG');
+        }
+
+        let createdAssembly = null;
+        const factoryApi = {
+          createMilaAssemblyGroup: (config) => {
+            createdAssembly = createMilaAssemblyGroup(config);
+            return createdAssembly;
+          },
+          addExternalGlbPart,
+          selectObject: () => {},
+        };
+
+        try {
+          const result = await createMilaInstance({
+            api: factoryApi,
+            config: { ...entity.config, silentCreation: true },
+            notify: (message) => console.warn('[loadProject] Mila:', message),
+            buildHidden: true,
+            deferReveal: true,
+          });
+          const assembly = result?.assembly;
+          if (!assembly) throw new Error('MILA_FACTORY_DID_NOT_RETURN_ASSEMBLY');
+
+          const generatedGroupId = result.groupId || assembly.userData?.groupId;
+          const instanceId = entity.instanceId || entity.assemblyId || generatedGroupId;
+          const groupId = entity.groupId || instanceId;
+          const groupName = entity.metadata?.groupName || assembly.userData?.groupName || 'Mila';
+
+          assembly.traverse((node) => {
+            if (!node.userData) return;
+            if (node.userData.groupId === generatedGroupId) node.userData.groupId = groupId;
+            if (node.userData.parentAssemblyId === generatedGroupId) {
+              node.userData.parentAssemblyId = instanceId;
+            }
+            if (node.userData.groupName) node.userData.groupName = groupName;
+          });
+          assembly.userData = {
+            ...(assembly.userData || {}),
+            instanceId,
+            groupId,
+            groupName,
+            code: entity.code || instanceId,
+            codigoPT: entity.codigoPT || instanceId,
+            config: { ...entity.config },
+          };
+          assembly.name = groupName;
+          assembly.visible = true;
+          assembly.updateMatrixWorld(true);
+          return assembly;
+        } catch (error) {
+          if (createdAssembly) {
+            removePartObject(createdAssembly, { emitBom: false, disposeResources: true });
+          }
+          throw error;
+        }
+      }
+
       if (isVersionedEntityProject(project)) {
         const result = { loaded: [], failed: [] };
         const context = {
@@ -9475,6 +9664,8 @@ function ThreeCanvas({
           addCatalogItem,
           createKoncisaPlus: createPersistedKoncisaPlus,
           createCritterium8: createPersistedCritterium8,
+          createVetro: createPersistedVetro,
+          createMila: createPersistedMila,
           createImportedModel: (entity) =>
             createImportedModel({
               ...(entity.metadata || {}),
@@ -9807,6 +9998,12 @@ function ThreeCanvas({
       tipo = 'lateral',
       material = 'formica',
       lengthMm = 1200,
+      skuLengthMm = lengthMm,
+      surfaceThicknessMm = 30,
+      modoEspecial = false,
+      descriptionLengthMm = lengthMm,
+      supportEdge = 'start',
+      supportOffsetZMm = 0,
       heightMm = 300,
       thickMm,
       finishCode = '22008689',
@@ -9816,6 +10013,7 @@ function ThreeCanvas({
       x = 0,
       y = 900,
       z = 0,
+      rotationY = 0,
 
       color,
       cantoColor,
@@ -9828,12 +10026,19 @@ function ThreeCanvas({
         tipo,
         material,
         lengthMm,
+        skuLengthMm,
+        surfaceThicknessMm,
+        modoEspecial,
+        descriptionLengthMm,
+        supportEdge,
+        supportOffsetZMm,
         heightMm,
         thickMm,
         finishCode,
         x,
         y,
         z,
+        rotationY,
         color,
         cantoColor,
         privacyPanelFinishId,
@@ -9892,11 +10097,12 @@ function ThreeCanvas({
           support.position.set(0, 0, 0);
           support.updateMatrixWorld(true);
           const supportBounds = new THREE.Box3().setFromObject(support);
-          const supportCenter = supportBounds.getCenter(new THREE.Vector3());
+          const supportZEdge =
+            anchor.supportEdge === 'end' ? supportBounds.max.z : supportBounds.min.z;
           support.position.set(
             anchor.position?.[0] || 0,
             (anchor.position?.[1] || 0) - supportBounds.min.y,
-            (anchor.position?.[2] || 0) - supportCenter.z
+            (anchor.position?.[2] || 0) - supportZEdge
           );
 
           support.traverse((node) => {
@@ -10107,6 +10313,43 @@ function ThreeCanvas({
       return true;
     }
 
+    function moveActiveKoncisaLateralPanel(direction) {
+      if (readOnly) return false;
+      const root = getActiveEditablePartObject();
+      const isLateral =
+        root?.userData?.kind === 'PRIVACY_PANEL' &&
+        (String(root.userData?.subtype || '').toLowerCase() === 'lateral' ||
+          String(root.userData?.description || root.name || '')
+            .toUpperCase()
+            .includes('PANTALLA LATERAL'));
+      if (!isLateral) {
+        return false;
+      }
+      const sign = String(direction).toUpperCase() === 'LEFT' ? -1 : 1;
+      root.position.x += sign * 0.05;
+      root.userData.manualLateralOffsetMm =
+        Number(root.userData.manualLateralOffsetMm || 0) + sign * 50;
+      root.updateMatrixWorld(true);
+      selectionHelper?.update?.();
+      emitBOM();
+      return true;
+    }
+
+    function removeActiveKoncisaLateralPanel() {
+      if (readOnly) return false;
+      const root = getActiveEditablePartObject();
+      const isLateral =
+        root?.userData?.kind === 'PRIVACY_PANEL' &&
+        (String(root.userData?.subtype || '').toLowerCase() === 'lateral' ||
+          String(root.userData?.description || root.name || '')
+            .toUpperCase()
+            .includes('PANTALLA LATERAL'));
+      if (!isLateral) {
+        return false;
+      }
+      return removePartObject(root, { exactTarget: true });
+    }
+
     function createKoncisaPlusAssemblyGroup(config = {}) {
       const now = Date.now();
 
@@ -10246,6 +10489,8 @@ function ThreeCanvas({
       addSurface,
       addKoncisaPrivacyPanel,
       updateActivePrivacyPanelFinish,
+      moveActiveKoncisaLateralPanel,
+      removeActiveKoncisaLateralPanel,
       createKoncisaPlusAssemblyGroup,
       setKoncisaBomTypologyCode,
       createMilaAssemblyGroup,
@@ -10305,6 +10550,8 @@ function ThreeCanvas({
       addEduk,
       addZen,
       addCritterium8,
+      addVetro,
+      updateSelectedVetro,
       buildCritterium8SequenceFromSelectedFrames,
       createCritterium8SequenceFromSelection,
       createCritterium8SequenceFromFrames,
@@ -10435,6 +10682,7 @@ function ThreeCanvas({
       removeActiveOrGroup: () => removeTargetOrGroup(activePart),
       updateSelectedDuctType,
       updateSelectedDuctCovers,
+      updateSelectedIndividualDuctWallCoupling,
       updateSelectedCeilingDucts,
       updateSelectedCeilingDuctSide,
       updateSelectedFloorDuctPosition,
@@ -10468,6 +10716,7 @@ function ThreeCanvas({
       updateFloorVisualOptions,
       replaceSelectedCostadoWithPedestal,
       replaceSelectedPedestalWithCostado,
+      moveSelectedKoncisaPedestal,
       replaceSelectedCostadoWithIntegration,
       removeSelectedIntegrationAndRestoreCostado,
       rotateSelectedDuct180,
@@ -11653,13 +11902,28 @@ function ThreeCanvas({
 
       const pedestalSetId = `PEDSET_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 
-      const originalVigaSnapshots = await replaceVigasWithPedestalReinforcement({
-        parentGroup,
-        moduleIndex,
-        pedestalSetId,
+      const layoutType =
+        costadoObj.userData?.meta?.layoutType || costadoObj.userData?.layoutType || null;
+      const shouldReplaceVigas = shouldReplaceKoncisaBeamWithPedestalReinforcement({
+        layoutType,
       });
+      const originalVigaSnapshots = shouldReplaceVigas
+        ? await replaceVigasWithPedestalReinforcement({
+            parentGroup,
+            moduleIndex,
+            pedestalSetId,
+            costadoPositionMm: {
+              x: basePos.x * 1000,
+              y: basePos.y * 1000,
+              z: basePos.z * 1000,
+            },
+          })
+        : [];
 
       const originalCostadoSnapshot = {
+        creatorKind: costadoObj.userData?.meta?.costadoAssembly
+          ? 'koncisa-costado-assembly'
+          : 'glb',
         type: 'costado',
         line: costadoObj.userData?.line || 'KONCISA.PLUS',
         code: costadoObj.userData?.code || costadoObj.userData?.codigoPT || null,
@@ -11753,6 +12017,10 @@ function ThreeCanvas({
             replaceZone,
             moduleIndex,
             placementSide: pedestal.placementSide,
+            layoutType: pedestal.layoutType,
+            leaderSide: pedestal.leaderSide,
+            realDepthMm: pedestal.realDepthMm,
+            depthZAdjustmentMm: pedestal.depthZAdjustmentMm,
 
             pedestalSetId,
 
@@ -11770,9 +12038,11 @@ function ThreeCanvas({
         }
       }
 
-      console.log('PEDESTAL BASE PARA SOPORTE DUCTO:', firstPedestalObj);
+      const shouldCreateDuctSupport = shouldCreateKoncisaPedestalDuctSupport({
+        layoutType,
+      });
 
-      if (firstPedestalObj) {
+      if (firstPedestalObj && shouldCreateDuctSupport) {
         await addDuctSupportForPedestalSet({
           parentGroup,
           basePedestalObj: firstPedestalObj,
@@ -11782,15 +12052,39 @@ function ThreeCanvas({
           moduleIndex,
           pedestalSetId,
         });
-      } else {
+      } else if (!firstPedestalObj) {
         console.warn('No se pudo crear soporte ducto: no se encontró pedestal base.');
       }
 
-      removePartObject(costadoObj);
+      // El costado es una pieza interna de KONCISA_PLUS_ASSEMBLY. La eliminacion
+      // generica asciende hasta la raiz del puesto; aqui solo se reemplaza esta pieza.
+      removePartObject(costadoObj, { exactTarget: true });
 
       emitBOM();
       refreshFloorAndGrid();
 
+      return true;
+    }
+
+    function moveSelectedKoncisaPedestal(direction) {
+      if (readOnly) return false;
+
+      const pedestalObj = getActiveEditablePartObject();
+      const isPedestal =
+        pedestalObj?.userData?.kind === 'pedestal' ||
+        pedestalObj?.userData?.meta?.category === 'pedestales';
+      if (!isPedestal) return false;
+
+      const sign = String(direction || '').toUpperCase() === 'LEFT' ? -1 : 1;
+      pedestalObj.position.x += sign * 0.065;
+      pedestalObj.userData = {
+        ...(pedestalObj.userData || {}),
+        manualPedestalOffsetXmm:
+          Number(pedestalObj.userData?.manualPedestalOffsetXmm || 0) + sign * 65,
+      };
+      pedestalObj.updateMatrixWorld(true);
+      selectionHelper?.update?.();
+      emitBOM();
       return true;
     }
 
@@ -11812,7 +12106,10 @@ function ThreeCanvas({
       const meta = pedestalObj.userData?.meta || {};
       const snapshot = meta.originalCostadoSnapshot || null;
 
-      if (!snapshot?.code || !snapshot?.model?.src) {
+      const isCostadoAssembly =
+        snapshot?.creatorKind === 'koncisa-costado-assembly' || !!snapshot?.meta?.costadoAssembly;
+
+      if (!snapshot?.code || (!isCostadoAssembly && !snapshot?.model?.src)) {
         alert('No se puede restaurar el costado: falta información del costado original.');
         return false;
       }
@@ -11842,7 +12139,7 @@ function ThreeCanvas({
         pedestalsToRemove.push(pedestalObj);
       }
 
-      await addExternalGlbPart({
+      const restorePayload = {
         ...snapshot,
         type: 'costado',
         parentGroup,
@@ -11856,7 +12153,16 @@ function ThreeCanvas({
           pedestalObj.userData?.groupName ||
           parentGroup?.userData?.name ||
           null,
-      });
+      };
+
+      const restoredCostadoObj = isCostadoAssembly
+        ? await addKoncisaCostadoAssemblyPart(restorePayload)
+        : await addExternalGlbPart(restorePayload);
+
+      if (!restoredCostadoObj) {
+        alert('No se pudo reconstruir el costado original. El pedestal se conserva.');
+        return false;
+      }
 
       await restoreVigasFromPedestalReinforcement({
         parentGroup,
@@ -11870,8 +12176,10 @@ function ThreeCanvas({
       });
 
       for (const obj of pedestalsToRemove) {
-        removePartObject(obj);
+        removePartObject(obj, { exactTarget: true });
       }
+
+      setActivePart(restoredCostadoObj);
 
       emitBOM();
       refreshFloorAndGrid();
@@ -12039,13 +12347,15 @@ function ThreeCanvas({
         },
       };
 
-      // Dirección hacia afuera del puesto doble.
-      // LEFT sale hacia Z positivo; RIGHT sale hacia Z negativo.
-      const outwardSign = integrationSide === 'left' ? 1 : -1;
-
-      const mmToWorldX = (mm) => basePos.x * 1000 + Number(mm || 0);
-      const _mmToWorldY = (mm) => basePos.y * 1000 + Number(mm || 0);
-      const mmToWorldZ = (mm) => basePos.z * 1000 + Number(mm || 0) * outwardSign;
+      // La rotación del costado (0 para LEFT, PI para RIGHT) resuelve la lateralidad.
+      const localToWorldMm = (localX = 0, localZ = 0) => {
+        const cosY = Math.cos(baseRot.y);
+        const sinY = Math.sin(baseRot.y);
+        return {
+          x: basePos.x * 1000 + Number(localX || 0) * cosY + localZ * sinY,
+          z: basePos.z * 1000 - Number(localX || 0) * sinY + localZ * cosY,
+        };
+      };
 
       // =====================================================
       // 1. Costado doble integración: reemplaza costado terminal
@@ -12054,7 +12364,39 @@ function ThreeCanvas({
 
       let newIntegrationLegObj = null;
 
-      if (integrationLeg?.modelSrc) {
+      if (integrationLeg?.assembly) {
+        newIntegrationLegObj = await addKoncisaCostadoAssemblyPart({
+          type: 'costado',
+          line: 'KONCISA.PLUS',
+          code: integrationLeg.codigoPT,
+          logicalCode: integrationLeg.logicalCode,
+          name: integrationLeg.name,
+          groupId,
+          groupName,
+          parentGroup,
+          dimMm: { depthMm: normalizedWidthMm, realDepthMm: normalizedWidthMm },
+          position: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
+          rotation: { x: baseRot.x, y: baseRot.y, z: baseRot.z },
+          meta: {
+            category: 'costados',
+            tipoPuesto: 'doble',
+            tipoModulo: 'terminal',
+            moduleIndex,
+            replaceZone,
+            integrationSetId,
+            isIntegrationLeg: true,
+            replacesCostado: true,
+            costadoAssembly: integrationLeg.assembly,
+            realDepthMm: normalizedWidthMm,
+            originalCostadoSnapshot,
+            originalCostadoCode: costadoObj.userData?.code || null,
+          },
+        });
+      } else if (integrationLeg?.modelSrc) {
         newIntegrationLegObj = await addExternalGlbPart({
           type: 'costado',
           line: 'KONCISA.PLUS',
@@ -12154,7 +12496,22 @@ function ThreeCanvas({
         variant,
       });
 
-      const surfaceCenterOffsetZ = normalizedDepthMm / 2 + 8;
+      // The selected terminal side is the center of the removed costado.
+      // The integration surface connects by its inner corner, so its center
+      // advances half its depth laterally and half its length longitudinally.
+      const placement = resolveKoncisaIntegrationPlacement({
+        widthMm: normalizedWidthMm,
+        depthMm: normalizedDepthMm,
+        side: integrationSide,
+        cableAccessType,
+      });
+      const integrationCenterLocalX = placement.surfaceCenter.x;
+      const integrationCenterOutwardZ = placement.surfaceCenter.z;
+      const integrationNearEdgeOutwardZ = placement.nearEdgeZ;
+      const integrationSurfaceCenter = localToWorldMm(
+        integrationCenterLocalX,
+        integrationCenterOutwardZ
+      );
 
       const surfaceCatalogItem =
         catalogByCodeRef.current?.get?.(String(resolvedSurface.codigoPT)) || null;
@@ -12189,9 +12546,9 @@ function ThreeCanvas({
           },
 
           position: {
-            x: basePos.x,
+            x: integrationSurfaceCenter.x / 1000,
             y: 0.71,
-            z: (basePos.z * 1000 + surfaceCenterOffsetZ * outwardSign) / 1000,
+            z: integrationSurfaceCenter.z / 1000,
           },
 
           groupId,
@@ -12211,7 +12568,7 @@ function ThreeCanvas({
       );
 
       if (integrationSurfaceObj) {
-        integrationSurfaceObj.rotation.y = Math.PI / 2;
+        integrationSurfaceObj.rotation.y = baseRot.y + Math.PI / 2;
         integrationSurfaceObj.userData.meta = {
           ...(integrationSurfaceObj.userData.meta || {}),
           category: 'superficies',
@@ -12242,16 +12599,7 @@ function ThreeCanvas({
       // =====================================================
       const unitLeg = pkg.unitLeg;
 
-      const unitLegPositions = [
-        {
-          x: 0 - normalizedWidthMm / 2 + 35,
-          z: normalizedDepthMm + 8,
-        },
-        {
-          x: 0 + normalizedWidthMm / 2 - 35,
-          z: normalizedDepthMm + 8,
-        },
-      ];
+      const unitLegPositions = placement.unitLegs;
 
       for (const [index, pos] of unitLegPositions.entries()) {
         await addExternalGlbPart({
@@ -12266,14 +12614,13 @@ function ThreeCanvas({
           parentGroup,
 
           position: {
-            x: mmToWorldX(pos.x),
+            ...localToWorldMm(pos.x, pos.z),
             y: basePos.y * 1000,
-            z: mmToWorldZ(pos.z),
           },
 
           rotation: {
             x: baseRot.x,
-            y: baseRot.y,
+            y: baseRot.y + Number(pos.rotY || 0),
             z: baseRot.z,
           },
 
@@ -12297,6 +12644,20 @@ function ThreeCanvas({
       // 4. Ducto individual de integración
       // =====================================================
       const individualDuct = pkg.individualDuct;
+      let referenceDoubleDuct = null;
+      parentGroup?.traverse((node) => {
+        if (referenceDoubleDuct || node.userData?.isPartRoot !== true) return;
+        const nodeMeta = node.userData?.meta || {};
+        const isMatchingDuct =
+          node.userData?.kind === 'ducto' &&
+          String(nodeMeta.tipoPuesto || '').toLowerCase() === 'doble' &&
+          Number(nodeMeta.moduleIndex ?? 0) === Number(moduleIndex);
+        if (isMatchingDuct) referenceDoubleDuct = node;
+      });
+      const referenceDuctHeightMm = referenceDoubleDuct
+        ? referenceDoubleDuct.position.y * 1000
+        : 510;
+      const ductPosition = localToWorldMm(placement.duct.x, placement.duct.z);
 
       await addExternalGlbPart({
         type: 'ducto',
@@ -12310,14 +12671,14 @@ function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: basePos.x * 1000,
-          y: basePos.y * 1000,
-          z: mmToWorldZ(130),
+          x: ductPosition.x,
+          y: referenceDuctHeightMm,
+          z: ductPosition.z,
         },
 
         rotation: {
           x: baseRot.x,
-          y: baseRot.y + Math.PI / 2,
+          y: baseRot.y + placement.duct.rotY,
           z: baseRot.z,
         },
 
@@ -12344,6 +12705,8 @@ function ThreeCanvas({
       // =====================================================
       const couple = pkg.couple;
 
+      const couplePosition = localToWorldMm(placement.couple.x, placement.couple.z);
+
       await addExternalGlbPart({
         type: 'acopleDucto',
         line: 'KONCISA.PLUS',
@@ -12356,15 +12719,15 @@ function ThreeCanvas({
         parentGroup,
 
         position: {
-          x: basePos.x * 1000,
-          y: basePos.y * 1000,
-          z: mmToWorldZ(35),
+          x: couplePosition.x,
+          y: referenceDuctHeightMm + 100,
+          z: couplePosition.z,
         },
 
         rotation: {
           x: baseRot.x,
-          y: baseRot.y + Math.PI / 2,
-          z: baseRot.z,
+          y: baseRot.y + placement.couple.rotY,
+          z: baseRot.z + placement.couple.rotZ,
         },
 
         model: {
@@ -12388,8 +12751,9 @@ function ThreeCanvas({
       // Después podemos cambiarlo por geometría/modelo visual si quieres.
       // =====================================================
       const cableAccess = pkg.cableAccess;
+      const cableAccessCenter = localToWorldMm(placement.cableAccess.x, placement.cableAccess.z);
 
-      addNativeBlockPart({
+      const cableAccessPart = {
         type: cableAccess.type === 'pasacable' ? 'pasacable' : 'grommet',
         line: 'KONCISA.PLUS',
         code: cableAccess.codigoPT,
@@ -12400,21 +12764,15 @@ function ThreeCanvas({
         groupName,
         parentGroup,
 
-        dimMm: {
-          widthMm: 120,
-          heightMm: 8,
-          depthMm: 60,
-        },
-
         position: {
-          x: basePos.x * 1000,
-          y: 740,
-          z: mmToWorldZ(normalizedDepthMm / 2),
+          x: cableAccessCenter.x,
+          y: 745,
+          z: cableAccessCenter.z,
         },
 
         rotation: {
           x: 0,
-          y: baseRot.y + Math.PI / 2,
+          y: baseRot.y + placement.cableAccess.rotY,
           z: 0,
         },
 
@@ -12426,14 +12784,40 @@ function ThreeCanvas({
           tipoPuesto: 'integracion',
           cableAccessType: cableAccess.type,
         },
-      });
+      };
+
+      if (cableAccess.type === 'grommet') {
+        await addExternalGlbPart({
+          ...cableAccessPart,
+          model: {
+            kind: 'glb',
+            src: cableAccess.modelSrc,
+          },
+        });
+      } else {
+        addNativeBlockPart({
+          ...cableAccessPart,
+          dimMm: {
+            widthMm: 120,
+            heightMm: 8,
+            depthMm: 60,
+          },
+        });
+      }
 
       // =====================================================
       // 7. Refuerzo superficie a pedestal o integración
       // =====================================================
-      const reinforcement = pkg.reinforcement;
+      const reinforcement = resolveKoncisaIntegrationReinforcement({
+        widthMm: originalWidthMm,
+      });
 
-      addNativeBlockPart({
+      const reinforcementPosition = localToWorldMm(
+        placement.reinforcement.x,
+        placement.reinforcement.z
+      );
+
+      const reinforcementPart = {
         type: 'refuerzoSuperficieIntegracion',
         line: 'KONCISA.PLUS',
         code: reinforcement.codigoPT,
@@ -12444,21 +12828,23 @@ function ThreeCanvas({
         groupName,
         parentGroup,
 
-        dimMm: {
-          widthMm: normalizedWidthMm === 1200 ? 640 : 940,
-          heightMm: 35,
-          depthMm: 155,
+        position: {
+          x: reinforcementPosition.x,
+          y: 690,
+          z: reinforcementPosition.z,
         },
 
+        /*
         position: {
-          x: basePos.x * 1000,
+          x: integrationCenter.x - 78,
           y: 690,
-          z: mmToWorldZ(normalizedDepthMm / 2),
+          z: integrationCenter.z - 320,
         },
+*/
 
         rotation: {
           x: 0,
-          y: baseRot.y + Math.PI / 2,
+          y: baseRot.y + placement.reinforcement.rotY,
           z: 0,
         },
 
@@ -12468,12 +12854,34 @@ function ThreeCanvas({
           moduleIndex,
           replaceZone,
           tipoPuesto: 'integracion',
-          nominalWidthMm: normalizedWidthMm,
+          nominalWidthMm: reinforcement.nominalWidthMm,
+          usesStandardModel: reinforcement.usesStandardModel,
         },
-      });
+      };
+
+      if (reinforcement.usesStandardModel && reinforcement.modelSrc) {
+        await addExternalGlbPart({
+          ...reinforcementPart,
+          model: {
+            kind: 'glb',
+            src: reinforcement.modelSrc,
+          },
+        });
+      } else {
+        addNativeBlockPart({
+          ...reinforcementPart,
+          dimMm: {
+            widthMm: Math.max(1, Number(originalWidthMm || normalizedWidthMm) - 560),
+            heightMm: 35,
+            depthMm: 155,
+          },
+        });
+      }
 
       // Finalmente eliminamos el costado terminal original.
-      removePartObject(costadoObj);
+      // El costado pertenece al assembly KONCISA_PLUS. Sin exactTarget,
+      // removePartObject resuelve la raíz y elimina también la integración recién creada.
+      removePartObject(costadoObj, { exactTarget: true });
 
       if (newIntegrationLegObj) {
         setActivePart(newIntegrationLegObj);
@@ -12542,13 +12950,20 @@ function ThreeCanvas({
         }
       }
 
-      if (!originalCostadoSnapshot?.code || !originalCostadoSnapshot?.model?.src) {
+      const isCostadoAssembly =
+        originalCostadoSnapshot?.creatorKind === 'koncisa-costado-assembly' ||
+        !!originalCostadoSnapshot?.meta?.costadoAssembly;
+
+      if (
+        !originalCostadoSnapshot?.code ||
+        (!isCostadoAssembly && !originalCostadoSnapshot?.model?.src)
+      ) {
         alert('No se puede restaurar el costado original porque falta el snapshot del costado.');
         return false;
       }
 
       // Restaurar costado terminal original
-      const restoredObj = await addExternalGlbPart({
+      const restorePayload = {
         ...originalCostadoSnapshot,
         type: 'costado',
         parentGroup,
@@ -12564,11 +12979,16 @@ function ThreeCanvas({
           integrationLegObj?.userData?.groupName ||
           parentGroup?.userData?.name ||
           null,
-      });
+      };
+      const restoredObj = isCostadoAssembly
+        ? await addKoncisaCostadoAssemblyPart(restorePayload)
+        : await addExternalGlbPart(restorePayload);
 
       // Quitar todas las piezas de esta integración
       for (const obj of objectsToRemove) {
-        removePartObject(obj);
+        // Cada pieza vive dentro del assembly principal; retirar solamente
+        // el componente de este integrationSetId conserva el puesto base.
+        removePartObject(obj, { exactTarget: true });
       }
 
       if (restoredObj) {
@@ -12619,6 +13039,7 @@ function ThreeCanvas({
       parentGroup,
       moduleIndex,
       pedestalSetId,
+      costadoPositionMm,
     } = {}) {
       if (!parentGroup || !pedestalSetId) return [];
 
@@ -12663,6 +13084,16 @@ function ThreeCanvas({
           nominalWidthMm,
         });
 
+        const reinforcementPosition = resolveKoncisaPedestalReinforcementPosition({
+          reinforcementPositionMm: {
+            x: vigaObj.position.x * 1000, //-120
+            y: vigaObj.position.y * 1000,
+            z: vigaObj.position.z * 1000,
+          },
+          costadoPositionMm,
+          towardCostadoMm: -120,
+        });
+
         await addNativeBlockPart({
           type: 'refuerzoSuperficiePedestal',
           line: 'KONCISA.PLUS',
@@ -12681,9 +13112,9 @@ function ThreeCanvas({
           },
 
           position: {
-            x: vigaObj.position.x * 1000,
-            y: vigaObj.position.y * 1000,
-            z: vigaObj.position.z * 1000,
+            x: reinforcementPosition.x,
+            y: reinforcementPosition.y,
+            z: reinforcementPosition.z,
           },
 
           rotation: {
@@ -12698,12 +13129,13 @@ function ThreeCanvas({
             nominalWidthMm: refuerzo.nominalWidthMm,
             moduleIndex: Number(moduleIndex || 0),
             pedestalSetId,
+            towardCostadoOffsetMm: 120,
             replacesViga: true,
             originalVigaCode: vigaObj.userData?.code || null,
           },
         });
 
-        removePartObject(vigaObj);
+        removePartObject(vigaObj, { exactTarget: true });
       }
 
       return originalVigaSnapshots;
@@ -12745,7 +13177,7 @@ function ThreeCanvas({
       }
 
       for (const refuerzoObj of refuerzosToRemove) {
-        removePartObject(refuerzoObj);
+        removePartObject(refuerzoObj, { exactTarget: true });
       }
 
       return true;
@@ -12764,6 +13196,8 @@ function ThreeCanvas({
       const support = resolveKoncisaDuctSupport({
         tipoPuesto,
         replaceZone,
+        realDepthMm:
+          basePedestalObj.userData?.meta?.realDepthMm || basePedestalObj.userData?.realDepthMm,
       });
 
       const offset = support.offsetMm || {};
@@ -12814,6 +13248,8 @@ function ThreeCanvas({
           modelCode: support.modelCode,
           tipoPuesto,
           replaceZone,
+          realDepthMm: support.realDepthMm,
+          depthZAdjustmentMm: support.depthZAdjustmentMm,
           moduleIndex,
           pedestalSetId,
           onePerPedestalSet: tipoPuesto === 'doble',
@@ -12844,7 +13280,7 @@ function ThreeCanvas({
       });
 
       for (const supportObj of supportsToRemove) {
-        removePartObject(supportObj);
+        removePartObject(supportObj, { exactTarget: true });
       }
 
       return true;
@@ -12974,7 +13410,7 @@ function ThreeCanvas({
       const rotationY = side === 'left' ? Math.PI : 0;
       const moduleType = normalizeDuctModuleType(root.userData?.meta?.tipoModulo);
       const usesDuctCoverAdjustment = moduleType === 'intermedio' || moduleType === 'terminal';
-      const horizontalInset = usesDuctCoverAdjustment ? 31 / 1000 : 0;
+      const horizontalInset = usesDuctCoverAdjustment ? 56 / 1000 : 0;
       const depthOffset = usesDuctCoverAdjustment ? -23 / 1000 : 0;
       const rotationMatrix = new THREE.Matrix4().makeRotationY(rotationY);
       const rotatedCoverBox = new THREE.Box3();
@@ -13080,7 +13516,17 @@ function ThreeCanvas({
         const { minX: rotatedMinX } = getBoundsXInParent();
 
         if (Number.isFinite(rotatedMinX)) {
-          root.position.x += oppositeSurfaceStartX - rotatedMinX;
+          const ductMeta = root.userData?.meta || {};
+          const isDoublePasacable =
+            String(ductMeta.tipoPuesto || '').toUpperCase() === 'DOBLE' &&
+            String(ductMeta.accesoCableado || '').toUpperCase() === 'PASACABLE';
+          // La posición inicial del terminal doble pasacable queda 32 mm por fuera
+          // del extremo. Al girarlo, el offset cambia de +32 a -32 (64 mm totales).
+          const terminalOffsetCorrectionM = isDoublePasacable
+            ? (String(ductMeta.side || 'LEFT').toUpperCase() === 'LEFT' ? -64 : 64) / 1000
+            : 0;
+
+          root.position.x += oppositeSurfaceStartX - rotatedMinX + terminalOffsetCorrectionM;
         }
         root.userData.ductRotated180 = true;
       } else {
@@ -13352,6 +13798,7 @@ function ThreeCanvas({
         description: root.userData?.description || null,
         ductCovers: root.userData?.ductCovers || null,
         ceilingDucts: root.userData?.ceilingDucts || null,
+        wallCoupling: Boolean(root.userData?.wallCoupling || root.userData?.meta?.wallCoupling),
         transformMm: {
           x: Math.round(root.position.x * 1000),
           y: Math.round(root.position.y * 1000),
@@ -13575,6 +14022,94 @@ function ThreeCanvas({
       emitBOM?.();
 
       return true;
+    }
+
+    function removeIndividualDuctWallCouplingChildren(root) {
+      const children =
+        root?.children?.filter((child) => child?.userData?.isKoncisaWallCoupling) || [];
+      children.forEach((child) =>
+        removePartObject(child, { exactTarget: true, emitBom: false, disposeResources: false })
+      );
+    }
+
+    async function syncIndividualDuctWallCoupling(root, enabled) {
+      if (!root || root.userData?.kind !== 'ducto') return false;
+      const tipoModulo = normalizeDuctModuleType(root.userData?.meta?.tipoModulo);
+      const tipoPuesto = String(root.userData?.meta?.tipoPuesto || '')
+        .trim()
+        .toLowerCase();
+      if (tipoModulo !== 'individual' || tipoPuesto !== 'sencillo') return false;
+
+      const nextEnabled = Boolean(enabled);
+      root.userData.wallCoupling = nextEnabled;
+      root.userData.meta = { ...(root.userData.meta || {}), wallCoupling: nextEnabled };
+      removeIndividualDuctWallCouplingChildren(root);
+
+      if (nextEnabled) {
+        const asset = resolveKoncisaIntegrationCouple({ type: 'wall' });
+        if (!asset?.exists || !asset.modelSrc) return false;
+
+        const ductBounds = computeBounds2D(root, {
+          exclude: (node) => node?.userData?.isKoncisaWallCoupling === true,
+        });
+        const coupling = await addExternalGlbPart({
+          type: 'acopleDuctoPared',
+          subtype: 'individual',
+          line: root.userData?.line || 'KONCISA.PLUS',
+          code: asset.codigoPT,
+          logicalCode: asset.logicalCode,
+          name: asset.name,
+          groupId: root.userData?.groupId || null,
+          groupName: root.userData?.groupName || null,
+          parentGroup: root,
+          position: { x: 0, y: 0, z: -128 },
+          rotation: { x: 0, y: 0, z: 0 },
+          model: { kind: 'glb', src: asset.modelSrc },
+          meta: {
+            category: 'acoples-ducto',
+            role: 'individual-wall-coupling',
+            tipoPuesto: 'sencillo',
+            tipoModulo: 'INDIVIDUAL',
+          },
+          extraUserData: { isKoncisaWallCoupling: true },
+        });
+        if (!coupling) return false;
+
+        const couplingBounds = computeBounds2D(coupling);
+        if (ductBounds && couplingBounds) {
+          coupling.position.x += ductBounds.localCenter.x - couplingBounds.localCenter.x;
+        }
+        coupling.updateMatrixWorld(true);
+      }
+
+      setActivePart(root);
+      root.updateMatrixWorld(true);
+      selectionHelper?.update?.();
+      onSelectionChange?.(buildDuctPopupPart(root));
+      onFloatingEditorRequest?.({
+        open: true,
+        x: 120,
+        y: 120,
+        part: buildDuctPopupPart(root),
+        ductCovers: root.userData?.ductCovers || null,
+      });
+      refreshFloorAndGrid();
+      emitBOM?.();
+      return true;
+    }
+
+    async function updateSelectedIndividualDuctWallCoupling(enabled, instanceId = null) {
+      if (readOnly) return false;
+      let ductObj = getActiveEditablePartObject();
+      if (instanceId) {
+        const requestedDuct = parts.find(
+          ({ obj }) =>
+            obj?.userData?.kind === 'ducto' &&
+            String(obj.userData?.instanceId || obj.uuid) === String(instanceId)
+        )?.obj;
+        if (requestedDuct) ductObj = requestedDuct;
+      }
+      return syncIndividualDuctWallCoupling(ductObj, enabled);
     }
 
     async function updateSelectedDuctCovers(patch = {}) {
@@ -14296,7 +14831,18 @@ function ThreeCanvas({
 
       if (
         (isMilaRoot || isMoreaRoot) &&
-        !['armrest-left', 'armrest-right', 'armrest-center', 'screen', 'giro-surface', 'accessory', 'panel-divisor', 'booth-table', 'screen-izq', 'screen-der'].includes(
+        ![
+          'armrest-left',
+          'armrest-right',
+          'armrest-center',
+          'screen',
+          'giro-surface',
+          'accessory',
+          'panel-divisor',
+          'booth-table',
+          'screen-izq',
+          'screen-der',
+        ].includes(
           String(root?.userData?.meta?.role || root?.userData?.role || '').toLowerCase()
         ) &&
         root?.userData?.kind !== 'MILA_GIRO_SURFACE' &&
@@ -14434,15 +14980,19 @@ function ThreeCanvas({
           hasScreen: popupSeats ? root.userData?._milaHasScreen || false : undefined,
           backrestRotated180: popupSeats
             ? Boolean(
-              popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
-              popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
-              root.userData?.meta?.backrestRotated180 ||
-              root.userData?._moreaBackrestRotated180
-            )
+                popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
+                popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
+                root.userData?.meta?.backrestRotated180 ||
+                root.userData?._moreaBackrestRotated180
+              )
             : undefined,
-          quantity: popupSeats ? root.userData?._milaQuantity || (popupSeats?.length ?? 1) : undefined,
+          quantity: popupSeats
+            ? root.userData?._milaQuantity || (popupSeats?.length ?? 1)
+            : undefined,
           moreaVariant: isMoreaRoot ? root.userData?._moreaVariant || 'single' : undefined,
-          moreaPedestalMode: isMoreaRoot ? root.userData?._moreaPedestalMode || 'normal' : undefined,
+          moreaPedestalMode: isMoreaRoot
+            ? root.userData?._moreaPedestalMode || 'normal'
+            : undefined,
           assemblyGroupId: root.userData?.groupId || root.userData?.instanceId || root.uuid,
         },
       });
@@ -14801,14 +15351,10 @@ function ThreeCanvas({
         return { snapped: false, mergeCandidate: null };
       }
 
-      const {
-        allAssemblies,
-        allGiroSurfaces,
-        allAccessories,
-        allPanelDivisors,
-      } = collectConnectorCandidatesByScope(targetObj, connectorScopeLine, {
-        excludeSameGroup: true,
-      });
+      const { allAssemblies, allGiroSurfaces, allAccessories, allPanelDivisors } =
+        collectConnectorCandidatesByScope(targetObj, connectorScopeLine, {
+          excludeSameGroup: true,
+        });
       const activeGroupId = targetObj.userData?.groupId;
 
       const snapResult = connectorEngine.findBestSnap({
@@ -15329,7 +15875,8 @@ function ThreeCanvas({
     function resnapGiroSurfaceToAssembly(giroRoot, targetAssembly) {
       if (!giroRoot || !targetAssembly) return false;
 
-      const connectorContext = resolveConnectorContext(giroRoot) || resolveConnectorContext(targetAssembly);
+      const connectorContext =
+        resolveConnectorContext(giroRoot) || resolveConnectorContext(targetAssembly);
       const connectorEngine = connectorContext?.engine || null;
       if (!connectorEngine) return false;
 
@@ -17650,11 +18197,7 @@ function ThreeCanvas({
         return Number(config?.offsetMm?.z ?? fallbackZMm);
       };
 
-      crossbarOffsetMm.z = resolveCrossbarCenterZMm(
-        crossbar,
-        crossbarLengthMm,
-        crossbarOffsetMm.z
-      );
+      crossbarOffsetMm.z = resolveCrossbarCenterZMm(crossbar, crossbarLengthMm, crossbarOffsetMm.z);
 
       /*
        * Las patas se separan usando el largo real del travesaño.
@@ -17790,8 +18333,7 @@ function ThreeCanvas({
             crossbarEndZMm - rightBounds.min.z * 1000 + Number(rightOffsetMm?.z || 0);
 
           if (centerBracket) {
-            bracketPositionMm.x =
-              -bracketCenterXMm + Number(centerBracketOffsetMm?.x || 0);
+            bracketPositionMm.x = -bracketCenterXMm + Number(centerBracketOffsetMm?.x || 0);
             bracketPositionMm.z =
               crossbarOffsetMm.z - bracketCenterZMm + Number(centerBracketOffsetMm?.z || 0);
           }
@@ -17918,9 +18460,7 @@ function ThreeCanvas({
         const resolvedLengthOffsetMm = Number(config?.lengthOffsetMm ?? 0);
         const resolvedLengthMm = Math.max(
           1,
-          realDepthMm * resolvedLengthFactor +
-            resolvedLengthOffsetMm -
-            resolvedEndClearanceMm
+          realDepthMm * resolvedLengthFactor + resolvedLengthOffsetMm - resolvedEndClearanceMm
         );
 
         const geometry = new THREE.BoxGeometry(

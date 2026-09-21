@@ -118,6 +118,59 @@ test('dispatcher Koncisa no utiliza el catálogo genérico', async () => {
   assert.equal(catalogCalls, 0);
 });
 
+test('serializa Mila como un solo assembly y conserva su configuración', () => {
+  const assembly = new THREE.Group();
+  assembly.position.set(1.25, 0, -2.5);
+  assembly.userData = {
+    kind: 'MILA_ASSEMBLY',
+    instanceId: 'MILA_ASSEMBLY_1',
+    groupId: 'MILA_GROUP_1',
+    groupName: 'Mila doble',
+    config: {
+      quantity: 2,
+      variant: 'double',
+      useTable: true,
+      useTableGrommet: true,
+      armrestLeft: true,
+    },
+  };
+  const seat = new THREE.Object3D();
+  seat.userData = { kind: 'GLB_PART', codigoPT: '22000127935' };
+  const leftLeg = new THREE.Object3D();
+  leftLeg.userData = { kind: 'GLB_PART', codigoPT: '22000127142' };
+  assembly.add(seat, leftLeg);
+
+  const { entities } = serializeProjectEntities([
+    { code: '22000127935', obj: seat },
+    { code: '22000127142', obj: leftLeg },
+  ]);
+
+  assert.equal(entities.length, 1);
+  assert.equal(entities[0].kind, 'MILA');
+  assert.equal(entities[0].instanceId, 'MILA_ASSEMBLY_1');
+  assert.equal(entities[0].groupId, 'MILA_GROUP_1');
+  assert.equal(entities[0].config.quantity, 2);
+  assert.equal(entities[0].config.variant, 'double');
+  assert.equal(entities[0].config.useTableGrommet, true);
+  assert.deepEqual(entities[0].transform.position, [1.25, 0, -2.5]);
+});
+
+test('dispatcher Mila usa su creator especializado y no el catálogo', async () => {
+  const expected = { userData: { kind: 'MILA_ASSEMBLY' } };
+  let received = null;
+  let catalogCalls = 0;
+  const object = await loadPersistedEntity(
+    { kind: 'MILA', instanceId: 'MILA_LOAD', config: { quantity: 2, variant: 'single' } },
+    {
+      createMila(entity) { received = entity; return expected; },
+      addCatalogItem() { catalogCalls += 1; },
+    }
+  );
+  assert.equal(object, expected);
+  assert.equal(received.instanceId, 'MILA_LOAD');
+  assert.equal(catalogCalls, 0);
+});
+
 test('un creator fallido no utiliza otro objeto como fallback', async () => {
   await assert.rejects(
     loadPersistedEntity(
