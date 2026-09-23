@@ -1,3 +1,15 @@
+import {
+  reapplyLinkFinishes,
+  createLinkFinishPatch,
+  getLinkSelectionInfo,
+} from '../mepal/link/integration/linkFinishes.js';
+import { getLockerSelectionInfo } from '../mepal/lockers/integration/lockerFinishSelection.js';
+import { createLinkInstance } from '../mepal/link/factories/createLinkInstance.js';
+import { registerLinkInstance, getLinkRoot } from '../mepal/link/integration/linkRegistration.js';
+import { rebuildLinkInstance } from '../mepal/link/integration/rebuildLinkInstance.js';
+import { restoreLinkEntity } from '../mepal/link/integration/linkPersistence.js';
+import { createLinkComponentPatch } from '../mepal/link/integration/linkComponentEditing.js';
+import { persistLinkComponentTransforms } from '../mepal/link/integration/linkComponentIdentity.js';
 // ThreeCanvas.jsx (MEZCLA: mantiene tu 2D/zoom/controles tal como estaban + agrega muros bien implementados)
 // ✅ Lo único “nuevo” es: wallsGroupRef + crear un group en la escena + useEffect EXTERNO que reconstruye muros.
 // ✅ También corregí: applyFinishToActivePart (materialDef no estaba definido) y cleanup de listeners.
@@ -11,7 +23,9 @@ import { createHistoryManager, HISTORY_ACTION_TYPES } from '../history/historyMa
 import { CreateObjectsCommand } from '../history/CreateObjectsCommand';
 import { setClipboard } from '../clipboard/clipboardManager';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
+import { buildKoncisaPlus } from '../mepal/koncisaPlus/builders/KoncisaPlusBuilder.js';
 import { resolveComponentKey } from '../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe';
+import { createKoncisaSurfaceConfigPatch } from '../mepal/koncisaPlus/rules/koncisaSurfaceComponentRules.js';
 import { loadPersistedEntity } from '../core/persistence/entityLoaders';
 import {
   buildVersionedProject,
@@ -58,7 +72,6 @@ import { createAresInstance } from '../mepal/ares/factories/createAresInstance';
 import { getAresProductDefinition } from '../mepal/ares/products/aresProductDefinition';
 import { createClakInstance } from '../mepal/clak/factories/createClakInstance';
 import { createEdukInstance } from '../mepal/eduk/factories/createEdukInstance';
-import { createLinkInstance } from '../mepal/link/factories/createLinkInstance';
 import { createKuoGoInstance } from '../mepal/kuoGo/factories/createKuoGoInstance';
 import { createKuoAVInstance } from '../mepal/kuoAV/factory/createKuoAVInstance';
 import { createKuoAVDobleInstance } from '../mepal/kuoAVDoble/factory/createKuoAVDobleInstance';
@@ -504,11 +517,18 @@ const MOREA_GIRO_BOM_CODE_MAP = Object.freeze({
 });
 
 function resolveMoreaGiroBomCode({ rawCode, variant, modelSrc, angleDeg }) {
-  const normalizedCode = String(rawCode || '').trim().toUpperCase();
-  const normalizedVariant = String(variant || '').trim().toLowerCase() === 'double'
-    ? 'double'
-    : 'single';
-  const normalizedModelSrc = String(modelSrc || '').trim().toLowerCase();
+  const normalizedCode = String(rawCode || '')
+    .trim()
+    .toUpperCase();
+  const normalizedVariant =
+    String(variant || '')
+      .trim()
+      .toLowerCase() === 'double'
+      ? 'double'
+      : 'single';
+  const normalizedModelSrc = String(modelSrc || '')
+    .trim()
+    .toLowerCase();
   const normalizedAngle = Number(angleDeg);
 
   if (normalizedCode === 'HSU010000') {
@@ -540,9 +560,12 @@ function resolveMoreaGiroBomCode({ rawCode, variant, modelSrc, angleDeg }) {
 }
 
 function resolveMoreaChairBreakdown(variant = 'single', quantity = 1) {
-  const normalizedVariant = String(variant || 'single').trim().toLowerCase() === 'double'
-    ? 'double'
-    : 'single';
+  const normalizedVariant =
+    String(variant || 'single')
+      .trim()
+      .toLowerCase() === 'double'
+      ? 'double'
+      : 'single';
   const normalizedQty = Math.max(1, Math.trunc(Number(quantity) || 1));
   return MOREA_CHAIR_BOM_BREAKDOWN[normalizedVariant]?.[normalizedQty] || null;
 }
@@ -2353,6 +2376,10 @@ function ThreeCanvas({
         instanceId: obj.userData?.instanceId || obj.uuid || null,
         config: obj.userData?.config || null,
         userData: obj.userData || null,
+        ...(obj.userData?.kind === 'LINK_PRODUCT' ? getLinkSelectionInfo(obj, activeSubMesh) : {}),
+        ...(obj.userData?.kind === 'LOCKER_PRODUCT'
+          ? getLockerSelectionInfo(obj, activeSubMesh)
+          : {}),
         parentAssemblyId: obj.userData?.parentAssemblyId || null,
         selectionToggle: selectionContext?.toggle === true,
         selectionPreserve: selectionContext?.preserve === true,
@@ -2592,7 +2619,8 @@ function ThreeCanvas({
       return parts
         .map(({ obj, code }) => {
           if (!obj) return null;
-          if (['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(obj.userData?.kind)) {
+          if (obj.userData?.kind === 'LINK_PRODUCT') return null;
+          if (obj.userData?.kind === 'VETRO_PRODUCT') {
             return null;
           }
 
@@ -3083,11 +3111,7 @@ function ThreeCanvas({
             const role = String(candidate.userData?.meta?.role || candidate.userData?.role || '')
               .trim()
               .toLowerCase();
-            if (
-              role !== 'armrest-left' &&
-              role !== 'armrest-right' &&
-              role !== 'armrest-center'
-            ) {
+            if (role !== 'armrest-left' && role !== 'armrest-right' && role !== 'armrest-center') {
               continue;
             }
 
@@ -3102,7 +3126,9 @@ function ThreeCanvas({
             if (line !== 'MOREA') continue;
 
             const parentAssemblyId = normalizeText(
-              candidate.userData?.parentAssemblyId || candidate.userData?.meta?.parentAssemblyId || ''
+              candidate.userData?.parentAssemblyId ||
+                candidate.userData?.meta?.parentAssemblyId ||
+                ''
             );
             const candidateGroupId = normalizeText(
               candidate.userData?.groupId || candidate.userData?.meta?.groupId || ''
@@ -3110,9 +3136,12 @@ function ThreeCanvas({
 
             const belongsByParentId =
               Boolean(parentAssemblyId) &&
-              (parentAssemblyId === assemblyInstanceId || parentAssemblyId === normalizeText(assemblyRoot.uuid));
+              (parentAssemblyId === assemblyInstanceId ||
+                parentAssemblyId === normalizeText(assemblyRoot.uuid));
             const belongsByGroupId =
-              Boolean(candidateGroupId) && Boolean(assemblyGroupId) && candidateGroupId === assemblyGroupId;
+              Boolean(candidateGroupId) &&
+              Boolean(assemblyGroupId) &&
+              candidateGroupId === assemblyGroupId;
 
             if (!belongsByParentId && !belongsByGroupId) continue;
 
@@ -3153,20 +3182,24 @@ function ThreeCanvas({
         seatQuantity = Math.max(1, Math.trunc(seatQuantity || 1));
 
         const moreaVariant = String(
-          assemblyRoot.userData?.meta?.moreaVariant || assemblyRoot.userData?.config?.variant || 'single'
+          assemblyRoot.userData?.meta?.moreaVariant ||
+            assemblyRoot.userData?.config?.variant ||
+            'single'
         )
           .trim()
           .toLowerCase();
 
         const breakdown = resolveMoreaChairBreakdown(moreaVariant, seatQuantity);
-        const hasAnyArmrest = armrestLeftCount > 0 || armrestRightCount > 0 || armrestCenterCount > 0;
+        const hasAnyArmrest =
+          armrestLeftCount > 0 || armrestRightCount > 0 || armrestCenterCount > 0;
         const typologyKey = buildMoreaTypologyKey({
           variant: moreaVariant,
           quantity: seatQuantity,
           hasArmrests: hasAnyArmrest,
         });
         const detail = moreaTypologyByKeyRef.current?.get?.(typologyKey) || null;
-        const rowsToEmit = breakdown ||
+        const rowsToEmit =
+          breakdown ||
           (Array.isArray(detail?.hijos)
             ? detail.hijos
                 .map((child) => ({
@@ -3251,11 +3284,38 @@ function ThreeCanvas({
         if (!obj) continue;
 
         if (obj.userData?.excludeFromBOM) continue;
+        if (obj.userData?.parametricOwner === 'LINK_PRODUCT') continue;
+
+        if (obj.userData?.kind === 'LINK_PRODUCT') {
+          for (const item of obj.userData.bom || []) {
+            addRow(
+              item.code,
+              item.quantity,
+              resolveCatalogDescription(item.code, item.description),
+              null,
+              obj.userData.groupId,
+              obj.userData.groupName,
+              undefined,
+              null,
+              obj.userData.instanceId
+            );
+          }
+          continue;
+        }
 
         if (obj.userData?.kind === 'LOCKER_PRODUCT') {
           for (const item of obj.userData.bom || []) {
-            addRow(item.code, item.quantity, resolveCatalogDescription(item.code, item.description),
-              null, obj.userData.groupId, 'Lockers', undefined, null, obj.userData.instanceId);
+            addRow(
+              item.code,
+              item.quantity,
+              resolveCatalogDescription(item.code, item.description),
+              null,
+              obj.userData.groupId,
+              'Lockers',
+              undefined,
+              null,
+              obj.userData.instanceId
+            );
           }
           continue;
         }
@@ -3323,24 +3383,14 @@ function ThreeCanvas({
             String(obj.userData?.line || obj.userData?.meta?.line || '').toUpperCase() === 'MOREA')
         ) {
           const rawCode =
-            obj.userData?.codigoPT ||
-            obj.userData?.code ||
-            obj.userData?.meta?.code ||
-            '';
+            obj.userData?.codigoPT || obj.userData?.code || obj.userData?.meta?.code || '';
           const variant =
             obj.userData?.meta?.moreaVariant ||
             obj.userData?.moreaVariant ||
             obj.userData?.variant ||
             'single';
-          const modelSrc =
-            obj.userData?.model?.src ||
-            obj.userData?.meta?.modelSrc ||
-            '';
-          const angleDeg = Number(
-            obj.userData?.angleDeg ||
-            obj.userData?.meta?.angleDeg ||
-            60
-          );
+          const modelSrc = obj.userData?.model?.src || obj.userData?.meta?.modelSrc || '';
+          const angleDeg = Number(obj.userData?.angleDeg || obj.userData?.meta?.angleDeg || 60);
 
           const commercialCode = resolveMoreaGiroBomCode({
             rawCode,
@@ -3352,13 +3402,7 @@ function ThreeCanvas({
 
           const baseQty = Math.max(
             1,
-            Math.trunc(
-              Number(
-                obj.userData?.meta?.quantity ||
-                  obj.userData?.quantity ||
-                  1
-              ) || 1
-            )
+            Math.trunc(Number(obj.userData?.meta?.quantity || obj.userData?.quantity || 1) || 1)
           );
           const emittedQty = baseQty * MOREA_GIRO_BOM_QTY_MULTIPLIER;
 
@@ -4059,6 +4103,8 @@ function ThreeCanvas({
 
     // Subir por padres hasta encontrar el objeto que tiene userData.code
     function getRootPartObject(intersectObj) {
+      const linkRoot = getLinkRoot(intersectObj);
+      if (linkRoot) return linkRoot;
       const sequence = getCritterium8SequenceRoot(intersectObj);
       if (sequence) return sequence;
       // 1. Si pertenece a un ensamble estructurado (Mila, Koncisa Plus), la raíz es el ensamble completo
@@ -5672,11 +5718,246 @@ function ThreeCanvas({
       return instance;
     }
 
+    function applyLinkFinishes(object) {
+      reapplyLinkFinishes(object, materialsByCodeRef.current, applyMaterialToObject3D);
+    }
+
+    // Reuse the GLB cache; only visuals are borrowed, never product rules/SKUs.
+    async function loadLinkCableAsset(src) {
+      return (await loadCostadoModel(src)).scene;
+    }
+
+    function onLinkVisualReady(object) {
+      applyLinkFinishes(object);
+      if (activePart === object) {
+        const key = activeSubMesh?.userData?.componentKey;
+        let mesh = null;
+        object.traverse((node) => {
+          if (!mesh && node.isMesh && node.userData.componentKey === key) mesh = node;
+        });
+        setActivePart(object, { targetIds: selectedIds3D, subMesh: mesh });
+      }
+      refreshFloorAndGrid();
+    }
+
+    function addLink(config = {}, options = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const instance = createLinkInstance({
+        config,
+        transform: options.transform,
+        applyFinishes: applyLinkFinishes,
+        loadAsset: loadLinkCableAsset,
+        onVisualReady: onLinkVisualReady,
+      });
+      if (!instance.success) return instance;
+      const object = registerLinkInstance({
+        instance,
+        parent: options.parentGroup || scene,
+        partsRegistry: parts,
+        pickables,
+      });
+      object.updateMatrixWorld(true);
+      syncSelectedIds3D([object.userData.instanceId]);
+      setActivePart(object);
+      if (options.recordHistory !== false) recordCreateObjects({ objects: [object] });
+      emitBOM();
+      refreshFloorAndGrid();
+      return instance;
+    }
+
+    function applyLinkConfiguration(object, config, recordHistory = true) {
+      if (object?.userData?.kind !== 'LINK_PRODUCT')
+        return { success: false, reason: 'LINK_PRODUCT_REQUIRED' };
+      const before = JSON.parse(JSON.stringify(object.userData.config));
+      const selectedComponentKey = activeSubMesh?.userData?.componentKey;
+      const result = rebuildLinkInstance({
+        object,
+        patch: config,
+        applyFinishes: applyLinkFinishes,
+        loadAsset: loadLinkCableAsset,
+        onVisualReady: onLinkVisualReady,
+        partsRegistry: parts,
+      });
+      if (!result.success) return result;
+      if (recordHistory && JSON.stringify(before) !== JSON.stringify(object.userData.config)) {
+        historyManager.pushAction({
+          type: HISTORY_ACTION_TYPES.LINK_CONFIG_CHANGE,
+          instanceId: object.userData.instanceId,
+          before,
+          after: JSON.parse(JSON.stringify(object.userData.config)),
+        });
+      }
+      let selectedMesh = null;
+      object.traverse((node) => {
+        if (!selectedMesh && node.isMesh && node.userData.componentKey === selectedComponentKey)
+          selectedMesh = node;
+      });
+      setActivePart(object, { targetIds: selectedIds3D, subMesh: selectedMesh });
+      emitBOM();
+      refreshFloorAndGrid();
+      return result;
+    }
+
+    function updateSelectedLink(config) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      return applyLinkConfiguration(getLinkRoot(activePart), config);
+    }
+
+    function updateSelectedLinkComponent(componentKey, patch, instanceId = null) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const object = getLinkRoot(activePart);
+      if (!object || (instanceId && object.userData.instanceId !== instanceId))
+        return { success: false, reason: 'Selecciona nuevamente la pieza LINK.' };
+      try {
+        return applyLinkConfiguration(object, createLinkComponentPatch(object, componentKey, patch));
+      } catch (error) {
+        return { success: false, reason: error.message };
+      }
+    }
+
+    async function rebuildKoncisaSurfaceConfiguration(
+      assembly,
+      nextConfig,
+      preferredComponentKey,
+      recordHistory = true
+    ) {
+      if (assembly?.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY')
+        return { success: false, reason: 'KONCISA_PLUS_ASSEMBLY_REQUIRED' };
+      const before = JSON.parse(JSON.stringify(assembly.userData.config || {}));
+      const stagedObjects = [];
+      let previousSurface = null;
+      try {
+        const built = buildKoncisaPlus(nextConfig);
+        const descriptor = built.parts.find(
+          (part) => part.type === 'superficie' && part.meta?.componentKey === preferredComponentKey
+        );
+        if (!descriptor?.code) throw new Error('La combinación de acabado y espesor no tiene código Koncisa Plus.');
+        previousSurface = assembly.children.find(
+          (child) => child.userData?.meta?.componentKey === preferredComponentKey
+        ) || null;
+        if (!previousSurface) throw new Error('La superficie seleccionada ya no existe.');
+        const previousChildIndex = assembly.children.indexOf(previousSurface);
+        const targetRole = String(descriptor.meta?.leaderRole || '').toUpperCase();
+        const previousAccessories = assembly.children.filter((child) => {
+          const meta = child.userData?.meta || {};
+          if (meta.targetSurfaceKey === preferredComponentKey) return true;
+          return targetRole && [meta.targetSurfaceRole, meta.targetRole]
+            .some((role) => String(role || '').toUpperCase() === targetRole);
+        });
+        const newSurface = addSurface({
+          line: descriptor.line,
+          codigoPT: descriptor.code,
+          widthM: descriptor.dimMm.widthMm / 1000,
+          depthM: descriptor.dimMm.depthMm / 1000,
+          thicknessM: descriptor.dimMm.thickMm / 1000,
+          dim: descriptor.dimMm,
+          position: {
+            x: descriptor.position.x / 1000,
+            y: descriptor.position.y / 1000,
+            z: descriptor.position.z / 1000,
+          },
+          rotation: descriptor.rotation,
+          groupId: assembly.userData.groupId,
+          groupName: assembly.userData.groupName,
+          logicalCode: descriptor.logicalCode,
+          parentGroup: assembly,
+          edgeFinish: descriptor.meta?.canto,
+        }, descriptor);
+        if (!newSurface) throw new Error('No se pudo crear la nueva superficie.');
+        stagedObjects.push(newSurface);
+        const visualMaterialCode = previousSurface.userData?.materialCode;
+        if (visualMaterialCode != null) {
+          const materialCode = String(visualMaterialCode);
+          const materialDef = materialsByCodeRef.current?.get?.(materialCode) || null;
+          applyMaterialToObject3D(newSurface, materialCode, materialDef);
+        }
+        const desiredAccessories = built.parts.filter((part) => {
+          if (!['grommet', 'pasacable', 'GLB_PART'].includes(part.type)) return false;
+          if (part.meta?.targetSurfaceKey === preferredComponentKey) return true;
+          return targetRole && [part.meta?.targetSurfaceRole, part.meta?.targetRole]
+            .some((role) => String(role || '').toUpperCase() === targetRole);
+        });
+        for (const accessory of desiredAccessories) {
+          const createdAccessory = await addExternalGlbPart({
+            ...accessory,
+            groupId: assembly.userData.groupId,
+            groupName: assembly.userData.groupName,
+            parentGroup: assembly,
+          });
+          if (!createdAccessory) throw new Error(`No se pudo cargar ${accessory.name || 'un accesorio de superficie'}.`);
+          stagedObjects.push(createdAccessory);
+        }
+        removePartObject(previousSurface, { exactTarget: true, emitBom: false });
+        if (previousChildIndex >= 0) {
+          const currentIndex = assembly.children.indexOf(newSurface);
+          if (currentIndex >= 0 && currentIndex !== previousChildIndex) {
+            assembly.children.splice(currentIndex, 1);
+            assembly.children.splice(Math.min(previousChildIndex, assembly.children.length), 0, newSurface);
+          }
+        }
+        previousAccessories.forEach((object) =>
+          removePartObject(object, { exactTarget: true, emitBom: false })
+        );
+        assembly.userData.config = nextConfig;
+        syncSelectedIds3D([assembly.userData.instanceId]);
+        setActivePart(assembly, { propertiesTarget: newSurface, targetIds: [assembly.userData.instanceId] });
+        if (recordHistory && JSON.stringify(before) !== JSON.stringify(nextConfig)) {
+          historyManager.pushAction({
+            type: HISTORY_ACTION_TYPES.KONCISA_SURFACE_CONFIG_CHANGE,
+            instanceId: assembly.userData.instanceId,
+            componentKey: preferredComponentKey,
+            before,
+            after: JSON.parse(JSON.stringify(nextConfig)),
+          });
+        }
+        emitBOM();
+        refreshFloorAndGrid();
+        return { success: true, assembly, surface: newSurface };
+      } catch (error) {
+        stagedObjects.forEach((object) => {
+          if (object?.parent) removePartObject(object, { exactTarget: true, emitBom: false });
+        });
+        if (previousSurface?.parent === assembly) {
+          syncSelectedIds3D([assembly.userData.instanceId]);
+          setActivePart(assembly, {
+            propertiesTarget: previousSurface,
+            targetIds: [assembly.userData.instanceId],
+          });
+          emitBOM();
+          refreshFloorAndGrid();
+        }
+        return { success: false, reason: error?.message || 'No se pudo actualizar la superficie.' };
+      }
+    }
+
+    function updateSelectedKoncisaSurface(componentKey, patch, instanceId = null) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const selected = getActiveEditablePartObject();
+      const assembly = getKoncisaAssemblyObject(selected || activePart);
+      if (!assembly || (instanceId && ![assembly.userData.instanceId, assembly.userData.groupId].includes(instanceId)))
+        return { success: false, reason: 'Selecciona nuevamente la superficie Koncisa Plus.' };
+      try {
+        const nextConfig = createKoncisaSurfaceConfigPatch(
+          assembly.userData.config || {},
+          componentKey,
+          patch
+        );
+        return rebuildKoncisaSurfaceConfiguration(assembly, nextConfig, componentKey);
+      } catch (error) {
+        return { success: false, reason: error?.message || 'Configuración de superficie inválida.' };
+      }
+    }
+
     function addLocker(config = {}, options = {}) {
       if (readOnly) return { success: false, reason: 'READ_ONLY' };
       const instance = createLockerInstance({ config, transform: options.transform });
       if (!instance.success) return instance;
-      const object = registerLockerInstance({ instance, parent: options.parentGroup || scene, partsRegistry: parts, pickables });
+      const object = registerLockerInstance({
+        instance,
+        parent: options.parentGroup || scene,
+        partsRegistry: parts,
+        pickables,
+      });
       if (!options.transform) object.position.set(0.5 + (parts.length - 1) * 0.9, 0, 0.5);
       object.updateMatrixWorld(true);
       syncSelectedIds3D([object.userData.instanceId]);
@@ -5688,15 +5969,24 @@ function ThreeCanvas({
     }
 
     function applyLockerConfiguration(object, config, recordHistory = true) {
-      if (object?.userData?.kind !== 'LOCKER_PRODUCT') return { success: false, reason: 'LOCKER_PRODUCT_REQUIRED' };
+      if (object?.userData?.kind !== 'LOCKER_PRODUCT')
+        return { success: false, reason: 'LOCKER_PRODUCT_REQUIRED' };
       const before = JSON.parse(JSON.stringify(object.userData.config));
       const result = rebuildLockerInstance({ object, patch: config });
-      if (!result.success) return { ...result, reason: result.diagnostics?.[0]?.code || 'LOCKER_INVALID_CONFIGURATION' };
-      const partRecord = parts.find(p => p.obj === object);
+      if (!result.success)
+        return {
+          ...result,
+          reason: result.diagnostics?.[0]?.code || 'LOCKER_INVALID_CONFIGURATION',
+        };
+      const partRecord = parts.find((p) => p.obj === object);
       if (partRecord) partRecord.code = object.userData.codigoPT;
       if (recordHistory && JSON.stringify(before) !== JSON.stringify(object.userData.config)) {
-        historyManager.pushAction({ type: HISTORY_ACTION_TYPES.LOCKER_CONFIG_CHANGE,
-          instanceId: object.userData.instanceId, before, after: JSON.parse(JSON.stringify(object.userData.config)) });
+        historyManager.pushAction({
+          type: HISTORY_ACTION_TYPES.LOCKER_CONFIG_CHANGE,
+          instanceId: object.userData.instanceId,
+          before,
+          after: JSON.parse(JSON.stringify(object.userData.config)),
+        });
       }
       setActivePart(object, { targetIds: selectedIds3D, subMesh: null });
       emitBOM();
@@ -6142,113 +6432,6 @@ function ThreeCanvas({
 
     function rebuildSelectedCritterium8() {
       return rebuildCritterium8Assembly(getSelectedCritterium8Assembly(), {});
-    }
-
-    async function addLink(config = {}) {
-      if (readOnly) return;
-
-      let result;
-      try {
-        result = await createLinkInstance({
-          config,
-          loadGlb: loadExistingGlb,
-          country: countryRef.current,
-        });
-      } catch (error) {
-        console.error('[addLink] Error al crear la credenza Link:', error);
-        return;
-      }
-
-      if (!result) {
-        // Tipo no disponible — el builder ya emitió el warn
-        return;
-      }
-
-      const { object, partRecord } = result;
-
-      object.position.set(Math.max(0, parts.length * 1.6), 0, 0);
-      object.updateMatrixWorld(true);
-
-      scene.add(object);
-      parts.push(partRecord);
-      pickables.push(object);
-
-      setActivePart(object);
-      emitBOM();
-
-      if (parts.length === 1) frameObject(object);
-      refreshFloorAndGrid();
-    }
-
-    async function swapLinkVariant(instanceId, nextConfig = {}) {
-      if (readOnly) return;
-
-      const found = parts.find(({ obj }) => {
-        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
-      });
-
-      if (!found?.obj) {
-        console.warn('[swapLinkVariant] No se encontró la pieza Link:', instanceId);
-        return;
-      }
-
-      const oldObj = found.obj;
-      // Preserve current position/rotation/scale
-      const savedPos = oldObj.position.clone();
-      const savedRot = oldObj.rotation.clone();
-      const savedScale = oldObj.scale.clone();
-      const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
-
-      // Extract existing config from userData and merge with nextConfig
-      const currentConfig = {
-        tipoKey: oldObj.userData?.tipoKey || '2_archivos',
-        entrega: oldObj.userData?.entrega || 'DER',
-        ancho: oldObj.userData?.ancho || 120,
-        instanceId: oldObj.userData?.instanceId || instanceId,
-        groupId: oldObj.userData?.groupId,
-      };
-
-      const targetConfig = { ...currentConfig, ...nextConfig };
-
-      let result;
-      try {
-        result = await createLinkInstance({
-          config: targetConfig,
-          loadGlb: loadExistingGlb,
-          country: countryRef.current,
-        });
-      } catch (error) {
-        console.error('[swapLinkVariant] Error al intercambiar credenza Link:', error);
-        return;
-      }
-
-      if (!result) return; // Tipo no disponible
-
-      const { object: newObj, partRecord } = result;
-
-      // Sincronizar el estado del floating editor (PropertiesPopup)
-      Object.assign(oldObj.userData, newObj.userData);
-
-      // Restore position/rotation/scale
-      newObj.position.copy(savedPos);
-      newObj.rotation.copy(savedRot);
-      newObj.scale.copy(savedScale);
-      newObj.updateMatrixWorld(true);
-
-      removePartObject(oldObj);
-
-      if (parentGroup) {
-        parentGroup.add(newObj);
-      } else {
-        scene.add(newObj);
-      }
-
-      parts.push(partRecord);
-      pickables.push(newObj);
-
-      setActivePart(newObj);
-      emitBOM();
-      refreshFloorAndGrid();
     }
 
     async function addKuoGo(config = {}) {
@@ -8102,12 +8285,8 @@ function ThreeCanvas({
       const isMilaDouble =
         assemblyGroup.userData?.line === 'MILA_DOUBLE' ||
         assemblyGroup.userData?.meta?.category === 'mila-double';
-      const accessoryCatalog = isMoreaRoot
-        ? MOREA_ACCESSORY_CATALOG
-        : MILA_ACCESSORY_CATALOG;
-      const accessoryOffsets = isMoreaRoot
-        ? MOREA_ACCESSORY_OFFSETS_MM
-        : MILA_ACCESSORY_OFFSETS_MM;
+      const accessoryCatalog = isMoreaRoot ? MOREA_ACCESSORY_CATALOG : MILA_ACCESSORY_CATALOG;
+      const accessoryOffsets = isMoreaRoot ? MOREA_ACCESSORY_OFFSETS_MM : MILA_ACCESSORY_OFFSETS_MM;
       const assemblyLine = isMoreaRoot ? 'MOREA' : isMilaDouble ? 'MILA_DOUBLE' : 'MILA';
       const accessoryCategory = isMoreaRoot ? 'morea' : isMilaDouble ? 'mila-double' : 'mila';
       const rightSeatWidthMm = isMoreaRoot ? 609.97 : 600;
@@ -8289,14 +8468,15 @@ function ThreeCanvas({
           .trim()
           .toLowerCase();
         const isMoreaDouble = moreaVariant === 'double';
-        const armrestTopDropM = Math.max(
-          0,
-          Number(
-            (isMoreaDouble
-              ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_TOP_DROP_MM
-              : MOREA_BUILDER_TUNE.ARMREST_TOP_DROP_MM) || 0
-          )
-        ) / 1000;
+        const armrestTopDropM =
+          Math.max(
+            0,
+            Number(
+              (isMoreaDouble
+                ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_TOP_DROP_MM
+                : MOREA_BUILDER_TUNE.ARMREST_TOP_DROP_MM) || 0
+            )
+          ) / 1000;
 
         const getBounds = (obj) => {
           if (!obj) return null;
@@ -8308,7 +8488,9 @@ function ThreeCanvas({
 
         const seatEntries = [];
         assemblyGroup.traverse((node) => {
-          const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+          const role = String(
+            node?.userData?.meta?.role || node?.userData?.role || ''
+          ).toLowerCase();
           if (role !== 'seat') return;
           const bounds = getBounds(node);
           if (!bounds) return;
@@ -8321,7 +8503,9 @@ function ThreeCanvas({
 
         const armrestEntries = [];
         assemblyGroup.traverse((node) => {
-          const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+          const role = String(
+            node?.userData?.meta?.role || node?.userData?.role || ''
+          ).toLowerCase();
           if (role === 'armrest-left' || role === 'armrest-right' || role === 'armrest-center') {
             armrestEntries.push({
               obj: node,
@@ -8357,17 +8541,22 @@ function ThreeCanvas({
           if (!leftSeatBounds || !rightSeatBounds) return;
 
           const roleOffsetY = Number(MOREA_ACCESSORY_OFFSETS_MM?.[role]?.y || 0) / 1000;
-          const centerLiftM = role === 'armrest-center'
-            ? Math.max(
-              0,
-              Number(
-                (isMoreaDouble
-                  ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM
-                  : MOREA_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM) || 0
-              )
-            ) / 1000
-            : 0;
-          const targetTopY = Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) - armrestTopDropM + roleOffsetY + centerLiftM;
+          const centerLiftM =
+            role === 'armrest-center'
+              ? Math.max(
+                  0,
+                  Number(
+                    (isMoreaDouble
+                      ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM
+                      : MOREA_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM) || 0
+                  )
+                ) / 1000
+              : 0;
+          const targetTopY =
+            Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) -
+            armrestTopDropM +
+            roleOffsetY +
+            centerLiftM;
           const armrestHeight = Math.max(0.001, armrestBounds.max.y - armrestBounds.min.y);
           const desiredMinY = targetTopY - armrestHeight;
           const deltaY = desiredMinY - armrestBounds.min.y;
@@ -9619,12 +9808,31 @@ function ThreeCanvas({
         }
       }
 
+      function createPersistedLink(entity) {
+        const instance = restoreLinkEntity(entity, {
+          applyFinishes: applyLinkFinishes,
+          loadAsset: loadLinkCableAsset,
+          onVisualReady: onLinkVisualReady,
+        });
+        return registerLinkInstance({ instance, parent: scene, partsRegistry: parts, pickables });
+      }
+
       function createPersistedLocker(entity) {
-        if (!entity?.config || typeof entity.config !== 'object') throw new Error('LOCKER_MISSING_CONFIG');
-        const instance = createLockerInstance({ config: entity.config, instanceId: entity.instanceId, transform: entity.transform });
-        if (!instance.success) throw new Error(instance.diagnostics?.[0]?.code || 'LOCKER_INVALID_CONFIGURATION');
-        if (entity.codigoPT && instance.object.userData.codigoPT !== entity.codigoPT) throw new Error('LOCKER_CODE_MISMATCH');
-        if (entity.groupId) instance.object.traverse(node => { node.userData.groupId = entity.groupId; });
+        if (!entity?.config || typeof entity.config !== 'object')
+          throw new Error('LOCKER_MISSING_CONFIG');
+        const instance = createLockerInstance({
+          config: entity.config,
+          instanceId: entity.instanceId,
+          transform: entity.transform,
+        });
+        if (!instance.success)
+          throw new Error(instance.diagnostics?.[0]?.code || 'LOCKER_INVALID_CONFIGURATION');
+        if (entity.codigoPT && instance.object.userData.codigoPT !== entity.codigoPT)
+          throw new Error('LOCKER_CODE_MISMATCH');
+        if (entity.groupId)
+          instance.object.traverse((node) => {
+            node.userData.groupId = entity.groupId;
+          });
         registerLockerInstance({ instance, parent: scene, partsRegistry: parts, pickables });
         return instance.object;
       }
@@ -9723,6 +9931,7 @@ function ThreeCanvas({
           createKoncisaPlus: createPersistedKoncisaPlus,
           createCritterium8: createPersistedCritterium8,
           createVetro: createPersistedVetro,
+          createLink: createPersistedLink,
           createLocker: createPersistedLocker,
           createMila: createPersistedMila,
           createImportedModel: (entity) =>
@@ -10610,6 +10819,10 @@ function ThreeCanvas({
       addZen,
       addCritterium8,
       addVetro,
+      addLink,
+      updateSelectedLink,
+      updateSelectedLinkComponent,
+      updateSelectedKoncisaSurface,
       addLocker,
       updateSelectedLocker,
       updateSelectedVetro,
@@ -10623,12 +10836,10 @@ function ThreeCanvas({
       updateSelectedCritterium8,
       updateSelectedCritterium8Tile,
       rebuildSelectedCritterium8,
-      addLink,
       addKuoGo,
       addKuoAV,
       addKuoAVDoble,
       addKuoAVPantalla,
-      swapLinkVariant,
       swapKuoGoVariant,
       swapKuoAVVariant,
       swapKuoAVDobleVariant,
@@ -10870,6 +11081,7 @@ function ThreeCanvas({
         }
         obj.updateMatrixWorld(true);
       });
+      persistLinkComponentTransforms(targets);
 
       // Mover ensambles anexos vinculados (attachments)
       const movingId = target.userData?.instanceId;
@@ -11150,7 +11362,9 @@ function ThreeCanvas({
       const targetsById = new Map();
 
       sourceObjects.forEach((sourceObject) => {
-        const physicalRoot = getRootPartObject(sourceObject) || sourceObject;
+        const physicalRoot = moveAsGroupRef.current
+          ? getRootPartObject(sourceObject) || sourceObject
+          : getIndividualMovementRoot(sourceObject) || sourceObject;
         if (!physicalRoot) return;
 
         if (!moveAsGroupRef.current) {
@@ -11285,6 +11499,7 @@ function ThreeCanvas({
       const { targets, before } = moveSession2D;
       snapActivePart();
       const after = captureMoveState(targets);
+      persistLinkComponentTransforms(targets);
       moveSession2D = null;
       pushMoveHistory(before, after);
 
@@ -11313,6 +11528,7 @@ function ThreeCanvas({
         object.position.fromArray(position);
         object.updateMatrixWorld(true);
       });
+      persistLinkComponentTransforms(snapshots.map(({ object }) => object));
 
       if (selectionHelper) selectionHelper.update();
       additionalSelectionHelpers.forEach((helper) => helper.update());
@@ -11560,6 +11776,7 @@ function ThreeCanvas({
         object.scale.fromArray(scale);
         object.updateMatrixWorld(true);
       });
+      persistLinkComponentTransforms(snapshots.map(({ object }) => object));
 
       if (selectionHelper) selectionHelper.update();
       additionalSelectionHelpers.forEach((helper) => helper.update());
@@ -11583,6 +11800,21 @@ function ThreeCanvas({
           restoreDeletedObjects(action.createdObjects || []);
           selectCreatedHistoryObjects(action.selectionObjects || []);
         }
+      } else if (action.type === HISTORY_ACTION_TYPES.LINK_CONFIG_CHANGE) {
+        const result = applyLinkConfiguration(findPartById(action.instanceId), state, false);
+        if (!result.success) throw new Error(result.reason || 'LINK_HISTORY_REBUILD_FAILED');
+        return result;
+      } else if (action.type === HISTORY_ACTION_TYPES.KONCISA_SURFACE_CONFIG_CHANGE) {
+        return rebuildKoncisaSurfaceConfiguration(
+          findPartById(action.instanceId),
+          state,
+          action.componentKey,
+          false
+        ).then((result) => {
+          if (!result?.success)
+            throw new Error(result?.reason || 'KONCISA_SURFACE_HISTORY_REBUILD_FAILED');
+          return result;
+        });
       } else if (action.type === HISTORY_ACTION_TYPES.LOCKER_CONFIG_CHANGE) {
         const result = applyLockerConfiguration(findPartById(action.instanceId), state, false);
         if (!result.success) throw new Error(result.reason || 'LOCKER_HISTORY_REBUILD_FAILED');
@@ -11615,7 +11847,9 @@ function ThreeCanvas({
 
     function beginRotation({ sourceId } = {}) {
       const sourceObject = resolveRotationSource(sourceId);
-      const source = getRootPartObject(sourceObject) || sourceObject;
+      const source = moveAsGroupRef.current
+        ? getRootPartObject(sourceObject) || sourceObject
+        : getIndividualMovementRoot(sourceObject) || sourceObject;
       if (
         !source ||
         source.userData?.isFloor ||
@@ -11716,6 +11950,7 @@ function ThreeCanvas({
       const targets = rotationSession.targets || [];
       const before = rotationSession.historyBefore;
       const after = captureRotationState(rotationSession.targets);
+      persistLinkComponentTransforms(targets.map(({ obj }) => obj));
       rotationSession = null;
 
       if (!historyManager.isReplaying && rotationStateChanged(before, after)) {
@@ -11768,7 +12003,9 @@ function ThreeCanvas({
     function getRotationState({ sourceId } = {}) {
       if (!rotationSession) {
         const sourceObject = resolveRotationSource(sourceId);
-        const source = getRootPartObject(sourceObject) || sourceObject;
+        const source = moveAsGroupRef.current
+          ? getRootPartObject(sourceObject) || sourceObject
+          : getIndividualMovementRoot(sourceObject) || sourceObject;
         if (!source) return null;
         const targets = resolveRotationTargets({ sourceId });
         const box = new THREE.Box3();
@@ -15026,6 +15263,7 @@ function ThreeCanvas({
             null,
           config: propertiesTarget.userData?.config || root.userData?.config || null,
           userData: propertiesTarget.userData || root.userData || null,
+          ...(root.userData?.kind === 'LINK_PRODUCT' ? getLinkSelectionInfo(root, hitObj) : {}),
           parentAssemblyId:
             propertiesTarget.userData?.parentAssemblyId || root.userData?.parentAssemblyId || null,
           ductCovers: propertiesTarget.userData?.ductCovers || null,
@@ -15438,7 +15676,9 @@ function ThreeCanvas({
         const sideArmrestTopYs = [];
 
         assemblyRoot.traverse((node) => {
-          const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+          const role = String(
+            node?.userData?.meta?.role || node?.userData?.role || ''
+          ).toLowerCase();
           if (role === 'seat') {
             node.updateMatrixWorld?.(true);
             const seatBounds = new THREE.Box3().setFromObject(node);
@@ -15465,17 +15705,19 @@ function ThreeCanvas({
         if (seatEntries.length < 2 || !centerArmrests.length) return;
         seatEntries.sort((a, b) => a.centerX - b.centerX);
 
-        const isMoreaDouble = String(assemblyRoot?.userData?.meta?.moreaVariant || 'single')
-          .trim()
-          .toLowerCase() === 'double';
-        const armrestTopDropM = Math.max(
-          0,
-          Number(
-            (isMoreaDouble
-              ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_TOP_DROP_MM
-              : MOREA_BUILDER_TUNE.ARMREST_TOP_DROP_MM) || 0
-          )
-        ) / 1000;
+        const isMoreaDouble =
+          String(assemblyRoot?.userData?.meta?.moreaVariant || 'single')
+            .trim()
+            .toLowerCase() === 'double';
+        const armrestTopDropM =
+          Math.max(
+            0,
+            Number(
+              (isMoreaDouble
+                ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_TOP_DROP_MM
+                : MOREA_BUILDER_TUNE.ARMREST_TOP_DROP_MM) || 0
+            )
+          ) / 1000;
         const sideArmrestOffsetY = Number(MOREA_ACCESSORY_OFFSETS_MM?.armrestLeft?.y || 0) / 1000;
         const hasSideArmrestReference = sideArmrestTopYs.length > 0;
         const sideArmrestReferenceTopY = hasSideArmrestReference
@@ -15497,7 +15739,8 @@ function ThreeCanvas({
           armrestObj.updateMatrixWorld?.(true);
 
           const armrestBounds = new THREE.Box3().setFromObject(armrestObj);
-          if (!Number.isFinite(armrestBounds.min.y) || !Number.isFinite(armrestBounds.max.y)) return;
+          if (!Number.isFinite(armrestBounds.min.y) || !Number.isFinite(armrestBounds.max.y))
+            return;
           const armrestHeight = Math.max(0.001, armrestBounds.max.y - armrestBounds.min.y);
 
           const targetMinX = leftSeatBounds.max.x;
@@ -15506,12 +15749,11 @@ function ThreeCanvas({
           const centerFromRight = targetMaxX - armrestBounds.max.x;
           const deltaX = (centerFromLeft + centerFromRight) / 2;
 
-          const targetTopY =
-            Number.isFinite(sideArmrestReferenceTopY)
-              ? sideArmrestReferenceTopY
-              : Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) -
-                armrestTopDropM +
-                sideArmrestOffsetY;
+          const targetTopY = Number.isFinite(sideArmrestReferenceTopY)
+            ? sideArmrestReferenceTopY
+            : Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) -
+              armrestTopDropM +
+              sideArmrestOffsetY;
           const desiredMinY = targetTopY - armrestHeight;
           const deltaY = desiredMinY - armrestBounds.min.y;
           const targetBackZ = Math.min(leftSeatBounds.max.z, rightSeatBounds.max.z);
@@ -15531,7 +15773,9 @@ function ThreeCanvas({
           const explicitSeam = Number(result?.targetPort?.seamIndex);
           if (Number.isFinite(explicitSeam)) return Math.trunc(explicitSeam);
 
-          const targetSide = String(result?.targetSide || '').trim().toLowerCase();
+          const targetSide = String(result?.targetSide || '')
+            .trim()
+            .toLowerCase();
           const seamMatch = targetSide.match(/^seam_(\d+)$/);
           if (!seamMatch) return null;
 
@@ -15539,7 +15783,9 @@ function ThreeCanvas({
           return Number.isFinite(parsedSeam) ? Math.trunc(parsedSeam) : null;
         };
 
-        const activeRole = String(targetObj?.userData?.meta?.role || targetObj?.userData?.role || '').toLowerCase();
+        const activeRole = String(
+          targetObj?.userData?.meta?.role || targetObj?.userData?.role || ''
+        ).toLowerCase();
         if (connectorScopeLine === 'MOREA' && activeRole === 'armrest-center') {
           const seamIndexFromTarget = resolveSeamIndexFromSnapResult(snapResult);
           if (Number.isFinite(seamIndexFromTarget)) {
@@ -15648,7 +15894,9 @@ function ThreeCanvas({
             targetObj?.userData?.meta?.role || targetObj?.userData?.role || ''
           ).toLowerCase();
           const targetRole = String(
-            snapResult?.targetObj?.userData?.meta?.role || snapResult?.targetObj?.userData?.role || ''
+            snapResult?.targetObj?.userData?.meta?.role ||
+              snapResult?.targetObj?.userData?.role ||
+              ''
           ).toLowerCase();
           const targetSeamIndex = resolveSeamIndexFromSnapResult(snapResult);
           const armrestRoles = new Set(['armrest-left', 'armrest-right', 'armrest-center']);
@@ -16326,6 +16574,9 @@ function ThreeCanvas({
             createMoveSnapshot(obj, localPosition)
           );
           const after = captureMoveState(
+            completedDragSession.initialPositions.map(({ obj }) => obj)
+          );
+          persistLinkComponentTransforms(
             completedDragSession.initialPositions.map(({ obj }) => obj)
           );
           pushMoveHistory(before, after);
@@ -18981,6 +19232,13 @@ function ThreeCanvas({
     function applyFinishToActivePart(materialCode, materialDef = null, scope = 'PART') {
       if (readOnly) return;
       if (!activePart) return;
+
+      const linkRoot = getLinkRoot(activePart);
+      if (linkRoot)
+        return applyLinkConfiguration(
+          linkRoot,
+          createLinkFinishPatch(linkRoot, activeSubMesh, materialCode, scope)
+        );
 
       const editablePart = getActiveEditablePartObject() || activePart;
 

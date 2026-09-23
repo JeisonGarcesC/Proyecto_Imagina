@@ -1,3 +1,4 @@
+import { serializeLinkEntity } from '../../mepal/link/integration/linkPersistence.js';
 import { serializeKoncisaPlusRecipe } from '../../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe.js';
 
 import { serializeLockerEntity } from '../../mepal/lockers/integration/lockerPersistence.js';
@@ -268,6 +269,15 @@ export function serializeProjectEntities(parts = [], options = {}) {
 
   parts.forEach((partRecord) => {
     const object = partRecord?.obj;
+    if (object?.userData?.kind !== 'LINK_PRODUCT') return;
+    const instanceId = object.userData.instanceId || object.uuid;
+    if (processedAssemblies.has(instanceId)) return;
+    processedAssemblies.add(instanceId);
+    entities.push(serializeLinkEntity(object));
+  });
+
+  parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
     if (!['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(object?.userData?.kind)) return;
     const instanceId = object.userData?.instanceId || object.uuid;
     if (processedAssemblies.has(instanceId)) return;
@@ -280,7 +290,8 @@ export function serializeProjectEntities(parts = [], options = {}) {
       findKoncisaAssembly(partRecord?.obj) ||
       findCritterium8Assembly(partRecord?.obj) ||
       findMilaAssembly(partRecord?.obj) ||
-      ['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(partRecord?.obj?.userData?.kind) ||
+      ['VETRO_PRODUCT', 'LOCKER_PRODUCT', 'LINK_PRODUCT'].includes(partRecord?.obj?.userData?.kind) ||
+      partRecord?.obj?.userData?.parametricOwner === 'LINK_PRODUCT' ||
       isKoncisaPersistenceObject(partRecord?.obj)
     ) {
       return;

@@ -23,6 +23,12 @@ import {
 } from '../rules/koncisaCeilingDuctRules';
 
 import { buildKoncisaLeader } from '../leader/KoncisaLeaderBuilder';
+import {
+  fallbackFromConfig,
+  getKoncisaSurfaceComponentConfig,
+  getKoncisaSurfaceKey,
+  resolveKoncisaSurfaceFinishOption,
+} from '../rules/koncisaSurfaceComponentRules.js';
 
 function normalizeCostadoZone(value) {
   const text = String(value || '')
@@ -235,6 +241,9 @@ export function buildKoncisaPlus(config = {}) {
   });
 
   superficies.forEach((s, index) => {
+    const componentKey = getKoncisaSurfaceKey(s, index);
+    const componentConfig = getKoncisaSurfaceComponentConfig(config, componentKey, fallbackFromConfig(config));
+    const componentFinish = resolveKoncisaSurfaceFinishOption(componentConfig, s);
     const surfacePart = createSuperficie({
       groupId,
       groupName,
@@ -248,10 +257,10 @@ export function buildKoncisaPlus(config = {}) {
       billingWidthMm: s.billingWidthMm,
       billingDepthMm: s.billingDepthMm,
 
-      thickMm: s.thickMm,
+      thickMm: componentFinish.thickMm,
       shape: s.shape || 'RECT',
-      finishCode: s.finishCode,
-      variant: s.variant,
+      finishCode: componentFinish.finishCode,
+      variant: componentFinish.variant,
 
       perforada: s.perforada ?? false,
       canto: s.canto || 'PVC-2MM',
@@ -261,6 +270,10 @@ export function buildKoncisaPlus(config = {}) {
       z: s.z ?? 0,
       index: s.index ?? index,
     });
+
+    surfacePart.meta = { ...(surfacePart.meta || {}), componentKey, componentConfig };
+    surfacePart.componentKey = componentKey;
+    surfacePart.componentConfig = componentConfig;
 
     //quitar la linea de abajo
     parts.push(attachSurfaceModuleMetadata(surfacePart, s, index));
@@ -298,7 +311,10 @@ export function buildKoncisaPlus(config = {}) {
   // ========================
   // GROMMETS / PASACABLES
   // ========================
-  if (tipoPasoCable === 'grommet') {
+  const hasSurfaceGrommetOverride = Object.values(config.surfaceOverrides || {}).some(
+    (override) => override?.cableAccessType === 'GROMMET' || override?.grommet === true
+  );
+  if (tipoPasoCable === 'grommet' || hasSurfaceGrommetOverride) {
     const grommets = getGrommetsConfig({
       puestos,
       tipoPuesto,
@@ -307,42 +323,55 @@ export function buildKoncisaPlus(config = {}) {
     });
 
     grommets.forEach((g) => {
-      parts.push(
-        createGrommet({
+      const moduleIndex = Number.parseInt(String(g.index), 10) || 0;
+      const componentKey = `SURFACE_${moduleIndex}`;
+      const componentConfig = getKoncisaSurfaceComponentConfig(config, componentKey, fallbackFromConfig(config));
+      if (!componentConfig.grommet) return;
+      const grommetPart = createGrommet({
           groupId,
           groupName,
-          finish: grommetFinish,
+          finish: componentConfig.grommetFinish || grommetFinish,
           diameterMm: g.diameterMm || 80,
           x: g.x,
           y: g.y ?? 740, //altura grommet
           z: g.z ?? 0,
           rotY: g.rotY ?? 0,
-        })
-      );
+        });
+      grommetPart.meta = { ...(grommetPart.meta || {}), targetSurfaceKey: componentKey, moduleIndex };
+      parts.push(grommetPart);
     });
   }
 
-  if (tipoPasoCable === 'pasacable') {
-    const pasacables = getPasacablesConfig({
-      puestos,
-      tipoPuesto,
-      largoRealMm,
-      anchoRealMm,
-      position: pasacablePosition,
-    });
-
-    pasacables.forEach((p) => {
+  const hasSurfacePasacableOverride = Object.values(config.surfaceOverrides || {}).some(
+    (override) => override?.cableAccessType === 'PASACABLE' || override?.pasacable === true
+  );
+  if (tipoPasoCable === 'pasacable' || hasSurfacePasacableOverride) {
+    const centerPasacables = getPasacablesConfig({ puestos, tipoPuesto, largoRealMm, anchoRealMm, position: 'CENTER' });
+    centerPasacables.forEach((centerPasacable) => {
+      const moduleIndex = Number.parseInt(String(centerPasacable.index), 10) || 0;
+      const componentKey = `SURFACE_${moduleIndex}`;
+      const componentConfig = getKoncisaSurfaceComponentConfig(config, componentKey, fallbackFromConfig(config));
+      if (!componentConfig.pasacable) return;
+      const pasacables = getPasacablesConfig({
+        puestos,
+        tipoPuesto,
+        largoRealMm,
+        anchoRealMm,
+        position: componentConfig.pasacablePosition || pasacablePosition,
+      });
+      const p = pasacables.find((candidate) => (Number.parseInt(String(candidate.index), 10) || 0) === moduleIndex);
+      if (!p) return;
       //console.log('p.y: ', p.y);
-      parts.push(
-        createPasacable({
+      const pasacablePart = createPasacable({
           groupId,
           groupName,
           x: p.x,
           y: p.y,
           z: p.z,
           rotY: p.rotY,
-        })
-      );
+        });
+      pasacablePart.meta = { ...(pasacablePart.meta || {}), targetSurfaceKey: componentKey, moduleIndex };
+      parts.push(pasacablePart);
     });
   }
 

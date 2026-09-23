@@ -1,4 +1,5 @@
 const LOADERS = {
+  LINK_PRODUCT: (entity, context) => context.createLink(entity),
   LOCKER_PRODUCT: (entity, context) => context.createLocker(entity),
   KONCISA_PLUS: (entity, context) => context.createKoncisaPlus(entity),
   CRITTERIUM_8: (entity, context) => context.createCritterium8(entity),
@@ -28,7 +29,7 @@ export function getEntityLoader(kind) {
 export async function loadPersistedEntity(entity, context) {
   const loader = getEntityLoader(entity?.kind);
   if (!loader) throw new Error(`UNSUPPORTED_KIND:${entity?.kind || 'UNKNOWN'}`);
-  if (!entity?.codigoPT && !['SURFACE', 'CRITTERIUM_8', 'VETRO_PRODUCT', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
+  if (!entity?.codigoPT && !['LINK_PRODUCT', 'SURFACE', 'CRITTERIUM_8', 'VETRO_PRODUCT', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
     throw new Error('MISSING_CODIGO_PT');
   }
 

@@ -42,16 +42,29 @@ import { getPlanAsset, savePlanAsset } from './core/plans/storage/planAssetStore
 import { loadDxfPlan } from './core/plans/loaders/dxfPlanLoader';
 import { createDxfCalibration, resolveDxfUnitSelection } from './core/plans/utils/dxfUnits';
 import DxfUnitSelector from './core/plans/components/DxfUnitSelector';
-import { normalizeWallDefinition, updateWallDefinition } from './core/architecture/walls/wallDefinition';
+import {
+  normalizeWallDefinition,
+  updateWallDefinition,
+} from './core/architecture/walls/wallDefinition';
 import { deserializeWalls, serializeWalls } from './core/architecture/walls/wallPersistence';
 import {
   COLUMN_SHAPES,
   normalizeColumnDefinition,
   updateColumnDefinition,
 } from './core/architecture/columns/columnDefinition';
-import { deserializeColumns, serializeColumns } from './core/architecture/columns/columnPersistence';
-import { createDoorDefinition, updateDoorDefinition, validateDoorPlacement } from './core/architecture/openings/doorDefinition';
-import { deserializeOpenings, serializeOpenings } from './core/architecture/openings/openingPersistence';
+import {
+  deserializeColumns,
+  serializeColumns,
+} from './core/architecture/columns/columnPersistence';
+import {
+  createDoorDefinition,
+  updateDoorDefinition,
+  validateDoorPlacement,
+} from './core/architecture/openings/doorDefinition';
+import {
+  deserializeOpenings,
+  serializeOpenings,
+} from './core/architecture/openings/openingPersistence';
 import { deleteOpeningsForWall } from './core/architecture/openings/openingInteraction2D';
 
 import { exportProjectPPT } from './exports/exportPPT';
@@ -292,9 +305,11 @@ export default function App() {
 
   const handleColumnChange = (patch) => {
     if (!selectedColumnId) return;
-    setColumns((current) => current.map((column) =>
-      column.id === selectedColumnId ? updateColumnDefinition(column, patch) || column : column
-    ));
+    setColumns((current) =>
+      current.map((column) =>
+        column.id === selectedColumnId ? updateColumnDefinition(column, patch) || column : column
+      )
+    );
   };
 
   const handleDeleteColumn = () => {
@@ -316,18 +331,22 @@ export default function App() {
     setOpeningMode(nextMode);
     if (nextMode !== 'EDIT') setSelectedOpeningId(null);
     if (nextMode !== 'NONE') {
-      setWallMode('NONE'); setSelectedWallId(null);
-      setColumnMode('NONE'); setSelectedColumnId(null);
+      setWallMode('NONE');
+      setSelectedWallId(null);
+      setColumnMode('NONE');
+      setSelectedColumnId(null);
     }
   };
 
   const handleOpeningChange = (patch) => {
     if (!selectedOpeningId) return;
-    setOpenings((current) => current.map((opening) =>
-      opening.id === selectedOpeningId
-        ? updateDoorDefinition(opening, patch, { walls, openings: current }) || opening
-        : opening
-    ));
+    setOpenings((current) =>
+      current.map((opening) =>
+        opening.id === selectedOpeningId
+          ? updateDoorDefinition(opening, patch, { walls, openings: current }) || opening
+          : opening
+      )
+    );
   };
 
   const handleDeleteOpening = () => {
@@ -354,7 +373,7 @@ export default function App() {
   };
   const handleReplaceShape2D = (shape) => {
     if (!shape?.id || shape.semanticType === 'cimbra') return;
-    setShapes2D((current) => current.map((item) => item.id === shape.id ? shape : item));
+    setShapes2D((current) => current.map((item) => (item.id === shape.id ? shape : item)));
   };
   const [texts2D, setTexts2D] = useState([]);
   const [textTool2D, setTextTool2D] = useState(false);
@@ -466,26 +485,46 @@ export default function App() {
 
   const getPlanData = () => {
     const detailIds = Array.from(detailed2DIds);
-    const parts =
-      threeApiRef.current?.getPartsSnapshot2D?.({ detailed2DIds: detailIds }) || [];
+    const parts = threeApiRef.current?.getPartsSnapshot2D?.({ detailed2DIds: detailIds }) || [];
     return { parts, walls, columns, openings, detailed2DIds: detailIds };
   };
 
   const exportPlanSvg = () => {
     const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, columns, openings, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
+    const svg = generatePlanSvg({
+      parts,
+      walls,
+      columns,
+      openings,
+      detailed2DIds: detailIds,
+      title: 'Planta 2D (Piezas + Muros)',
+    });
     downloadTextFile('planta_2d.svg', svg, 'image/svg+xml');
   };
 
   const exportPlanPng = async () => {
     const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, columns, openings, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
+    const svg = generatePlanSvg({
+      parts,
+      walls,
+      columns,
+      openings,
+      detailed2DIds: detailIds,
+      title: 'Planta 2D (Piezas + Muros)',
+    });
     await exportSvgToPng(svg, { scale: 2, filename: 'planta_2d.png' });
   };
 
   const exportPlanPdf = () => {
     const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
-    const svg = generatePlanSvg({ parts, walls, columns, openings, detailed2DIds: detailIds, title: 'Planta 2D (Piezas + Muros)' });
+    const svg = generatePlanSvg({
+      parts,
+      walls,
+      columns,
+      openings,
+      detailed2DIds: detailIds,
+      title: 'Planta 2D (Piezas + Muros)',
+    });
     printSvgAsPdf(svg, { title: 'Planta 2D' });
   };
 
@@ -543,10 +582,7 @@ export default function App() {
       plan2DTransform,
     ]
   );
-  const legacyPlan2D = useMemo(
-    () => planDefinitionToLegacyState(planDefinition),
-    [planDefinition]
-  );
+  const legacyPlan2D = useMemo(() => planDefinitionToLegacyState(planDefinition), [planDefinition]);
   const hasPlan2D = Boolean(plan2DSrc || plan2DAssetId || plan2DVector);
   const activePlanDefinition = hasPlan2D ? planDefinition : null;
 
@@ -614,7 +650,9 @@ export default function App() {
         return;
       }
     } else if (type === 'dwg') {
-      alert('El DWG no se puede renderizar directo en este visor. Convierte el archivo a DXF o SVG para visualizarlo en 2D.');
+      alert(
+        'El DWG no se puede renderizar directo en este visor. Convierte el archivo a DXF o SVG para visualizarlo en 2D.'
+      );
       return;
     } else if (type === 'dxf') {
       try {
@@ -763,8 +801,8 @@ export default function App() {
           restoredPlan.renderType === 'VECTOR'
             ? null
             : restoredPlan.sourceType === 'PDF'
-            ? await pdfFileToDataUrl(asset.blob)
-            : URL.createObjectURL(asset.blob);
+              ? await pdfFileToDataUrl(asset.blob)
+              : URL.createObjectURL(asset.blob);
       } catch (error) {
         console.warn('planDefinition asset unavailable', {
           assetId: restoredPlan.assetId,
@@ -897,7 +935,11 @@ export default function App() {
 
   const handleResetDxfScale = () => {
     const originalScale = Number(plan2DVector?.units?.metersPerUnit);
-    if (plan2DVector?.units?.detected !== true || !Number.isFinite(originalScale) || originalScale <= 0) {
+    if (
+      plan2DVector?.units?.detected !== true ||
+      !Number.isFinite(originalScale) ||
+      originalScale <= 0
+    ) {
       return;
     }
     setPlan2DCalibration((current) => ({
@@ -924,7 +966,11 @@ export default function App() {
     const pt = String(selectedPart?.code ?? '').trim();
     if (!pt) return null;
 
-    const item = byCode?.get?.(pt) || null;
+    // El código PT de LOCKERS siempre es el de la coraza (metálica); las naves/puertas
+    // resuelven su propio genérico por material (Formica/Melamina/Metálica), no por el
+    // código PT documentado en ptsinbom (que no distingue material de nave).
+    const isLocker = selectedPart?.kind === 'LOCKER_PRODUCT';
+    const item = isLocker ? null : byCode?.get?.(pt) || null;
 
     const genericos = [
       ...(Array.isArray(item?.raw?.genericos) ? item.raw.genericos : []),
@@ -932,7 +978,7 @@ export default function App() {
       item?.raw?.generico ?? null,
       item?.generico ?? null,
 
-      // ✅ fallback para objetos que no viven en byCode, como el piso
+      // ✅ fallback para objetos que no viven en byCode, como el piso o los Lockers
       ...(Array.isArray(selectedPart?.genericos) ? selectedPart.genericos : []),
       selectedPart?.generico ?? null,
     ]
@@ -1176,7 +1222,9 @@ export default function App() {
         >
           <LeftRail active={leftSection} onChange={setLeftSection} />
           {/* CONTENEDOR VERTICAL */}
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}>
+          <div
+            style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}
+          >
             {/* SELECT ARRIBA */}
             {leftSection === 'typologies' && (
               <div
@@ -1288,19 +1336,13 @@ export default function App() {
               onAddMepalTekSocial={(codigo) =>
                 !readOnly && threeApiRef.current?.addMepalTekSocial?.(codigo)
               }
-              onAddClak={(codigo) =>
-                !readOnly && threeApiRef.current?.addClak?.(codigo)
-              }
-              onAddEduk={(codigo) =>
-                !readOnly && threeApiRef.current?.addEduk?.(codigo)
-              }
+              onAddClak={(codigo) => !readOnly && threeApiRef.current?.addClak?.(codigo)}
+              onAddEduk={(codigo) => !readOnly && threeApiRef.current?.addEduk?.(codigo)}
               onAddCritterium8={(config) =>
                 !readOnly && threeApiRef.current?.addCritterium8?.(config)
               }
               onAddLocker={(config) => !readOnly && threeApiRef.current?.addLocker?.(config)}
-              onAddVetro={(config) =>
-                !readOnly && threeApiRef.current?.addVetro?.(config)
-              }
+              onAddVetro={(config) => !readOnly && threeApiRef.current?.addVetro?.(config)}
               onToggleSnap={() => !readOnly && threeApiRef.current?.toggleSnap?.()}
               onApplyGlobalMaterial={(code, scope = 'ALL') => {
                 if (readOnly) return;
@@ -1326,9 +1368,7 @@ export default function App() {
               onPlanRotationChange={handlePlanRotationChange}
               onVectorLayerChange={handleVectorLayerChange}
               onResetDxfScale={handleResetDxfScale}
-              onPlanRecalibrate={() =>
-                setPlanCalibrationRequestId((current) => current + 1)
-              }
+              onPlanRecalibrate={() => setPlanCalibrationRequestId((current) => current + 1)}
               onDeletePlan={handleDeletePlan2D}
               wallMode={wallMode}
               setWallMode={handleWallModeChange}
@@ -1343,7 +1383,8 @@ export default function App() {
               onUndoLastWall={() => {
                 setWalls((prev) => {
                   const removedWallId = prev.at(-1)?.id;
-                  if (removedWallId) setOpenings((current) => deleteOpeningsForWall(current, removedWallId));
+                  if (removedWallId)
+                    setOpenings((current) => deleteOpeningsForWall(current, removedWallId));
                   return prev.slice(0, -1);
                 });
                 setSelectedWallId(null);
@@ -1385,7 +1426,10 @@ export default function App() {
               onOpeningChange={handleOpeningChange}
               onDeleteOpening={handleDeleteOpening}
               onCloseOpeningProperties={() => setSelectedOpeningId(null)}
-              onClearOpenings={() => { setOpenings([]); setSelectedOpeningId(null); }}
+              onClearOpenings={() => {
+                setOpenings([]);
+                setSelectedOpeningId(null);
+              }}
               shapeTool2D={shapeTool2D}
               setShapeTool2D={setShapeTool2D}
               selectedShape2D={selectedShape2D}
@@ -1412,7 +1456,9 @@ export default function App() {
         </div>
 
         {/* CENTER */}
-        <div style={{ minHeight: 0, position: 'relative', zIndex: 1, minWidth: 0, overflow: 'hidden' }}>
+        <div
+          style={{ minHeight: 0, position: 'relative', zIndex: 1, minWidth: 0, overflow: 'hidden' }}
+        >
           {/* Export buttons */}
           <div
             style={{
@@ -1435,9 +1481,9 @@ export default function App() {
           </div>
 
           <ThreeCanvas
-          walls={walls}
-          columns={columns}
-          openings={openings}
+            walls={walls}
+            columns={columns}
+            openings={openings}
             readOnly={readOnly}
             materialsByCode={materialsByCode}
             catalogByCode={byCode}
@@ -1466,9 +1512,7 @@ export default function App() {
                 ? resolvedTargetIds
                 : moveAsGroup && groupId
                   ? snapshot
-                      .filter(
-                        (candidate) => String(candidate?.groupId || '').trim() === groupId
-                      )
+                      .filter((candidate) => String(candidate?.groupId || '').trim() === groupId)
                       .map((candidate) => candidate.id)
                       .filter(Boolean)
                   : [part.instanceId];
@@ -1509,9 +1553,7 @@ export default function App() {
 
           <Plan2DOverlay
             historyApi={threeApi}
-            getSnapshot={(options) =>
-              threeApiRef.current?.getPartsSnapshot2D?.(options) || []
-            }
+            getSnapshot={(options) => threeApiRef.current?.getPartsSnapshot2D?.(options) || []}
             selectedIds={selectedIds}
             detailed2DIds={detailed2DIds}
             onDetailed2DIdsChange={setDetailed2DIds}
@@ -1591,7 +1633,9 @@ export default function App() {
             }}
             onReplaceText2D={(item) => {
               if (!item?.id) return;
-              setTexts2D((current) => current.map((currentItem) => currentItem.id === item.id ? item : currentItem));
+              setTexts2D((current) =>
+                current.map((currentItem) => (currentItem.id === item.id ? item : currentItem))
+              );
             }}
             onDeleteSelectedText2D={handleDeleteText2D}
             walls={walls}
@@ -1723,7 +1767,9 @@ export default function App() {
         </div>
 
         {/* RIGHT */}
-        <div style={{ minWidth: 0, minHeight: 0, overflow: 'hidden', position: 'relative', zIndex: 2 }}>
+        <div
+          style={{ minWidth: 0, minHeight: 0, overflow: 'hidden', position: 'relative', zIndex: 2 }}
+        >
           {/*
           <PropertiesPanel
             part={selectedPart}
@@ -1756,8 +1802,8 @@ export default function App() {
         <SurfaceModal
           open={surfaceOpen}
           onClose={() => setSurfaceOpen(false)}
-          lines={['LINK.SYS', 'KONCISA.PLUS']}
-          defaultLine="LINK.SYS"
+          lines={['KONCISA.PLUS']}
+          defaultLine="KONCISA.PLUS"
           onCreate={({ line, widthMm, depthMm, thickMm, codigoPT }) => {
             setSurfaceOpen(false);
             threeApiRef.current?.addSurface?.({

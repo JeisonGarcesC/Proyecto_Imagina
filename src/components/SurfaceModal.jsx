@@ -69,8 +69,8 @@ const primaryBtnStyle = {
 
 export default function SurfaceModal({
   open,
-  lines = ['LINK.SYS', 'KONCISA.PLUS'],
-  defaultLine = 'LINK.SYS',
+  lines = ['KONCISA.PLUS'],
+  defaultLine = 'KONCISA.PLUS',
   onClose,
   onCreate, // ({ line, widthMm, depthMm, thickMm, codigoPT })
 }) {

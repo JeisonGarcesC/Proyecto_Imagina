@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import './PropertiesPanel.css';
 import Critterium8Properties from '../mepal/critterium8/properties/Critterium8Properties.jsx';
 import VetroProperties from '../mepal/vetro/properties/VetroProperties.jsx';
-import LockersProperties from '../mepal/lockers/properties/LockersProperties.jsx';
 
 export default function PropertiesPanel({
   part,
@@ -59,7 +58,11 @@ export default function PropertiesPanel({
 
   function normalizeGenericos(source, byCodeMap) {
     const code = String(source?.code || '').trim();
-    const item = code ? byCodeMap?.get?.(code) || null : null;
+    // LOCKERS: el código PT documentado es siempre el de la coraza (metálica) y no
+    // distingue el material de la nave/puerta; usar solo el genérico ya resuelto por
+    // material (source.generico/genericos) en vez del código PT del catálogo externo.
+    const isLocker = source?.kind === 'LOCKER_PRODUCT';
+    const item = !isLocker && code ? byCodeMap?.get?.(code) || null : null;
 
     const values = [
       ...(Array.isArray(source?.raw?.genericos) ? source.raw.genericos : []),
@@ -96,15 +99,12 @@ export default function PropertiesPanel({
     return <Critterium8Properties part={part} api={api} readOnly={readOnly} />;
   }
 
-  if (part?.kind === 'LOCKER_PRODUCT') return <LockersProperties part={part} api={api} readOnly={readOnly} />;
-
   if (part?.kind === 'VETRO_PRODUCT') {
     return <VetroProperties part={part} api={api} readOnly={readOnly} />;
   }
 
   return (
     <div className="pp-shell">
-
       <div className="pp-header">
         <p className="pp-title">Propiedades</p>
       </div>
@@ -126,6 +126,13 @@ export default function PropertiesPanel({
             <span className="pp-field-label">Código:</span> {part.code || '—'}
           </div>
 
+          {part.line === 'LINK' && (
+            <div className="pp-field">
+              <span className="pp-field-label">Descripción:</span>{' '}
+              {part.description || 'Puesto LINK'}
+            </div>
+          )}
+
           {/* Genérico */}
           <div className="pp-field">
             <span className="pp-field-label">Genérico:</span>{' '}
@@ -133,7 +140,9 @@ export default function PropertiesPanel({
           </div>
           <div className="pp-field">
             <span className="pp-field-label">Genérico (Acabado):</span>{' '}
-            <span style={{ opacity: partAcabadoGenericos.length ? 1 : 0.5 }}>{partAcabadoGenericoText}</span>
+            <span style={{ opacity: partAcabadoGenericos.length ? 1 : 0.5 }}>
+              {partAcabadoGenericoText}
+            </span>
           </div>
 
           {part?.kind === 'EDUK' && part?.edukWidth && (
@@ -153,50 +162,82 @@ export default function PropertiesPanel({
           {(part.dimMm || part.dimM) && (
             <div className="pp-field" style={{ marginTop: 8, lineHeight: 1.7 }}>
               <span className="pp-field-label">Dimensiones</span>
-              <div>Ancho: {part.dimMm ? part.dimMm.widthMm : Math.round((part.dimM?.widthM || 0) * 1000)} mm</div>
-              <div>Fondo: {part.dimMm ? part.dimMm.depthMm : Math.round((part.dimM?.depthM || 0) * 1000)} mm</div>
-              <div>Espesor: {part.dimMm ? part.dimMm.thickMm : Math.round((part.dimM?.thicknessM || 0) * 1000)} mm</div>
+              <div>
+                Ancho:{' '}
+                {part.dimMm ? part.dimMm.widthMm : Math.round((part.dimM?.widthM || 0) * 1000)} mm
+              </div>
+              <div>
+                Fondo:{' '}
+                {part.dimMm ? part.dimMm.depthMm : Math.round((part.dimM?.depthM || 0) * 1000)} mm
+              </div>
+              <div>
+                Espesor:{' '}
+                {part.dimMm ? part.dimMm.thickMm : Math.round((part.dimM?.thicknessM || 0) * 1000)}{' '}
+                mm
+              </div>
             </div>
           )}
 
           <div className="pp-divider" />
 
           {/* Acabado */}
-          <div className="pp-field-label" style={{ marginBottom: 6 }}>Acabado</div>
-
-          <div className="pp-scope-group">
-            <button type="button" title="Aplicar a la parte seleccionada"
-              onClick={() => setApplyScope('PART')} disabled={readOnly}
-              className={`pp-scope-btn${applyScope === 'PART' ? ' is-active' : ''}`}
-            >◧ Parte</button>
-            <button type="button" title="Aplicar a piezas similares del mismo conjunto"
-              onClick={() => setApplyScope('GROUP')} disabled={readOnly || !canApplyGroup}
-              className={`pp-scope-btn${applyScope === 'GROUP' ? ' is-active' : ''}`}
-              style={{ opacity: !canApplyGroup ? 0.4 : 1 }}
-            >◫ Grupo</button>
-            <button type="button" title="Aplicar al objeto completo"
-              onClick={() => setApplyScope('ALL')} disabled={readOnly}
-              className={`pp-scope-btn${applyScope === 'ALL' ? ' is-active' : ''}`}
-            >⬚ Todo</button>
+          <div className="pp-field-label" style={{ marginBottom: 6 }}>
+            Acabado
           </div>
 
-          {applyScope === 'GROUP' && (
-            <div className="pp-hint">Mismo grupo y misma familia.</div>
-          )}
+          <div className="pp-scope-group">
+            <button
+              type="button"
+              title="Aplicar a la parte seleccionada"
+              onClick={() => setApplyScope('PART')}
+              disabled={readOnly}
+              className={`pp-scope-btn${applyScope === 'PART' ? ' is-active' : ''}`}
+            >
+              ◧ Parte
+            </button>
+            <button
+              type="button"
+              title="Aplicar a piezas similares del mismo conjunto"
+              onClick={() => setApplyScope('GROUP')}
+              disabled={readOnly || !canApplyGroup}
+              className={`pp-scope-btn${applyScope === 'GROUP' ? ' is-active' : ''}`}
+              style={{ opacity: !canApplyGroup ? 0.4 : 1 }}
+            >
+              ◫ Grupo
+            </button>
+            <button
+              type="button"
+              title="Aplicar al objeto completo"
+              onClick={() => setApplyScope('ALL')}
+              disabled={readOnly}
+              className={`pp-scope-btn${applyScope === 'ALL' ? ' is-active' : ''}`}
+            >
+              ⬚ Todo
+            </button>
+          </div>
+
+          {applyScope === 'GROUP' && <div className="pp-hint">Mismo grupo y misma familia.</div>}
 
           {part.subName && (
-            <div className="pp-hint">Editando parte: <strong>{part.subName}</strong></div>
+            <div className="pp-hint">
+              Editando parte: <strong>{part.subName}</strong>
+            </div>
           )}
 
-          <input className="pp-search" value={finishQuery}
+          <input
+            className="pp-search"
+            value={finishQuery}
             onChange={(e) => setFinishQuery(e.target.value)}
             placeholder="código o nombre"
             disabled={readOnly}
           />
 
-          <div className="pp-count">Acabados permitidos: <strong>{filteredMaterialsAcabado.length}</strong></div>
+          <div className="pp-count">
+            Acabados permitidos: <strong>{filteredMaterialsAcabado.length}</strong>
+          </div>
 
-          <select className="pp-select"
+          <select
+            className="pp-select"
             value={part.subMaterialCode ?? part.materialCode ?? ''}
             onChange={(e) => {
               const code = e.target.value || null;
@@ -207,44 +248,48 @@ export default function PropertiesPanel({
           >
             <option value="">Sin acabado</option>
             {filteredMaterialsAcabado.map((m) => (
-              <option key={m.code} value={m.code}>{m.code} — {m.name}</option>
+              <option key={m.code} value={m.code}>
+                {m.code} — {m.name}
+              </option>
             ))}
           </select>
 
           {part.materialBase && (
-            <div className="pp-hint" style={{ marginTop: 6 }}>Material base: {part.materialBase}</div>
+            <div className="pp-hint" style={{ marginTop: 6 }}>
+              Material base: {part.materialBase}
+            </div>
           )}
         </div>
       )}
 
       {part?.kind === 'PRIVACY_PANEL' && part?.subtype === 'lateral' && (
         <div className="pp-section">
-            <div style={{ display: 'grid', gap: 6 }}>
-              <div className="pp-field-label">Posición lateral (pasos de 50 mm)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => api?.moveActiveKoncisaLateralPanel?.('LEFT')}
-                  disabled={readOnly}
-                >
-                  Mover izquierda
-                </button>
-                <button
-                  type="button"
-                  onClick={() => api?.moveActiveKoncisaLateralPanel?.('RIGHT')}
-                  disabled={readOnly}
-                >
-                  Mover derecha
-                </button>
-              </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div className="pp-field-label">Posición lateral (pasos de 50 mm)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               <button
                 type="button"
-                onClick={() => api?.removeActiveKoncisaLateralPanel?.()}
+                onClick={() => api?.moveActiveKoncisaLateralPanel?.('LEFT')}
                 disabled={readOnly}
               >
-                Eliminar pantalla
+                Mover izquierda
+              </button>
+              <button
+                type="button"
+                onClick={() => api?.moveActiveKoncisaLateralPanel?.('RIGHT')}
+                disabled={readOnly}
+              >
+                Mover derecha
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => api?.removeActiveKoncisaLateralPanel?.()}
+              disabled={readOnly}
+            >
+              Eliminar pantalla
+            </button>
+          </div>
         </div>
       )}
     </div>

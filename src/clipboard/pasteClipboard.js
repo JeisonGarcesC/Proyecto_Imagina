@@ -48,6 +48,13 @@ async function executeInstruction(api, instruction) {
   const payload = createPartPayload(instruction);
 
   switch (instruction.constructor) {
+    case CLIPBOARD_CONSTRUCTORS.ADD_LINK: {
+      const config = instruction.payload?.configuration?.config;
+      if (!config) throw new Error('LINK_MISSING_CONFIG');
+      const result = await api.addLink?.(config, { recordHistory: false });
+      if (!result?.success) throw new Error(result?.reason || 'LINK_PASTE_FAILED');
+      return result.object;
+    }
     case CLIPBOARD_CONSTRUCTORS.ADD_LOCKER: {
       const config = instruction.payload?.configuration?.config;
       if (!config) throw new Error('LOCKER_MISSING_CONFIG');

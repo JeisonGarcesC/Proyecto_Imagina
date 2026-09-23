@@ -66,13 +66,9 @@ export default function LeftRail({ active, onChange }) {
       label: 'Kuo Go',
       image: '/assets/iconos_imagen/KuoGo.png',
     },
-    {
-      id: 'link',
-      label: 'Link',
-      image: '/assets/iconos_imagen/link.png',
-    },
     { id: 'critterium8', label: 'Critterium 8', icon: '▒' },
     { id: 'vetro', label: 'VETRO', icon: 'V' },
+    { id: 'link', label: 'LINK', image: '/assets/iconos_imagen/link.png' },
     { id: 'lockers', label: 'LOCKERS', icon: 'L' },
     {
       id: 'morea',
