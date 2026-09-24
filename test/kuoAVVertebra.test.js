@@ -73,7 +73,7 @@ test('KUO AV selecciona y factura la vértebra lateral calibrada', () => {
   });
   const [vertebra] = getVertebras(built);
   const bomItem = buildKuoAVBOM(built).find(
-    (item) => item.lookupTag === 'KUAC650000_ALT_LAT'
+    (item) => item.lookupTag === 'KUAC650000'
   );
 
   assert.match(vertebra.model.src, /KUAC650000_LAT 1\.glb$/);
@@ -190,10 +190,102 @@ test('BOM selecciona códigos SAP por ancho, material, color y acabado', () => {
 
   assert.ok(codes.has('22000134910'));
   assert.ok(codes.has('22000116336'));
-  assert.ok(codes.has('22000114425'));
+  assert.ok(codes.has('KUO150060RECT2'));
   assert.ok(codes.has('22000126681'));
   assert.ok(codes.has('22000116523'));
   assert.equal(codes.has('22000116690'), true);
+});
+
+test('BOM KUO AV 120x60 Formica 30 blanco sin checks usa códigos y total base confirmados', () => {
+  const bom = buildKuoAVBOM(
+    buildKuoAV({
+      anchoMm: 1200,
+      profundidadMm: 600,
+      thickMm: 30,
+      espesorTipo: 'Formica 30',
+      kitFuente: true,
+      kitFuenteColor: 'Blanco',
+      elevarKitFIzquierdo: false,
+      vertebraLateral: false,
+      acabadoGrommet: 'ALUMINIUM',
+      especial: false,
+    })
+  );
+  const byCode = new Map(bom.map((item) => [item.code, item]));
+  const total = bom.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.qty || 0), 0);
+
+  assert.equal(total, 7878150);
+  assert.equal(byCode.get('22000008989')?.category, 'SUPERFICIE');
+  assert.equal(byCode.get('22000023626')?.category, 'GROMMET');
+  assert.equal(byCode.get('22000134911')?.lookupTag, 'KUOCABLEDUCTTER120');
+});
+
+test('BOM KUO AV 120x60 con grommet pintado sube a $7,923,300', () => {
+  const bom = buildKuoAVBOM(
+    buildKuoAV({
+      anchoMm: 1200,
+      profundidadMm: 600,
+      thickMm: 30,
+      espesorTipo: 'Formica 30',
+      kitFuente: true,
+      kitFuenteColor: 'Blanco',
+      acabadoGrommet: 'PAINTED',
+    })
+  );
+  const byCode = new Map(bom.map((item) => [item.code, item]));
+  const total = bom.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.qty || 0), 0);
+
+  assert.equal(total, 7923300);
+  assert.equal(byCode.get('22000116523')?.category, 'KIT TAPA TOMA');
+  assert.equal(byCode.get('22000116523')?.lookupTag, 'KONGROMMET4TOMAS-PAINTED');
+});
+
+test('BOM KUO AV melamina 30 todo seleccionado usa KUO120060RECT2 sin precio de superficie', () => {
+  const bom = buildKuoAVBOM(
+    buildKuoAV({
+      anchoMm: 1200,
+      profundidadMm: 600,
+      thickMm: 30,
+      espesorTipo: 'Melamina 30',
+      kitFuente: true,
+      kitFuenteColor: 'Blanco',
+      acabadoGrommet: 'PAINTED',
+      especial: true,
+      elevarKitFIzquierdo: true,
+      vertebraLateral: true,
+    })
+  );
+  const byCode = new Map(bom.map((item) => [item.code, item]));
+  const total = bom.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.qty || 0), 0);
+
+  assert.equal(total, 7396200);
+  assert.equal(byCode.has('22000008989'), false);
+  assert.equal(byCode.get('KUO120060RECT2')?.lookupTag, 'KUO120060RECT2-22008689');
+  assert.equal(byCode.get('KUO120060RECT2')?.category, '-');
+});
+
+test('BOM KUO AV respeta colores blanco, negro y gris del kit fuente', () => {
+  const baseConfig = {
+    anchoMm: 1200,
+    profundidadMm: 600,
+    thickMm: 30,
+    espesorTipo: 'Formica 30',
+    kitFuente: true,
+    acabadoGrommet: 'PAINTED',
+    especial: true,
+    elevarKitFIzquierdo: true,
+    vertebraLateral: true,
+  };
+
+  const blanco = buildKuoAVBOM(buildKuoAV({ ...baseConfig, kitFuenteColor: 'Blanco' }));
+  const negro = buildKuoAVBOM(buildKuoAV({ ...baseConfig, kitFuenteColor: 'Negro' }));
+  const gris = buildKuoAVBOM(buildKuoAV({ ...baseConfig, kitFuenteColor: 'Gris' }));
+  const totalGris = gris.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.qty || 0), 0);
+
+  assert.ok(new Set(blanco.map((item) => item.code)).has('22000126680'));
+  assert.ok(new Set(negro.map((item) => item.code)).has('22000126681'));
+  assert.ok(new Set(gris.map((item) => item.code)).has('22000128023'));
+  assert.equal(totalGris, 10467450);
 });
 
 test('variantes seleccionables de superficie tienen código SAP confirmado', () => {

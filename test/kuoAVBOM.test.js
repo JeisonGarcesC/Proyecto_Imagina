@@ -1,7 +1,7 @@
-﻿// test/kuoAVBOM.test.js
+// test/kuoAVBOM.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateKuoAVBOM, KUO_AV_BOM_CATALOG } from '../src/mepal/kuoAV/config/kuoAVBOMCatalog.js';
+import { generateKuoAVBOM, buildKuoAVBOM } from '../src/mepal/kuoAV/bom/kuoAVBOMCatalog.js';
 import { buildKuoAV } from '../src/mepal/kuoAV/builder/KuoAVBuilder.js';
 
 test('Kuo AV Puesto Perimetral 1.20 x 0.60 m genera el BOM exacto del Excel ($7,878,150)', () => {
@@ -131,20 +131,21 @@ test('Kuo AV Puesto Perimetral 1.65 x 0.75 m genera el BOM exacto del Excel ($8,
   assert.equal(surface?.unitPrice, 1176000);
 });
 
-test('Kuo AV Builder adjunta el BOM din├ímico con eliminaci├│n de accesorios opcionales', () => {
-  const builtWithoutVertebra = buildKuoAV({
+test('Kuo AV Builder conserva la vértebra central y permite quitar grommet opcional', () => {
+  const builtWithoutGrommet = buildKuoAV({
     anchoMm: 1200,
     profundidadMm: 600,
+    kitFuente: true,
     vertebraLateral: false,
     acabadoGrommet: 'NONE',
   });
+  const bom = buildKuoAVBOM(builtWithoutGrommet);
 
-  assert.ok(Array.isArray(builtWithoutVertebra.bom));
-  const hasVertebra = builtWithoutVertebra.bom.some((it) => it.code === '22000116690');
-  const hasGrommet = builtWithoutVertebra.bom.some((it) => it.code === '22000023626');
-  assert.equal(hasVertebra, false, 'No debe incluir la v├®rtebra si fue desactivada');
+  const hasVertebra = bom.some((it) => it.code === '22000116690');
+  const hasGrommet = bom.some((it) => it.code === '22000023626');
+  assert.equal(hasVertebra, true, 'Debe conservar la vértebra central estándar');
   assert.equal(hasGrommet, false, 'No debe incluir grommet si acabado es NONE');
 
-  const total = builtWithoutVertebra.bom.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.qty || 1), 0);
-  assert.equal(total, 7878150 - 277200 - 250950, 'El total debe descontar los accesorios removidos');
+  const total = bom.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.qty || 1), 0);
+  assert.equal(total, 7878150 - 250950, 'El total debe descontar únicamente el grommet removido');
 });

@@ -28,8 +28,6 @@ export function isKuoAVEditablePart(part) {
 }
 
 export default function KuoAVProperties({ part, api }) {
-  if (!isKuoAVEditablePart(part)) return null;
-
   const rootPart =
     part?.userData?.kind === 'KUO_AV_ASSEMBLY'
       ? part
@@ -53,14 +51,47 @@ export default function KuoAVProperties({ part, api }) {
     rootPart?.instanceId ||
     rootPart?.uuid;
 
+  const normalizeGrommetFinish = (value) => {
+    const normalized = String(value || 'ALUMINIUM').trim().toUpperCase();
+    if (['PAINTED', 'PINTADO', 'PINTURA', 'BLANCO', 'NEGRO', 'GRIS'].includes(normalized)) {
+      return 'PAINTED';
+    }
+    if (normalized === 'NONE') return 'NONE';
+    return 'ALUMINIUM';
+  };
+
+  const isPaintedGrommet = (value) => normalizeGrommetFinish(value) === 'PAINTED';
+  const optionButtonStyle = (selected) => ({
+    flex: 1,
+    minWidth: 0,
+    padding: '8px 7px',
+    border: '1px solid #a6c9a2',
+    borderRadius: 8,
+    background: selected ? '#fff' : '#b9dcb6',
+    color: '#173c1d',
+    fontWeight: selected ? 700 : 500,
+    cursor: 'pointer',
+    fontSize: 12,
+    lineHeight: 1.15,
+  });
+
+  const checkboxStyle = {
+    justifySelf: 'center',
+    width: 15,
+    height: 15,
+    accentColor: '#2563eb',
+  };
+
   const [anchoMm, setAnchoMm] = useState(currentConfig.anchoMm || 1200);
   const [profundidadMm, setProfundidadMm] = useState(currentConfig.profundidadMm || 600);
   const [alturaMm, setAlturaMm] = useState(currentConfig.alturaMm || 730);
   const [thickMm, setThickMm] = useState(currentConfig.thickMm || 30);
+  const [espesorTipo, setEspesorTipo] = useState(currentConfig.espesorTipo || currentConfig.espesor || 'Formica 30');
   const [kitFuente, setKitFuente] = useState(currentConfig.kitFuente !== undefined ? !!currentConfig.kitFuente : true);
+  const [kitFuenteColor, setKitFuenteColor] = useState(currentConfig.kitFuenteColor || currentConfig.acabadoParales || 'Blanco');
   const [elevarKitFIzquierdo, setElevarKitFIzquierdo] = useState(!!currentConfig.elevarKitFIzquierdo);
   const [vertebraLateral, setVertebraLateral] = useState(!!currentConfig.vertebraLateral);
-  const [acabadoGrommet, setAcabadoGrommet] = useState(currentConfig.acabadoGrommet || 'ALUMINIUM');
+  const [acabadoGrommet, setAcabadoGrommet] = useState(normalizeGrommetFinish(currentConfig.acabadoGrommet || 'ALUMINIUM'));
   const [especial, setEspecial] = useState(!!currentConfig.especial);
 
   useEffect(() => {
@@ -75,12 +106,16 @@ export default function KuoAVProperties({ part, api }) {
     if (cfg.profundidadMm) setProfundidadMm(cfg.profundidadMm);
     if (cfg.alturaMm) setAlturaMm(cfg.alturaMm);
     if (cfg.thickMm) setThickMm(cfg.thickMm);
+    if (cfg.espesorTipo || cfg.espesor) setEspesorTipo(cfg.espesorTipo || cfg.espesor);
     if (cfg.kitFuente !== undefined) setKitFuente(cfg.kitFuente);
+    if (cfg.kitFuenteColor || cfg.acabadoParales) setKitFuenteColor(cfg.kitFuenteColor || cfg.acabadoParales);
     if (cfg.elevarKitFIzquierdo !== undefined) setElevarKitFIzquierdo(cfg.elevarKitFIzquierdo);
     if (cfg.vertebraLateral !== undefined) setVertebraLateral(cfg.vertebraLateral);
-    if (cfg.acabadoGrommet) setAcabadoGrommet(cfg.acabadoGrommet);
+    if (cfg.acabadoGrommet) setAcabadoGrommet(normalizeGrommetFinish(cfg.acabadoGrommet));
     if (cfg.especial !== undefined) setEspecial(cfg.especial);
   }, [instanceId, rootPart?.userData?.config, part?.config, part?.userData?.config]);
+
+  if (!isKuoAVEditablePart(part)) return null;
 
   async function updateConfig(changes) {
     const nextCfg = {
@@ -89,7 +124,9 @@ export default function KuoAVProperties({ part, api }) {
       profundidadMm,
       alturaMm,
       thickMm,
+      espesorTipo,
       kitFuente,
+      kitFuenteColor,
       elevarKitFIzquierdo,
       vertebraLateral,
       acabadoGrommet,
@@ -114,166 +151,158 @@ export default function KuoAVProperties({ part, api }) {
   }
 
   return (
-    <div style={sectionStyle}>
-      <div style={{ fontWeight: 800, fontSize: 13, color: '#111827', marginBottom: 12 }}>
+    <div style={{ ...sectionStyle, background: '#d9efd7', borderColor: '#b8dcb4', padding: 10 }}>
+      <div style={{ fontWeight: 800, fontSize: 13, color: '#111827', margin: '2px 0 12px' }}>
         KUO AV - Superficie Perimetral
       </div>
 
-      {/* ── Ancho ── */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Ancho (mm)</div>
-        <select
-          value={anchoMm}
-          onChange={(e) => {
-            const val = Number(e.target.value);
-            setAnchoMm(val);
-            updateConfig({ anchoMm: val });
-          }}
-          style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12 }}
-        >
-          {KUO_AV_TUNABLES.ANCHOS_MM.map((w) => (
-            <option key={w} value={w}>
-              {w} mm
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* ── Fondo ── */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Profundidad (mm)</div>
-        <select
-          value={profundidadMm}
-          onChange={(e) => {
-            const val = Number(e.target.value);
-            setProfundidadMm(val);
-            updateConfig({ profundidadMm: val });
-          }}
-          style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12 }}
-        >
-          {KUO_AV_TUNABLES.FONDOS_MM.map((d) => (
-            <option key={d} value={d}>
-              {d} mm
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* ── Altura Ajustable ── */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 12, marginBottom: 4 }}>
-          <span>Aumentar Altura</span>
-          <span style={{ color: '#2563eb' }}>{alturaMm} mm</span>
-        </div>
-        <input
-          type="range"
-          min={KUO_AV_TUNABLES.ALTURA_MIN_MM}
-          max={KUO_AV_TUNABLES.ALTURA_MAX_MM}
-          step={10}
-          value={alturaMm}
-          onChange={(e) => {
-            const val = Number(e.target.value);
-            setAlturaMm(val);
-            updateConfig({ alturaMm: val });
-          }}
-          style={{ width: '100%', cursor: 'pointer' }}
-        />
-      </div>
-
-      {/* ── Espesor Superficie ── */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Espesor Superficie</div>
-        <select
-          value={thickMm}
-          onChange={(e) => {
-            const val = Number(e.target.value);
-            setThickMm(val);
-            updateConfig({ thickMm: val });
-          }}
-          style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12 }}
-        >
-          {KUO_AV_TUNABLES.ESPESORES_MM.map((t) => (
-            <option key={t} value={t}>
-              {t} mm
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* ── Acabado de Grommet ── */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Acabado de Grommet</div>
-        <select
-          value={acabadoGrommet}
-          onChange={(e) => {
-            const val = e.target.value;
-            setAcabadoGrommet(val);
-            updateConfig({ acabadoGrommet: val });
-          }}
-          style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 12 }}
-        >
-          <option value="ALUMINIUM">Aluminio</option>
-          <option value="BLACK">Negro</option>
-          <option value="WHITE">Blanco</option>
-          <option value="NONE">Sin Grommet</option>
-        </select>
-      </div>
-
-      {/* ── Toggles de Accesorios y Opciones ── */}
-      <div style={{ display: 'grid', gap: 8, marginTop: 12, paddingTop: 10, borderTop: '1px solid #e5e7eb' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={kitFuente}
-            onChange={(e) => {
-              const val = e.target.checked;
-              setKitFuente(val);
-              updateConfig({ kitFuente: val });
-            }}
-          />
-          <span style={{ fontWeight: 600 }}>Kit Fuente</span>
-        </label>
-
-        {kitFuente && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, paddingLeft: 16 }}>
-            <input
-              type="checkbox"
-              checked={elevarKitFIzquierdo}
-              onChange={(e) => {
-                const val = e.target.checked;
-                setElevarKitFIzquierdo(val);
-                updateConfig({ elevarKitFIzquierdo: val });
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(112px, 0.85fr) minmax(0, 1.5fr)', columnGap: 10, rowGap: 10, alignItems: 'center', fontSize: 12 }}>
+        <span style={{ fontWeight: 700, lineHeight: 1.25 }}>Ancho</span>
+        <div style={{ display: 'flex', gap: 6, minWidth: 0 }}>
+          {[1200, 1500, 1650].map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                setAnchoMm(option);
+                updateConfig({ anchoMm: option });
               }}
-            />
-            <span style={{ color: '#4b5563' }}>Elevar kit F izquierdo</span>
-          </label>
-        )}
+              style={optionButtonStyle(Number(anchoMm) === option)}
+            >
+              {option / 1000} m
+            </button>
+          ))}
+        </div>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
+        <span style={{ fontWeight: 700, lineHeight: 1.25 }}>Profundidad</span>
+        <div style={{ display: 'flex', gap: 6, minWidth: 0 }}>
+          {[600, 750].map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                setProfundidadMm(option);
+                updateConfig({ profundidadMm: option });
+              }}
+              style={optionButtonStyle(Number(profundidadMm) === option)}
+            >
+              {option / 1000} m
+            </button>
+          ))}
+        </div>
+
+        <span style={{ fontWeight: 700, lineHeight: 1.25 }}>Espesor Superficie</span>
+        <div style={{ display: 'flex', gap: 6, minWidth: 0 }}>
+          {['Formica 30', 'Melamina 30'].map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                const nextThick = 30;
+                setEspesorTipo(option);
+                setThickMm(nextThick);
+                updateConfig({ espesorTipo: option, thickMm: nextThick });
+              }}
+              style={optionButtonStyle(espesorTipo === option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+
+        <span style={{ fontWeight: 700, lineHeight: 1.25 }}>Kit Fuente</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minWidth: 0 }}>
+          {['Blanco', 'Negro', 'Gris'].map((color) => (
+            <button
+              key={color}
+              type="button"
+              onClick={() => {
+                setKitFuente(true);
+                setKitFuenteColor(color);
+                updateConfig({ kitFuente: true, kitFuenteColor: color });
+              }}
+              style={optionButtonStyle(kitFuente && kitFuenteColor === color)}
+            >
+              Kit Fuente {color}
+            </button>
+          ))}
+        </div>
+
+        <label style={{ display: 'contents', cursor: 'pointer' }}>
+          <span style={{ fontWeight: 700, lineHeight: 1.25 }}>Acabado de Grommet (Pintura)</span>
           <input
             type="checkbox"
-            checked={vertebraLateral}
+            checked={isPaintedGrommet(acabadoGrommet)}
             onChange={(e) => {
-              const val = e.target.checked;
-              setVertebraLateral(val);
-              updateConfig({ vertebraLateral: val });
+              const val = e.target.checked ? 'PAINTED' : 'ALUMINIUM';
+              setAcabadoGrommet(val);
+              updateConfig({ acabadoGrommet: val });
             }}
+            style={checkboxStyle}
           />
-          <span style={{ fontWeight: 600 }}>Colocar Vértebra Lateral</span>
         </label>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
+        <button
+          type="button"
+          onClick={() => {
+            const val = !especial;
+            setEspecial(val);
+            updateConfig({ especial: val });
+          }}
+          style={{ display: 'contents', cursor: 'pointer', textAlign: 'left', border: 0, padding: 0, color: 'inherit' }}
+        >
+          <span style={{ fontWeight: 700 }}>Especial/Rematable</span>
+          <span style={{ justifySelf: 'center', width: 15, height: 15, border: '1px solid #8fa98d', borderRadius: 3, background: especial ? '#2563eb' : '#fff', color: '#fff', fontSize: 11, lineHeight: '13px', textAlign: 'center' }}>
+            {especial ? '✓' : ''}
+          </span>
+        </button>
+
+        <label style={{ display: 'contents', cursor: 'pointer' }}>
+          <span style={{ fontWeight: 700, lineHeight: 1.25 }}>Aumentar Altura</span>
           <input
             type="checkbox"
-            checked={especial}
+            checked={alturaMm > KUO_AV_TUNABLES.ALTURA_MIN_MM}
             onChange={(e) => {
-              const val = e.target.checked;
-              setEspecial(val);
-              updateConfig({ especial: val });
+              const val = e.target.checked
+                ? KUO_AV_TUNABLES.ALTURA_MAX_MM
+                : KUO_AV_TUNABLES.ALTURA_MIN_MM;
+              setAlturaMm(val);
+              updateConfig({ alturaMm: val });
             }}
+            style={checkboxStyle}
           />
-          <span style={{ fontWeight: 600 }}>Especial / Rematable</span>
         </label>
+
+        <button
+          type="button"
+          onClick={() => {
+            const val = !elevarKitFIzquierdo;
+            setElevarKitFIzquierdo(val);
+            updateConfig({ elevarKitFIzquierdo: val });
+          }}
+          style={{ display: 'contents', cursor: 'pointer', textAlign: 'left', border: 0, padding: 0, color: 'inherit' }}
+        >
+          <span style={{ fontWeight: 700, lineHeight: 1.25 }}>Elevar kit F izquierdo</span>
+          <span style={{ justifySelf: 'center', width: 15, height: 15, border: '1px solid #8fa98d', borderRadius: 3, background: elevarKitFIzquierdo ? '#2563eb' : '#fff', color: '#fff', fontSize: 11, lineHeight: '13px', textAlign: 'center' }}>
+            {elevarKitFIzquierdo ? '✓' : ''}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const val = !vertebraLateral;
+            setVertebraLateral(val);
+            updateConfig({ vertebraLateral: val });
+          }}
+          style={{ display: 'contents', cursor: 'pointer', textAlign: 'left', border: 0, padding: 0, color: 'inherit' }}
+        >
+          <span style={{ fontWeight: 700, lineHeight: 1.25 }}>Colocar Vértebra Lateral</span>
+          <span style={{ justifySelf: 'center', width: 15, height: 15, border: '1px solid #8fa98d', borderRadius: 3, background: vertebraLateral ? '#2563eb' : '#fff', color: '#fff', fontSize: 11, lineHeight: '13px', textAlign: 'center' }}>
+            {vertebraLateral ? '✓' : ''}
+          </span>
+        </button>
+
       </div>
     </div>
   );

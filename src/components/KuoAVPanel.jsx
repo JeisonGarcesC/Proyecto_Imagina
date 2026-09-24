@@ -15,9 +15,13 @@ export default function KuoAVPanel({ threeApiRef }) {
     profundidadMm: 600,
     alturaMm: 730,
     thickMm: 30,
+    espesorTipo: 'Formica 30',
     kitFuente: true,
+    kitFuenteColor: 'Blanco',
+    elevarKitFIzquierdo: false,
     vertebraLateral: false,
     acabadoGrommet: 'ALUMINIUM',
+    especial: false,
   };
 
   const baseDobleConfig = {

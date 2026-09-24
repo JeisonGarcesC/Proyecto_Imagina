@@ -751,8 +751,7 @@ export default function ThreeCanvas({
 
       if (
         !assembly ||
-        (assembly.userData?.kind !== 'KUO_AV_DOBLE_ASSEMBLY' &&
-          assembly.userData?.kind !== 'KUO_AV_ASSEMBLY')
+        assembly.userData?.kind !== 'KUO_AV_DOBLE_ASSEMBLY'
       ) {
         kuoAVSnapMarkersGroup.visible = false;
         return;
@@ -2656,7 +2655,8 @@ export default function ThreeCanvas({
         forcedPrices,
         groupCount,
         groupInstanceId,
-        typologyReferenceCode
+        typologyReferenceCode,
+        category
       ) {
         if (!code) return;
 
@@ -2696,6 +2696,8 @@ export default function ThreeCanvas({
           prices: mergedIncomingPrices,
           groupId: normalizedGroupId || null,
           groupName: groupName || null,
+          category: normalizeText(category) || null,
+          section: normalizeText(category) || null,
           groupCount: groupCount || null,
           typologyReferenceCode: normalizeText(typologyReferenceCode) || null,
           _groupInstanceIds: new Set(),
@@ -2726,6 +2728,8 @@ export default function ThreeCanvas({
           prices: finalPrices,
           groupId: normalizedGroupId || prev.groupId || null,
           groupName: groupName || prev.groupName || null,
+          category: normalizeText(category) || prev.category || null,
+          section: normalizeText(category) || prev.section || null,
           typologyReferenceCode:
             normalizeText(typologyReferenceCode) || prev.typologyReferenceCode || null,
           groupCount:
@@ -2766,7 +2770,9 @@ export default function ThreeCanvas({
                 groupName,
                 it.prices,
                 null,
-                groupInstanceId
+                groupInstanceId,
+                null,
+                it.category || it.section || it.bomSection || it.type
               );
             }
           }
@@ -2790,7 +2796,9 @@ export default function ThreeCanvas({
               groupName,
               item.prices,
               null,
-              groupInstanceId
+              groupInstanceId,
+              null,
+              item.category || item.section || item.bomSection || item.type
             );
           }
           continue;
@@ -13544,6 +13552,12 @@ export default function ThreeCanvas({
             activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
               ? activePart
               : getKoncisaAssemblyObject(activePart) || activePart;
+          if (assembly.userData?.kind !== 'KUO_AV_DOBLE_ASSEMBLY') {
+            kuoAVSnapMarkersGroup.visible = false;
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
           const cfg = assembly.userData?.config || {};
           const deskWidthM = (cfg.anchoMm || 1200) / 1000;
           const angle = assembly.rotation.y || 0;

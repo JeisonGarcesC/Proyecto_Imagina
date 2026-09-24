@@ -29,6 +29,7 @@ function isAlmacenamientoPart(part) {
 
 export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const boxRef = useRef(null);
+  const anchorRef = useRef({ open: false, x: 0, y: 0 });
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +53,14 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (open && !anchorRef.current.open) {
+      anchorRef.current = { open: true, x, y };
+    } else if (!open) {
+      anchorRef.current.open = false;
+    }
+  }, [open, x, y]);
+
   if (!open || !part) return null;
 
   const isFloor = part?.kind === 'FLOOR_VISUAL';
@@ -71,8 +80,11 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isMilaEditablePart(part) ||
     isFloor;
 
-  const popupLeft = Math.min(x + 12, window.innerWidth - 310);
-  const popupTop = Math.min(y + 12, window.innerHeight - 420);
+  const popupWidth = 330;
+  const anchorX = anchorRef.current.open ? anchorRef.current.x : x;
+  const anchorY = anchorRef.current.open ? anchorRef.current.y : y;
+  const popupLeft = Math.min(anchorX + 12, window.innerWidth - popupWidth - 12);
+  const popupTop = Math.min(anchorY + 12, window.innerHeight - 420);
 
   return (
     <div
@@ -82,7 +94,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
         left: popupLeft,
         top: popupTop,
         zIndex: 99999,
-        width: 290,
+        width: popupWidth,
         maxHeight: 'calc(100vh - 40px)',
         overflowY: 'auto',
         background: '#fff',

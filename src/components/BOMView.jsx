@@ -107,6 +107,7 @@ export default function BOMView({
 
         code: safeStr(it.code),
         description: safeStr(it.description),
+        category: safeStr(it.category || it.section || it.bomSection || it.type).trim(),
         qty,
         groupCount: Number(it.groupCount || 0),
         typologyReferenceCode: safeStr(it.typologyReferenceCode).replace(/\D+/g, ''),
@@ -162,26 +163,21 @@ export default function BOMView({
         },
       ];
     } else if (groupMode === 'classification') {
-      const typologyItems = rowsToGroup.filter((row) => row.groupKey.startsWith('T:'));
-      const looseItems = rowsToGroup.filter((row) => row.groupKey.startsWith('S:'));
-      groupArr = [
-        typologyItems.length
-          ? {
-              key: 'C:TIPOLOGIAS',
-              label: 'COMPONENTES DE TIPOLOGÍAS',
-              items: consolidateRows(typologyItems),
-              subtotal: 0,
-            }
-          : null,
-        looseItems.length
-          ? {
-              key: 'C:SUELTOS',
-              label: 'ELEMENTOS SUELTOS',
-              items: consolidateRows(looseItems),
-              subtotal: 0,
-            }
-          : null,
-      ].filter(Boolean);
+      const map = new Map();
+      for (const row of rowsToGroup) {
+        const section = row.category || (row.groupKey.startsWith('T:') ? 'COMPONENTES DE TIPOLOGÍAS' : 'ELEMENTOS SUELTOS');
+        const sectionKey = `C:${section}`;
+        if (!map.has(sectionKey)) {
+          map.set(sectionKey, { label: section, items: [] });
+        }
+        map.get(sectionKey).items.push(row);
+      }
+      groupArr = Array.from(map.entries()).map(([key, value]) => ({
+        key,
+        label: value.label,
+        items: consolidateRows(value.items),
+        subtotal: 0,
+      }));
     } else {
       const map = new Map();
       for (const row of rowsToGroup) {
