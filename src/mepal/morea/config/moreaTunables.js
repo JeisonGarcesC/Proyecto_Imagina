@@ -178,11 +178,51 @@ export function resolveMoreaSeatOffsetMmByMode(mode, variant = 'single') {
   return offsetMap[normalizedMode] || offsetMap.chair;
 }
 
+export const MOREA_ACCESSORY_SOURCES = {
+  armrestLeft: '/assets/models/Morea/HSI030000_IZQ.glb',
+  armrestRight: '/assets/models/Morea/HSI030000_DER.glb',
+  armrestCenter: '/assets/models/Morea/HSI050000.glb',
+};
+
+export const MOREA_ACCESSORY_OFFSETS_MM = {
+  armrestLeft: { x: 0, y: 0, z: 0 },
+  armrestRight: { x: 0, y: 0, z: 0 },
+  armrestCenter: { x: 0, y: 45, z: 0 },
+};
+
+export const MOREA_ACCESSORY_CATALOG = {
+  armrestLeft: {
+    code: 'HSI030000',
+    label: 'Apoyabrazos izquierdo',
+    description: 'Apoyabrazos terminal Morea izquierdo',
+    prices: null,
+    modelSrc: MOREA_ACCESSORY_SOURCES.armrestLeft,
+  },
+  armrestRight: {
+    code: 'HSI030000',
+    label: 'Apoyabrazos derecho',
+    description: 'Apoyabrazos terminal Morea derecho',
+    prices: null,
+    modelSrc: MOREA_ACCESSORY_SOURCES.armrestRight,
+  },
+  armrestCenter: {
+    code: 'HSI050000',
+    label: 'Apoyabrazos intermedio',
+    description: 'Apoyabrazos intermedio Morea',
+    prices: null,
+    modelSrc: MOREA_ACCESSORY_SOURCES.armrestCenter,
+  },
+};
+
 export const MOREA_BUILDER_TUNE = {
   SEPARACION_ENTRE_PUESTOS_MM: 600,
   MAX_PUESTOS: 8,
   OFFSET_Y_LATERALES_MM: -180,
   WOOD_PEDESTAL_OUTWARD_OFFSET_MM: 40,
+  ARMREST_SUPPORT_SHIFT_MM: 84.63,
+  ARMREST_INSET_X_MM: 60,
+  ARMREST_TOP_DROP_MM: 145,
+  ARMREST_CENTER_LIFT_MM: 120,
   OFFSET_Y_VIGAS_MM: -120,
   OFFSET_Z_VIGAS_MM: 140,
   DISABLED_BEAM_ROLES: ['beam-back-inner'],
@@ -193,6 +233,10 @@ export const MOREA_DOUBLE_BUILDER_TUNE = {
   MAX_PUESTOS: 8,
   OFFSET_Y_LATERALES_MM: -180,
   WOOD_PEDESTAL_OUTWARD_OFFSET_MM: 40,
+  ARMREST_SUPPORT_SHIFT_MM: 84.63,
+  ARMREST_INSET_X_MM: 60,
+  ARMREST_TOP_DROP_MM: 145,
+  ARMREST_CENTER_LIFT_MM: 120,
   OFFSET_Y_VIGAS_MM: -120,
   OFFSET_Z_VIGAS_MM: 320,
   DISABLED_BEAM_ROLES: [],
@@ -207,7 +251,7 @@ export const MOREA_DOUBLE_BUILDER_TUNE = {
 };
 
 export const MOREA_ALIGN_TUNE = {
-  SIDE_INSET_FACTOR: 0.62,
+  SIDE_INSET_FACTOR: 0.6200 ,
   SIDE_DROP_M: 0.03,
   SEAT_RAISE_M: 0.117,
   BEAM_INSET_FROM_SIDE_Z_M: 0.145,
@@ -290,8 +334,10 @@ export const MOREA_ALIGN_TUNE = {
   // Baja todas las vigas en vertical.
   BEAM_VERTICAL_DROP_M: -0.002,
   BEAM_TOP_Y_OFFSET_M: 0.004,
-  // Multiplicador global del largo de viga para todos los puestos.
+  // Largo base de vigas cuando no hay apoyabrazos.
   BEAM_LENGTH_MULTIPLIER: 1.35,
+  // Largo reducido cuando los apoyabrazos abren soportes y aumentan el span.
+  BEAM_LENGTH_MULTIPLIER_WITH_ARMRESTS: 1.26,
   BEAM_SPAN_RATIO: 1.14,
   BEAM_SPAN_RATIO_BY_QUANTITY: {
     1: 1.00,
@@ -306,11 +352,14 @@ export const MOREA_ALIGN_TUNE = {
   BEAM_SCALE_X_MAX: 12,
 };
 
-export function resolveMoreaBeamSpanRatio(quantity) {
+export function resolveMoreaBeamSpanRatio(quantity, hasArmrests = false) {
   const normalizedQuantity = Math.max(1, Math.trunc(Number(quantity) || 1));
   const ratioByQuantity = MOREA_ALIGN_TUNE.BEAM_SPAN_RATIO_BY_QUANTITY || {};
   const baseRatio = Number(ratioByQuantity[normalizedQuantity]) || MOREA_ALIGN_TUNE.BEAM_SPAN_RATIO;
-  const lengthMultiplier = Math.max(0.8, Number(MOREA_ALIGN_TUNE.BEAM_LENGTH_MULTIPLIER) || 1);
+  const rawLengthMultiplier = hasArmrests
+    ? MOREA_ALIGN_TUNE.BEAM_LENGTH_MULTIPLIER_WITH_ARMRESTS ?? MOREA_ALIGN_TUNE.BEAM_LENGTH_MULTIPLIER
+    : MOREA_ALIGN_TUNE.BEAM_LENGTH_MULTIPLIER;
+  const lengthMultiplier = Math.max(0.8, Number(rawLengthMultiplier) || 1);
 
   return baseRatio * lengthMultiplier;
 }

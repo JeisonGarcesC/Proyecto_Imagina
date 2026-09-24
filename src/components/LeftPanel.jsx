@@ -1,3 +1,4 @@
+import LinkPanel from './LinkPanel.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadTipologiasDetalle } from '../services/tipologiasDetalle';
 import {
@@ -18,17 +19,19 @@ import './LeftPanel.css';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
-import LinkPanel from './LinkPanel';
 import KuoGoPanel from './KuoGoPanel';
 import KuoAVPanel from './KuoAVPanel';
 import MilaPanel from './MilaPanel';
 import MoreaPanel from './MoreaPanel';
+import VetroPanel from '../mepal/vetro/ui/VetroPanel.jsx';
+import LockersPanel from '../mepal/lockers/ui/LockersPanel.jsx';
 import { createMilaInstance } from '../mepal/mila/factories/createMilaInstance';
 import { createMilaGiroInstance } from '../mepal/mila/factories/createMilaGiroInstance';
 import { createMilaAccessoryInstance } from '../mepal/mila/factories/createMilaAccessoryInstance';
 import { createMilaPanelDivisorInstance } from '../mepal/mila/factories/createMilaPanelDivisorInstance';
 import { createMoreaInstance } from '../mepal/morea/factories/createMoreaInstance';
 import { createMoreaGiroInstance } from '../mepal/morea/factories/createMoreaGiroInstance';
+import { createMoreaAccessoryInstance } from '../mepal/morea/factories/createMoreaAccessoryInstance';
 import {
   getClakVariantOptionsByCode,
   normalizeClakPuffCode,
@@ -57,7 +60,6 @@ export const IMAGE_FOLDER_SETS = {
   eduk: ['Eduk'],
   mepalSalud: ['MepalSalud'],
   tekSocial: ['Mepal TekSocial'],
-  link: ['Link/Credenza EXE'],
   morea: ['Morea'],
 };
 
@@ -293,6 +295,8 @@ export default function LeftPanel({
   onAddClak,
   onAddEduk,
   onAddCritterium8,
+  onAddVetro,
+  onAddLocker,
   onToggleSnap,
   // muros
   wallMode,
@@ -1414,7 +1418,7 @@ export default function LeftPanel({
           <input
             value={qCatalog}
             onChange={(e) => setQCatalog(e.target.value)}
-            placeholder="Buscar catálogo 22000032439 (código o descripción)..."
+            placeholder="Buscar catálogo (código o descripción)..."
             style={{
               width: '100%',
               padding: 10,
@@ -2473,6 +2477,8 @@ export default function LeftPanel({
 
               if (config?.type === 'giro') {
                 await createMoreaGiroInstance({ api, config });
+              } else if (config?.type === 'accessory') {
+                await createMoreaAccessoryInstance({ api, config });
               } else {
                 await createMoreaInstance({ api, config });
               }
@@ -2778,6 +2784,12 @@ export default function LeftPanel({
           )}
         </>
       )}
+      {section === 'link' && <LinkPanel threeApiRef={threeApiRef} readOnly={readOnly} />}
+      {section === 'lockers' && <LockersPanel onCreate={onAddLocker} readOnly={readOnly} />}
+      {section === 'vetro' && (
+        <VetroPanel onCreate={onAddVetro} readOnly={readOnly} />
+      )}
+
 
       {section === 'critterium8' && (
         <div style={{ display: 'grid', gap: 12 }}>
@@ -2804,11 +2816,6 @@ export default function LeftPanel({
           </button>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Geometría preliminar. Configuración avanzada pendiente.</div>
         </div>
-      )}
-
-      {/* ======================= LINK ======================= */}
-      {section === 'link' && (
-        <LinkPanel threeApiRef={threeApiRef} />
       )}
 
       {/* ======================= KUO GO ======================= */}

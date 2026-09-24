@@ -1,3 +1,4 @@
+import LinkProperties from './linkCarpetaProperties/LinkProperties.jsx';
 import { useEffect, useRef } from 'react';
 import KoncisaPlusProperties, {
   isKoncisaPlusEditablePart,
@@ -6,16 +7,14 @@ import MepalSaludProperties from './MepalSaludProperties';
 import ClakProperties from './ClakProperties';
 import AlmacenamientoProperties from './AlmacenamientoProperties';
 import EdukProperties, { isEdukShelfEditablePart } from './EdukProperties';
-import LinkProperties, { isLinkEditablePart } from './LinkProperties';
 import KuoGoProperties, { isKuoGoEditablePart } from './KuoGoProperties';
 import KuoAVProperties, { isKuoAVEditablePart } from './KuoAVProperties';
 import KuoAVDobleProperties, { isKuoAVDobleEditablePart } from './KuoAVDobleProperties';
 import GiroSurfaceProperties, { isGiroSurfaceEditablePart } from './GiroSurfaceProperties';
 import MoreaProperties, { isMoreaEditablePart } from './MoreaProperties';
-import MilaProperties, {
-  isMilaEditablePart,
-} from './MilaProperties';
+import MilaProperties, { isMilaEditablePart } from './MilaProperties';
 import { isClakPuffVariantPart } from './clakPuffVariants';
+import LockerPopupProperties, { isLockerEditablePart } from './LockerPopupProperties';
 import { sectionStyle } from './shared/PropertyStyles';
 import PropertyHeader from './shared/PropertyHeader';
 
@@ -66,18 +65,19 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const isFloor = part?.kind === 'FLOOR_VISUAL';
 
   const hasEditableProperties =
+    part?.kind === 'LINK_PRODUCT' ||
     isKoncisaPlusEditablePart(part) ||
     isMepalSaludPart(part) ||
     isAlmacenamientoPart(part) ||
     isEdukShelfEditablePart(part) ||
     isClakPuffVariantPart(part) ||
-    isLinkEditablePart(part) ||
     isKuoGoEditablePart(part) ||
     isKuoAVEditablePart(part) ||
     isKuoAVDobleEditablePart(part) ||
     isGiroSurfaceEditablePart(part) ||
     isMoreaEditablePart(part) ||
     isMilaEditablePart(part) ||
+    isLockerEditablePart(part) ||
     isFloor;
 
   const popupWidth = 330;
@@ -118,6 +118,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
         kind: {String(part?.kind || '')}
       </div>
 
+      <LinkProperties part={part} api={api} onClose={onClose} />
       <KoncisaPlusProperties part={part} api={api} onClose={onClose} />
 
       <MepalSaludProperties part={part} api={api} onClose={onClose} />
@@ -127,8 +128,6 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       <AlmacenamientoProperties part={part} api={api} onClose={onClose} />
 
       <EdukProperties part={part} api={api} onClose={onClose} />
-
-      <LinkProperties part={part} api={api} onClose={onClose} />
 
       <KuoGoProperties part={part} api={api} onClose={onClose} />
 
@@ -141,6 +140,8 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       <MoreaProperties part={part} api={api} onClose={onClose} />
 
       {!isMoreaEditablePart(part) && <MilaProperties part={part} api={api} onClose={onClose} />}
+
+      <LockerPopupProperties part={part} api={api} onClose={onClose} />
 
       {isFloor && (
         <div style={sectionStyle}>

@@ -168,7 +168,7 @@ export default function CatalogPanel({
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar código/nombre (22000032439)"
+        placeholder="Buscar código/nombre"
         style={{ padding: 10, borderRadius: 10, border: '1px solid #ddd' }}
       />
 

@@ -25,30 +25,6 @@ export const MODEL_TYPES = {
  */
 export const catalogItems = [
   {
-    codigoPT: '22000032439',
-    type: ITEM_TYPES.COSTADO,
-    ui: {
-      title: 'Costado doble intermedio 120 (Link)',
-      subtitle: 'ELSO-080-000',
-      tags: ['LINK.SYS', 'METAL', '120cm'],
-    },
-    model: {
-      kind: MODEL_TYPES.GLB,
-      // El nombre del GLB lo decides tú (no depende del codigoPT)
-      // Por ahora usamos el mismo que ya estabas usando:
-      src: '/assets/models/2KSO330000_60.glb',
-      // opcional: si quieres tener “variante” (para UI)
-      variant: '60',
-    },
-    connectorsMeta: {
-      units: 'm',
-      src: '/assets/meta/2KSO330000_60.connectors.json',
-    },
-    // (por ahora mock) luego lo llena el loader de PriceList
-    prices: { CO: 410000 },
-  },
-
-  {
     // En superficies, el “codigoPT” también puede existir como un producto comercial
     // o lo puedes manejar como “servicio/procedural” con reglas internas.
     codigoPT: 'SURFACE_PROC', // temporal mientras definimos si tendrá codigoPT real numérico

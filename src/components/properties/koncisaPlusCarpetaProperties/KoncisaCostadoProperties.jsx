@@ -128,41 +128,6 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 10 }}>
-        <label style={labelStyle}>Reemplazar por pedestal</label>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <button
-            type="button"
-            style={btnStyle}
-            onClick={() => {
-              api?.replaceSelectedCostadoWithPedestal?.({
-                placementSide: 'LEFT',
-              });
-              onClose?.();
-            }}
-          >
-            Izquierda
-          </button>
-
-          <button
-            type="button"
-            style={btnStyle}
-            onClick={() => {
-              api?.replaceSelectedCostadoWithPedestal?.({
-                placementSide: 'RIGHT',
-              });
-              onClose?.();
-            }}
-          >
-            Derecha
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 8, fontSize: 11, opacity: 0.65 }}>
-        Esta acción elimina este costado y crea un pedestal en su lugar.
-      </div>
 
       <div
         style={{

@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react';
 import { MOREA_BUILDER_TUNE } from '../mepal/morea/config/moreaTunables.js';
+import { MOREA_ACCESSORY_TYPE_OPTIONS } from '../mepal/morea/factories/createMoreaAccessoryInstance.js';
+
+const YES_NO_OPTIONS = [
+  { value: 'no', label: 'No' },
+  { value: 'si', label: 'Si' },
+];
 
 const MOREA_GIRO_OPTIONS = [
   {
@@ -73,6 +79,31 @@ function labelForQuantity(quantity) {
   return `${quantity} ${quantity === 1 ? 'puesto' : 'puestos'}`;
 }
 
+const renderDivider = (title) => (
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      margin: '6px 0 2px 0',
+    }}
+  >
+    <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+    <span
+      style={{
+        fontSize: 9,
+        color: '#9ca3af',
+        fontWeight: 700,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+      }}
+    >
+      {title}
+    </span>
+    <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+  </div>
+);
+
 export default function MoreaPanel({ onCreate, catalogByCode }) {
   const quantityOptions = useMemo(
     () => Array.from({ length: MOREA_BUILDER_TUNE.MAX_PUESTOS }, (_unused, index) => index + 1),
@@ -81,6 +112,12 @@ export default function MoreaPanel({ onCreate, catalogByCode }) {
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [selectedVariant, setSelectedVariant] = useState('single');
   const [selectedGiroKey, setSelectedGiroKey] = useState('HSU020000');
+  const [armrestLeft, setArmrestLeft] = useState('no');
+  const [armrestRight, setArmrestRight] = useState('no');
+  const [armrestCenter, setArmrestCenter] = useState('no');
+  const [selectedAccessory, setSelectedAccessory] = useState('armrest-center');
+  const yesNoOptions = useMemo(() => YES_NO_OPTIONS, []);
+  const accessoryTypeOptions = useMemo(() => MOREA_ACCESSORY_TYPE_OPTIONS, []);
 
   const giroAngleOptions = useMemo(() => {
     return MOREA_GIRO_OPTIONS.map((option) => {
@@ -108,12 +145,16 @@ export default function MoreaPanel({ onCreate, catalogByCode }) {
     [giroAngleOptions, safeSelectedGiroKey]
   );
 
-  const handleCreateSeat = () =>
+  const handleCreateSeat = () => {
     onCreate?.({
       type: 'seat',
       quantity: selectedQuantity,
       variant: selectedVariant,
+      armrestLeft: armrestLeft === 'si',
+      armrestRight: armrestRight === 'si',
+      armrestCenter: selectedQuantity > 1 && armrestCenter === 'si',
     });
+  };
 
   const handleCreateGiro = () =>
     onCreate?.({
@@ -126,6 +167,12 @@ export default function MoreaPanel({ onCreate, catalogByCode }) {
       useGrommet: false,
       variant: String(selectedGiroOption?.variant || 'single'),
       giroVariant: String(selectedGiroOption?.variant || 'single'),
+    });
+
+  const handleCreateAccessory = () =>
+    onCreate?.({
+      type: 'accessory',
+      accessoryType: selectedAccessory,
     });
 
   return (
@@ -163,6 +210,52 @@ export default function MoreaPanel({ onCreate, catalogByCode }) {
         </select>
       </div>
 
+      <div>
+        <label>Apoyabrazos izquierdo</label>
+        <select
+          value={armrestLeft}
+          onChange={(e) => setArmrestLeft(String(e.target.value || 'no'))}
+          style={{ width: '100%' }}
+        >
+          {yesNoOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label>Apoyabrazos derecho</label>
+        <select
+          value={armrestRight}
+          onChange={(e) => setArmrestRight(String(e.target.value || 'no'))}
+          style={{ width: '100%' }}
+        >
+          {yesNoOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label>Apoyabrazos intermedio</label>
+        <select
+          value={armrestCenter}
+          onChange={(e) => setArmrestCenter(String(e.target.value || 'no'))}
+          style={{ width: '100%' }}
+          disabled={selectedQuantity < 2}
+        >
+          {yesNoOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <button
         type="button"
         onClick={handleCreateSeat}
@@ -179,7 +272,7 @@ export default function MoreaPanel({ onCreate, catalogByCode }) {
         Crear silla Morea
       </button>
 
-      <div style={{ height: 1, background: '#e5e7eb', margin: '6px 0 2px 0' }} />
+      {renderDivider('Superficie de giro')}
 
       <div>
         <label>Superficie de giro</label>
@@ -210,6 +303,39 @@ export default function MoreaPanel({ onCreate, catalogByCode }) {
         }}
       >
         Agregar superficie giro Morea
+      </button>
+
+      {renderDivider('Accesorios')}
+
+      <div>
+        <label>Tipo de accesorio</label>
+        <select
+          value={selectedAccessory}
+          onChange={(e) => setSelectedAccessory(String(e.target.value || 'armrest-center'))}
+          style={{ width: '100%' }}
+        >
+          {accessoryTypeOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleCreateAccessory}
+        style={{
+          padding: '8px 12px',
+          fontWeight: 'bold',
+          background: '#059669',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 6,
+          cursor: 'pointer',
+        }}
+      >
+        Agregar accesorio
       </button>
 
     </div>

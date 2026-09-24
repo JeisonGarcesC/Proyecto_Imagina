@@ -1,4 +1,7 @@
+import { serializeLinkEntity } from '../../mepal/link/integration/linkPersistence.js';
 import { serializeKoncisaPlusRecipe } from '../../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe.js';
+
+import { serializeLockerEntity } from '../../mepal/lockers/integration/lockerPersistence.js';
 
 export const PROJECT_SCHEMA_VERSION = 2;
 
@@ -139,6 +142,29 @@ export function serializeCritterium8Entity(assembly) {
   };
 }
 
+export function serializeVetroEntity(object) {
+  const data = object?.userData || {};
+  return {
+    kind: 'VETRO_PRODUCT',
+    family: 'VETRO',
+    instanceId: data.instanceId || object?.uuid || null,
+    codigoPT: data.codigoPT || data.code || null,
+    code: data.code || data.codigoPT || null,
+    config: cloneSerializable(data.config || {}),
+    product: cloneSerializable(data.product || {}),
+    transform: {
+      position: object.position.toArray(),
+      quaternion: object.quaternion.toArray(),
+      rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
+      scale: object.scale.toArray(),
+    },
+    metadata: {
+      line: 'VETRO',
+      renderStatus: data.renderStatus || 'ASSET_NOT_AVAILABLE',
+    },
+  };
+}
+
 export function serializeMilaEntity(assembly, { collectFinishes } = {}) {
   const data = assembly?.userData || {};
   const instanceId = data.instanceId || data.code || assembly?.uuid || null;
@@ -242,10 +268,30 @@ export function serializeProjectEntities(parts = [], options = {}) {
   });
 
   parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
+    if (object?.userData?.kind !== 'LINK_PRODUCT') return;
+    const instanceId = object.userData.instanceId || object.uuid;
+    if (processedAssemblies.has(instanceId)) return;
+    processedAssemblies.add(instanceId);
+    entities.push(serializeLinkEntity(object));
+  });
+
+  parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
+    if (!['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(object?.userData?.kind)) return;
+    const instanceId = object.userData?.instanceId || object.uuid;
+    if (processedAssemblies.has(instanceId)) return;
+    processedAssemblies.add(instanceId);
+    entities.push(object.userData.kind === 'LOCKER_PRODUCT' ? serializeLockerEntity(object) : serializeVetroEntity(object));
+  });
+
+  parts.forEach((partRecord) => {
     if (
       findKoncisaAssembly(partRecord?.obj) ||
       findCritterium8Assembly(partRecord?.obj) ||
       findMilaAssembly(partRecord?.obj) ||
+      ['VETRO_PRODUCT', 'LOCKER_PRODUCT', 'LINK_PRODUCT'].includes(partRecord?.obj?.userData?.kind) ||
+      partRecord?.obj?.userData?.parametricOwner === 'LINK_PRODUCT' ||
       isKoncisaPersistenceObject(partRecord?.obj)
     ) {
       return;

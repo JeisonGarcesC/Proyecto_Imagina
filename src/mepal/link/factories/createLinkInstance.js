@@ -1,97 +1,43 @@
-// src/mepal/link/factories/createLinkInstance.js
-// ─────────────────────────────────────────────────────────────────────────────
-// Carga el GLB de la credenza Link y devuelve el objeto 3D listo para insertar.
-// Sigue el mismo patrón que createEdukInstance / createZenInstance:
-//   - recibe `loadGlb` inyectada desde ThreeCanvas
-//   - devuelve { object, metadata, partRecord }
-// ─────────────────────────────────────────────────────────────────────────────
+import { hydrateLinkGlbParts } from '../renderers/LinkGlbRenderer.js';
+import { MathUtils } from 'three';
+import { buildLink } from '../builders/LinkBuilder.js';
+import { renderLinkProduct } from '../renderers/LinkNativeRenderer.js';
+import { resolveLinkBOM } from '../bom/linkBOM.js';
+import { LINK_DIMENSIONS } from '../definitions/linkDefaults.js';
+import { initializeLinkComponent } from '../integration/linkComponentIdentity.js';
 
-import { buildLink } from '../builders/LinkBuilder';
-import { buildGLBPath } from '../config/linkTunables';
-
-/**
- * Crea una instancia 3D de una credenza Link.
- *
- * @param {object}   options
- * @param {object}   options.config      - { tipoKey, entrega, ancho }
- * @param {Function} options.loadGlb     - función inyectada por ThreeCanvas
- * @param {string}   [options.country]   - código de país para BOM
- *
- * @returns {Promise<{ object, metadata, partRecord } | null>}
- *   Devuelve null si el tipo no está disponible (sin lanzar error).
- */
-export async function createLinkInstance({ config, loadGlb, country = 'CO' } = {}) {
-  if (typeof loadGlb !== 'function') {
-    throw new TypeError('createLinkInstance: se requiere la función loadGlb.');
-  }
-
-  // 1. Resolver la pieza con el builder ────────────────────────────────────
-  const built = buildLink(config);
-
-  // Si el tipo no está disponible el builder devuelve { error }
-  if (built?.error) {
-    console.warn('[createLinkInstance]', built.error);
-    return null;
-  }
-
-  const { groupId, groupName, parts } = built;
-
-  if (!parts || parts.length === 0) {
-    console.warn('[createLinkInstance] El builder no generó piezas.');
-    return null;
-  }
-
-  // Link = 1 sola pieza por configuración
-  const part = parts[0];
-
-  // 2. Cargar el GLB ────────────────────────────────────────────────────────
-  let loaded;
-  try {
-    loaded = await loadGlb([part.src]);
-  } catch (err) {
-    throw new Error(`[createLinkInstance] No se pudo cargar "${part.src}": ${err.message}`);
-  }
-
-  const object = loaded?.scene || loaded?.object || loaded || null;
-  if (!object) {
-    throw new Error(`[createLinkInstance] El GLB no devolvió un objeto 3D: ${part.src}`);
-  }
-
-  // 3. Metadatos ─────────────────────────────────────────────────────────────
-  const metadata = {
-    kind:       'LINK',
-    groupId,
-    groupName,
-    codigoPT:   part.codigo,
-    instanceId: part.instanceId,
-    tipoKey:    part.tipoKey,
-    entrega:    part.entrega,
-    ancho:      part.ancho,
-    label:      part.label,
-    linkParts: [
-      {
-        code:        part.codigo,
-        description: part.label,
-        qty:         1,
-        entrega:     part.entrega,
-        ancho:       part.ancho,
-      },
-    ],
-  };
-
-  object.userData = {
-    ...(object.userData || {}),
-    ...metadata,
-    isPartRoot: true,
-  };
-  object.name = `LINK_${part.codigo}_${part.entrega}_${part.ancho}`;
-
-  return {
-    object,
-    metadata,
-    partRecord: {
-      code: part.codigo,
-      obj:  object,
-    },
-  };
+export function createLinkInstance({ config = {}, instanceId = MathUtils.generateUUID(), groupId = instanceId, transform = {}, applyFinishes, loadAsset, onVisualReady, deferHydration = false } = {}) {
+  let product;
+  try { product = buildLink(config); }
+  catch (error) { return { success: false, object: null, reason: error.message }; }
+  const object = renderLinkProduct(product), c = product.config, bom = resolveLinkBOM(product);
+  object.name = `LINK ${c.type}`;
+  object.traverse(node => {
+    const shared = { line: 'LINK', groupId, productKey: product.productKey };
+    if (node === object) Object.assign(node.userData, shared, { instanceId });
+    else {
+      delete node.userData.instanceId;
+      Object.assign(node.userData, shared, { parentAssemblyId: instanceId });
+    }
+  });
+  Object.assign(object.userData, {
+    kind: 'LINK_PRODUCT', type: 'LINK_PRODUCT', family: 'LINK',
+    instanceId, groupId, groupName: bom.status === 'PARTIAL' ? 'LINK · BOM parcial (componentes pendientes)' : 'LINK · componentes base',
+    config: c, codigoPT: null, code: null, description: `LINK ${c.type}`, isPartRoot: true, hasVisual: true,
+    visualSource: 'LINK_ASSEMBLY', bom: bom.rows, bomStatus: bom.status, missingBOM: bom.missing,
+    diagnostics: product.diagnostics,
+    dim: { widthMm: product.bounds?.widthMm || c.widthMm * c.puestos, thickMm: product.thickMm, depthMm: product.bounds?.depthMm || product.layout.totalDepthMm,
+      heightMm: LINK_DIMENSIONS.supportHeightMm + product.thickMm },
+  });
+  object.children.forEach((component) => initializeLinkComponent(component, object));
+  if (Array.isArray(transform.position)) object.position.fromArray(transform.position);
+  if (Array.isArray(transform.quaternion)) object.quaternion.fromArray(transform.quaternion);
+  else if (Array.isArray(transform.rotation)) object.rotation.fromArray(transform.rotation);
+  if (Array.isArray(transform.scale)) object.scale.fromArray(transform.scale);
+  applyFinishes?.(object);
+  object.updateMatrixWorld(true);
+  const visualsReady = deferHydration
+    ? Promise.resolve([])
+    : hydrateLinkGlbParts(object, product, { loadAsset, onVisualReady: onVisualReady || applyFinishes });
+  return { success: true, visualsReady, object, product, config: c, diagnostics: product.diagnostics };
 }

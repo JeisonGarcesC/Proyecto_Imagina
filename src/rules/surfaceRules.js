@@ -12,11 +12,6 @@
  * IMPORTANTE: Ordena cada array de menor a mayor para que “a techo” tenga sentido.
  */
 export const SURFACE_RULES = {
-  'LINK.SYS': [
-    { max: { w: 1200, d: 600, t: 30 }, codigoPT: '22000008989' },
-    { max: { w: 1500, d: 600, t: 25 }, codigoPT: '22000009010' },
-    { max: { w: 1800, d: 600, t: 25 }, codigoPT: '22000009020' },
-  ],
   'KONCISA.PLUS': [
     { max: { w: 1200, d: 600, t: 25 }, codigoPT: '33000001001' },
     { max: { w: 1500, d: 600, t: 25 }, codigoPT: '33000001002' },

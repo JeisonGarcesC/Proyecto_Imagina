@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildMorea } from '../builders/MoreaBuilder.js';
 import {
   MOREA_ALIGN_TUNE,
+  MOREA_ACCESSORY_OFFSETS_MM,
   MOREA_BUILDER_TUNE,
   MOREA_DOUBLE_BUILDER_TUNE,
   resolveMoreaPedestalModeByCode,
@@ -73,14 +74,14 @@ function orientBeamLongAxisToX(beamObj) {
   }
 }
 
-function scaleBeamToSpanX(beamObj, spanX, quantity) {
+function scaleBeamToSpanX(beamObj, spanX, quantity, hasArmrests = false) {
   if (!beamObj) return;
 
   const normalizedBounds = getBounds(beamObj);
   if (!normalizedBounds) return;
 
   const beamWidthX = Math.max(0.001, normalizedBounds.max.x - normalizedBounds.min.x);
-  const beamSpanRatio = resolveMoreaBeamSpanRatio(quantity);
+  const beamSpanRatio = resolveMoreaBeamSpanRatio(quantity, hasArmrests);
   const requestedScaleX = (spanX * beamSpanRatio) / beamWidthX;
   const configuredMaxScaleX = Number(MOREA_ALIGN_TUNE.BEAM_SCALE_X_MAX);
   const maxScaleX =
@@ -440,6 +441,7 @@ function alignMoreaModule(moduleParts) {
     ? moduleParts.centerSides.filter(Boolean)
     : [];
   const beamEntries = Array.isArray(moduleParts?.beams) ? moduleParts.beams.filter(Boolean) : [];
+  const armrestEntries = Array.isArray(moduleParts?.armrests) ? moduleParts.armrests.filter(Boolean) : [];
 
   if (!seats.length || !leftSideObj || !rightSideObj) return;
 
@@ -447,14 +449,17 @@ function alignMoreaModule(moduleParts) {
   leftSideObj.updateMatrixWorld?.(true);
   rightSideObj.updateMatrixWorld?.(true);
 
-  const seatBoundEntries = seats
-    .map((seat) => ({ seat, bounds: getBounds(seat) }))
-    .filter((entry) => !!entry.bounds)
-    .sort((a, b) => {
-      const ca = getCenter(a.bounds);
-      const cb = getCenter(b.bounds);
-      return (ca?.x || 0) - (cb?.x || 0);
-    });
+  const buildSeatBoundEntries = () =>
+    seats
+      .map((seat) => ({ seat, bounds: getBounds(seat) }))
+      .filter((entry) => !!entry.bounds)
+      .sort((a, b) => {
+        const ca = getCenter(a.bounds);
+        const cb = getCenter(b.bounds);
+        return (ca?.x || 0) - (cb?.x || 0);
+      });
+
+  let seatBoundEntries = buildSeatBoundEntries();
 
   if (!seatBoundEntries.length) return;
 
@@ -464,6 +469,60 @@ function alignMoreaModule(moduleParts) {
     .trim()
     .toLowerCase();
   const isDouble = moreaVariant === 'double';
+
+  const armrestInsetM = Math.max(
+    0,
+    Number(
+      (isDouble
+        ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_INSET_X_MM
+        : MOREA_BUILDER_TUNE.ARMREST_INSET_X_MM) || 0
+    )
+  ) / 1000;
+
+  const centerArmrestEntries = armrestEntries
+    .filter((entry) => String(entry?.role || entry?.obj?.userData?.meta?.role || '').toLowerCase() === 'armrest-center')
+    .slice()
+    .sort((a, b) => Number(a?.seamIndex || 0) - Number(b?.seamIndex || 0));
+  let totalCenterGapAddedM = 0;
+
+  centerArmrestEntries.forEach((entry) => {
+    const armrestObj = entry?.obj || entry;
+    if (!armrestObj) return;
+
+    const maxSeamIndex = Math.max(1, seatBoundEntries.length - 1);
+    const rawSeamIndex = Number(
+      entry?.seamIndex ?? armrestObj?.userData?.meta?.seamIndex ?? armrestObj?.userData?.seamIndex ?? 1
+    );
+    const seamIndex = THREE.MathUtils.clamp(
+      Math.trunc(Number.isFinite(rawSeamIndex) ? rawSeamIndex : 1),
+      1,
+      maxSeamIndex
+    );
+
+    const leftSeatEntry = seatBoundEntries[seamIndex - 1];
+    const rightSeatEntry = seatBoundEntries[seamIndex];
+    if (!leftSeatEntry?.bounds || !rightSeatEntry?.bounds) return;
+
+    armrestObj.updateMatrixWorld?.(true);
+    const armrestBounds = getBounds(armrestObj);
+    if (!armrestBounds) return;
+
+    const armrestWidth = Math.max(0.001, armrestBounds.max.x - armrestBounds.min.x);
+    const currentGap = rightSeatEntry.bounds.min.x - leftSeatEntry.bounds.max.x;
+    const requiredGap = armrestWidth;
+    const additionalGap = Math.max(0, requiredGap - currentGap);
+    if (additionalGap <= 0) return;
+    totalCenterGapAddedM += additionalGap;
+
+    for (let seatIndex = 0; seatIndex < seatBoundEntries.length; seatIndex += 1) {
+      const seatObj = seatBoundEntries[seatIndex]?.seat;
+      if (!seatObj) continue;
+      if (seatIndex < seamIndex) shiftObject(seatObj, -additionalGap / 2, 0, 0);
+      else shiftObject(seatObj, additionalGap / 2, 0, 0);
+    }
+
+    seatBoundEntries = buildSeatBoundEntries();
+  });
 
   const leftSeatBounds = seatBoundEntries[0].bounds;
   const quantity = Math.max(1, Number(moduleParts?.quantity) || seatBoundEntries.length);
@@ -503,9 +562,13 @@ function alignMoreaModule(moduleParts) {
       : 0;
 
   const targetLeftCenterX =
-    leftSeatBounds.min.x + leftWidth * MOREA_ALIGN_TUNE.SIDE_INSET_FACTOR - woodOutwardOffsetM;
+    leftSeatBounds.min.x +
+    leftWidth * MOREA_ALIGN_TUNE.SIDE_INSET_FACTOR -
+    woodOutwardOffsetM;
   const targetRightCenterX =
-    rightSeatBounds.max.x - rightWidth * MOREA_ALIGN_TUNE.SIDE_INSET_FACTOR + woodOutwardOffsetM;
+    rightSeatBounds.max.x -
+    rightWidth * MOREA_ALIGN_TUNE.SIDE_INSET_FACTOR +
+    woodOutwardOffsetM;
 
   shiftObject(leftSideObj, targetLeftCenterX - leftCenter.x, 0, 0);
   shiftObject(rightSideObj, targetRightCenterX - rightCenter.x, 0, 0);
@@ -521,8 +584,27 @@ function alignMoreaModule(moduleParts) {
   const targetZ = (leftSeatCenter.z + rightSeatCenter.z) / 2;
   shiftObject(leftSideObj, 0, 0, targetZ - leftAfterCenter.z);
   shiftObject(rightSideObj, 0, 0, targetZ - rightAfterCenter.z);
-  shiftObject(leftSideObj, 0, -MOREA_ALIGN_TUNE.SIDE_DROP_M, 0);
-  shiftObject(rightSideObj, 0, -MOREA_ALIGN_TUNE.SIDE_DROP_M, 0);
+  const sideDropM = Number(MOREA_ALIGN_TUNE.SIDE_DROP_M) || 0;
+  if (sideDropM !== 0) {
+    const applySideDrop = (sideObj) => {
+      if (!sideObj) return;
+      const appliedDropM = Number(sideObj?.userData?.meta?.moreaSideDropAppliedM || 0);
+      const deltaDropM = sideDropM - appliedDropM;
+      if (Math.abs(deltaDropM) <= 0.0005) return;
+
+      shiftObject(sideObj, 0, -deltaDropM, 0);
+      sideObj.userData = {
+        ...(sideObj.userData || {}),
+        meta: {
+          ...(sideObj.userData?.meta || {}),
+          moreaSideDropAppliedM: sideDropM,
+        },
+      };
+    };
+
+    applySideDrop(leftSideObj);
+    applySideDrop(rightSideObj);
+  }
 
   const leftFinal = getBounds(leftSideObj);
   const rightFinal = getBounds(rightSideObj);
@@ -567,25 +649,167 @@ function alignMoreaModule(moduleParts) {
   }
 
   const seatRaiseM = Number(MOREA_ALIGN_TUNE.SEAT_RAISE_M) || 0;
-  if (seatRaiseM > 0) {
-    seatBoundEntries.forEach(({ seat }) => shiftObject(seat, 0, seatRaiseM, 0));
+  if (seatRaiseM !== 0) {
+    seatBoundEntries.forEach(({ seat }) => {
+      const appliedRaiseM = Number(seat?.userData?.meta?.moreaSeatRaiseAppliedM || 0);
+      const deltaRaiseM = seatRaiseM - appliedRaiseM;
+      if (Math.abs(deltaRaiseM) <= 0.0005) return;
+
+      shiftObject(seat, 0, deltaRaiseM, 0);
+      seat.userData = {
+        ...(seat.userData || {}),
+        meta: {
+          ...(seat.userData?.meta || {}),
+          moreaSeatRaiseAppliedM: seatRaiseM,
+        },
+      };
+    });
   }
 
-  const innerLeftX = leftFinal.max.x;
-  const innerRightX = rightFinal.min.x;
-  const spanX = Math.max(0.05, innerRightX - innerLeftX);
+  if (armrestEntries.length) {
+    const leftSeatCurrentBounds = getBounds(seatBoundEntries[0]?.seat);
+    const rightSeatCurrentBounds = getBounds(seatBoundEntries[Math.min(anchorSeatIndex, seatBoundEntries.length - 1)]?.seat);
+    const armrestInsetMm = armrestInsetM * 1000;
+    const armrestTopDropMm = Math.max(
+      0,
+      Number(
+        (isDouble
+          ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_TOP_DROP_MM
+          : MOREA_BUILDER_TUNE.ARMREST_TOP_DROP_MM) || 0
+      )
+    ) / 1000;
+    let hasArmrestOnLeft = false;
+    let hasArmrestOnRight = false;
+
+    armrestEntries.forEach((entry) => {
+      const armrestObj = entry?.obj || entry;
+      const role = String(entry?.role || armrestObj?.userData?.meta?.role || '').toLowerCase();
+      if (!armrestObj || !role) return;
+
+      if (role === 'armrest-left') {
+        armrestObj.rotation.set(0, Math.PI, 0);
+      } else if (role === 'armrest-right' || role === 'armrest-center') {
+        armrestObj.rotation.set(0, 0, 0);
+      }
+      armrestObj.updateMatrixWorld?.(true);
+
+      armrestObj.updateMatrixWorld?.(true);
+      const armrestBounds = getBounds(armrestObj);
+      if (!armrestBounds) return;
+
+      let leftAnchorSeatBounds = null;
+      let rightAnchorSeatBounds = null;
+
+      if (role === 'armrest-left') {
+        leftAnchorSeatBounds = leftSeatCurrentBounds;
+        rightAnchorSeatBounds = leftSeatCurrentBounds;
+      } else if (role === 'armrest-right') {
+        leftAnchorSeatBounds = rightSeatCurrentBounds;
+        rightAnchorSeatBounds = rightSeatCurrentBounds;
+      } else if (role === 'armrest-center') {
+        const maxSeamIndex = Math.max(1, seatBoundEntries.length - 1);
+        const rawSeamIndex = Number(
+          entry?.seamIndex ?? armrestObj?.userData?.meta?.seamIndex ?? armrestObj?.userData?.seamIndex ?? 1
+        );
+        const normalizedSeamIndex = THREE.MathUtils.clamp(
+          Math.trunc(Number.isFinite(rawSeamIndex) ? rawSeamIndex : 1),
+          1,
+          maxSeamIndex
+        );
+        leftAnchorSeatBounds = seatBoundEntries[normalizedSeamIndex - 1]?.bounds || null;
+        rightAnchorSeatBounds = seatBoundEntries[normalizedSeamIndex]?.bounds || null;
+      } else {
+        return;
+      }
+
+      if (!leftAnchorSeatBounds || !rightAnchorSeatBounds) return;
+
+      const armrestSize = new THREE.Vector3();
+      armrestBounds.getSize(armrestSize);
+      const armrestHeight = Math.max(0.001, armrestSize.y);
+
+      const insetM = armrestInsetMm / 1000;
+      let deltaX = 0;
+
+      if (role === 'armrest-left') {
+        deltaX = (leftAnchorSeatBounds.min.x + insetM) - armrestBounds.max.x;
+      } else if (role === 'armrest-right') {
+        deltaX = (rightAnchorSeatBounds.max.x - insetM) - armrestBounds.min.x;
+      } else {
+        const targetMinX = leftAnchorSeatBounds.max.x;
+        const targetMaxX = rightAnchorSeatBounds.min.x;
+        const centerFromLeft = targetMinX - armrestBounds.min.x;
+        const centerFromRight = targetMaxX - armrestBounds.max.x;
+        deltaX = (centerFromLeft + centerFromRight) / 2;
+      }
+
+      const targetTopY = Math.min(leftAnchorSeatBounds.max.y, rightAnchorSeatBounds.max.y);
+      const roleOffsetY = Number(MOREA_ACCESSORY_OFFSETS_MM?.[role]?.y || 0) / 1000;
+      const centerLiftM = role === 'armrest-center'
+        ? Math.max(
+          0,
+          Number(
+            (isDouble
+              ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM
+              : MOREA_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM) || 0
+          )
+        ) / 1000
+        : 0;
+      const desiredMinY = targetTopY - armrestHeight - armrestTopDropMm + roleOffsetY + centerLiftM;
+      const deltaY = desiredMinY - armrestBounds.min.y;
+      const targetBackZ = Math.min(leftAnchorSeatBounds.max.z, rightAnchorSeatBounds.max.z);
+      const deltaZ = targetBackZ - armrestBounds.max.z;
+
+      shiftObject(armrestObj, deltaX, deltaY, deltaZ);
+
+      armrestObj.updateMatrixWorld?.(true);
+      const alignedBounds = getBounds(armrestObj);
+      const alignedCenter = getCenter(alignedBounds);
+      const assemblyCenterX = (leftSeatCenter.x + rightSeatCenter.x) / 2;
+      if (alignedCenter && role !== 'armrest-center') {
+        if (alignedCenter.x <= assemblyCenterX) hasArmrestOnLeft = true;
+        if (alignedCenter.x >= assemblyCenterX) hasArmrestOnRight = true;
+      }
+    });
+
+    const armrestSupportShiftM = Math.max(
+      0,
+      Number(
+        (isDouble
+          ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_SUPPORT_SHIFT_MM
+          : MOREA_BUILDER_TUNE.ARMREST_SUPPORT_SHIFT_MM) || 0
+      ) / 1000
+    );
+
+    if (armrestSupportShiftM > 0) {
+      if (hasArmrestOnLeft) shiftObject(leftSideObj, -armrestSupportShiftM, 0, 0);
+      if (hasArmrestOnRight) shiftObject(rightSideObj, armrestSupportShiftM, 0, 0);
+    }
+  }
+
+  const leftFinalAfterArmrest = getBounds(leftSideObj);
+  const rightFinalAfterArmrest = getBounds(rightSideObj);
+  if (!leftFinalAfterArmrest || !rightFinalAfterArmrest) return;
+
+  const innerLeftX = leftFinalAfterArmrest.max.x;
+  const innerRightX = rightFinalAfterArmrest.min.x;
+  const centerArmrestBeamExpansionFactor = 0.35;
+  const spanX = Math.max(
+    0.05,
+    (innerRightX - innerLeftX) + (totalCenterGapAddedM * centerArmrestBeamExpansionFactor)
+  );
 
   const frontZBase =
-    Math.min(leftFinal.min.z, rightFinal.min.z) + MOREA_ALIGN_TUNE.BEAM_INSET_FROM_SIDE_Z_M;
+    Math.min(leftFinalAfterArmrest.min.z, rightFinalAfterArmrest.min.z) + MOREA_ALIGN_TUNE.BEAM_INSET_FROM_SIDE_Z_M;
   const backZBase =
-    Math.max(leftFinal.max.z, rightFinal.max.z) - MOREA_ALIGN_TUNE.BEAM_INSET_FROM_SIDE_Z_M;
+    Math.max(leftFinalAfterArmrest.max.z, rightFinalAfterArmrest.max.z) - MOREA_ALIGN_TUNE.BEAM_INSET_FROM_SIDE_Z_M;
   const maxCloser = Math.max(0, (backZBase - frontZBase) * 0.45);
   const pairCloser = Math.min(MOREA_ALIGN_TUNE.BEAM_PAIR_CLOSER_M, maxCloser);
   const frontZ = frontZBase + pairCloser;
   const backZ = backZBase - pairCloser;
   const beamTopOffset = Number(MOREA_ALIGN_TUNE.BEAM_TOP_Y_OFFSET_M) || 0;
   const beamVerticalDrop = Math.max(0, Number(MOREA_ALIGN_TUNE.BEAM_VERTICAL_DROP_M) || 0);
-  const beamY = Math.max(leftFinal.max.y, rightFinal.max.y) - beamTopOffset - beamVerticalDrop;
+  const beamY = Math.max(leftFinalAfterArmrest.max.y, rightFinalAfterArmrest.max.y) - beamTopOffset - beamVerticalDrop;
   const beamTargetX = (innerLeftX + innerRightX) / 2;
   const fallbackBeamTargets = resolveBeamTargetPositions(frontZ, backZ, beamEntries.length || 2);
   const fallbackRoleTargets = resolveBeamRoleFallbackTargets(frontZ, backZ);
@@ -615,6 +839,7 @@ function alignMoreaModule(moduleParts) {
       : Number(MOREA_ALIGN_TUNE.BEAM_VISIBLE_Z_OFFSET_STEP_M_SINGLE));
   const useMiddleBandOnlyLayout = beamEntries.length >= 6;
   let denseTargetsByVisibleIndex = null;
+  const hasAnyArmrest = armrestEntries.length > 0;
 
   if (useMiddleBandOnlyLayout) {
     const denseFrontOuterTarget =
@@ -640,7 +865,7 @@ function alignMoreaModule(moduleParts) {
     beamObj.updateMatrixWorld?.(true);
 
     orientBeamLongAxisToX(beamObj);
-    scaleBeamToSpanX(beamObj, spanX, quantity);
+    scaleBeamToSpanX(beamObj, spanX, quantity, hasAnyArmrest);
 
     const scaledBounds = getBounds(beamObj);
     const scaledCenter = getCenter(scaledBounds);
@@ -692,6 +917,84 @@ function alignMoreaModule(moduleParts) {
   });
 }
 
+function collectMoreaModulePartsFromAssembly(assemblyRoot) {
+  if (!assemblyRoot) return null;
+
+  const resolvedVariant = String(
+    assemblyRoot?.userData?.meta?.moreaVariant || assemblyRoot?.userData?.config?.variant || 'single'
+  )
+    .trim()
+    .toLowerCase();
+  const moduleSpacingFromConfig = Number(assemblyRoot?.userData?.config?.moduleSpacingMm);
+
+  const moduleParts = {
+    variant: resolvedVariant,
+    quantity: 0,
+    moduleSpacingMm: Number.isFinite(moduleSpacingFromConfig) ? moduleSpacingFromConfig : 600,
+    seats: [],
+    armrests: [],
+    leftSide: null,
+    rightSide: null,
+    centerSides: [],
+    beams: [],
+  };
+
+  assemblyRoot.traverse((node) => {
+    if (!node || node === assemblyRoot) return;
+    const role = String(node?.userData?.meta?.role || node?.userData?.role || '').toLowerCase();
+    if (!role) return;
+
+    if (role === 'seat') {
+      moduleParts.seats.push(node);
+      const spacing = Number(node?.userData?.meta?.moduleSpacingMm);
+      if (Number.isFinite(spacing) && spacing > 0) moduleParts.moduleSpacingMm = spacing;
+      return;
+    }
+
+    if (role === 'armrest-left' || role === 'armrest-right' || role === 'armrest-center') {
+      moduleParts.armrests.push({
+        obj: node,
+        role,
+        seamIndex: Number(node?.userData?.meta?.seamIndex || node?.userData?.seamIndex || 1),
+      });
+      return;
+    }
+
+    if (role === 'side-left') {
+      moduleParts.leftSide = node;
+      return;
+    }
+
+    if (role === 'side-right') {
+      moduleParts.rightSide = node;
+      return;
+    }
+
+    if (role.startsWith('side-center-support')) {
+      moduleParts.centerSides.push(node);
+      return;
+    }
+
+    if (role.startsWith('beam')) {
+      moduleParts.beams.push({ obj: node, role });
+    }
+  });
+
+  moduleParts.quantity = moduleParts.seats.length;
+  return moduleParts;
+}
+
+export function realignMoreaAssemblyByRoot(assemblyRoot) {
+  const moduleParts = collectMoreaModulePartsFromAssembly(assemblyRoot);
+  if (!moduleParts) return false;
+  if (!moduleParts.seats.length || !moduleParts.leftSide || !moduleParts.rightSide) return false;
+
+  alignMoreaModule(moduleParts);
+  snapAssemblyToGridTop(assemblyRoot);
+  assemblyRoot.updateMatrixWorld?.(true);
+  return true;
+}
+
 export async function createMoreaInstance({
   api,
   config,
@@ -735,6 +1038,7 @@ export async function createMoreaInstance({
     quantity: built.quantity,
     moduleSpacingMm: built.moduleSpacingMm,
     seats: [],
+    armrests: [],
     leftSide: null,
     rightSide: null,
     centerSides: [],
@@ -758,6 +1062,13 @@ export async function createMoreaInstance({
 
     const role = String(part?.meta?.role || '').toLowerCase();
     if (role === 'seat') moduleParts.seats.push(createdObj);
+    if (role === 'armrest-left' || role === 'armrest-right' || role === 'armrest-center') {
+      moduleParts.armrests.push({
+        obj: createdObj,
+        role,
+        seamIndex: Number(part?.meta?.seamIndex || createdObj?.userData?.meta?.seamIndex || 1),
+      });
+    }
     if (role === 'side-left') moduleParts.leftSide = createdObj;
     if (role === 'side-right') moduleParts.rightSide = createdObj;
     if (role.startsWith('side-center-support')) moduleParts.centerSides.push(createdObj);

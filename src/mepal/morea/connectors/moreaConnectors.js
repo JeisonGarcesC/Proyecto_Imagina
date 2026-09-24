@@ -1,7 +1,7 @@
 // src/mepal/morea/connectors/moreaConnectors.js
 import * as THREE from 'three';
 import { MILA_GIRO_CONNECTOR_TUNE, MILA_GIRO_TUNE } from '../../mila/config/milaGiroTunables.js';
-import { MILA_ACCESSORY_OFFSETS_MM } from '../../mila/config/milaTunables.js';
+import { MOREA_ACCESSORY_OFFSETS_MM } from '../config/moreaTunables.js';
 
 export const MILA_CONNECTOR_CONFIG = {
   SNAP_RADIUS_M: 0.48, // Radio de detección para acople óptimo (48 cm)
@@ -36,7 +36,8 @@ const MOREA_GIRO_CONNECTED_Y_DROP_M = -0.035;
 const MOREA_GIRO_CONNECTOR_YAW_TRIM_DEG_BY_ANGLE = {
   // Ajuste fino para orientar más al frente/atrás por ángulo base.
   // Positivo gira antihorario, negativo gira horario.
-  60: { left: 10, right: -7 },
+  45: { left: -1, right: -7 },
+  60: { left: 7, right: -7 },
 };
 
 function clampPanelSeats(value) {
@@ -1416,8 +1417,13 @@ export function resolveMilaAssemblyConnectors(object) {
 
     if (role === 'armrest-center') {
       // Conector hacia atrás (-Z) para acoplarse a la unión entre puestos de la silla
-      const userOffsetZ = Number(MILA_ACCESSORY_OFFSETS_MM.armrestCenter.z || -80) / 1000;
-      const localPos = new THREE.Vector3(0.060, chairConnectorY, chairConnectorZ - userOffsetZ);
+      const userOffsetY = Number(MOREA_ACCESSORY_OFFSETS_MM.armrestCenter.y || 0) / 1000;
+      const userOffsetZ = Number(MOREA_ACCESSORY_OFFSETS_MM.armrestCenter.z || 0) / 1000;
+      const localPos = new THREE.Vector3(
+        0.060,
+        chairConnectorY - userOffsetY,
+        chairConnectorZ - userOffsetZ
+      );
       const localNormal = new THREE.Vector3(0, 0, -1);
       const worldPos = localPos.clone().applyMatrix4(targetObj.matrixWorld);
       const worldNormal = localNormal.clone().applyQuaternion(worldQuaternion).normalize();
@@ -1479,13 +1485,18 @@ export function resolveMilaAssemblyConnectors(object) {
   let hasArmrestRight = false;
   let hasArmrestCenter = false;
   let hasScreen = false;
+  const occupiedCenterSeams = new Set();
 
   targetObj.traverse((node) => {
     if (node === targetObj) return;
     const r = String(node.userData?.meta?.role || node.userData?.role || '').toLowerCase();
     if (r === 'armrest-left') hasArmrestLeft = true;
     if (r === 'armrest-right') hasArmrestRight = true;
-    if (r === 'armrest-center') hasArmrestCenter = true;
+    if (r === 'armrest-center') {
+      hasArmrestCenter = true;
+      const seamIndex = Number(node.userData?.meta?.seamIndex ?? node.userData?.seamIndex);
+      if (Number.isFinite(seamIndex)) occupiedCenterSeams.add(Math.trunc(seamIndex));
+    }
     if (r === 'screen') hasScreen = true;
   });
 
@@ -1493,15 +1504,59 @@ export function resolveMilaAssemblyConnectors(object) {
     const sidePorts = resolveMoreaChairSidePorts(targetObj, worldQuaternion);
     if (!sidePorts) return null;
 
+    const quantity = Math.max(1, Number(targetObj.userData?.config?.quantity || targetObj.userData?.quantity || 1));
+    const moduleSpacingM = Number(targetObj.userData?.config?.moduleSpacingMm || 600) / 1000;
+    const ports = {
+      left: {
+        id: 'left',
+        portType: 'left',
+        isOccupied: hasArmrestLeft,
+        localPos: sidePorts.localLeft,
+        localNormal: new THREE.Vector3(-1, 0, 0),
+        worldPos: sidePorts.worldLeft,
+        worldNormal: sidePorts.normalLeft,
+      },
+      right: {
+        id: 'right',
+        portType: 'right',
+        isOccupied: hasArmrestRight,
+        localPos: sidePorts.localRight,
+        localNormal: new THREE.Vector3(1, 0, 0),
+        worldPos: sidePorts.worldRight,
+        worldNormal: sidePorts.normalRight,
+      },
+    };
+
+    if (quantity >= 2) {
+      for (let seamIndex = 1; seamIndex < quantity; seamIndex += 1) {
+        const seamX = seamIndex * moduleSpacingM;
+        const localSeam = new THREE.Vector3(seamX, sidePorts.localLeft.y, 0);
+        const worldSeam = localSeam.clone().applyMatrix4(targetObj.matrixWorld);
+        const localNormalSeam = new THREE.Vector3(0, 0, 1);
+        const normalSeam = localNormalSeam.clone().applyQuaternion(worldQuaternion).normalize();
+
+        ports[`seam_${seamIndex}`] = {
+          id: `seam_${seamIndex}`,
+          portType: 'seam',
+          seamIndex,
+          isOccupied: occupiedCenterSeams.has(seamIndex),
+          localPos: localSeam,
+          localNormal: localNormalSeam,
+          worldPos: worldSeam,
+          worldNormal: normalSeam,
+        };
+      }
+    }
+
     return {
       assembly: targetObj,
       isGiro: false,
       isAccessory: false,
       isMorea: true,
-      hasArmrestLeft: false,
-      hasArmrestRight: false,
-      hasArmrestCenter: false,
-      hasScreen: false,
+      hasArmrestLeft,
+      hasArmrestRight,
+      hasArmrestCenter,
+      hasScreen,
       localLeft: sidePorts.localLeft,
       localRight: sidePorts.localRight,
       worldLeft: sidePorts.worldLeft,
@@ -1510,26 +1565,7 @@ export function resolveMilaAssemblyConnectors(object) {
       normalRight: sidePorts.normalRight,
       connectorY: sidePorts.localLeft.y,
       yaw,
-      ports: {
-        left: {
-          id: 'left',
-          portType: 'left',
-          isOccupied: false,
-          localPos: sidePorts.localLeft,
-          localNormal: new THREE.Vector3(-1, 0, 0),
-          worldPos: sidePorts.worldLeft,
-          worldNormal: sidePorts.normalLeft,
-        },
-        right: {
-          id: 'right',
-          portType: 'right',
-          isOccupied: false,
-          localPos: sidePorts.localRight,
-          localNormal: new THREE.Vector3(1, 0, 0),
-          worldPos: sidePorts.worldRight,
-          worldNormal: sidePorts.normalRight,
-        },
-      },
+      ports,
     };
   }
 
@@ -1851,7 +1887,19 @@ export function findBestMilaConnectorSnap({
 
             let targetPosY;
             if (isAccessorySnap) {
-              targetPosY = activeConnectors.isAccessory ? targetObj.position.y : activeAssembly.position.y;
+              const isMoreaCenterArmrestAccessory =
+                activeConnectors?.isAccessory &&
+                String(activeConnectors?.accessoryRole || '').toLowerCase() === 'armrest-center' &&
+                (Boolean(targetConnectors?.isMorea) ||
+                  targetObj?.userData?.kind === 'MOREA_ASSEMBLY' ||
+                  String(targetObj?.userData?.line || '').toUpperCase() === 'MOREA');
+              if (isMoreaCenterArmrestAccessory) {
+                // El intermedio Morea debe tomar la altura del seam al soltar,
+                // no conservar la altura libre del drag.
+                targetPosY = effectiveTargetPort.worldPos.y - rotatedOffset.y;
+              } else {
+                targetPosY = activeConnectors.isAccessory ? targetObj.position.y : activeAssembly.position.y;
+              }
             } else if (isPanelDivisorSnap) {
               // Mantener la altura actual evita que la silla "se hunda" al acoplarse al panel divisor.
               targetPosY = activeAssembly.position.y;
@@ -1860,6 +1908,10 @@ export function findBestMilaConnectorSnap({
                 targetPosY = isTerminalSurfaceSnap
                   ? activeAssembly.position.y
                   : (effectiveTargetPort.worldPos.y - rotatedOffset.y) + giroDropM;
+              } else if (isStrictMoreaGiroChairSnap) {
+                // Si la silla es el objeto activo, conserva su altura para evitar acumulación
+                // de caída vertical al acoplar varias sillas alrededor del mismo giro.
+                targetPosY = activeAssembly.position.y;
               } else {
                 // Cuando la silla se acopla a una superficie de giro, no debe copiar la bajada
                 // propia del giro; la caída vertical solo se aplica si el giro es el activo.
@@ -1946,6 +1998,8 @@ export function findBestMilaConnectorSnap({
               targetObj,
               activeSide: actPort.id,
               targetSide: effectiveTargetPort.id,
+              activePort: actPort,
+              targetPort: effectiveTargetPort,
               distance: dist,
               targetTransform: {
                 x: targetPos.x,
