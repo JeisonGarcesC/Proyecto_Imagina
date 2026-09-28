@@ -10,6 +10,11 @@ import { rebuildLinkInstance } from '../mepal/link/integration/rebuildLinkInstan
 import { restoreLinkEntity } from '../mepal/link/integration/linkPersistence.js';
 import { createLinkComponentPatch } from '../mepal/link/integration/linkComponentEditing.js';
 import { persistLinkComponentTransforms } from '../mepal/link/integration/linkComponentIdentity.js';
+import { createMultipleInstance } from '../mepal/multiple/factories/createMultipleInstance.js';
+import { registerMultipleInstance, rebuildMultipleInstance, restoreMultipleEntity } from '../mepal/multiple/integration/multipleIntegration.js';
+import { getMultipleComponent, getMultipleRoot, persistMultipleComponentTransforms } from '../mepal/multiple/integration/multipleComponentIdentity.js';
+import { emitMultipleGlobalBOM } from '../mepal/multiple/integration/multipleGlobalBOM.js';
+import { createMultipleSystemInstance, registerMultipleSystem, restoreMultipleSystem } from '../mepal/multiple/system/multipleSystemIntegration.js';
 // ThreeCanvas.jsx (MEZCLA: mantiene tu 2D/zoom/controles tal como estaban + agrega muros bien implementados)
 // ✅ Lo único “nuevo” es: wallsGroupRef + crear un group en la escena + useEffect EXTERNO que reconstruye muros.
 // ✅ También corregí: applyFinishToActivePart (materialDef no estaba definido) y cleanup de listeners.
@@ -2376,6 +2381,7 @@ function ThreeCanvas({
         config: obj.userData?.config || null,
         userData: obj.userData || null,
         ...(obj.userData?.kind === 'LINK_PRODUCT' ? getLinkSelectionInfo(obj, activeSubMesh) : {}),
+        ...(obj.userData?.kind === 'MULTIPLE_PRODUCT' ? { multiple: { component: (() => { const component = getMultipleComponent(activeSubMesh); return component ? { componentKey: component.userData.componentKey, componentRole: component.userData.componentRole, description: component.userData.description, tileType: component.userData.tileType, materialRole: component.userData.materialRole, finishId: component.userData.finishId, codigoPT: component.userData.codigoPT, reference: component.userData.commercialReference, commercialStatus: component.userData.commercialStatus, diagnostics: component.userData.commercialDiagnostics } : null; })() } } : {}),
         ...(obj.userData?.kind === 'LOCKER_PRODUCT'
           ? getLockerSelectionInfo(obj, activeSubMesh)
           : {}),
@@ -3289,6 +3295,16 @@ function ThreeCanvas({
 
         if (obj.userData?.excludeFromBOM) continue;
         if (obj.userData?.parametricOwner === 'LINK_PRODUCT') continue;
+
+        if (obj.userData?.kind === 'MULTIPLE_SYSTEM') {
+          emitMultipleGlobalBOM(obj, addRow, resolveCatalogDescription);
+          continue;
+        }
+
+        if (obj.userData?.kind === 'MULTIPLE_PRODUCT') {
+          emitMultipleGlobalBOM(obj, addRow, resolveCatalogDescription);
+          continue;
+        }
 
         if (obj.userData?.kind === 'LINK_PRODUCT') {
           for (const item of obj.userData.bom || []) {
@@ -5771,6 +5787,86 @@ function ThreeCanvas({
       emitBOM();
       refreshFloorAndGrid();
       return instance;
+    }
+
+    function addMultiple(config = {}, options = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const instance = createMultipleInstance({ config, transform: options.transform });
+      if (!instance.success) return instance;
+      const object = registerMultipleInstance({ instance, parent: options.parentGroup || scene, partsRegistry: parts, pickables });
+      syncSelectedIds3D([object.userData.instanceId]); setActivePart(object);
+      if (options.recordHistory !== false) recordCreateObjects({ objects: [object] });
+      emitBOM(); refreshFloorAndGrid(); return instance;
+    }
+
+    function addMultipleSystem(config = {}, options = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const instance = createMultipleSystemInstance(config);
+      if (!instance.success) return instance;
+      const object = registerMultipleSystem({ instance, parent: options.parentGroup || scene, partsRegistry: parts, pickables });
+      syncSelectedIds3D([object.userData.systemId]); setActivePart(object);
+      if (options.recordHistory !== false) recordCreateObjects({ objects: [object] });
+      emitBOM(); refreshFloorAndGrid(); return instance;
+    }
+
+    function applyMultipleSystemConfiguration(object, nextState, recordHistory = true, actionType = null) {
+      if (object?.userData?.kind !== 'MULTIPLE_SYSTEM') return { success: false, reason: 'MULTIPLE_SYSTEM_REQUIRED' };
+      const before = { kind: 'MULTIPLE_SYSTEM', systemId: object.userData.systemId, modules: structuredClone(object.userData.modules || []), connections: structuredClone(object.userData.connections || []) };
+      const instance = createMultipleSystemInstance({ ...nextState, systemId: object.userData.systemId,
+        transform: { position: object.position.toArray(), quaternion: object.quaternion.toArray(), scale: object.scale.toArray() } });
+      if (!instance.success) return instance;
+      const descendants = new Set(); object.traverse((node) => { if (node !== object) descendants.add(node); });
+      for (let index = parts.length - 1; index >= 0; index -= 1) if (descendants.has(parts[index].obj)) parts.splice(index, 1);
+      for (let index = pickables.length - 1; index >= 0; index -= 1) if (descendants.has(pickables[index])) pickables.splice(index, 1);
+      object.traverse((node) => { if (node === object) return; node.geometry?.dispose?.(); if (Array.isArray(node.material)) node.material.forEach((material) => material?.dispose?.()); else node.material?.dispose?.(); });
+      object.clear();
+      for (const product of [...instance.object.children]) registerMultipleInstance({ instance: { object: product }, parent: object, partsRegistry: parts, pickables });
+      object.userData = { ...instance.object.userData }; object.updateMatrixWorld(true);
+      const after = { kind: 'MULTIPLE_SYSTEM', systemId: object.userData.systemId, modules: structuredClone(object.userData.modules || []), connections: structuredClone(object.userData.connections || []) };
+      if (recordHistory && JSON.stringify(before) !== JSON.stringify(after)) {
+        let resolvedActionType = actionType || HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_UPDATE_MODULE;
+        if (!actionType && after.modules.length < before.modules.length) resolvedActionType = HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_REMOVE_MODULE;
+        else if (!actionType && after.modules.length > before.modules.length) {
+          const previousConfigs = before.modules.map((module) => JSON.stringify(module.config));
+          const added = after.modules.filter((module) => !before.modules.some((previous) => previous.moduleId === module.moduleId));
+          resolvedActionType = added.some((module) => previousConfigs.includes(JSON.stringify(module.config)))
+            ? HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_DUPLICATE_MODULE : HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_ADD_MODULE;
+        }
+        historyManager.pushAction({ type: resolvedActionType, instanceId: object.userData.systemId, before, after });
+      }
+      syncSelectedIds3D([object.userData.systemId]); setActivePart(object); emitBOM(); refreshFloorAndGrid();
+      return { ...instance, object };
+    }
+
+    function updateSelectedMultipleSystem(nextState, actionType) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      let system = activePart;
+      while (system && system !== scene && system.userData?.kind !== 'MULTIPLE_SYSTEM') system = system.parent;
+      return applyMultipleSystemConfiguration(system, nextState, true, actionType);
+    }
+
+    function applyMultipleConfiguration(object, patch, recordHistory = true) {
+      if (object?.userData?.kind !== 'MULTIPLE_PRODUCT') return { success: false, reason: 'MULTIPLE_PRODUCT_REQUIRED' };
+      const before = JSON.parse(JSON.stringify(object.userData.config));
+      const selectedKey = activeSubMesh?.userData?.componentKey;
+      const result = rebuildMultipleInstance({ object, patch, partsRegistry: parts });
+      if (!result.success) return result;
+      if (recordHistory && JSON.stringify(before) !== JSON.stringify(object.userData.config)) historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.MULTIPLE_CONFIG_CHANGE, instanceId: object.userData.instanceId,
+        before, after: JSON.parse(JSON.stringify(object.userData.config)),
+      });
+      let mesh = null; object.traverse((node) => { if (!mesh && node.isMesh && node.userData.componentKey === selectedKey) mesh = node; });
+      setActivePart(object, { targetIds: selectedIds3D, subMesh: mesh }); emitBOM(); refreshFloorAndGrid(); return result;
+    }
+
+    function updateSelectedMultiple(patch) { return readOnly ? { success: false, reason: 'READ_ONLY' } : applyMultipleConfiguration(getMultipleRoot(activePart), patch); }
+    function updateSelectedMultipleComponent(componentKey, patch) {
+      const root = getMultipleRoot(activePart); if (!root) return { success: false, reason: 'MULTIPLE_PRODUCT_REQUIRED' };
+      const components = { ...(root.userData.config?.components || {}), [componentKey]: { ...(root.userData.config?.components?.[componentKey] || {}), ...patch } };
+      let composition = root.userData.config.composition;
+      if (patch.tileType) { const tileIndex = componentKey.startsWith('tile-') ? Number(componentKey.slice(5)) : -1;
+        composition = { ...composition, slots: composition.slots.map((slot, index) => slot.componentKey === componentKey || slot.slotKey === componentKey || index === tileIndex ? { ...slot, tileType: patch.tileType, codigoPT: null, reference: null, commercialStatus: 'PENDING' } : slot) }; }
+      return applyMultipleConfiguration(root, { components, composition });
     }
 
     function applyLinkConfiguration(object, config, recordHistory = true) {
@@ -9825,6 +9921,19 @@ function ThreeCanvas({
         return registerLinkInstance({ instance, parent: scene, partsRegistry: parts, pickables });
       }
 
+      function createPersistedMultiple(entity) {
+        const instance = restoreMultipleEntity(entity);
+        registerMultipleInstance({ instance, parent: scene, partsRegistry: parts, pickables });
+        instance.object.updateMatrixWorld(true); return instance.object;
+      }
+
+      function createPersistedMultipleSystem(entity) {
+        const instance = restoreMultipleSystem(entity);
+        if (!instance.success) throw new Error(instance.reason || 'MULTIPLE_SYSTEM_INVALID');
+        registerMultipleSystem({ instance, parent: scene, partsRegistry: parts, pickables });
+        instance.object.updateMatrixWorld(true); return instance.object;
+      }
+
       function createPersistedLocker(entity) {
         if (!entity?.config || typeof entity.config !== 'object')
           throw new Error('LOCKER_MISSING_CONFIG');
@@ -9940,6 +10049,8 @@ function ThreeCanvas({
           createCritterium8: createPersistedCritterium8,
           createVetro: createPersistedVetro,
           createLink: createPersistedLink,
+          createMultiple: createPersistedMultiple,
+          createMultipleSystem: createPersistedMultipleSystem,
           createLocker: createPersistedLocker,
           createMila: createPersistedMila,
           createImportedModel: (entity) =>
@@ -10829,6 +10940,11 @@ function ThreeCanvas({
       addVetro,
       addLink,
       updateSelectedLink,
+      addMultiple,
+      addMultipleSystem,
+      updateSelectedMultipleSystem,
+      updateSelectedMultiple,
+      updateSelectedMultipleComponent,
       updateSelectedLinkComponent,
       updateSelectedKoncisaSurface,
       addLocker,
@@ -11811,6 +11927,15 @@ function ThreeCanvas({
       } else if (action.type === HISTORY_ACTION_TYPES.LINK_CONFIG_CHANGE) {
         const result = applyLinkConfiguration(findPartById(action.instanceId), state, false);
         if (!result.success) throw new Error(result.reason || 'LINK_HISTORY_REBUILD_FAILED');
+        return result;
+      } else if (action.type === HISTORY_ACTION_TYPES.MULTIPLE_CONFIG_CHANGE) {
+        const result = applyMultipleConfiguration(findPartById(action.instanceId), state, false);
+        if (!result.success) throw new Error(result.reason || 'MULTIPLE_HISTORY_REBUILD_FAILED');
+        return result;
+      } else if ([HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_ADD_MODULE, HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_REMOVE_MODULE,
+        HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_DUPLICATE_MODULE, HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_UPDATE_MODULE].includes(action.type)) {
+        const result = applyMultipleSystemConfiguration(findPartById(action.instanceId), state, false, action.type);
+        if (!result.success) throw new Error(result.reason || 'MULTIPLE_SYSTEM_HISTORY_REBUILD_FAILED');
         return result;
       } else if (action.type === HISTORY_ACTION_TYPES.KONCISA_SURFACE_CONFIG_CHANGE) {
         return rebuildKoncisaSurfaceConfiguration(
@@ -15087,10 +15212,10 @@ function ThreeCanvas({
       if (!hits.length) return;
 
       const hitObj = hits[0].object; // Mesh real clickeado
-      const root = getRootPartObject(hitObj);
+      const root = getMultipleRoot(hitObj) || getRootPartObject(hitObj);
       if (!root) return;
       if (root.userData?.isFloor) return;
-      const propertiesTarget = isKoncisaAssemblyRoot(root)
+      const propertiesTarget = root.userData?.kind === 'MULTIPLE_PRODUCT' ? root : isKoncisaAssemblyRoot(root)
         ? getEditableKoncisaPartObject(hitObj) || root
         : isCritterium8SequenceRoot(root)
           ? getCritterium8EditableTarget(hitObj) || root
@@ -15278,6 +15403,7 @@ function ThreeCanvas({
           config: propertiesTarget.userData?.config || root.userData?.config || null,
           userData: propertiesTarget.userData || root.userData || null,
           ...(root.userData?.kind === 'LINK_PRODUCT' ? getLinkSelectionInfo(root, hitObj) : {}),
+          ...(root.userData?.kind === 'MULTIPLE_PRODUCT' ? { multiple: { component: (() => { const component = getMultipleComponent(hitObj); return component ? { componentKey: component.userData.componentKey, componentRole: component.userData.componentRole, description: component.userData.description, tileType: component.userData.tileType, materialRole: component.userData.materialRole, finishId: component.userData.finishId, codigoPT: component.userData.codigoPT, reference: component.userData.commercialReference, commercialStatus: component.userData.commercialStatus, diagnostics: component.userData.commercialDiagnostics } : null; })() } } : {}),
           parentAssemblyId:
             propertiesTarget.userData?.parentAssemblyId || root.userData?.parentAssemblyId || null,
           ductCovers: propertiesTarget.userData?.ductCovers || null,
@@ -16593,6 +16719,7 @@ function ThreeCanvas({
           persistLinkComponentTransforms(
             completedDragSession.initialPositions.map(({ obj }) => obj)
           );
+          persistMultipleComponentTransforms(completedDragSession.initialPositions.map(({ obj }) => obj));
           pushMoveHistory(before, after);
         }
 
