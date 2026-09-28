@@ -1,6 +1,6 @@
 export const LINK_DEFAULT_CONFIG = Object.freeze({
-  puestos: 1, modoEspecial: false, finishId: 'FORMICA_30', tipoCostado: 'RECT',
-  hasDuct: false, supportFinish: 'PINTADO', cableAccess: 'none', grommetFinish: 'ALUMINIUM', finishAssignments: {}, components: {}, componentTransforms: {},
+  puestos: 1, modoEspecial: false, finishId: 'FORMICA_30', tipoCostado: 'Link',
+  hasDuct: true, supportFinish: 'PINTADO', cableAccess: 'grommet', grommetFinish: 'ALUMINIUM', finishAssignments: {}, components: {}, componentTransforms: {},
   type: 'sencillo', widthMm: 1200, depthMm: 600, surfaceMode: 'principal',
   returnLengthMm: 900, side: 'derecha', leaderReturnGrommet: false,
   leaderCredenza: false, leaderCredenzaLengthMm: 1200,

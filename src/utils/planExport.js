@@ -84,9 +84,9 @@ function boundsFromData(parts = [], walls = [], columns = [], openings = []) {
 
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
-  const r2 = Math.round(m * 100) / 100;
+  const r3 = Math.round(m * 1000) / 1000;
   const r0 = Math.round(m);
-  return Math.abs(r2 - r0) < 0.005 ? `${r0} m` : `${r2.toFixed(2)} m`;
+  return Math.abs(r3 - r0) < 0.0005 ? `${r0} m` : `${r3.toFixed(3)} m`;
 }
 
 export function generatePlanSvg({

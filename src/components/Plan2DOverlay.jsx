@@ -91,9 +91,9 @@ const CALIBRATION_UNIT_TO_METERS = Object.freeze({ mm: 0.001, cm: 0.01, m: 1 });
 
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
-  const r2 = Math.round(m * 100) / 100;
+  const r3 = Math.round(m * 1000) / 1000;
   const r0 = Math.round(m);
-  return Math.abs(r2 - r0) < 0.005 ? `${r0} m` : `${r2.toFixed(2)} m`;
+  return Math.abs(r3 - r0) < 0.0005 ? `${r0} m` : `${r3.toFixed(3)} m`;
 }
 
 function drawDimText(ctx, x1, y1, x2, y2, label, opts = {}) {
@@ -132,8 +132,8 @@ function fmtMeasure(m) {
 
   if (m < 1) return `${mm} mm`;
 
-  const m2 = Math.round(m * 100) / 100;
-  return `${m2.toFixed(2)} m`;
+  const m3 = Math.round(m * 1000) / 1000;
+  return `${m3.toFixed(3)} m`;
 }
 
 function formatDocumentDistance(value) {

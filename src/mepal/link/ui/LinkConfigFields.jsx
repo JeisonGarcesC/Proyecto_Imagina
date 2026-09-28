@@ -15,12 +15,11 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
     type="number" min={min} max={max} step={1} value={c[key]} onChange={e=>change(key,Number(e.target.value))}/></label>
     : select(label,key,options.map(v=>({value:v,label:(v/10)+' cm'})));
   return <fieldset disabled={disabled} style={{border:0,padding:0,margin:0,minWidth:0}}>
-    <div style={sectionStyle}><label style={labelStyle}>Tipo de configuración<select style={inputStyle} value={leader?'LEADER':'STANDARD'} onChange={e=>{
-      const type=e.target.value==='LEADER'?'lider':'sencillo';
-      onChange({...c,type,puestos:1,widthMm:type==='lider'?1500:1200,depthMm:600,surfaceMode:'principal',finishId:'FORMICA_30',modoEspecial:false,components:{}});
-    }}><option value="STANDARD">Puesto estándar</option><option value="LEADER">Puesto líder</option></select></label></div>
+    <div style={sectionStyle}><label style={labelStyle}>Tipo de configuración<select style={inputStyle} value="STANDARD" disabled>
+      <option value="STANDARD">Superficie principal</option>
+    </select></label></div>
     <div style={sectionStyle}>
-      {!leader && <>{select('Tipo de puesto','type',[{value:'sencillo',label:'Sencillo'},{value:'doble',label:'Doble'}])}
+      {!leader && <>{select('Tipo de puesto','type',[{value:'sencillo',label:'Individual'},{value:'doble',label:'Doble'}])}
         {select('Cantidad de puestos','puestos',Array.from({length:12},(_,i)=>({value:i+1,label:(i+1)+' '+(i?'puestos':'puesto')})))}
         {c.type==='doble'&&<div style={{fontSize:11,marginBottom:8}}>Cada módulo doble tiene dos superficies enfrentadas.</div>}</>}
       <label style={labelStyle}><input type="checkbox" checked={c.modoEspecial} onChange={e=>{
@@ -28,17 +27,19 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
         onChange({...c,modoEspecial:mode,...(!mode?{widthMm:widths.find(w=>w>=c.widthMm)||widths[0],depthMm:c.depthMm<=600?600:750,returnLengthMm:c.returnLengthMm<=900?900:1000}:{})});
       }}/> {leader?'Puesto líder rematable / medida especial':'Puesto especial'}</label>
       {dimension('Largo real','widthMm',widths,leader?1500:900,1800)}
-      {dimension(leader?'Profundidad principal':'Profundidad por superficie','depthMm',LINK_DEPTHS,600,750)}
       {c.type==='doble'&&select('Configuración de superficie','surfaceMode',[{value:'principal',label:'Superficie principal'},{value:'plena',label:'Superficie plena doble'}])}
-      {select('Acabado / tipo de superficie','finishId',getLinkFinishOptions(c.type).map(f=>({value:f.id,label:f.label})))}
     </div>
-    <div style={sectionStyle}>{select('Tipo de costado','tipoCostado',LINK_SUPPORT_SHAPES)}
-      {select('Acabado de costados','supportFinish',[{value:'PINTADO',label:'Pintado'},{value:'CROMADO',label:'Cromado'}])}
-      {c.tipoCostado!=='RECT'&&<div role="note" style={{fontSize:11}}>Forma visual disponible. Código comercial LINK por confirmar; BOM parcial.</div>}
+    <div style={sectionStyle}>{select('Tipo de costado','tipoCostado',[{value:'Link',label:'Link'},{value:'Kuo',label:'Kuo'}])}
+      {c.tipoCostado!=='Link'&&<div role="note" style={{fontSize:11}}>Forma visual disponible. Código comercial LINK por confirmar; BOM parcial.</div>}
     </div>
-    <div style={sectionStyle}>{select('Acceso para cableado','cableAccess',[{value:'none',label:'Sin grommet'},{value:'grommet',label:'Grommet de aluminio'}])}
-      {c.cableAccess==='grommet'&&<>{select('Acabado del grommet','grommetFinish',[{value:'ALUMINIUM',label:'Aluminio anodizado'},{value:'PAINTED',label:'Pintado'}])}
-        <div style={{fontSize:11}}>{leader?'Un grommet en la superficie principal.':'Un grommet por superficie.'}</div></>}
+    <div style={sectionStyle}>
+      <label style={labelStyle}>Acceso para cableado
+        <select style={inputStyle} disabled value="grommet">
+          <option value="grommet">Grommet de aluminio</option>
+        </select>
+      </label>
+      {select('Acabado del grommet','grommetFinish',[{value:'ALUMINIUM',label:'Aluminio anodizado'},{value:'PAINTED',label:'Pintado'}])}
+      <div style={{fontSize:11}}>{leader?'Un grommet en la superficie principal.':'Un grommet por superficie.'}</div>
       <label style={labelStyle}><input type="checkbox" checked={c.hasDuct} onChange={e=>change('hasDuct',e.target.checked)}/> Incluir ducto intermedio</label>
       {c.hasDuct&&<div style={{fontSize:11}}>Un ducto por módulo. Acabado editable desde las propiedades.</div>}
     </div>

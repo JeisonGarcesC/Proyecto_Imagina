@@ -26,7 +26,14 @@ function createVisual(source, part, material) {
     : partDimensions;
   const center = box.getCenter(new Vector3());
   model.position.sub(center);
-  visual.scale.set(...dimensions.map((value, index) => value / 1000 / size.getComponent(index)));
+  if (part.model?.exactSize) {
+    // Determine uniform scale factor (assuming model might be in mm or m).
+    // If size.y is ~710, it's in mm, so scale is 1/1000. If ~0.71, scale is 1.
+    const scale = size.y > 10 ? 1 / 1000 : 1;
+    visual.scale.set(scale, scale, scale);
+  } else {
+    visual.scale.set(...dimensions.map((value, index) => value / 1000 / size.getComponent(index)));
+  }
   return visual;
 }
 
