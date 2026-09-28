@@ -242,7 +242,11 @@ export function buildKoncisaPlus(config = {}) {
 
   superficies.forEach((s, index) => {
     const componentKey = getKoncisaSurfaceKey(s, index);
-    const componentConfig = getKoncisaSurfaceComponentConfig(config, componentKey, fallbackFromConfig(config));
+    const componentConfig = getKoncisaSurfaceComponentConfig(
+      config,
+      componentKey,
+      fallbackFromConfig(config)
+    );
     const componentFinish = resolveKoncisaSurfaceFinishOption(componentConfig, s);
     const surfacePart = createSuperficie({
       groupId,
@@ -325,19 +329,27 @@ export function buildKoncisaPlus(config = {}) {
     grommets.forEach((g) => {
       const moduleIndex = Number.parseInt(String(g.index), 10) || 0;
       const componentKey = `SURFACE_${moduleIndex}`;
-      const componentConfig = getKoncisaSurfaceComponentConfig(config, componentKey, fallbackFromConfig(config));
+      const componentConfig = getKoncisaSurfaceComponentConfig(
+        config,
+        componentKey,
+        fallbackFromConfig(config)
+      );
       if (!componentConfig.grommet) return;
       const grommetPart = createGrommet({
-          groupId,
-          groupName,
-          finish: componentConfig.grommetFinish || grommetFinish,
-          diameterMm: g.diameterMm || 80,
-          x: g.x,
-          y: g.y ?? 740, //altura grommet
-          z: g.z ?? 0,
-          rotY: g.rotY ?? 0,
-        });
-      grommetPart.meta = { ...(grommetPart.meta || {}), targetSurfaceKey: componentKey, moduleIndex };
+        groupId,
+        groupName,
+        finish: componentConfig.grommetFinish || grommetFinish,
+        diameterMm: g.diameterMm || 80,
+        x: g.x,
+        y: g.y ?? 740, //altura grommet
+        z: g.z ?? 0,
+        rotY: g.rotY ?? 0,
+      });
+      grommetPart.meta = {
+        ...(grommetPart.meta || {}),
+        targetSurfaceKey: componentKey,
+        moduleIndex,
+      };
       parts.push(grommetPart);
     });
   }
@@ -346,11 +358,13 @@ export function buildKoncisaPlus(config = {}) {
     (override) => override?.cableAccessType === 'PASACABLE' || override?.pasacable === true
   );
   if (tipoPasoCable === 'pasacable' || hasSurfacePasacableOverride) {
-    const centerPasacables = getPasacablesConfig({ puestos, tipoPuesto, largoRealMm, anchoRealMm, position: 'CENTER' });
-    centerPasacables.forEach((centerPasacable) => {
-      const moduleIndex = Number.parseInt(String(centerPasacable.index), 10) || 0;
+    for (let moduleIndex = 0; moduleIndex < puestos; moduleIndex++) {
       const componentKey = `SURFACE_${moduleIndex}`;
-      const componentConfig = getKoncisaSurfaceComponentConfig(config, componentKey, fallbackFromConfig(config));
+      const componentConfig = getKoncisaSurfaceComponentConfig(
+        config,
+        componentKey,
+        fallbackFromConfig(config)
+      );
       if (!componentConfig.pasacable) return;
       const pasacables = getPasacablesConfig({
         puestos,
@@ -359,20 +373,25 @@ export function buildKoncisaPlus(config = {}) {
         anchoRealMm,
         position: componentConfig.pasacablePosition || pasacablePosition,
       });
-      const p = pasacables.find((candidate) => (Number.parseInt(String(candidate.index), 10) || 0) === moduleIndex);
-      if (!p) return;
-      //console.log('p.y: ', p.y);
-      const pasacablePart = createPasacable({
-          groupId,
-          groupName,
-          x: p.x,
-          y: p.y,
-          z: p.z,
-          rotY: p.rotY,
+      pasacables
+        .filter((candidate) => (Number.parseInt(String(candidate.index), 10) || 0) === moduleIndex)
+        .forEach((p) => {
+          const pasacablePart = createPasacable({
+            groupId,
+            groupName,
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            rotY: p.rotY,
+          });
+          pasacablePart.meta = {
+            ...(pasacablePart.meta || {}),
+            targetSurfaceKey: componentKey,
+            moduleIndex,
+          };
+          parts.push(pasacablePart);
         });
-      pasacablePart.meta = { ...(pasacablePart.meta || {}), targetSurfaceKey: componentKey, moduleIndex };
-      parts.push(pasacablePart);
-    });
+    }
   }
 
   // ========================
@@ -436,6 +455,7 @@ export function buildKoncisaPlus(config = {}) {
         rotZ: d.rotZ ?? 0,
         side: d.side ?? 'LEFT',
         accesoCableado,
+        floorDuctEnabled: config.floorDuct?.enabled === true,
       })
     );
   });
@@ -444,7 +464,7 @@ export function buildKoncisaPlus(config = {}) {
   // DUCTO BAJANTE A PISO
   // 1 por isla
   // ========================
-  if (config.floorDuct?.enabled) {
+  if (config.floorDuct?.enabled && parts.some((part) => part.type === 'ducto')) {
     const ductosNormales = parts.filter((p) => p.type === 'ducto');
 
     const referenceDuct =

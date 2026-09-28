@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getDuctosConfig } from '../src/mepal/koncisaPlus/rules/koncisaRules.js';
+import {
+  getDuctosConfig,
+  getPasacablesConfig,
+} from '../src/mepal/koncisaPlus/rules/koncisaRules.js';
+import { buildKoncisaPlus } from '../src/mepal/koncisaPlus/builders/KoncisaPlusBuilder.js';
 import {
   resolveKoncisaIntegrationPackage,
   resolveKoncisaIntegrationPlacement,
@@ -20,6 +24,43 @@ function getDoubleDuct(tipoPasoCable, tipoModulo, side = 'LEFT') {
   })[0];
 }
 
+test('pasacables sencillos conservan el mismo offset en cada puesto', () => {
+  const expectedXByPosition = {
+    CENTER: [-38, 1162],
+    LEFT: [-544, 656],
+    RIGHT: [467, 1667],
+  };
+
+  for (const [position, expectedX] of Object.entries(expectedXByPosition)) {
+    const pasacables = getPasacablesConfig({
+      puestos: 2,
+      tipoPuesto: 'sencillo',
+      largoRealMm: 1200,
+      anchoRealMm: 600,
+      position,
+    });
+
+    assert.deepEqual(
+      pasacables.map((part) => part.x),
+      expectedX,
+      position
+    );
+  }
+});
+
+test('el puesto doble conserva un pasacable en cada lado de profundidad', () => {
+  const product = buildKoncisaPlus({ puestos: 1, tipoPuesto: 'doble', tipoPasoCable: 'pasacable' });
+  const pasacables = product.parts.filter((part) => part.type === 'pasacable');
+
+  assert.deepEqual(
+    pasacables.map(({ x, y, z }) => ({ x, y, z })),
+    [
+      { x: -38, y: 690, z: -88.5 },
+      { x: 38, y: 690, z: 88.5 },
+    ]
+  );
+});
+
 for (const tipoPasoCable of ['grommet', 'pasacable']) {
   for (const tipoModulo of ['TERMINAL', 'INTERMEDIO', 'INDIVIDUAL']) {
     test(`resuelve ducto doble ${tipoPasoCable} ${tipoModulo}`, () => {
@@ -35,14 +76,8 @@ for (const tipoPasoCable of ['grommet', 'pasacable']) {
 test('conserva la orientación específica de cada lado en el terminal doble', () => {
   const left = getDoubleDuct('pasacable', 'TERMINAL', 'LEFT');
   const right = getDoubleDuct('pasacable', 'TERMINAL', 'RIGHT');
-  assert.deepEqual(
-    { x: left.x, z: left.z, rotY: left.rotY },
-    { x: 632, z: -106, rotY: Math.PI }
-  );
-  assert.deepEqual(
-    { x: right.x, z: right.z, rotY: right.rotY },
-    { x: -632, z: 152, rotY: 0 }
-  );
+  assert.deepEqual({ x: left.x, z: left.z, rotY: left.rotY }, { x: 632, z: -106, rotY: Math.PI });
+  assert.deepEqual({ x: right.x, z: right.z, rotY: right.rotY }, { x: -632, z: 152, rotY: 0 });
 });
 
 test('ubica cada terminal doble en su propio puesto y no depende de la profundidad', () => {
@@ -86,7 +121,6 @@ test('el costado doble de integración usa el ensamble genérico para ambas medi
   }
 });
 
-
 test('la integracion con grommet usa el modelo LKAC250000', () => {
   const cableAccess = resolveKoncisaIntegrationPackage({
     cableAccessType: 'grommet',
@@ -95,7 +129,6 @@ test('la integracion con grommet usa el modelo LKAC250000', () => {
   assert.equal(cableAccess.modelCode, 'LKAC250000');
   assert.match(cableAccess.modelSrc, /LKAC250000\.glb$/);
 });
-
 
 test('usa GLB exacto para refuerzos de integracion de 100, 120 y 150 cm', () => {
   for (const widthMm of [1000, 1200, 1500]) {
