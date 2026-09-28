@@ -5,13 +5,13 @@ import { resolveLinkFloorDuct } from '../rules/linkFloorDuctRules.js';
 import { resolveLinkCeilingDuct } from '../rules/linkCeilingDuctRules.js';
 import { resolveLinkDuctCover } from '../rules/linkDuctCoverRules.js';
 
-export function createDucto({config,moduleIndex=0,x=0,z=0,key='duct-'+moduleIndex}) {
+export function createDucto({config,moduleIndex=0,x=0,z=0,key='duct-'+moduleIndex,rotationY=0}) {
   const component=linkComponentConfig(config,key,{coverLeft:false,coverRight:false,floorDuct:false,floorSide:'CENTER',ceilingSide:'NONE',supportFinish:'PINTADO',removed:false});
   if(component.removed)return null;
   const rule=resolveLinkDucto({...config,moduleIndex});
-  return linkPart('DUCT',key,[rule.widthMm,rule.heightMm,rule.depthMm],[x+rule.offsetXMm,675-rule.heightMm/2,z],
+  return linkPart('DUCT',key,[rule.widthMm,rule.heightMm,rule.depthMm],[x+rule.offsetXMm,697-rule.heightMm/2,z],
     rule.code,'LINK ducto cableado '+(config.type==='doble'?'doble':'sencillo')+' intermedio',
-    {moduleIndex,materialBase:'METAL',model:{kind:'glb',src:rule.modelSrc},componentConfig:component,
+    {moduleIndex,rotationY,materialBase:'METAL',model:{kind:'glb',src:rule.modelSrc,exactSize:config.type === 'sencillo'},componentConfig:component,
       meta:{category:'ductos',tipoModulo:'INTERMEDIO',tipoPuesto:config.type}});
 }
 export function createFloorDuct({config,key,targetKey,position,component,rotationY=0}) {

@@ -32,8 +32,7 @@ export const LINK_FINISH_CODES = {
   return25: { derecha: {900:'22000136961',1000:'22000136962'}, izquierda: {900:'22000136963',1000:'22000136964'} },
 };
 export const LINK_SUPPORT_SHAPES = [
-  {value:'RECT',label:'Rectangular'}, {value:'TEK',label:'Tek'}, {value:'ORTOGONAL',label:'Ortogonal'},
-  {value:'O',label:'O'}, {value:'CURVO',label:'Curvo'}, {value:'TRAP',label:'Trapezoidal'},
+  {value:'Link',label:'Link'}, {value:'Kuo',label:'Kuo'}
 ];
 export function getLinkFinishOptions(type) {
   return type === 'lider' || type === 'jefatura' ? LINK_FINISH_OPTIONS.slice(0,2) : LINK_FINISH_OPTIONS;

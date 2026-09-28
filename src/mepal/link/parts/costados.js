@@ -25,7 +25,7 @@ export function createCostado({config,key,terminal=true,depthMm,position,moduleI
     dimMm:{widthMm:50.8,heightMm:710,depthMm},
     position:{x,y,z},
     rotation:{x:0,y:rotationY,z:0},
-    model:{kind:'glb',src:rule.modelSrc},
+    model:{kind:'glb',src:rule.modelSrc,exactSize:true},
     materialRole:'structure',
     materialBase:'METAL',
     moduleIndex,
