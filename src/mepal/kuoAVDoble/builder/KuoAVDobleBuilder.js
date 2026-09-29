@@ -501,7 +501,8 @@ export function buildKuoAVDoble(config = {}) {
       : false;
   const pantallaTipo = config.pantallaTipo || 'FORMICA'; // FORMICA | MELAMINA | TELA
   const pantallaPosicion = config.pantallaPosicion || 'CENTRAL'; // CENTRAL | POSTERIOR | FRONTAL
-  const pantallaAcabado = config.pantallaAcabado || '#dedede';
+  const isPantallaVidrioDoble = pantallaTipo === 'VIDRIO' || pantallaTipo === 'VIDRIO LAMINADO';
+  const pantallaAcabado = config.pantallaAcabado || (isPantallaVidrioDoble ? '#a5f3fc' : '#dedede');
 
   if (hasPantalla) {
     let panDimStr = '120';
