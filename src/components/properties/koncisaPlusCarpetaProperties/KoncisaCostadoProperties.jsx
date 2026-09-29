@@ -73,6 +73,8 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
     Boolean(part?.meta?.integrationSetId);
 
   const canUseIntegration = tipoPuesto === 'doble' && isTerminal && !isIntegrationLeg;
+  const canUsePedestal = part?.meta?.pedestalTarget !== false && !isIntegrationLeg;
+  const [placementSide, setPlacementSide] = useState('RIGHT');
 
   const [integrationWidthMm, setIntegrationWidthMm] = useState(() => {
     const width = Number(getInitialWidth(part));
@@ -127,6 +129,32 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
           <b>Replace key:</b> {part?.meta?.replaceKey || 'No definido'}
         </div>
       </div>
+
+      {canUsePedestal && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+          <label style={labelStyle}>Pedestal</label>
+          {tipoPuesto !== 'doble' && (
+            <select
+              style={inputStyle}
+              value={placementSide}
+              onChange={(e) => setPlacementSide(e.target.value)}
+            >
+              <option value="LEFT">Izquierda</option>
+              <option value="RIGHT">Derecha</option>
+            </select>
+          )}
+          <button
+            type="button"
+            style={{ ...btnStyle, marginTop: 10 }}
+            onClick={async () => {
+              const ok = await api?.replaceSelectedCostadoWithPedestal?.({ placementSide });
+              if (ok !== false) onClose?.();
+            }}
+          >
+            Cambiar costado a pedestal
+          </button>
+        </div>
+      )}
 
 
       <div

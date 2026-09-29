@@ -200,13 +200,13 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
   for (let i = 0; i < puestos; i++) {
     const baseX = i * largoRealMm;
     let zgrommet = 0;
-    console.log('anchoRealMm grommet: ', anchoRealMm);
+    //console.log('anchoRealMm grommet: ', anchoRealMm);
     if (anchoRealMm == 600) {
       zgrommet = -190;
     } else {
       zgrommet = -255;
     }
-    console.log('zgrommet grommet: ', zgrommet);
+    //console.log('zgrommet grommet: ', zgrommet);
 
     if (tipoPuesto === 'sencillo') {
       out.push({

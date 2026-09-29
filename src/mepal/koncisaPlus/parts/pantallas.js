@@ -74,7 +74,7 @@ export const KONCISA_PRIVACY_PANEL_SUPPORTS = {
     insetMm: 93.5,
     offsetXMm: 0,
     offsetYMm: -3,
-    offsetZMm: 0,
+    offsetZMm: -30,
 
     leftRotation: [0, 0, 0],
     rightRotation: [0, Math.PI, 0],
@@ -315,7 +315,7 @@ export function resolveKoncisaPrivacyPanelPlacement({
         ? Number(stationXMm)
         : Number(moduleIndex) * Number(largoRealMm),
     y: 900,
-    z: isFrontal && !isDouble ? -Number(anchoRealMm) / 2 + 30 : 0,
+    z: isFrontal && !isDouble ? -Number(anchoRealMm) / 2 + 30: 0,
   };
 }
 

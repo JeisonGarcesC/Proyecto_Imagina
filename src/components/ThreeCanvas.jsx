@@ -13957,7 +13957,9 @@ function ThreeCanvas({
       const children = root.children.filter(
         (child) => child?.userData?.meta?.category === 'ductos-a-techo'
       );
-      children.forEach((child) => removePartObject(child, { emitBom: false }));
+      children.forEach((child) =>
+        removePartObject(child, { exactTarget: true, emitBom: false })
+      );
     }
 
     function isDuctAttachmentDescendant(root, node) {
