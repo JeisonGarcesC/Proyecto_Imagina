@@ -261,16 +261,11 @@ export function getPasacablesConfig({
     const baseX = i * largoRealMm;
 
     if (tipoPuesto === 'sencillo') {
-      let z = 0;
-      let mover = baseX - 50 + 62;
-      console.log('position pasacable: ', position);
-
-      if (position === 'LEFT') mover = -494;
-      if (position === 'RIGHT') mover = 517;
+      const offsetX = position === 'LEFT' ? -544 : position === 'RIGHT' ? 467 : -38;
 
       out.push({
         index: i,
-        x: baseX - 50 + mover,
+        x: baseX + offsetX,
         y: 690, //altura Pasacable
         z: -216.5,
         rotY: 0,

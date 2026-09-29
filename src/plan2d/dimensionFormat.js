@@ -1,5 +1,5 @@
 const UNIT_FORMATS = Object.freeze({
-  m: { factor: 1, decimals: 2 },
+  m: { factor: 1, decimals: 3 },
   cm: { factor: 100, decimals: 1 },
   mm: { factor: 1000, decimals: 0 },
 });

@@ -115,8 +115,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
     setLargoRealMm(1200);
   };
 
-  const [includeFloorDuct, setIncludeFloorDuct] = useState(false);
-
   const handleCreate = () => {
     // =========================================
     // PUESTO LÍDER
@@ -232,10 +230,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
         lateralPlacementMode: lateralPanelPlacementMode,
 
         lengthMm: selectedPrivacyPanelFinish.tipo === 'lateral' ? anchoCobroMm : largoCobroMm,
-      },
-
-      floorDuct: {
-        enabled: includeFloorDuct,
       },
     });
 
@@ -1016,17 +1010,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
             setDuctModes={setDuctModes}
             tipoPasoCable={tipoPasoCable}
           />
-
-          <div>
-            <label>
-              <input
-                type="checkbox"
-                checked={includeFloorDuct}
-                onChange={(e) => setIncludeFloorDuct(e.target.checked)}
-              />{' '}
-              Incluir ducto bajante a piso
-            </label>
-          </div>
 
           <div>
             <label>Tipo de costado</label>
