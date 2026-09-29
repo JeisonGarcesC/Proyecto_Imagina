@@ -6797,9 +6797,25 @@ function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    function getNextKuoAVOffsetX() {
+      // Calcula el borde derecho real (bounding box) de TODOS los ensambles
+      // Kuo AV existentes (sencillo + doble juntos), para que uno nunca quede
+      // superpuesto sobre el otro sin importar en qué orden se agreguen.
+      let maxRightEdge = null;
+      parts.forEach(({ obj }) => {
+        const kind = obj?.userData?.kind;
+        if (kind !== 'KUO_AV_ASSEMBLY' && kind !== 'KUO_AV_DOBLE_ASSEMBLY') return;
+        obj.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(obj);
+        if (!Number.isFinite(box.max.x)) return;
+        maxRightEdge = maxRightEdge === null ? box.max.x : Math.max(maxRightEdge, box.max.x);
+      });
+      if (maxRightEdge === null) return 0;
+      return maxRightEdge + 0.05; // pequeño margen de 5cm entre bancadas distintas
+    }
+
     async function addKuoAV(config = {}) {
       if (readOnly) return;
-      const countKuo = parts.filter(({ obj }) => obj?.userData?.kind === 'KUO_AV_ASSEMBLY').length;
       let result;
       try {
         result = await createKuoAVInstance({
@@ -6814,7 +6830,15 @@ function ThreeCanvas({
       if (!result) return;
 
       const { object, partRecord } = result;
-      object.position.set(countKuo * 1.6, 0, 0);
+      if (config.position) {
+        if (Array.isArray(config.position)) {
+          object.position.fromArray(config.position);
+        } else {
+          object.position.copy(config.position);
+        }
+      } else {
+        object.position.set(getNextKuoAVOffsetX(), 0, 0);
+      }
       object.updateMatrixWorld(true);
       scene.add(object);
       parts.push(partRecord);
@@ -6939,9 +6963,6 @@ function ThreeCanvas({
 
     async function addKuoAVDoble(config = {}) {
       if (readOnly) return;
-      const countKuoDoble = parts.filter(
-        ({ obj }) => obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY'
-      ).length;
       let result;
       try {
         result = await createKuoAVDobleInstance({
@@ -6963,7 +6984,7 @@ function ThreeCanvas({
           object.position.copy(config.position);
         }
       } else {
-        object.position.set(countKuoDoble * 1.6, 0, 0);
+        object.position.set(getNextKuoAVOffsetX(), 0, 0);
       }
       object.updateMatrixWorld(true);
       scene.add(object);
@@ -9607,6 +9628,20 @@ function ThreeCanvas({
       const root = exactTarget ? obj : getRootPartObject(obj) || obj;
       if (root.userData?.lockedDelete) return false;
 
+      // Puestos Kuo AV (sencillo o doble): si el usuario unió 2 o más puestos
+      // en una misma bancada, ninguno se puede eliminar individualmente para
+      // no romper la continuidad de la unión. Con un único puesto sí se puede
+      // borrar con normalidad.
+      const rootKind = root.userData?.kind;
+      if (rootKind === 'KUO_AV_ASSEMBLY' || rootKind === 'KUO_AV_DOBLE_ASSEMBLY') {
+        const kuoAssemblyCount = parts.filter(
+          ({ obj: partObj }) =>
+            partObj?.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+            partObj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY'
+        ).length;
+        if (kuoAssemblyCount >= 2) return false;
+      }
+
       const isAssembly =
         root.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || root.userData?.type === 'koncisa-plus';
 
@@ -11134,6 +11169,7 @@ function ThreeCanvas({
       addKuoGo,
       addKuoAV,
       addKuoAVDoble,
+      getNextKuoAVOffsetX,
       addKuoAVPantalla,
       swapKuoGoVariant,
       swapKuoAVVariant,

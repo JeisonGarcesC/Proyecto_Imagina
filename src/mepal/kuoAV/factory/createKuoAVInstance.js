@@ -201,13 +201,26 @@ export async function createKuoAVInstance({
       try {
         const baseSrc = part.model.src;
         const fileName = baseSrc.split('/').pop();
-        const candidatePaths = [
-          baseSrc,
-          `/assets/models/Kuo AV/Puesto Perimetral/${fileName}`,
-          encodeURI(`/assets/models/Kuo AV/Puesto Perimetral/${fileName}`),
-          `/assets/models/Kuo%20AV/Puesto%20Perimetral/${fileName}`,
-          `/assets/models/Kuo AV/${fileName}`,
-        ];
+        const isPantalla = part.type === 'pantalla';
+        const candidatePaths = isPantalla
+          ? [
+              baseSrc,
+              encodeURI(baseSrc),
+              `/assets/models/Kuo AV/Pantalla Vidrio/${fileName}`,
+              encodeURI(`/assets/models/Kuo AV/Pantalla Vidrio/${fileName}`),
+              `/assets/models/Kuo AV/Pantalla FMT/${fileName}`,
+              encodeURI(`/assets/models/Kuo AV/Pantalla FMT/${fileName}`),
+              `/assets/models/Kuo AV/Frontal Perimetral/${fileName}`,
+              encodeURI(`/assets/models/Kuo AV/Frontal Perimetral/${fileName}`),
+              `/assets/models/Kuo AV/${fileName}`,
+            ]
+          : [
+              baseSrc,
+              `/assets/models/Kuo AV/Puesto Perimetral/${fileName}`,
+              encodeURI(`/assets/models/Kuo AV/Puesto Perimetral/${fileName}`),
+              `/assets/models/Kuo%20AV/Puesto%20Perimetral/${fileName}`,
+              `/assets/models/Kuo AV/${fileName}`,
+            ];
         const loaded = await loadGlb(candidatePaths);
         const glbScene = loaded?.scene || loaded?.object || loaded || null;
         if (glbScene) {

@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { KUO_AV_SAP_CODES, KUO_AV_TUNABLES } from '../config/kuoAVTunables.js';
+import { KUO_AV_PANTALLA_CATALOG } from '../factory/createKuoAVPantallaInstance.js';
 
 /**
  * Roles estructurales y funcionales de las piezas de KUO AV.
@@ -21,6 +22,7 @@ export const KUO_AV_PART_ROLES = Object.freeze({
   GROMMET: 'GROMMET',
   DUCT: 'DUCT',
   CONTROL_PAD: 'CONTROL_PAD',
+  PANTALLA: 'PANTALLA',
 });
 
 /**
@@ -36,6 +38,7 @@ export const KUO_AV_PART_TYPES = Object.freeze({
   GROMMET: 'grommet',
   DUCTO: 'ducto',
   CONTROL: 'control',
+  PANTALLA: 'pantalla',
 });
 
 /**
@@ -551,6 +554,95 @@ export function createKuoAVControlPadPart({
     meta: {
       category: 'controles',
       codigoCET: KUO_AV_TUNABLES.CET_CODES.BOTONERA_LINAK,
+    },
+  };
+}
+
+/**
+ * 10. Pantalla frontal opcional (Formica / Melamina / Tela / Vidrio / Frontal Perimetral).
+ * Reutiliza el catálogo KUO_AV_PANTALLA_CATALOG (misma fuente de verdad que la
+ * pantalla flotante independiente) para no duplicar tablas de codigoPT.
+ */
+export function createKuoAVPantallaPart({
+  groupId = null,
+  groupName = null,
+  widthMm = 1200,
+  tipo = 'FORMICA', // FORMICA | MELAMINA | TELA | VIDRIO | FRONTAL_PERIMETRAL
+  acabado = '#dedede',
+  x = 0,
+  y = 0,
+  z = 0,
+} = {}) {
+  const rawTipo = String(tipo || 'FORMICA').toUpperCase();
+  const isFrontalPerimetral = rawTipo === 'FRONTAL_PERIMETRAL' || rawTipo === 'PERIMETRAL';
+  const isVidrio = isFrontalPerimetral || rawTipo === 'VIDRIO' || rawTipo === 'VIDRIO LAMINADO';
+  const materialKey = isFrontalPerimetral
+    ? 'FRONTAL_PERIMETRAL'
+    : isVidrio
+    ? 'VIDRIO'
+    : rawTipo === 'MELAMINA'
+    ? 'MELAMINA'
+    : rawTipo === 'TELA'
+    ? 'TELA'
+    : 'FORMICA';
+
+  const anchoMm = widthMm === 1500 ? 1500 : widthMm >= 1650 ? 1650 : 1200;
+  const dimStr = anchoMm === 1500 ? '150' : anchoMm === 1650 ? '165' : '120';
+  const widthM = anchoMm === 1500 ? 1.425 : anchoMm === 1650 ? 1.575 : 1.125;
+
+  const matMap = KUO_AV_PANTALLA_CATALOG[materialKey] || KUO_AV_PANTALLA_CATALOG.FORMICA;
+  const itemData = matMap[anchoMm] || matMap[1200];
+
+  let subfolder = 'Pantalla FMT';
+  let glbFile = `KUAC690000_${dimStr}.glb`;
+  if (materialKey === 'FRONTAL_PERIMETRAL') {
+    subfolder = 'Frontal Perimetral';
+    glbFile = `KUAC710000_${dimStr === '150' ? '120' : dimStr}.glb`;
+  } else if (materialKey === 'VIDRIO') {
+    subfolder = 'Pantalla Vidrio';
+    glbFile = 'KUAC660000_120.glb';
+  } else if (materialKey === 'MELAMINA' || materialKey === 'TELA') {
+    // Sin GLB propio catalogado aún: se reutiliza el modelo Formica como respaldo visual.
+    subfolder = 'Pantalla FMT';
+    glbFile = 'KUAC690000_120.glb';
+  }
+
+  return {
+    type: KUO_AV_PART_TYPES.PANTALLA,
+    subtype: `pantalla_${materialKey.toLowerCase()}`,
+    role: KUO_AV_PART_ROLES.PANTALLA,
+    line: 'KUO.AV',
+
+    groupId,
+    groupName,
+
+    code: itemData?.codigoPT || null,
+    logicalCode: itemData?.lookupTag || `PANTALLA_${materialKey}_${anchoMm}`,
+    existsInCatalog: !!itemData,
+    rawCodigoPT: itemData?.codigoPT || null,
+
+    name: itemData?.name || `Pantalla Frontal ${dimStr}cm ${materialKey} Altura Variable Kuo`,
+
+    dimMm: {
+      widthMm: anchoMm,
+      heightMm: 350,
+      depthMm: 30,
+    },
+
+    position: { x, y, z },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: anchoMm === 1200 ? 1 : widthM / 1.125, y: 1, z: 1 },
+
+    model: {
+      kind: 'glb',
+      src: `${KUO_AV_TUNABLES.GLB_BASE.replace('Puesto Perimetral/', '')}${subfolder}/${glbFile}`,
+    },
+
+    meta: {
+      category: 'pantallas',
+      codigoCET: itemData?.codigoPT || null,
+      tipoPantalla: materialKey,
+      acabado,
     },
   };
 }
