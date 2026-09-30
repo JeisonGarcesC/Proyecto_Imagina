@@ -17,7 +17,7 @@ export function buildMultipleSystem(input = {}) {
   const bom = resolveMultipleSystemBOM(products);
   Object.assign(object.userData, { kind: 'MULTIPLE_SYSTEM', type: 'MULTIPLE_SYSTEM', family: 'MULTIPLE', line: 'MULTIPLE', systemId: system.systemId,
     instanceId: system.systemId, groupId: system.systemId, groupName: 'Sistema Multiple', isPartRoot: true, hasVisual: true,
-    modules: structuredClone(system.modules), connections: structuredClone(system.connections), bom: bom.rows, bomStatus: bom.status, missingBOM: bom.missing });
+    modules: structuredClone(system.modules), connections: structuredClone(system.connections), layout: structuredClone(system.layout), layoutOverrides: structuredClone(system.layoutOverrides), bom: bom.rows, bomStatus: bom.status, missingBOM: bom.missing });
   const transform = system.transform; if (Array.isArray(transform.position)) object.position.fromArray(transform.position);
   if (Array.isArray(transform.quaternion)) object.quaternion.fromArray(transform.quaternion); if (Array.isArray(transform.scale)) object.scale.fromArray(transform.scale);
   object.updateMatrixWorld(true); return { success: true, object, products, system, diagnostics: validation.diagnostics };

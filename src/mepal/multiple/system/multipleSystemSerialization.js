@@ -11,11 +11,12 @@ export function serializeMultipleSystem(object) {
       : structuredClone(module);
   });
   const entity = { kind: 'MULTIPLE_SYSTEM', systemId: object.userData.systemId,
-    modules, connections: structuredClone(object.userData.connections || []),
+    modules, connections: structuredClone(object.userData.connections || []), layout: structuredClone(object.userData.layout || {}), layoutOverrides: structuredClone(object.userData.layoutOverrides || {}),
     transform: { position: object.position.toArray(), quaternion: object.quaternion.toArray(), scale: object.scale.toArray() } };
-  const validation = MultipleSystem.from(entity).validate();
+  const normalized = MultipleSystem.from(entity);
+  const validation = normalized.validate();
   if (!validation.valid) throw new Error(validation.diagnostics[0].code);
-  return entity;
+  return normalized.toJSON();
 }
 
 export function restoreMultipleSystem(entity) {

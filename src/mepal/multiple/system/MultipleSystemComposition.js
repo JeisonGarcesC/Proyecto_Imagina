@@ -1,11 +1,13 @@
 import { MathUtils } from 'three';
+import { getMultipleConnectionPoints } from './layout/MultipleConnectionResolver.js';
+import { multipleConnectionPairKey } from './layout/MultipleConnectionResolver.js';
 
 const clone = (value) => structuredClone(value);
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export function createMultipleSystemModule(input = {}) {
   const moduleId = input.moduleId || MathUtils.generateUUID();
-  return {
+  const module = {
     moduleId,
     type: input.type || 'WALL_SECTION',
     productId: 'MULTIPLE_PRODUCT',
@@ -17,11 +19,10 @@ export function createMultipleSystemModule(input = {}) {
       z: finite(input.position?.z),
     },
     rotation: { y: finite(input.rotation?.y) },
-    connectionPoints: clone(input.connectionPoints || [
-      { pointId: `${moduleId}:START`, role: 'START' },
-      { pointId: `${moduleId}:END`, role: 'END' },
-    ]),
+    connectionPoints: [],
   };
+  module.connectionPoints = getMultipleConnectionPoints(module);
+  return module;
 }
 
 export class MultipleSystemComposition {
@@ -37,7 +38,7 @@ export class MultipleSystemComposition {
   removeModule(moduleId) {
     return new MultipleSystemComposition({
       modules: this.modules.filter((module) => module.moduleId !== moduleId),
-      connections: this.connections.filter((connection) => connection.from?.moduleId !== moduleId && connection.to?.moduleId !== moduleId),
+      connections: this.connections.filter((connection) => connection.from?.moduleId !== moduleId && connection.to?.moduleId !== moduleId && connection.moduleA !== moduleId && connection.moduleB !== moduleId),
     });
   }
 
@@ -58,6 +59,8 @@ export class MultipleSystemComposition {
   }
 
   connect(connection) {
+    const key = multipleConnectionPairKey(connection);
+    if (key && this.connections.some((existing) => multipleConnectionPairKey(existing) === key)) return this;
     return new MultipleSystemComposition({ modules: this.modules, connections: [...this.connections, clone(connection)] });
   }
 

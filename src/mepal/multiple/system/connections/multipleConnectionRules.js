@@ -8,11 +8,11 @@ export function validateMultipleConnection(connection, modules = []) {
   if (!from || !to || from === to) diagnostics.push({ code: 'MULTIPLE_SYSTEM_INVALID_CONNECTION_MODULE', level: 'ERROR' });
   if (!TYPES.has(connection?.type)) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_TYPE_NOT_SUPPORTED', level: 'ERROR' });
   if (from && to) {
-    if (Number(from.config?.heightCm) !== Number(to.config?.heightCm)) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_HEIGHT_MISMATCH', level: 'ERROR' });
-    if (Number(from.config?.thicknessCm) !== Number(to.config?.thicknessCm)) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_THICKNESS_MISMATCH', level: 'ERROR' });
+    if (Number(from.config?.heightCm) !== Number(to.config?.heightCm)) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_HEIGHT_MISMATCH', level: 'WARNING' });
+    if (Number(from.config?.thicknessCm) !== Number(to.config?.thicknessCm)) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_THICKNESS_MISMATCH', level: 'WARNING' });
     const distance = angleDistance(Number(from.rotation?.y || 0), Number(to.rotation?.y || 0));
-    if (connection.type === 'CORNER_90' && Math.abs(distance - quarterTurn) > 1e-4) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_ORIENTATION_MISMATCH', level: 'ERROR' });
-    if (['LINEAR', 'CONTINUITY'].includes(connection.type) && distance > 1e-4) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_ORIENTATION_MISMATCH', level: 'ERROR' });
+    if (connection.type === 'CORNER_90' && Math.abs(distance - quarterTurn) > 1e-4) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_ORIENTATION_MISMATCH', level: 'WARNING' });
+    if (['LINEAR', 'CONTINUITY'].includes(connection.type) && distance > 1e-4) diagnostics.push({ code: 'MULTIPLE_SYSTEM_CONNECTION_ORIENTATION_MISMATCH', level: 'WARNING' });
   }
   return { valid: !diagnostics.some((item) => item.level === 'ERROR'), diagnostics };
 }

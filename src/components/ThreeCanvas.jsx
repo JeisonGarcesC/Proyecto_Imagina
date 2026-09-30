@@ -27,6 +27,7 @@ import {
   registerMultipleSystem,
   restoreMultipleSystem,
 } from '../mepal/multiple/system/multipleSystemIntegration.js';
+import { previewMultipleProductDrag, commitMultipleProductDrag } from '../mepal/multiple/system/layout/MultipleSmartLayoutInteraction.js';
 // ThreeCanvas.jsx (MEZCLA: mantiene tu 2D/zoom/controles tal como estaban + agrega muros bien implementados)
 // ✅ Lo único “nuevo” es: wallsGroupRef + crear un group en la escena + useEffect EXTERNO que reconstruye muros.
 // ✅ También corregí: applyFinishToActivePart (materialDef no estaba definido) y cleanup de listeners.
@@ -758,6 +759,14 @@ function ThreeCanvas({
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf5f5f5);
     sceneRef.current = scene;
+    const multipleSnapMarker = new THREE.Group();
+    const multipleSnapOrigin = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 8), new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }));
+    const multipleSnapTarget = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 8), new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }));
+    const multipleSnapLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0x16a34a, depthTest: false }));
+    multipleSnapMarker.add(multipleSnapOrigin, multipleSnapTarget, multipleSnapLine);
+    multipleSnapMarker.visible = false;
+    multipleSnapMarker.userData = { excludeFromBOM: true, isHelper: true };
+    scene.add(multipleSnapMarker);
     // sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(
@@ -4298,7 +4307,8 @@ function ThreeCanvas({
           current.userData?.type === 'MILA_GIRO_SURFACE' ||
           current.userData?.meta?.role === 'giro-surface' ||
           current.userData?.kind === 'MOREA_ASSEMBLY' ||
-          current.userData?.type === 'morea'
+          current.userData?.type === 'morea' ||
+          current.userData?.kind === 'MULTIPLE_SYSTEM'
         ) {
           return current;
         }
@@ -5869,11 +5879,14 @@ function ThreeCanvas({
         systemId: object.userData.systemId,
         modules: structuredClone(object.userData.modules || []),
         connections: structuredClone(object.userData.connections || []),
+        layout: structuredClone(object.userData.layout || {}),
+        layoutOverrides: structuredClone(object.userData.layoutOverrides || {}),
+        transform: { position: object.position.toArray(), quaternion: object.quaternion.toArray(), scale: object.scale.toArray() },
       };
       const instance = createMultipleSystemInstance({
         ...nextState,
         systemId: object.userData.systemId,
-        transform: {
+        transform: nextState.transform || {
           position: object.position.toArray(),
           quaternion: object.quaternion.toArray(),
           scale: object.scale.toArray(),
@@ -5904,12 +5917,18 @@ function ThreeCanvas({
           pickables,
         });
       object.userData = { ...instance.object.userData };
+      object.position.copy(instance.object.position);
+      object.quaternion.copy(instance.object.quaternion);
+      object.scale.copy(instance.object.scale);
       object.updateMatrixWorld(true);
       const after = {
         kind: 'MULTIPLE_SYSTEM',
         systemId: object.userData.systemId,
         modules: structuredClone(object.userData.modules || []),
         connections: structuredClone(object.userData.connections || []),
+        layout: structuredClone(object.userData.layout || {}),
+        layoutOverrides: structuredClone(object.userData.layoutOverrides || {}),
+        transform: { position: object.position.toArray(), quaternion: object.quaternion.toArray(), scale: object.scale.toArray() },
       };
       if (recordHistory && JSON.stringify(before) !== JSON.stringify(after)) {
         let resolvedActionType = actionType || HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_UPDATE_MODULE;
@@ -12146,6 +12165,10 @@ function ThreeCanvas({
           HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_REMOVE_MODULE,
           HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_DUPLICATE_MODULE,
           HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_UPDATE_MODULE,
+          HISTORY_ACTION_TYPES.MULTIPLE_LAYOUT_MOVE,
+          HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_MOVE,
+          HISTORY_ACTION_TYPES.MULTIPLE_CONNECT_MODULES,
+          HISTORY_ACTION_TYPES.MULTIPLE_ALIGN_MODULES,
         ].includes(action.type)
       ) {
         const result = applyMultipleSystemConfiguration(
@@ -15352,6 +15375,7 @@ function ThreeCanvas({
 
     function restoreDragSession() {
       if (!dragSession3D) return;
+      multipleSnapMarker.visible = false;
       dragSession3D.initialPositions.forEach(({ obj, localPosition }) => {
         obj.position.copy(localPosition);
         obj.updateMatrixWorld(true);
@@ -16004,6 +16028,21 @@ function ThreeCanvas({
               obj.updateMatrixWorld(true);
             }
           });
+          multipleSnapMarker.visible = false;
+          if (dragSession3D.initialPositions.length === 1) {
+            const moved = dragSession3D.initialPositions[0].obj;
+            const preview = previewMultipleProductDrag(moved);
+            if (preview) {
+              const color = preview.status === 'GREEN' ? 0x16a34a : preview.status === 'YELLOW' ? 0xeab308 : 0xdc2626;
+              multipleSnapOrigin.material.color.setHex(color);
+              multipleSnapTarget.material.color.setHex(color);
+              multipleSnapLine.material.color.setHex(color);
+              multipleSnapOrigin.position.fromArray(preview.originWorld);
+              multipleSnapTarget.position.fromArray(preview.destinationWorld);
+              multipleSnapLine.geometry.setFromPoints([multipleSnapOrigin.position, multipleSnapTarget.position]);
+              multipleSnapMarker.visible = true;
+            }
+          }
 
           if (activePart.userData?.kind === 'KUO_AV_ASSEMBLY') {
             console.log('[KUO FINAL DRAG]');
@@ -16818,6 +16857,7 @@ function ThreeCanvas({
       isDragging = false;
       hasMoved3D = false;
       dragSession3D = null;
+      multipleSnapMarker.visible = false;
       controls.enabled = true;
 
       try {
@@ -17027,7 +17067,27 @@ function ThreeCanvas({
           persistMultipleComponentTransforms(
             completedDragSession.initialPositions.map(({ obj }) => obj)
           );
-          pushMoveHistory(before, after);
+          const movedProducts = completedDragSession.initialPositions
+            .map(({ obj }) => obj)
+            .filter((obj) => obj.userData?.kind === 'MULTIPLE_PRODUCT' && obj.parent?.userData?.kind === 'MULTIPLE_SYSTEM');
+          const movedSystemRoot = completedDragSession.initialPositions.length === 1 && completedDragSession.initialPositions[0].obj.userData?.kind === 'MULTIPLE_SYSTEM'
+            ? completedDragSession.initialPositions[0] : null;
+          if (movedSystemRoot) {
+            const systemObject = movedSystemRoot.obj;
+            const state = { kind: 'MULTIPLE_SYSTEM', systemId: systemObject.userData.systemId,
+              modules: structuredClone(systemObject.userData.modules || []), connections: structuredClone(systemObject.userData.connections || []),
+              layout: structuredClone(systemObject.userData.layout || {}), layoutOverrides: structuredClone(systemObject.userData.layoutOverrides || {}) };
+            const orientation = { quaternion: systemObject.quaternion.toArray(), scale: systemObject.scale.toArray() };
+            historyManager.pushAction({ type: HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_MOVE, instanceId: state.systemId,
+              before: { ...state, transform: { ...orientation, position: movedSystemRoot.localPosition.toArray() } },
+              after: { ...state, transform: { ...orientation, position: systemObject.position.toArray() } } });
+          } else if (movedProducts.length === completedDragSession.initialPositions.length && movedProducts.every((obj) => obj.parent === movedProducts[0].parent)) {
+            const systemObject = movedProducts[0].parent;
+            const result = commitMultipleProductDrag(systemObject, movedProducts);
+            if (result.changed) historyManager.pushAction({ type: movedProducts.length === 1 ? HISTORY_ACTION_TYPES.MULTIPLE_LAYOUT_MOVE : HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_MOVE, instanceId: systemObject.userData.systemId, before: result.before, after: result.after });
+          } else {
+            pushMoveHistory(before, after);
+          }
         }
 
         if (milaSnapResult?.mergeCandidate) {
@@ -20034,6 +20094,13 @@ function ThreeCanvas({
       rotationLabelTexture.dispose();
       rotationLabel.material.dispose();
       scene.remove(rotationHandle);
+      scene.remove(multipleSnapMarker);
+      multipleSnapOrigin.geometry.dispose();
+      multipleSnapOrigin.material.dispose();
+      multipleSnapTarget.geometry.dispose();
+      multipleSnapTarget.material.dispose();
+      multipleSnapLine.geometry.dispose();
+      multipleSnapLine.material.dispose();
       edukHandleGeometry.dispose();
       edukHandleMaterial.dispose();
       edukWidthHandleNext.material.dispose();
