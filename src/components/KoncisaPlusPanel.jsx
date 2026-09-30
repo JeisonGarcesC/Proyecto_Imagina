@@ -262,6 +262,11 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [ductModes, setDuctModes] = useState([]);
 
   useEffect(() => {
+    if (tipoPasoCable !== 'grommet') return;
+    setDuctModes((prev) => prev.map((mode) => mode === 'NONE' ? 'TERMINAL' : mode));
+  }, [tipoPasoCable]);
+
+  useEffect(() => {
     if (tipoPasoCable !== 'pasacable') return;
 
     setDuctModes((prev) =>

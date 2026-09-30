@@ -508,6 +508,7 @@ export function getDuctosConfig({
     //console.log('largo', largoRealMm);
     let baseX = i * largoRealMm;
     const ductMode = ductModes[i] || 'TERMINAL';
+    if (String(ductMode).toUpperCase() === 'NONE' && tipoPasoCable !== 'grommet') continue;
 
     const tipoModulo = (ductModes[i] || 'TERMINAL').toLowerCase();
 

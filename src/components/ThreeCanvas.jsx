@@ -12693,7 +12693,12 @@ function ThreeCanvas({
         }
       }
 
-      const shouldCreateDuctSupport = shouldCreateKoncisaPedestalDuctSupport({
+      const hasModuleDuct = parentGroup?.children.some(
+        (child) =>
+          child.userData?.kind === 'ducto' &&
+          Number(child.userData?.meta?.moduleIndex) === Number(moduleIndex)
+      );
+      const shouldCreateDuctSupport = hasModuleDuct && shouldCreateKoncisaPedestalDuctSupport({
         layoutType,
       });
 
