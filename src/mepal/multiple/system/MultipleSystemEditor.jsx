@@ -40,7 +40,7 @@ export default function MultipleSystemEditor({ onCreate, onDuplicate, initialVal
     <div style={{ display: 'flex', gap: 6 }}><button disabled={disabled} onClick={() => add(panelConfig())}>Agregar panel</button><button disabled={disabled} onClick={() => add(doorConfig())}>Agregar puerta</button><button disabled={disabled || system.modules.length < 2} onClick={reconnect}>Conectar secuencia</button></div>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <label><input type="checkbox" checked={system.layout.snapEnabled} disabled={disabled} onChange={(event) => { const next = MultipleSystem.from(value); next.layout.snapEnabled = event.target.checked; commitSpatial(next, 'MULTIPLE_LAYOUT_MOVE'); }} /> Snap</label>
-      <label>Tolerancia (mm) <input type="number" min="0" value={system.layout.snapToleranceMm} disabled={disabled} style={{ width: 65 }} onChange={(event) => { const next = MultipleSystem.from(value); next.layout.snapToleranceMm = Number(event.target.value); commitSpatial(next, 'MULTIPLE_LAYOUT_MOVE'); }} /></label>
+      <label>Distancia de snap (mm) <input type="number" min="0" value={system.layout.snapDistanceMm} disabled={disabled} style={{ width: 65 }} onChange={(event) => { const next = MultipleSystem.from(value); next.layout.snapDistanceMm = Number(event.target.value); next.layout.snapToleranceMm = next.layout.snapDistanceMm; commitSpatial(next, 'MULTIPLE_LAYOUT_MOVE'); }} /></label>
       <label><input type="checkbox" checked={showPoints} onChange={(event) => setShowPoints(event.target.checked)} /> Puntos de conexión</label>
       <label><input type="checkbox" checked={showWarnings} onChange={(event) => setShowWarnings(event.target.checked)} /> Advertencias</label>
     </div>

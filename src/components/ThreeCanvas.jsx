@@ -27,7 +27,7 @@ import {
   registerMultipleSystem,
   restoreMultipleSystem,
 } from '../mepal/multiple/system/multipleSystemIntegration.js';
-import { previewMultipleProductDrag, commitMultipleProductDrag } from '../mepal/multiple/system/layout/MultipleSmartLayoutInteraction.js';
+import { getMultipleSystemProductFromHit, describeMultipleProductSnap, previewMultipleProductDrag, commitMultipleProductDrag } from '../mepal/multiple/system/layout/MultipleSmartLayoutInteraction.js';
 // ThreeCanvas.jsx (MEZCLA: mantiene tu 2D/zoom/controles tal como estaban + agrega muros bien implementados)
 // ✅ Lo único “nuevo” es: wallsGroupRef + crear un group en la escena + useEffect EXTERNO que reconstruye muros.
 // ✅ También corregí: applyFinishToActivePart (materialDef no estaba definido) y cleanup de listeners.
@@ -762,8 +762,9 @@ function ThreeCanvas({
     const multipleSnapMarker = new THREE.Group();
     const multipleSnapOrigin = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 8), new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }));
     const multipleSnapTarget = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 8), new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }));
+    const multipleSnapFinal = new THREE.Mesh(new THREE.RingGeometry(0.035, 0.05, 24), new THREE.MeshBasicMaterial({ color: 0x16a34a, side: THREE.DoubleSide, depthTest: false }));
     const multipleSnapLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0x16a34a, depthTest: false }));
-    multipleSnapMarker.add(multipleSnapOrigin, multipleSnapTarget, multipleSnapLine);
+    multipleSnapMarker.add(multipleSnapOrigin, multipleSnapTarget, multipleSnapFinal, multipleSnapLine);
     multipleSnapMarker.visible = false;
     multipleSnapMarker.userData = { excludeFromBOM: true, isHelper: true };
     scene.add(multipleSnapMarker);
@@ -15372,6 +15373,13 @@ function ThreeCanvas({
       }
       obj.updateMatrixWorld(true);
     }
+    function logMultipleSnapDebug(phase, product) {
+      if (product?.userData?.kind !== 'MULTIPLE_PRODUCT') return;
+      try {
+        if (window.localStorage.getItem('MULTIPLE_SMART_LAYOUT_DEBUG') === 'true')
+          console.debug('[MULTIPLE SNAP DEBUG]', phase, describeMultipleProductSnap(product));
+      } catch (error) { void error; }
+    }
 
     function restoreDragSession() {
       if (!dragSession3D) return;
@@ -15516,6 +15524,7 @@ function ThreeCanvas({
       if (!hits.length) return;
 
       const hitObj = hits[0].object; // Mesh real clickeado
+      const multipleSystemProduct = getMultipleSystemProductFromHit(hitObj);
       const root = getMultipleRoot(hitObj) || getRootPartObject(hitObj);
       if (!root) return;
       if (root.userData?.isFloor) return;
@@ -15529,9 +15538,9 @@ function ThreeCanvas({
               : isCritterium8AssemblyRoot(root)
                 ? getCritterium8EditablePart(hitObj) || root
                 : root;
-      const movementRoot = moveAsGroupRef.current
+      const movementRoot = multipleSystemProduct || (moveAsGroupRef.current
         ? root
-        : getIndividualMovementRoot(hitObj) || propertiesTarget || root;
+        : getIndividualMovementRoot(hitObj) || propertiesTarget || root);
 
       const rootId = movementRoot.userData?.instanceId || movementRoot.uuid;
       const wantsToggle = e.ctrlKey || e.metaKey;
@@ -15780,6 +15789,7 @@ function ThreeCanvas({
         root?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY';
 
       if (
+        !multipleSystemProduct &&
         moveAsGroupRef.current &&
         (root?.userData?.groupId || root?.userData?.parentAssemblyId || isKuoAssemblyRoot)
       ) {
@@ -15846,18 +15856,18 @@ function ThreeCanvas({
       dragRootStartRef.current = movementRoot.position.clone();
 
       // ---- DRAG ----
-      const rootAssembly =
+      const rootAssembly = multipleSystemProduct ||
         getAssemblyObject(movementRoot) || getKoncisaAssemblyObject(movementRoot) || movementRoot;
-      const targetToDrag = moveAsGroupRef.current ? rootAssembly : movementRoot;
+      const targetToDrag = multipleSystemProduct || (moveAsGroupRef.current ? rootAssembly : movementRoot);
 
-      let dragTargets = [];
+      let dragTargets = multipleSystemProduct ? [multipleSystemProduct] : [];
       if (
-        moveAsGroupRef.current &&
+        !multipleSystemProduct && moveAsGroupRef.current &&
         dragGroupStartRef.current &&
         dragGroupStartRef.current.length > 0
       ) {
         dragTargets = dragGroupStartRef.current.map((item) => item.obj);
-      } else {
+      } else if (!multipleSystemProduct) {
         const dragIdSet = new Set(dragIds);
         dragIdSet.add(rootId);
         if (moveAsGroupRef.current && rootAssembly.userData?.instanceId) {
@@ -15904,7 +15914,7 @@ function ThreeCanvas({
 
       if (dragTargets.some((obj) => obj.userData?.lockedMovement)) return;
 
-      dragPlane.set(new THREE.Vector3(0, 1, 0), -targetToDrag.position.y);
+      dragPlane.set(new THREE.Vector3(0, 1, 0), -targetToDrag.getWorldPosition(new THREE.Vector3()).y);
       if (!raycaster.ray.intersectPlane(dragPlane, dragPoint)) return;
       dragOffset.copy(dragPoint).sub(targetToDrag.position);
       dragSession3D = {
@@ -15918,6 +15928,7 @@ function ThreeCanvas({
           worldPosition: obj.getWorldPosition(new THREE.Vector3()),
         })),
       };
+      if (multipleSystemProduct) logMultipleSnapDebug('POINTER_DOWN', multipleSystemProduct);
       isDragging = false;
       hasMoved3D = false;
 
@@ -16032,13 +16043,17 @@ function ThreeCanvas({
           if (dragSession3D.initialPositions.length === 1) {
             const moved = dragSession3D.initialPositions[0].obj;
             const preview = previewMultipleProductDrag(moved);
+            logMultipleSnapDebug('DRAG_PREVIEW', moved);
             if (preview) {
               const color = preview.status === 'GREEN' ? 0x16a34a : preview.status === 'YELLOW' ? 0xeab308 : 0xdc2626;
               multipleSnapOrigin.material.color.setHex(color);
               multipleSnapTarget.material.color.setHex(color);
+              multipleSnapFinal.material.color.setHex(color);
               multipleSnapLine.material.color.setHex(color);
               multipleSnapOrigin.position.fromArray(preview.originWorld);
               multipleSnapTarget.position.fromArray(preview.destinationWorld);
+              multipleSnapFinal.position.fromArray(preview.finalPositionWorld);
+              multipleSnapFinal.rotation.x = -Math.PI / 2;
               multipleSnapLine.geometry.setFromPoints([multipleSnapOrigin.position, multipleSnapTarget.position]);
               multipleSnapMarker.visible = true;
             }
@@ -16875,7 +16890,7 @@ function ThreeCanvas({
         const snappedMila = !!milaSnapResult?.snapped;
 
         let activeLocalBeforeSnap = null;
-        if (!snappedMila) {
+        if (!snappedMila && !(activePart?.userData?.kind === 'MULTIPLE_PRODUCT' && activePart.parent?.userData?.kind === 'MULTIPLE_SYSTEM')) {
           activeLocalBeforeSnap = activePart?.position.clone();
           const activeWorldBeforeSnap = activePart?.getWorldPosition(new THREE.Vector3());
           snapActivePart(true);
@@ -17084,6 +17099,7 @@ function ThreeCanvas({
           } else if (movedProducts.length === completedDragSession.initialPositions.length && movedProducts.every((obj) => obj.parent === movedProducts[0].parent)) {
             const systemObject = movedProducts[0].parent;
             const result = commitMultipleProductDrag(systemObject, movedProducts);
+            movedProducts.forEach((product) => logMultipleSnapDebug(result.rejected ? 'REJECTED' : 'POINTER_UP', product));
             if (result.changed) historyManager.pushAction({ type: movedProducts.length === 1 ? HISTORY_ACTION_TYPES.MULTIPLE_LAYOUT_MOVE : HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_MOVE, instanceId: systemObject.userData.systemId, before: result.before, after: result.after });
           } else {
             pushMoveHistory(before, after);
@@ -20099,6 +20115,8 @@ function ThreeCanvas({
       multipleSnapOrigin.material.dispose();
       multipleSnapTarget.geometry.dispose();
       multipleSnapTarget.material.dispose();
+      multipleSnapFinal.geometry.dispose();
+      multipleSnapFinal.material.dispose();
       multipleSnapLine.geometry.dispose();
       multipleSnapLine.material.dispose();
       edukHandleGeometry.dispose();

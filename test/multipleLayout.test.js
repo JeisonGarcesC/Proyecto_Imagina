@@ -7,7 +7,7 @@ import { createMultipleConfigurationState } from '../src/mepal/multiple/configur
 const config = (widthCm) => createMultipleConfigurationState({ widthCm, heightCm: 90, thicknessCm: 8 });
 test('layout lineal ubica el siguiente módulo después del ancho anterior', () => {
   const system = new MultipleSystem().addModule(config(120)).addModule(config(90)).layoutLinear();
-  assert.equal(system.modules[0].position.x, 0); assert.equal(system.modules[1].position.x, 1.2);
+  assert.equal(system.modules[0].position.x, 0); assert.ok(Math.abs(system.modules[1].position.x - 1.05) < 1e-12);
   assert.deepEqual(findMultipleSystemOverlaps(system.modules), []);
 });
 

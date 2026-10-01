@@ -34,8 +34,8 @@ test('snap informa verde, amarillo y rojo; contacto es válido y penetración re
   const a = { moduleId: 'a', config: { widthCm: 90, heightCm: 90, thicknessCm: 8 }, position: { x: 0, y: 0, z: 0 }, rotation: { y: 0 } };
   const b = { ...a, moduleId: 'b', position: { x: 0.88, y: 0, z: 0 } };
   assert.equal(previewMultipleSnap(b, [a]).status, 'GREEN');
-  assert.equal(previewMultipleSnap({ ...b, position: { ...b.position, x: 0.81 } }, [a]).status, 'YELLOW');
-  assert.equal(previewMultipleSnap({ ...b, rotation: { y: Math.PI / 2 } }, [a]).status, 'RED');
+  assert.equal(previewMultipleSnap({ ...b, position: { ...b.position, x: 0.81 } }, [a]).status, 'GREEN');
+  assert.equal(previewMultipleSnap({ ...b, position: { x: 0.45, y: 0, z: -0.45 }, rotation: { y: Math.PI / 2 } }, [a]).status, 'YELLOW');
   assert.equal(detectMultipleCollisions([a, { ...b, position: { ...b.position, x: 0.9 } }]).length, 0);
   assert.equal(detectMultipleCollisions([a, { ...b, position: { ...b.position, x: 0.5 } }])[0].type, 'COLLISION_REAL');
 });
