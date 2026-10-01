@@ -5,6 +5,8 @@ export const LINK_DEFAULT_CONFIG = Object.freeze({
   returnLengthMm: 900, side: 'derecha', leaderReturnGrommet: false,
   leaderCredenza: false, leaderCredenzaLengthMm: 1200,
   surfaceColor: '#d8c4a5', structureColor: '#444b52', pedestalColor: '#d8c4a5',
+  hasPantallaFrontal: false, pantallaFrontalMaterial: 'formica',
+  integracionType: 'ninguna', integracionSide: 'ambas',
 });
 
 // Technical sheet p. 1 and product map pp. 5–8. Detailing is schematic.

@@ -45,5 +45,8 @@ export function normalizeLinkConfig(input = {}) {
     componentTransforms:normalizeLinkComponentTransforms(c.componentTransforms),
     components:normalizeLinkComponents(c.components,c.type), leaderReturnGrommet:c.leaderReturnGrommet,
     leaderCredenza:c.leaderCredenza, leaderCredenzaLengthMm,
-    surfaceColor:c.surfaceColor, structureColor:c.structureColor, pedestalColor:c.pedestalColor };
+    surfaceColor:c.surfaceColor, structureColor:c.structureColor, pedestalColor:c.pedestalColor,
+    hasPantallaFrontal:c.hasPantallaFrontal, pantallaFrontalMaterial:c.pantallaFrontalMaterial,
+    hasPantallaLateral:c.hasPantallaLateral, pantallaLateralMaterial:c.pantallaLateralMaterial,
+    integracionType:c.integracionType, integracionSide:c.integracionSide };
 }

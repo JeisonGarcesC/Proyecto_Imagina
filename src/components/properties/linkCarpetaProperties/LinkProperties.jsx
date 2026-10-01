@@ -3,6 +3,7 @@ import LinkDuctProperties from './LinkDuctProperties.jsx';
 import LinkCostadoProperties from './LinkCostadoProperties.jsx';
 import LinkSurfaceProperties from './LinkSurfaceProperties.jsx';
 import LinkBajanteDuctProperties from './LinkBajanteDuctProperties.jsx';
+import LinkPantallaProperties from './LinkPantallaProperties.jsx';
 import { sectionStyle } from '../shared/PropertyStyles.js';
 
 export default function LinkProperties({ part, api, readOnly = false }) {
@@ -22,13 +23,14 @@ function LinkComponentProperties({ part, api, readOnly }) {
       setConfig((current) => ({ ...current, ...patch }));
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
   }
-  const props = { part, config, onChange: update, disabled: readOnly || busy };
+  const props = { part, config, onChange: update, disabled: readOnly || busy, api };
   let controls;
   switch (part.componentRole) {
     case 'DUCT': controls = <LinkDuctProperties {...props} />; break;
     case 'SUPPORT': case 'PEDESTAL': controls = <LinkCostadoProperties {...props} />; break;
     case 'SURFACE': case 'GROMMET': controls = <LinkSurfaceProperties {...props} />; break;
     case 'FLOOR_DUCT': case 'CEILING_DUCT': case 'DUCT_COVER': controls = <LinkBajanteDuctProperties {...props} />; break;
+    case 'PANTALLA_FRONTAL_BOARD': case 'PANTALLA_LATERAL_BOARD': controls = <LinkPantallaProperties {...props} />; break;
     default: controls = <div style={{ fontSize: 12 }}>Selecciona una pieza para ver sus opciones. Los acabados se editan en el panel de propiedades.</div>;
   }
   return <div style={sectionStyle}>{controls}{error && <div role="alert" style={{ color: '#b91c1c', fontSize: 12 }}>{error}</div>}</div>;

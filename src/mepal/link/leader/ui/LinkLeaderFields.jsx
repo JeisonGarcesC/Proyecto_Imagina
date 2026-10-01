@@ -5,13 +5,22 @@ export default function LinkLeaderFields({config:c,onChange,disabled=false}){
   const component=(key,patch)=>onChange({...c,components:{...c.components,[key]:{...c.components?.[key],...patch}}});
   const select=(label,key,options)=><label style={labelStyle}>{label}<select style={inputStyle} value={c[key]} onChange={e=>change(key,key.endsWith('Mm')?Number(e.target.value):e.target.value)}>
     {options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></label>;
-  const dimension=(label,key,options)=><label style={labelStyle}>{label}{c.modoEspecial?<input style={inputStyle} type="number" step={1} min={options[0]} max={options.at(-1)} value={c[key]} onChange={e=>change(key,Number(e.target.value))}/>:
+  const dimension=(label,key,options)=>{
+    if (c.modoEspecial && key === 'widthMm') {
+      const specialWidths = Array.from({length: 17}, (_, i) => 1051 + i * 50).filter(v => v >= options[0]);
+      return <label style={labelStyle}>{label}<select style={inputStyle} value={c[key]} onChange={e=>change(key,Number(e.target.value))}>{specialWidths.map(n=><option value={n} key={n}>{n} mm</option>)}</select></label>;
+    }
+    return <label style={labelStyle}>{label}{c.modoEspecial?<input style={inputStyle} type="number" step={1} min={options[0]} max={options.at(-1)} value={c[key]} onChange={e=>change(key,Number(e.target.value))}/>:
     <select style={inputStyle} value={c[key]} onChange={e=>change(key,Number(e.target.value))}>{options.map(n=><option value={n} key={n}>{n/10} cm</option>)}</select>}</label>;
+  };
   return <fieldset disabled={disabled} style={{border:0,padding:0,minWidth:0}}>
     <div style={sectionStyle}><label style={labelStyle}>Tipo de configuración<select style={inputStyle} value="LEADER" onChange={()=>onChange({...c,type:'sencillo',widthMm:1200,depthMm:600,puestos:1,surfaceMode:'principal',components:{}})}>
       <option value="STANDARD">Puesto estándar</option><option value="LEADER">Puesto líder</option></select></label></div>
     <div style={sectionStyle}><b>Superficie principal</b>
-      <label style={labelStyle}><input type="checkbox" checked={c.modoEspecial} onChange={e=>onChange({...c,modoEspecial:e.target.checked,...(!e.target.checked?{widthMm:1500,depthMm:600,returnLengthMm:900}:{})})}/> Puesto líder rematable / medida especial</label>
+      <label style={labelStyle}><input type="checkbox" checked={c.modoEspecial} onChange={e=>{
+        const mode=e.target.checked;
+        onChange({...c,modoEspecial:mode,...(!mode?{widthMm:1500,depthMm:600,returnLengthMm:900}:{widthMm:1501})});
+      }}/> Puesto líder rematable / medida especial</label>
       {dimension('Largo principal','widthMm',[1500,1650,1800])}{dimension('Profundidad principal','depthMm',[600,750])}
       {!c.leaderCredenza&&select('Acabado / tipo de superficie','finishId',getLinkFinishOptions('lider').map(f=>({value:f.id,label:f.label})))}
     </div>
