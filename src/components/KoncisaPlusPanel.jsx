@@ -115,8 +115,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
     setLargoRealMm(1200);
   };
 
-  const [includeFloorDuct, setIncludeFloorDuct] = useState(false);
-
   const handleCreate = () => {
     // =========================================
     // PUESTO LÍDER
@@ -233,10 +231,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
         lengthMm: selectedPrivacyPanelFinish.tipo === 'lateral' ? anchoCobroMm : largoCobroMm,
       },
-
-      floorDuct: {
-        enabled: includeFloorDuct,
-      },
     });
 
     // TEMPORAL: prueba de pantalla lateral visible
@@ -266,6 +260,11 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
   const [ductConfigOpen, setDuctConfigOpen] = useState(false);
   const [ductModes, setDuctModes] = useState([]);
+
+  useEffect(() => {
+    if (tipoPasoCable !== 'grommet') return;
+    setDuctModes((prev) => prev.map((mode) => mode === 'NONE' ? 'TERMINAL' : mode));
+  }, [tipoPasoCable]);
 
   useEffect(() => {
     if (tipoPasoCable !== 'pasacable') return;
@@ -1016,17 +1015,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
             setDuctModes={setDuctModes}
             tipoPasoCable={tipoPasoCable}
           />
-
-          <div>
-            <label>
-              <input
-                type="checkbox"
-                checked={includeFloorDuct}
-                onChange={(e) => setIncludeFloorDuct(e.target.checked)}
-              />{' '}
-              Incluir ducto bajante a piso
-            </label>
-          </div>
 
           <div>
             <label>Tipo de costado</label>

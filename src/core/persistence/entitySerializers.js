@@ -1,4 +1,6 @@
 import { serializeLinkEntity } from '../../mepal/link/integration/linkPersistence.js';
+import { serializeMultipleEntity } from '../../mepal/multiple/integration/multipleIntegration.js';
+import { serializeMultipleSystem } from '../../mepal/multiple/system/multipleSystemSerialization.js';
 import { serializeKoncisaPlusRecipe } from '../../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe.js';
 
 import { serializeLockerEntity } from '../../mepal/lockers/integration/lockerPersistence.js';
@@ -241,6 +243,14 @@ export function serializeProjectEntities(parts = [], options = {}) {
   const processedAssemblies = new Set();
 
   parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
+    if (object?.userData?.kind !== 'MULTIPLE_SYSTEM') return;
+    const systemId = object.userData.systemId || object.uuid;
+    if (processedAssemblies.has(systemId)) return;
+    processedAssemblies.add(systemId); entities.push(serializeMultipleSystem(object));
+  });
+
+  parts.forEach((partRecord) => {
     const assembly = findKoncisaAssembly(partRecord?.obj);
     if (!assembly) return;
     const assemblyId = assembly.userData?.instanceId || assembly.userData?.code || assembly.uuid;
@@ -278,6 +288,15 @@ export function serializeProjectEntities(parts = [], options = {}) {
 
   parts.forEach((partRecord) => {
     const object = partRecord?.obj;
+    if (object?.userData?.kind !== 'MULTIPLE_PRODUCT') return;
+    if (object.userData.systemId || object.parent?.userData?.kind === 'MULTIPLE_SYSTEM') return;
+    const instanceId = object.userData.instanceId || object.uuid;
+    if (processedAssemblies.has(instanceId)) return;
+    processedAssemblies.add(instanceId); entities.push(serializeMultipleEntity(object));
+  });
+
+  parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
     if (!['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(object?.userData?.kind)) return;
     const instanceId = object.userData?.instanceId || object.uuid;
     if (processedAssemblies.has(instanceId)) return;
@@ -290,8 +309,9 @@ export function serializeProjectEntities(parts = [], options = {}) {
       findKoncisaAssembly(partRecord?.obj) ||
       findCritterium8Assembly(partRecord?.obj) ||
       findMilaAssembly(partRecord?.obj) ||
-      ['VETRO_PRODUCT', 'LOCKER_PRODUCT', 'LINK_PRODUCT'].includes(partRecord?.obj?.userData?.kind) ||
+      ['VETRO_PRODUCT', 'LOCKER_PRODUCT', 'LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM'].includes(partRecord?.obj?.userData?.kind) ||
       partRecord?.obj?.userData?.parametricOwner === 'LINK_PRODUCT' ||
+      partRecord?.obj?.userData?.parametricOwner === 'MULTIPLE_PRODUCT' ||
       isKoncisaPersistenceObject(partRecord?.obj)
     ) {
       return;

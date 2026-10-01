@@ -340,6 +340,21 @@ export function buildKuoAVBOM(built) {
     if (surfaceItem.category === '-') rows.push(surfaceItem);
   }
 
+  for (const part of built.parts) {
+    if (part.type !== 'pantalla') continue;
+    rows.push(
+      createBomItem({
+        code: part.code || part.rawCodigoPT,
+        lookupTag: part.logicalCode || part.code,
+        description: part.name,
+        category: 'PANTALLA',
+        type: 'pantalla',
+        unitPrice: 0,
+        logicalCode: part.logicalCode,
+      })
+    );
+  }
+
   return rows;
 }
 

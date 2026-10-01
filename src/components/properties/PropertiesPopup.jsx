@@ -1,4 +1,5 @@
 import LinkProperties from './linkCarpetaProperties/LinkProperties.jsx';
+import MultipleProperties from '../../mepal/multiple/properties/MultipleProperties.jsx';
 import { useEffect, useRef, useState } from 'react';
 import KoncisaPlusProperties, {
   isKoncisaPlusEditablePart,
@@ -92,6 +93,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
 
   const hasEditableProperties =
     part?.kind === 'LINK_PRODUCT' ||
+    part?.kind === 'MULTIPLE_PRODUCT' ||
     isKoncisaPlusEditablePart(part) ||
     isMepalSaludPart(part) ||
     isAlmacenamientoPart(part) ||
@@ -164,6 +166,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       </div>
 
       <LinkProperties part={part} api={api} onClose={onClose} />
+      <MultipleProperties part={part} api={api} onClose={onClose} />
       <KoncisaPlusProperties part={part} api={api} onClose={onClose} />
 
       <MepalSaludProperties part={part} api={api} onClose={onClose} />

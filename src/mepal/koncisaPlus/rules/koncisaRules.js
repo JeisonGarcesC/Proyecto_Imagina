@@ -200,13 +200,13 @@ export function getGrommetsConfig({ puestos, tipoPuesto, largoRealMm, anchoRealM
   for (let i = 0; i < puestos; i++) {
     const baseX = i * largoRealMm;
     let zgrommet = 0;
-    console.log('anchoRealMm grommet: ', anchoRealMm);
+    //console.log('anchoRealMm grommet: ', anchoRealMm);
     if (anchoRealMm == 600) {
       zgrommet = -190;
     } else {
       zgrommet = -255;
     }
-    console.log('zgrommet grommet: ', zgrommet);
+    //console.log('zgrommet grommet: ', zgrommet);
 
     if (tipoPuesto === 'sencillo') {
       out.push({
@@ -261,16 +261,11 @@ export function getPasacablesConfig({
     const baseX = i * largoRealMm;
 
     if (tipoPuesto === 'sencillo') {
-      let z = 0;
-      let mover = baseX - 50 + 62;
-      console.log('position pasacable: ', position);
-
-      if (position === 'LEFT') mover = -494;
-      if (position === 'RIGHT') mover = 517;
+      const offsetX = position === 'LEFT' ? -544 : position === 'RIGHT' ? 467 : -38;
 
       out.push({
         index: i,
-        x: baseX - 50 + mover,
+        x: baseX + offsetX,
         y: 690, //altura Pasacable
         z: -216.5,
         rotY: 0,
@@ -513,6 +508,7 @@ export function getDuctosConfig({
     //console.log('largo', largoRealMm);
     let baseX = i * largoRealMm;
     const ductMode = ductModes[i] || 'TERMINAL';
+    if (String(ductMode).toUpperCase() === 'NONE' && tipoPasoCable !== 'grommet') continue;
 
     const tipoModulo = (ductModes[i] || 'TERMINAL').toLowerCase();
 

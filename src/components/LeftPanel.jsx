@@ -1,4 +1,5 @@
 import LinkPanel from './LinkPanel.jsx';
+import MultiplePanel from './MultiplePanel.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadTipologiasDetalle } from '../services/tipologiasDetalle';
 import {
@@ -2785,6 +2786,7 @@ export default function LeftPanel({
         </>
       )}
       {section === 'link' && <LinkPanel threeApiRef={threeApiRef} readOnly={readOnly} />}
+      {section === 'multiple' && <MultiplePanel threeApiRef={threeApiRef} readOnly={readOnly} />}
       {section === 'lockers' && <LockersPanel onCreate={onAddLocker} readOnly={readOnly} />}
       {section === 'vetro' && (
         <VetroPanel onCreate={onAddVetro} readOnly={readOnly} />

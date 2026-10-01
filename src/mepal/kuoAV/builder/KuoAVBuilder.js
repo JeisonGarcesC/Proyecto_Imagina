@@ -23,6 +23,7 @@ import {
   createKuoAVGrommetPart,
   createKuoAVDuctPart,
   createKuoAVControlPadPart,
+  createKuoAVPantallaPart,
 } from '../parts/kuoAVParts.js';
 
 /**
@@ -366,7 +367,40 @@ export function buildKuoAV(config = {}) {
     }
   }
 
-  // 12. Retorno de estructura completa serializable
+  // 12. Pantalla Frontal Opcional (Formica / Melamina / Tela / Vidrio / Frontal Perimetral)
+  const hasPantalla =
+    config.pantalla !== undefined
+      ? !!config.pantalla
+      : config.pantallaEnabled !== undefined
+      ? !!config.pantallaEnabled
+      : false;
+  const pantallaTipo = config.pantallaTipo || 'FORMICA';
+  // El acabado se resuelve por catálogo según el material (no es un color libre
+  // seleccionable por el usuario): vidrios llevan tono translúcido, el resto un
+  // gris neutro estándar de fábrica.
+  const isPantallaVidrio = pantallaTipo === 'VIDRIO' || pantallaTipo === 'FRONTAL_PERIMETRAL';
+  const pantallaAcabado = config.pantallaAcabado || (isPantallaVidrio ? '#a5f3fc' : '#dedede');
+
+  if (hasPantalla) {
+    // Mismo pivote/origen de GLB que en KuoAVDobleBuilder: la pieza nace en el
+    // borde izquierdo (x=0 del GLB) y su base queda ~268mm por debajo del
+    // centro de la superficie. Se replica esa misma fórmula para que la
+    // pantalla quede pegada al borde posterior de la mesa, sin flotar.
+    const panWidthMm = widthMm === 1500 ? 1425 : widthMm >= 1650 ? 1575 : 1125;
+    const pantallaPart = createKuoAVPantallaPart({
+      groupId,
+      groupName,
+      widthMm,
+      tipo: pantallaTipo,
+      acabado: pantallaAcabado,
+      x: -panWidthMm / 2,
+      y: baseRules.elevation.surfaceYMm - 268,
+      z: -depthMm / 2,
+    });
+    parts.push(pantallaPart);
+  }
+
+  // 13. Retorno de estructura completa serializable
   const normalizedConfig = {
     anchoMm: widthMm,
     profundidadMm: depthMm,
@@ -384,6 +418,9 @@ export function buildKuoAV(config = {}) {
     ladoVertebra,
     acabadoGrommet,
     especial: surfaceRules.isSpecial,
+    pantalla: hasPantalla,
+    pantallaTipo,
+    pantallaAcabado,
     instanceId: config.instanceId || null,
     groupId,
   };

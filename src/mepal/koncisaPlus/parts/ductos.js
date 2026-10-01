@@ -21,6 +21,7 @@ export function createDucto({
   rotZ = 0,
   side = 'RIGHT',
   accesoCableado = 'GROMMET',
+  floorDuctEnabled = false,
 }) {
   const resolved = resolveKoncisaDucto({
     tipoPuesto,
@@ -94,6 +95,7 @@ export function createDucto({
       modelSrcLeft: resolved?.modelSrcLeft || null,
       modelSrcRight: resolved?.modelSrcRight || null,
       accesoCableado,
+      floorDuctEnabled: floorDuctEnabled === true,
     },
   };
 }
