@@ -651,7 +651,7 @@ function ThreeCanvas({
   const gridHelperRef = useRef(null);
   const sceneRef = useRef(null);
 
-  const refreshFloorAndGridRef = useRef(() => {});
+  const refreshFloorAndGridRef = useRef(() => { });
 
   // ✅ (opcional) guardar refs de scene para debug
   // const sceneRef = useRef(null);
@@ -1095,7 +1095,7 @@ function ThreeCanvas({
     function updateKuoAVSnapMarkers() {
       const assembly =
         activePart?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-        activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
+          activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
           ? activePart
           : getKoncisaAssemblyObject(activePart);
 
@@ -1913,8 +1913,8 @@ function ThreeCanvas({
           isSnapCandidate = true;
           const activeMesh =
             snapResult.activeSide === 'left' ||
-            snapResult.activeSide === 'center' ||
-            snapResult.activeSide === 'screen'
+              snapResult.activeSide === 'center' ||
+              snapResult.activeSide === 'screen'
               ? milaLeftConnector
               : milaRightConnector;
           setConnectorMeshColor(
@@ -2305,8 +2305,8 @@ function ThreeCanvas({
       activeEditablePart =
         selectionContext?.propertiesTarget ||
         (isKoncisaAssemblyRoot(obj) ||
-        isCritterium8AssemblyRoot(obj) ||
-        isCritterium8SequenceRoot(obj)
+          isCritterium8AssemblyRoot(obj) ||
+          isCritterium8SequenceRoot(obj)
           ? null
           : getEditableKoncisaPartObject(obj) || getCritterium8EditableTarget(obj));
       obj = activeEditablePart || obj;
@@ -2438,32 +2438,32 @@ function ThreeCanvas({
         gridSize: obj.userData?.isFloor ? obj.userData?.gridSize || 0.1 : undefined,
         critterium8: critteriumAssembly
           ? {
-              assemblyId: critteriumAssembly.userData?.assemblyId,
-              instanceId: critteriumAssembly.userData?.instanceId,
-              frameId: critteriumAssembly.userData?.frameId,
-              config: critteriumAssembly.userData?.config,
-              composition: critteriumAssembly.userData?.composition,
-              diagnostics: critteriumAssembly.userData?.renderReport?.diagnostics || [],
-              editablePart: critteriumEditablePart
-                ? {
-                    instanceId: critteriumEditablePart.userData?.instanceId,
-                    partId: critteriumEditablePart.userData?.partId,
-                    partType: critteriumEditablePart.userData?.partType,
-                    slotId: critteriumEditablePart.userData?.slotId,
-                    code: critteriumEditablePart.userData?.code,
-                    provisionalGeometry:
-                      critteriumEditablePart.userData?.provisionalGeometry === true,
-                  }
-                : null,
-            }
+            assemblyId: critteriumAssembly.userData?.assemblyId,
+            instanceId: critteriumAssembly.userData?.instanceId,
+            frameId: critteriumAssembly.userData?.frameId,
+            config: critteriumAssembly.userData?.config,
+            composition: critteriumAssembly.userData?.composition,
+            diagnostics: critteriumAssembly.userData?.renderReport?.diagnostics || [],
+            editablePart: critteriumEditablePart
+              ? {
+                instanceId: critteriumEditablePart.userData?.instanceId,
+                partId: critteriumEditablePart.userData?.partId,
+                partType: critteriumEditablePart.userData?.partType,
+                slotId: critteriumEditablePart.userData?.slotId,
+                code: critteriumEditablePart.userData?.code,
+                provisionalGeometry:
+                  critteriumEditablePart.userData?.provisionalGeometry === true,
+              }
+              : null,
+          }
           : null,
         critterium8Sequence: critteriumSequence
           ? {
-              sequenceId: critteriumSequence.userData?.sequenceId,
-              frameIds: [...(critteriumSequence.userData?.frameIds || [])],
-              junctionIds: [...(critteriumSequence.userData?.junctionIds || [])],
-              metadata: { ...(critteriumSequence.userData?.metadata || {}) },
-            }
+            sequenceId: critteriumSequence.userData?.sequenceId,
+            frameIds: [...(critteriumSequence.userData?.frameIds || [])],
+            junctionIds: [...(critteriumSequence.userData?.junctionIds || [])],
+            metadata: { ...(critteriumSequence.userData?.metadata || {}) },
+          }
           : null,
       });
     }
@@ -3006,10 +3006,10 @@ function ThreeCanvas({
           : null;
         const catalogDescription = normalizeText(
           item?.ui?.title ||
-            item?.ui?.subtitle ||
-            item?.raw?.descripcion ||
-            item?.raw?.description ||
-            item?.raw?.DESCRIPCION_LARGA
+          item?.ui?.subtitle ||
+          item?.raw?.descripcion ||
+          item?.raw?.description ||
+          item?.raw?.DESCRIPCION_LARGA
         );
         const fallback = normalizeText(fallbackDescription);
         if (!catalogDescription) return fallback || normalizedCode;
@@ -3168,9 +3168,9 @@ function ThreeCanvas({
 
             const line = String(
               candidate.userData?.line ||
-                candidate.userData?.meta?.line ||
-                candidate.userData?.meta?.category ||
-                ''
+              candidate.userData?.meta?.line ||
+              candidate.userData?.meta?.category ||
+              ''
             )
               .trim()
               .toUpperCase();
@@ -3178,8 +3178,8 @@ function ThreeCanvas({
 
             const parentAssemblyId = normalizeText(
               candidate.userData?.parentAssemblyId ||
-                candidate.userData?.meta?.parentAssemblyId ||
-                ''
+              candidate.userData?.meta?.parentAssemblyId ||
+              ''
             );
             const candidateGroupId = normalizeText(
               candidate.userData?.groupId || candidate.userData?.meta?.groupId || ''
@@ -3234,8 +3234,8 @@ function ThreeCanvas({
 
         const moreaVariant = String(
           assemblyRoot.userData?.meta?.moreaVariant ||
-            assemblyRoot.userData?.config?.variant ||
-            'single'
+          assemblyRoot.userData?.config?.variant ||
+          'single'
         )
           .trim()
           .toLowerCase();
@@ -3253,12 +3253,12 @@ function ThreeCanvas({
           breakdown ||
           (Array.isArray(detail?.hijos)
             ? detail.hijos
-                .map((child) => ({
-                  code: String(child?.producto?.codigo || '').trim(),
-                  qty: Number(child?.cantidad || 0),
-                  description: child?.producto?.descripcion || '',
-                }))
-                .filter((child) => child.code && child.qty > 0)
+              .map((child) => ({
+                code: String(child?.producto?.codigo || '').trim(),
+                qty: Number(child?.cantidad || 0),
+                description: child?.producto?.descripcion || '',
+              }))
+              .filter((child) => child.code && child.qty > 0)
             : []);
 
         if (!rowsToEmit.length) {
@@ -4455,10 +4455,10 @@ function ThreeCanvas({
               : countryRef.current === 'USD'
                 ? detUSD?.precio
                 : detCO?.precio) ||
-              detCO?.precio ||
-              detEUC?.precio ||
-              detUSD?.precio ||
-              0
+            detCO?.precio ||
+            detEUC?.precio ||
+            detUSD?.precio ||
+            0
           ),
           prices: {
             CO: Number(detCO?.precio || 0),
@@ -5382,18 +5382,18 @@ function ThreeCanvas({
       const plantParts =
         det && det.codigo
           ? [
-              {
-                code: det.codigo,
-                description: det.descripcion,
-                qty: 1,
-                unitPrice: Number(det.precio || 0),
-                prices: {
-                  CO: detCO?.precio || 0,
-                  EUC: detEUC?.precio || 0,
-                  USD: detUSD?.precio || 0,
-                },
+            {
+              code: det.codigo,
+              description: det.descripcion,
+              qty: 1,
+              unitPrice: Number(det.precio || 0),
+              prices: {
+                CO: detCO?.precio || 0,
+                EUC: detEUC?.precio || 0,
+                USD: detUSD?.precio || 0,
               },
-            ]
+            },
+          ]
           : [];
 
       obj.userData = {
@@ -5496,18 +5496,18 @@ function ThreeCanvas({
       const accParts =
         det && det.codigo
           ? [
-              {
-                code: det.codigo,
-                description: det.descripcion,
-                qty: 1,
-                unitPrice: Number(det.precio || 0),
-                prices: {
-                  CO: detCO?.precio || 0,
-                  EUC: detEUC?.precio || 0,
-                  USD: detUSD?.precio || 0,
-                },
+            {
+              code: det.codigo,
+              description: det.descripcion,
+              qty: 1,
+              unitPrice: Number(det.precio || 0),
+              prices: {
+                CO: detCO?.precio || 0,
+                EUC: detEUC?.precio || 0,
+                USD: detUSD?.precio || 0,
               },
-            ]
+            },
+          ]
           : [];
 
       obj.userData = {
@@ -7414,17 +7414,17 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
       const nextPrices = catalogItem?.prices ||
         catalogItem?.raw?.prices || {
-          CO: nextUnitPrice,
-        };
+        CO: nextUnitPrice,
+      };
 
       newObj.userData = {
         ...savedUserData,
@@ -7703,17 +7703,17 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
       const nextPrices = catalogItem?.prices ||
         catalogItem?.raw?.prices || {
-          CO: nextUnitPrice,
-        };
+        CO: nextUnitPrice,
+      };
 
       const nextBackrestRotated180 = Boolean(savedUserData?.meta?.backrestRotated180);
 
@@ -7926,10 +7926,10 @@ function ThreeCanvas({
       const woodOutwardOffsetMm =
         moreaVariant === 'double'
           ? Number(
-              MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
-                MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
-                12
-            )
+            MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+            MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+            12
+          )
           : Number(MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM || 12);
 
       const sideTargets = [];
@@ -8072,17 +8072,17 @@ function ThreeCanvas({
       const nextUnitPriceBase =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
       const nextPricesBase = catalogItem?.prices ||
         catalogItem?.raw?.prices || {
-          CO: nextUnitPriceBase,
-        };
+        CO: nextUnitPriceBase,
+      };
 
       const replacementIdMap = new Map();
       for (const oldObj of sideTargets) {
@@ -8272,10 +8272,10 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           nextPrices?.[countryRef.current] ??
-            catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            0
+          catalogItem?.prices?.[countryRef.current] ??
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          0
         ) || 0;
 
       newObj.position.copy(savedPos);
@@ -8438,10 +8438,10 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           nextPrices?.[countryRef.current] ??
-            catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            0
+          catalogItem?.prices?.[countryRef.current] ??
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          0
         ) || 0;
 
       newObj.position.copy(savedPos);
@@ -8858,13 +8858,13 @@ function ThreeCanvas({
           const centerLiftM =
             role === 'armrest-center'
               ? Math.max(
-                  0,
-                  Number(
-                    (isMoreaDouble
-                      ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM
-                      : MOREA_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM) || 0
-                  )
-                ) / 1000
+                0,
+                Number(
+                  (isMoreaDouble
+                    ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM
+                    : MOREA_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM) || 0
+                )
+              ) / 1000
               : 0;
           const targetTopY =
             Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) -
@@ -10211,7 +10211,7 @@ function ThreeCanvas({
             return createdAssembly;
           },
           addExternalGlbPart,
-          selectObject: () => {},
+          selectObject: () => { },
         };
 
         try {
@@ -10870,9 +10870,8 @@ function ThreeCanvas({
       root.userData.typologyParts = [
         {
           code: root.userData.code,
-          description: `Pantalla ${tipo} ${material} ${root.userData.dim?.lengthMm || ''}x${
-            root.userData.dim?.heightMm || ''
-          }`,
+          description: `Pantalla ${tipo} ${material} ${root.userData.dim?.lengthMm || ''}x${root.userData.dim?.heightMm || ''
+            }`,
           qty: 1,
           unitPrice: 0,
         },
@@ -12588,15 +12587,15 @@ function ThreeCanvas({
       });
       const originalVigaSnapshots = shouldReplaceVigas
         ? await replaceVigasWithPedestalReinforcement({
-            parentGroup,
-            moduleIndex,
-            pedestalSetId,
-            costadoPositionMm: {
-              x: basePos.x * 1000,
-              y: basePos.y * 1000,
-              z: basePos.z * 1000,
-            },
-          })
+          parentGroup,
+          moduleIndex,
+          pedestalSetId,
+          costadoPositionMm: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
+        })
         : [];
 
       const originalCostadoSnapshot = {
@@ -12873,6 +12872,7 @@ function ThreeCanvas({
 
     async function replaceSelectedCostadoWithIntegration({
       side = null,
+      componentKey = null,
       widthMm = null,
       depthMm = null,
       cableAccessType = 'grommet',
@@ -12883,14 +12883,30 @@ function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const costadoObj = getActiveEditablePartObject();
+      let costadoObj = activeEditablePart || activePart;
+      if (componentKey && activePart.children) {
+        let foundComponent = null;
+        activePart.traverse((child) => {
+          if (child.userData?.componentKey === componentKey) {
+            if (child.userData?.kind === 'LINK_COMPONENT' || child.userData?.kind === 'costado') {
+              foundComponent = child;
+            } else if (!foundComponent) {
+              foundComponent = child;
+            }
+          }
+        });
+        if (foundComponent) {
+          costadoObj = foundComponent;
+        }
+      }
 
       const isCostado =
         costadoObj?.userData?.kind === 'costado' ||
+        costadoObj?.userData?.kind === 'LINK_COMPONENT' ||
         costadoObj?.userData?.meta?.category === 'costados';
 
       if (!isCostado) {
-        alert('Selecciona un costado terminal de un puesto doble.');
+        alert('Selecciona un costado terminal para poder integrarlo.');
         return false;
       }
 
@@ -12913,9 +12929,9 @@ function ThreeCanvas({
         meta.isTerminal === true ||
         costadoObj.userData?.isTerminal === true;
 
-      if (tipoPuesto !== 'doble' || !isTerminal) {
+      if (!isTerminal) {
         alert(
-          'El puesto de integración solo se puede agregar sobre costados terminales de un puesto doble.'
+          'El puesto de integración solo se puede agregar sobre costados terminales.'
         );
         return false;
       }
@@ -12928,8 +12944,16 @@ function ThreeCanvas({
         });
       }
 
-      const parentGroup =
-        costadoObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? costadoObj.parent : null;
+      let parentGroup = null;
+      let current = costadoObj;
+      while (current) {
+        const kind = current.userData?.kind;
+        if (kind === 'KONCISA_PLUS_ASSEMBLY' || kind === 'LINK_PRODUCT') {
+          parentGroup = current;
+          break;
+        }
+        current = current.parent;
+      }
 
       const groupId =
         costadoObj.userData?.groupId ||
@@ -12945,6 +12969,19 @@ function ThreeCanvas({
 
       const basePos = costadoObj.position.clone();
       const baseRot = costadoObj.rotation.clone();
+
+      const isLinkComponent = costadoObj.userData?.line === 'LINK' || parentGroup?.userData?.family === 'LINK';
+
+      if (isLinkComponent) {
+        baseRot.y = replaceZone === 'LEFT' ? 0 : Math.PI;
+
+        const config = parentGroup?.userData?.config || {};
+        const isDoble = config.type === 'doble';
+        const inset = isDoble ? 30 : 65;
+        const surfaceExtension = 25; // Link modules extend 25mm beyond the nominal width
+
+        basePos.x += (replaceZone === 'LEFT' ? -(inset + surfaceExtension) : (inset + surfaceExtension)) / 1000;
+      }
 
       const moduleIndex = meta.moduleIndex ?? costadoObj.userData?.moduleIndex ?? 0;
 
@@ -12966,8 +13003,15 @@ function ThreeCanvas({
         costadoObj.userData?.dimMm?.depthMm ||
         600;
 
-      const normalizedWidthMm = normalizeIntegrationWidthMm(originalWidthMm);
+      let normalizedWidthMm = normalizeIntegrationWidthMm(originalWidthMm);
       const normalizedDepthMm = normalizeIntegrationDepthMm(originalDepthMm);
+
+      let exactSurfaceWidthMm = normalizedWidthMm;
+
+      if (isLinkComponent) {
+        exactSurfaceWidthMm = parentGroup?.userData?.bounds?.depthMm || meta.depthMm || originalWidthMm;
+        normalizedWidthMm = exactSurfaceWidthMm <= 1400 ? 1200 : 1500;
+      }
 
       const finalFinishCode =
         finishCode || meta.finishCode || costadoObj.userData?.finishCode || '22008689';
@@ -13032,6 +13076,23 @@ function ThreeCanvas({
       };
 
       // La rotación del costado (0 para LEFT, PI para RIGHT) resuelve la lateralidad.
+      // Para mesas Link, la rotación nativa es PI/2 o -PI/2, así que la forzamos
+      // a la convención de Koncisa para que los ejes de integración coincidan.
+      if (costadoObj.userData?.kind === 'LINK_COMPONENT') {
+        baseRot.y = integrationSide === 'LEFT' ? 0 : Math.PI;
+
+        // En Link, los costados tienen un "inset" (metidos hacia adentro).
+        // Para que la integración quede al borde exacto de la mesa, empujamos
+        // el basePos hacia afuera por el valor del inset.
+        const isDoble = String(meta.tipoPuesto || costadoObj.userData?.tipoPuesto || '').toLowerCase() === 'doble';
+        const insetMm = isDoble ? 30 : 65;
+        if (integrationSide === 'LEFT') {
+          basePos.x -= insetMm / 1000;
+        } else {
+          basePos.x += insetMm / 1000;
+        }
+      }
+
       const localToWorldMm = (localX = 0, localZ = 0) => {
         const cosY = Math.cos(baseRot.y);
         const sinY = Math.sin(baseRot.y);
@@ -13041,130 +13102,135 @@ function ThreeCanvas({
         };
       };
 
+
+
       // =====================================================
       // 1. Costado doble integración: reemplaza costado terminal
+      // (Solo para Koncisa Plus, Link usa su propio costado terminal)
       // =====================================================
       const integrationLeg = pkg.doubleIntegrationLeg;
 
       let newIntegrationLegObj = null;
 
-      if (integrationLeg?.assembly) {
-        newIntegrationLegObj = await addKoncisaCostadoAssemblyPart({
-          type: 'costado',
-          line: 'KONCISA.PLUS',
-          code: integrationLeg.codigoPT,
-          logicalCode: integrationLeg.logicalCode,
-          name: integrationLeg.name,
-          groupId,
-          groupName,
-          parentGroup,
-          dimMm: { depthMm: normalizedWidthMm, realDepthMm: normalizedWidthMm },
-          position: {
-            x: basePos.x * 1000,
-            y: basePos.y * 1000,
-            z: basePos.z * 1000,
-          },
-          rotation: { x: baseRot.x, y: baseRot.y, z: baseRot.z },
-          meta: {
-            category: 'costados',
-            tipoPuesto: 'doble',
-            tipoModulo: 'terminal',
-            moduleIndex,
-            replaceZone,
-            integrationSetId,
-            isIntegrationLeg: true,
-            replacesCostado: true,
-            costadoAssembly: integrationLeg.assembly,
-            realDepthMm: normalizedWidthMm,
-            originalCostadoSnapshot,
-            originalCostadoCode: costadoObj.userData?.code || null,
-          },
-        });
-      } else if (integrationLeg?.modelSrc) {
-        newIntegrationLegObj = await addExternalGlbPart({
-          type: 'costado',
-          line: 'KONCISA.PLUS',
-          code: integrationLeg.codigoPT,
-          logicalCode: integrationLeg.logicalCode,
-          name: integrationLeg.name,
+      if (!isLinkComponent) {
+        if (integrationLeg?.assembly) {
+          newIntegrationLegObj = await addKoncisaCostadoAssemblyPart({
+            type: 'costado',
+            line: 'KONCISA.PLUS',
+            code: integrationLeg.codigoPT,
+            logicalCode: integrationLeg.logicalCode,
+            name: integrationLeg.name,
+            groupId,
+            groupName,
+            parentGroup,
+            dimMm: { depthMm: normalizedWidthMm, realDepthMm: normalizedWidthMm },
+            position: {
+              x: basePos.x * 1000,
+              y: basePos.y * 1000,
+              z: basePos.z * 1000,
+            },
+            rotation: { x: baseRot.x, y: baseRot.y, z: baseRot.z },
+            meta: {
+              category: 'costados',
+              tipoPuesto: 'doble',
+              tipoModulo: 'terminal',
+              moduleIndex,
+              replaceZone,
+              integrationSetId,
+              isIntegrationLeg: true,
+              replacesCostado: true,
+              costadoAssembly: integrationLeg.assembly,
+              realDepthMm: normalizedWidthMm,
+              originalCostadoSnapshot,
+              originalCostadoCode: costadoObj.userData?.code || null,
+            },
+          });
+        } else if (integrationLeg?.modelSrc) {
+          newIntegrationLegObj = await addExternalGlbPart({
+            type: 'costado',
+            line: 'KONCISA.PLUS',
+            code: integrationLeg.codigoPT,
+            logicalCode: integrationLeg.logicalCode,
+            name: integrationLeg.name,
 
-          groupId,
-          groupName,
-          parentGroup,
+            groupId,
+            groupName,
+            parentGroup,
 
-          position: {
-            x: basePos.x * 1000,
-            y: basePos.y * 1000,
-            z: basePos.z * 1000,
-          },
+            position: {
+              x: basePos.x * 1000,
+              y: basePos.y * 1000,
+              z: basePos.z * 1000,
+            },
 
-          rotation: {
-            x: baseRot.x,
-            y: baseRot.y,
-            z: baseRot.z,
-          },
+            rotation: {
+              x: baseRot.x,
+              y: baseRot.y,
+              z: baseRot.z,
+            },
 
-          model: {
-            kind: 'glb',
-            src: integrationLeg.modelSrc,
-          },
+            model: {
+              kind: 'glb',
+              src: integrationLeg.modelSrc,
+            },
 
-          meta: {
-            category: 'costados',
-            tipoPuesto: 'doble',
-            tipoModulo: 'terminal',
-            moduleIndex,
-            replaceZone,
-            integrationSetId,
-            isIntegrationLeg: true,
-            replacesCostado: true,
-            originalCostadoSnapshot,
-            originalCostadoCode: costadoObj.userData?.code || null,
-          },
-        });
-      } else {
-        newIntegrationLegObj = addNativeBlockPart({
-          type: 'costado',
-          line: 'KONCISA.PLUS',
-          code: integrationLeg.codigoPT,
-          logicalCode: integrationLeg.logicalCode,
-          name: integrationLeg.name,
+            meta: {
+              category: 'costados',
+              tipoPuesto: 'doble',
+              tipoModulo: 'terminal',
+              moduleIndex,
+              replaceZone,
+              integrationSetId,
+              isIntegrationLeg: true,
+              replacesCostado: true,
+              originalCostadoSnapshot,
+              originalCostadoCode: costadoObj.userData?.code || null,
+            },
+          });
+        } else {
+          newIntegrationLegObj = addNativeBlockPart({
+            type: 'costado',
+            line: 'KONCISA.PLUS',
+            code: integrationLeg.codigoPT,
+            logicalCode: integrationLeg.logicalCode,
+            name: integrationLeg.name,
 
-          groupId,
-          groupName,
-          parentGroup,
+            groupId,
+            groupName,
+            parentGroup,
 
-          dimMm: {
-            widthMm: 35,
-            heightMm: 710,
-            depthMm: normalizedWidthMm,
-          },
+            dimMm: {
+              widthMm: 35,
+              heightMm: 710,
+              depthMm: normalizedWidthMm,
+            },
 
-          position: {
-            x: basePos.x * 1000,
-            y: basePos.y * 1000,
-            z: basePos.z * 1000,
-          },
+            position: {
+              x: basePos.x * 1000,
+              y: basePos.y * 1000,
+              z: basePos.z * 1000,
+            },
 
-          rotation: {
-            x: baseRot.x,
-            y: baseRot.y,
-            z: baseRot.z,
-          },
+            rotation: {
+              x: baseRot.x,
+              y: baseRot.y,
+              z: baseRot.z,
+            },
 
-          meta: {
-            category: 'costados',
-            tipoPuesto: 'doble',
-            tipoModulo: 'terminal',
-            moduleIndex,
-            replaceZone,
-            integrationSetId,
-            isIntegrationLeg: true,
-            replacesCostado: true,
-            originalCostadoSnapshot,
-            originalCostadoCode: costadoObj.userData?.code || null,
-          },
-        });
+            meta: {
+              category: 'costados',
+              tipoPuesto: 'doble',
+              tipoModulo: 'terminal',
+              moduleIndex,
+              replaceZone,
+              integrationSetId,
+              isIntegrationLeg: true,
+              replacesCostado: true,
+              originalCostadoSnapshot,
+              originalCostadoCode: costadoObj.userData?.code || null,
+            },
+          });
+        }
       }
 
       // =====================================================
@@ -13189,6 +13255,14 @@ function ThreeCanvas({
         side: integrationSide,
         cableAccessType,
       });
+
+      if (isLinkComponent) {
+        placement.nearEdgeZ = -exactSurfaceWidthMm / 2;
+        placement.farEdgeZ = exactSurfaceWidthMm / 2;
+        placement.unitLegs[0].z = -placement.nearEdgeZ + 2;
+        placement.unitLegs[1].z = -placement.farEdgeZ + 1;
+      }
+
       const integrationCenterLocalX = placement.surfaceCenter.x;
       const integrationCenterOutwardZ = placement.surfaceCenter.z;
       const integrationNearEdgeOutwardZ = placement.nearEdgeZ;
@@ -13211,7 +13285,7 @@ function ThreeCanvas({
 
       const integrationSurfaceObj = addSurface(
         {
-          widthM: normalizedWidthMm / 1000,
+          widthM: exactSurfaceWidthMm / 1000,
           depthM: normalizedDepthMm / 1000,
           thicknessM: finalThickMm / 1000,
           line: 'KONCISA.PLUS',
@@ -13253,6 +13327,20 @@ function ThreeCanvas({
 
       if (integrationSurfaceObj) {
         integrationSurfaceObj.rotation.y = baseRot.y + Math.PI / 2;
+
+        if (isLinkComponent) {
+          integrationSurfaceObj.userData.materialRole = 'surface';
+          integrationSurfaceObj.userData.materialBase = 'FORMICA';
+          const linkColor = parentGroup?.userData?.config?.surfaceColor;
+          if (linkColor) {
+            integrationSurfaceObj.traverse((node) => {
+              if (node.isMesh && node.material) {
+                node.material.color.set(linkColor);
+              }
+            });
+          }
+        }
+
         integrationSurfaceObj.userData.meta = {
           ...(integrationSurfaceObj.userData.meta || {}),
           category: 'superficies',
@@ -13261,7 +13349,7 @@ function ThreeCanvas({
           moduleIndex,
           replaceZone,
           tipoPuesto: 'integracion',
-          widthMm: normalizedWidthMm,
+          widthMm: exactSurfaceWidthMm,
           depthMm: normalizedDepthMm,
           finishCode: finalFinishCode,
           thickMm: finalThickMm,
@@ -13286,7 +13374,7 @@ function ThreeCanvas({
       const unitLegPositions = placement.unitLegs;
 
       for (const [index, pos] of unitLegPositions.entries()) {
-        await addExternalGlbPart({
+        const legObj = await addExternalGlbPart({
           type: 'costadoIntegracionUnitario',
           line: 'KONCISA.PLUS',
           code: unitLeg.codigoPT,
@@ -13299,7 +13387,7 @@ function ThreeCanvas({
 
           position: {
             ...localToWorldMm(pos.x, pos.z),
-            y: basePos.y * 1000,
+            y: 0,
           },
 
           rotation: {
@@ -13322,6 +13410,23 @@ function ThreeCanvas({
             tipoPuesto: 'integracion',
           },
         });
+
+        if (legObj && isLinkComponent) {
+          const supportFinish = parentGroup?.userData?.config?.supportFinish;
+          const structureColor = parentGroup?.userData?.config?.structureColor || '#9b9b9b';
+          const metalness = supportFinish === 'CROMADO' ? 0.9 : 0.3;
+          const roughness = supportFinish === 'CROMADO' ? 0.15 : 0.45;
+          const colorHex = supportFinish === 'CROMADO' ? '#c9ced4' : structureColor;
+          legObj.traverse((node) => {
+            if (node.isMesh && node.material) {
+              node.material = new THREE.MeshStandardMaterial({
+                color: colorHex,
+                metalness,
+                roughness
+              });
+            }
+          });
+        }
       }
 
       // =====================================================
@@ -13431,62 +13536,63 @@ function ThreeCanvas({
 
       // =====================================================
       // 6. Grommet o pasacable
-      // Por ahora se agrega al BOM como pieza nativa mínima.
-      // Después podemos cambiarlo por geometría/modelo visual si quieres.
       // =====================================================
       const cableAccess = pkg.cableAccess;
-      const cableAccessCenter = localToWorldMm(placement.cableAccess.x, placement.cableAccess.z);
 
-      const cableAccessPart = {
-        type: cableAccess.type === 'pasacable' ? 'pasacable' : 'grommet',
-        line: 'KONCISA.PLUS',
-        code: cableAccess.codigoPT,
-        logicalCode: cableAccess.logicalCode,
-        name: cableAccess.name,
+      if (cableAccess && cableAccess.exists !== false && cableAccess.type !== 'ninguno') {
+        const cableAccessCenter = localToWorldMm(placement.cableAccess.x, placement.cableAccess.z);
 
-        groupId,
-        groupName,
-        parentGroup,
+        const cableAccessPart = {
+          type: cableAccess.type === 'pasacable' ? 'pasacable' : 'grommet',
+          line: 'KONCISA.PLUS',
+          code: cableAccess.codigoPT,
+          logicalCode: cableAccess.logicalCode,
+          name: cableAccess.name,
 
-        position: {
-          x: cableAccessCenter.x,
-          y: 745,
-          z: cableAccessCenter.z,
-        },
+          groupId,
+          groupName,
+          parentGroup,
 
-        rotation: {
-          x: 0,
-          y: baseRot.y + placement.cableAccess.rotY,
-          z: 0,
-        },
-
-        meta: {
-          category: cableAccess.type === 'pasacable' ? 'pasacables' : 'grommets',
-          integrationSetId,
-          moduleIndex,
-          replaceZone,
-          tipoPuesto: 'integracion',
-          cableAccessType: cableAccess.type,
-        },
-      };
-
-      if (cableAccess.type === 'grommet') {
-        await addExternalGlbPart({
-          ...cableAccessPart,
-          model: {
-            kind: 'glb',
-            src: cableAccess.modelSrc,
+          position: {
+            x: cableAccessCenter.x,
+            y: 745,
+            z: cableAccessCenter.z,
           },
-        });
-      } else {
-        addNativeBlockPart({
-          ...cableAccessPart,
-          dimMm: {
-            widthMm: 120,
-            heightMm: 8,
-            depthMm: 60,
+
+          rotation: {
+            x: 0,
+            y: baseRot.y + placement.cableAccess.rotY,
+            z: 0,
           },
-        });
+
+          meta: {
+            category: cableAccess.type === 'pasacable' ? 'pasacables' : 'grommets',
+            integrationSetId,
+            moduleIndex,
+            replaceZone,
+            tipoPuesto: 'integracion',
+            cableAccessType: cableAccess.type,
+          },
+        };
+
+        if (cableAccess.type === 'grommet') {
+          await addExternalGlbPart({
+            ...cableAccessPart,
+            model: {
+              kind: 'glb',
+              src: cableAccess.modelSrc,
+            },
+          });
+        } else {
+          addNativeBlockPart({
+            ...cableAccessPart,
+            dimMm: {
+              widthMm: 120,
+              heightMm: 8,
+              depthMm: 60,
+            },
+          });
+        }
       }
 
       // =====================================================
@@ -13565,7 +13671,16 @@ function ThreeCanvas({
       // Finalmente eliminamos el costado terminal original.
       // El costado pertenece al assembly KONCISA_PLUS. Sin exactTarget,
       // removePartObject resuelve la raíz y elimina también la integración recién creada.
-      removePartObject(costadoObj, { exactTarget: true });
+      if (!isLinkComponent) {
+        removePartObject(costadoObj, { exactTarget: true });
+      } else {
+        // Guardar el integrationSetId en el costado original para poder restaurarlo después
+        costadoObj.userData.integrationSetId = integrationSetId;
+        if (costadoObj.userData.meta) {
+          costadoObj.userData.meta.integrationSetId = integrationSetId;
+          costadoObj.userData.meta.hasIntegration = true;
+        }
+      }
 
       if (newIntegrationLegObj) {
         setActivePart(newIntegrationLegObj);
@@ -13593,7 +13708,7 @@ function ThreeCanvas({
       }
 
       const parentGroup =
-        selectedObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? selectedObj.parent : null;
+        selectedObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || selectedObj.parent?.userData?.kind === 'LINK_PRODUCT' ? selectedObj.parent : null;
 
       let integrationLegObj = null;
       let originalCostadoSnapshot = null;
@@ -13607,11 +13722,21 @@ function ThreeCanvas({
 
         const meta = node.userData?.meta || {};
 
-        if (meta.integrationSetId !== integrationSetId) return;
+        if (meta.integrationSetId !== integrationSetId && node.userData?.integrationSetId !== integrationSetId) return;
 
         const isRootPart = node.userData?.isPartRoot === true;
 
         if (!isRootPart) return;
+
+        if (node.userData?.kind === 'LINK_COMPONENT' && node.userData?.type === 'costado') {
+          // This is the original Link leg, do not remove it, just clear its integration metadata
+          delete node.userData.integrationSetId;
+          if (node.userData.meta) {
+            delete node.userData.meta.integrationSetId;
+            node.userData.meta.hasIntegration = false;
+          }
+          return;
+        }
 
         objectsToRemove.push(node);
 
@@ -13638,35 +13763,42 @@ function ThreeCanvas({
         originalCostadoSnapshot?.creatorKind === 'koncisa-costado-assembly' ||
         !!originalCostadoSnapshot?.meta?.costadoAssembly;
 
-      if (
-        !originalCostadoSnapshot?.code ||
-        (!isCostadoAssembly && !originalCostadoSnapshot?.model?.src)
-      ) {
-        alert('No se puede restaurar el costado original porque falta el snapshot del costado.');
-        return false;
+      const isLinkProduct = parentGroup?.userData?.kind === 'LINK_PRODUCT';
+
+      if (!isLinkProduct) {
+        if (
+          !originalCostadoSnapshot?.code ||
+          (!isCostadoAssembly && !originalCostadoSnapshot?.model?.src)
+        ) {
+          alert('No se puede restaurar el costado original porque falta el snapshot del costado.');
+          return false;
+        }
       }
 
-      // Restaurar costado terminal original
-      const restorePayload = {
-        ...originalCostadoSnapshot,
-        type: 'costado',
-        parentGroup,
+      // Restaurar costado terminal original (solo si no es Link)
+      let restoredObj = null;
+      if (!isLinkProduct) {
+        const restorePayload = {
+          ...originalCostadoSnapshot,
+          type: 'costado',
+          parentGroup,
 
-        groupId:
-          originalCostadoSnapshot.groupId ||
-          integrationLegObj?.userData?.groupId ||
-          parentGroup?.userData?.instanceId ||
-          null,
+          groupId:
+            originalCostadoSnapshot.groupId ||
+            integrationLegObj?.userData?.groupId ||
+            parentGroup?.userData?.instanceId ||
+            null,
 
-        groupName:
-          originalCostadoSnapshot.groupName ||
-          integrationLegObj?.userData?.groupName ||
-          parentGroup?.userData?.name ||
-          null,
-      };
-      const restoredObj = isCostadoAssembly
-        ? await addKoncisaCostadoAssemblyPart(restorePayload)
-        : await addExternalGlbPart(restorePayload);
+          groupName:
+            originalCostadoSnapshot.groupName ||
+            integrationLegObj?.userData?.groupName ||
+            parentGroup?.userData?.name ||
+            null,
+        };
+        restoredObj = isCostadoAssembly
+          ? await addKoncisaCostadoAssemblyPart(restorePayload)
+          : await addExternalGlbPart(restorePayload);
+      }
 
       // Quitar todas las piezas de esta integración
       for (const obj of objectsToRemove) {
@@ -14181,9 +14313,9 @@ function ThreeCanvas({
         const initialBoundsX = getBoundsXInParent();
         const surfaceWidthMm = Number(
           root.userData?.meta?.realWidthMm ||
-            root.userData?.meta?.nominalWidthMm ||
-            root.userData?.dim?.widthMm ||
-            0
+          root.userData?.meta?.nominalWidthMm ||
+          root.userData?.dim?.widthMm ||
+          0
         );
         const oppositeSurfaceStartX = initialBoundsX.maxX - surfaceWidthMm / 1000;
 
@@ -14515,9 +14647,9 @@ function ThreeCanvas({
         unitPrice:
           Number(
             catalogItem?.prices?.[countryRef.current] ??
-              catalogItem?.prices?.CO ??
-              catalogItem?.raw?.price ??
-              0
+            catalogItem?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
           ) || 0,
         prices: catalogItem?.prices || undefined,
         logicalCode: asset.logicalCode,
@@ -14887,13 +15019,13 @@ function ThreeCanvas({
       const accesoCableado =
         String(
           oldMeta.accesoCableado ||
-            oldMeta.tipoCanal ||
-            inferDuctChannelType({
-              logicalCode: oldObj.userData?.logicalCode,
-              description: oldObj.userData?.description,
-              codigoPT: oldObj.userData?.codigoPT,
-              code: oldObj.userData?.code,
-            })
+          oldMeta.tipoCanal ||
+          inferDuctChannelType({
+            logicalCode: oldObj.userData?.logicalCode,
+            description: oldObj.userData?.description,
+            codigoPT: oldObj.userData?.codigoPT,
+            code: oldObj.userData?.code,
+          })
         ).toUpperCase() === 'PASACABLE'
           ? 'PASACABLE'
           : 'GROMMET';
@@ -15459,7 +15591,7 @@ function ThreeCanvas({
           const snapType = hitMarker.userData?.snapType;
           const assembly =
             activePart.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-            activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
+              activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
               ? activePart
               : getKoncisaAssemblyObject(activePart) || activePart;
           if (assembly.userData?.kind !== 'KUO_AV_DOBLE_ASSEMBLY') {
@@ -15636,9 +15768,9 @@ function ThreeCanvas({
           code: node.userData?.codigoPT || node.userData?.code,
           seatMode: isMoreaRoot
             ? node.userData?.meta?.seatMode ||
-              resolveMoreaSeatModeByCode(node.userData?.codigoPT || node.userData?.code)
+            resolveMoreaSeatModeByCode(node.userData?.codigoPT || node.userData?.code)
             : node.userData?.meta?.seatMode ||
-              resolveMilaSeatModeByCode(node.userData?.codigoPT || node.userData?.code),
+            resolveMilaSeatModeByCode(node.userData?.codigoPT || node.userData?.code),
           backrestRotated180: Boolean(node.userData?.meta?.backrestRotated180),
           label: `Puesto ${idx + 1}`,
           index: idx,
@@ -15761,11 +15893,11 @@ function ThreeCanvas({
           hasScreen: popupSeats ? root.userData?._milaHasScreen || false : undefined,
           backrestRotated180: popupSeats
             ? Boolean(
-                popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
-                popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
-                root.userData?.meta?.backrestRotated180 ||
-                root.userData?._moreaBackrestRotated180
-              )
+              popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
+              popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
+              root.userData?.meta?.backrestRotated180 ||
+              root.userData?._moreaBackrestRotated180
+            )
             : undefined,
           quantity: popupSeats
             ? root.userData?._milaQuantity || (popupSeats?.length ?? 1)
@@ -16251,8 +16383,8 @@ function ThreeCanvas({
           const targetTopY = Number.isFinite(sideArmrestReferenceTopY)
             ? sideArmrestReferenceTopY
             : Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) -
-              armrestTopDropM +
-              sideArmrestOffsetY;
+            armrestTopDropM +
+            sideArmrestOffsetY;
           const desiredMinY = targetTopY - armrestHeight;
           const deltaY = desiredMinY - armrestBounds.min.y;
           const targetBackZ = Math.min(leftSeatBounds.max.z, rightSeatBounds.max.z);
@@ -16394,8 +16526,8 @@ function ThreeCanvas({
           ).toLowerCase();
           const targetRole = String(
             snapResult?.targetObj?.userData?.meta?.role ||
-              snapResult?.targetObj?.userData?.role ||
-              ''
+            snapResult?.targetObj?.userData?.role ||
+            ''
           ).toLowerCase();
           const targetSeamIndex = resolveSeamIndexFromSnapResult(snapResult);
           const armrestRoles = new Set(['armrest-left', 'armrest-right', 'armrest-center']);
@@ -17486,9 +17618,8 @@ function ThreeCanvas({
       const descriptionSuffix = String(incomingItem?.meta?.descriptionSuffix || '').trim();
 
       const description = isSpecial
-        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
-            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
-          }`
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+        }`
         : catalogDescription;
 
       const rawPrice =
@@ -17715,20 +17846,19 @@ function ThreeCanvas({
       //const description = descriptionNote ? `${catalogDescription} - ${descriptionNote}`: catalogDescription;
 
       const description = isSpecial
-        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
-            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
-          }`
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+        }`
         : catalogDescription;
 
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
 
       mesh.userData = {
@@ -18143,12 +18273,12 @@ function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
 
       const ductModuleType = part?.meta?.tipoModulo || 'terminal';
@@ -18668,12 +18798,12 @@ function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
 
       const instanceId = `${code || 'leader-skirt'}__${Date.now()}__${Math.random()
@@ -18737,18 +18867,18 @@ function ThreeCanvas({
           supportPositionsMm: {
             left: supportLeft
               ? {
-                  x: supportLeft.position.x * 1000,
-                  y: supportLeft.position.y * 1000,
-                  z: supportLeft.position.z * 1000,
-                }
+                x: supportLeft.position.x * 1000,
+                y: supportLeft.position.y * 1000,
+                z: supportLeft.position.z * 1000,
+              }
               : null,
 
             right: supportRight
               ? {
-                  x: supportRight.position.x * 1000,
-                  y: supportRight.position.y * 1000,
-                  z: supportRight.position.z * 1000,
-                }
+                x: supportRight.position.x * 1000,
+                y: supportRight.position.y * 1000,
+                z: supportRight.position.z * 1000,
+              }
               : null,
           },
         },
@@ -18879,10 +19009,10 @@ function ThreeCanvas({
 
       const realDepthMm = Number(
         part?.meta?.realDepthMm ??
-          part?.dimMm?.realDepthMm ??
-          part?.dimMm?.depthMm ??
-          part?.meta?.depthMm ??
-          600
+        part?.dimMm?.realDepthMm ??
+        part?.dimMm?.depthMm ??
+        part?.meta?.depthMm ??
+        600
       );
 
       if (!Number.isFinite(realDepthMm) || realDepthMm <= 0) {
@@ -19430,12 +19560,12 @@ function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
 
       const instanceId = `${code || 'costado'}__${Date.now()}__${Math.random()
@@ -19605,14 +19735,14 @@ function ThreeCanvas({
         const unitPrice =
           Number(
             part.prices?.[countryRef.current] ??
-              part.unitPrice ??
-              catalogItem?.prices?.[countryRef.current] ??
-              catalogItem?.prices?.CO ??
-              catalogItem?.prices?.co ??
-              catalogItem?.raw?.prices?.[countryRef.current] ??
-              catalogItem?.raw?.prices?.CO ??
-              catalogItem?.raw?.price ??
-              0
+            part.unitPrice ??
+            catalogItem?.prices?.[countryRef.current] ??
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
           ) || 0;
 
         const ductModuleType = part?.meta?.tipoModulo || 'terminal';
@@ -20187,8 +20317,8 @@ function ThreeCanvas({
       mesh.position.set(
         (doorGeometry.hinge.x + doorGeometry.openEnd.x) / 2,
         (walls.find((wall) => wall.id === opening.wallId)?.baseElevation || 0) +
-          opening.sillHeight +
-          opening.height / 2,
+        opening.sillHeight +
+        opening.height / 2,
         (doorGeometry.hinge.z + doorGeometry.openEnd.z) / 2
       );
       mesh.rotation.y = Math.atan2(dz, dx);
@@ -20216,11 +20346,11 @@ function ThreeCanvas({
       const geometry =
         descriptor.geometryType === 'CYLINDER'
           ? new THREE.CylinderGeometry(
-              descriptor.diameter / 2,
-              descriptor.diameter / 2,
-              descriptor.height,
-              32
-            )
+            descriptor.diameter / 2,
+            descriptor.diameter / 2,
+            descriptor.height,
+            32
+          )
           : new THREE.BoxGeometry(descriptor.width, descriptor.height, descriptor.depth);
       const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xb7b7b7 }));
       mesh.name = `COLUMN_${column.id}`;

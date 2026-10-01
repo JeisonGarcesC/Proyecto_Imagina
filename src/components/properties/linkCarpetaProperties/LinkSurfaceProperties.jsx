@@ -1,7 +1,33 @@
 import { getLinkFinishOptions } from '../../../mepal/link/rules/linkSurfaceFinishOptions.js';
 import { inputStyle, labelStyle } from '../shared/PropertyStyles.js';
-export default function LinkSurfaceProperties({ part, config: c, onChange, disabled }) {
+export default function LinkSurfaceProperties({ part, config: c, onChange, disabled, api }) {
   const leader = part.config?.type === 'lider';
+  const isIntegracion = !!part.meta?.integracionType;
+
+  if (isIntegracion) {
+    return (
+      <fieldset disabled={disabled} style={{ border: 0, padding: 0, minWidth: 0, marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={() => {
+            const side = part.config?.integracionSide || 'ambas';
+            const isLeft = part.componentKey === 'int-left';
+            let newSide = side;
+            let newType = part.config?.integracionType;
+            if (side === 'ambas') {
+              newSide = isLeft ? 'derecha' : 'izquierda';
+            } else {
+              newType = 'ninguna';
+            }
+            api?.updateSelectedLink?.({ ...part.config, integracionType: newType, integracionSide: newSide });
+          }}
+        >
+          Eliminar superficie de integración
+        </button>
+      </fieldset>
+    );
+  }
+
   return <fieldset disabled={disabled} style={{ border: 0, padding: 0, minWidth: 0 }}>
     {part.componentRole === 'SURFACE' && !part.config?.leaderCredenza && <label style={labelStyle}>Acabado / tipo de superficie<select style={inputStyle} value={c.finishId} onChange={(e) => onChange({ finishId: e.target.value })}>{getLinkFinishOptions(leader ? 'lider' : 'sencillo').map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</select></label>}
     <label style={labelStyle}><input type="checkbox" checked={!!c.grommet} onChange={(e) => onChange({ grommet: e.target.checked })} /> Incluir grommet</label>

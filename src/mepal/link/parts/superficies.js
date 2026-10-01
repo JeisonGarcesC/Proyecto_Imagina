@@ -15,4 +15,8 @@ export function createSuperficie({config,key,widthMm,depthMm,position,moduleInde
     {moduleIndex,rotationY,materialBase:rule.materialBase,componentConfig:component,leaderRole,
       grommetHole:hole,meta:{category:'superficies',layoutType:leaderRole?'LEADER':'STANDARD',leaderRole}});
 }
-
+export function createSuperficieIntegracion({config, key, widthMm, depthMm, position, rotationY = 0, type}) {
+  return linkPart('SURFACE', key, [widthMm, 30, depthMm], [position[0], 710 + 15, position[2]],
+    'LINK_SUPERFICIE_INT', `Superficie de integración ${type}`,
+    {rotationY, materialBase: 'FORMICA', meta: {category: 'superficies', integracionType: type}, integracionType: type, materialRole: 'surface'});
+}

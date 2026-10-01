@@ -92,8 +92,7 @@ const CALIBRATION_UNIT_TO_METERS = Object.freeze({ mm: 0.001, cm: 0.01, m: 1 });
 function fmtMeters(m) {
   if (!isFinite(m)) return '';
   const r3 = Math.round(m * 1000) / 1000;
-  const r0 = Math.round(m);
-  return Math.abs(r3 - r0) < 0.0005 ? `${r0} m` : `${r3.toFixed(3)} m`;
+  return `${r3.toFixed(3)} m`;
 }
 
 function drawDimText(ctx, x1, y1, x2, y2, label, opts = {}) {
