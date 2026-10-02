@@ -1,4 +1,5 @@
-import { toWorldUnitsFromCm } from './multipleSpatialUnits.js';
+import { toWorldUnitsFromCm } from '../../connections/multipleSpatialUnits.js';
+import { getMultipleProductConnectionPoints } from '../../connections/multipleConnectionPoints.js';
 
 const width = (module) => toWorldUnitsFromCm(module.config?.widthCm || 0);
 const depth = (module) => toWorldUnitsFromCm(module.config?.thicknessCm || 0);
@@ -13,9 +14,12 @@ export function getMultipleConnectionPoints(module) {
   };
   const startType = module.config?.door?.enabled ? 'DOOR_CONNECTION' : 'LINEAR_START';
   const endType = module.config?.door?.enabled ? 'DOOR_CONNECTION' : 'LINEAR_END';
+  const productPoints = getMultipleProductConnectionPoints(module.config, module.moduleId);
+  const left = productPoints.find((item) => item.id === 'LEFT');
+  const right = productPoints.find((item) => item.id === 'RIGHT');
   return [
-    point('START', startType, [-width(module) / 2, 0, 0], [-1, 0, 0], ['LINEAR_END', 'DOOR_CONNECTION', 'CORNER_LEFT']),
-    point('END', endType, [width(module) / 2, 0, 0], [1, 0, 0], ['LINEAR_START', 'DOOR_CONNECTION', 'CORNER_RIGHT']),
+    point('START', startType, left.positionLocal, left.directionLocal, ['LINEAR_END', 'DOOR_CONNECTION', 'CORNER_LEFT']),
+    point('END', endType, right.positionLocal, right.directionLocal, ['LINEAR_START', 'DOOR_CONNECTION', 'CORNER_RIGHT']),
     point('LEFT', 'CORNER_LEFT', [-width(module) / 2, 0, depth(module) / 2], [0, 0, 1], ['LINEAR_END', 'CORNER_RIGHT']),
     point('RIGHT', 'CORNER_RIGHT', [width(module) / 2, 0, -depth(module) / 2], [0, 0, -1], ['LINEAR_START', 'CORNER_LEFT']),
   ];

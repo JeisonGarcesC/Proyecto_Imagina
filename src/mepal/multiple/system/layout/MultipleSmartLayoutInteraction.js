@@ -5,6 +5,7 @@ import { previewMultipleSnap } from './MultipleSnapEngine.js';
 import { detectMultipleCollisions } from './MultipleCollisionEngine.js';
 import { getMultipleConnectionPoints } from './MultipleConnectionResolver.js';
 import { normalizeMultipleLayout } from './multipleLayoutTypes.js';
+import { MAGNETIC_SNAP_DISTANCE_MM } from './multipleLayoutTypes.js';
 
 export function getMultipleSystemProductFromHit(hitObject) {
   let object = hitObject;
@@ -34,6 +35,7 @@ export function describeMultipleProductSnap(product) {
     direction: point.direction, normal: point.normal, type: point.connectionType,
   })) : [];
   return {
+    context: 'SYSTEM', ownerId: source.moduleId,
     source: { moduleId: source.moduleId, instanceId: product.userData.instanceId, productId: source.productId,
       position: proposed.position, rotation: proposed.rotation, widthCm: source.config?.widthCm,
       heightCm: source.config?.heightCm, thicknessCm: source.config?.thicknessCm, points: points(proposed) },
@@ -41,7 +43,14 @@ export function describeMultipleProductSnap(product) {
       widthCm: target.config?.widthCm, heightCm: target.config?.heightCm,
       thicknessCm: target.config?.thicknessCm, points: points(target) } : null,
     sourcePoint: nearest?.sourcePoint || null, targetPoint: nearest?.targetPoint || null,
+    sourceWorldPosition: nearest ? systemObject.localToWorld(new Vector3(...nearest.origin)).toArray() : null,
+    targetWorldPosition: nearest ? systemObject.localToWorld(new Vector3(...nearest.destination)).toArray() : null,
     distanceMm: nearest?.distanceMm ?? null, toleranceMm: settings.snapDistanceMm,
+    snapDistanceMm: settings.snapDistanceMm, magneticDistanceMm: MAGNETIC_SNAP_DISTANCE_MM,
+    orientation: { sourceY: proposed.rotation.y, targetY: target?.rotation?.y ?? null },
+    height: { sourceCm: source.config?.heightCm, targetCm: target?.config?.heightCm },
+    thickness: { sourceCm: source.config?.thicknessCm, targetCm: target?.config?.thicknessCm },
+    connectionId: candidate?.connection?.connectionId || null,
     compatible: candidate?.status === 'GREEN',
     reason: !settings.snapEnabled ? 'SNAP_DISABLED' : candidate?.reason || (candidate ? null : nearest ? 'DISTANCE_TOO_FAR' : 'NO_CANDIDATE'),
     status: candidate?.status || null,
@@ -75,6 +84,7 @@ export function previewMultipleProductDrag(product) {
     originWorld: systemObject.localToWorld(new Vector3(...candidate.origin)).toArray(),
     destinationWorld: systemObject.localToWorld(new Vector3(...candidate.destination)).toArray(),
     finalPositionWorld: systemObject.localToWorld(new Vector3(candidate.position.x, candidate.position.y, candidate.position.z)).toArray(),
+    magneticStrength: candidate.status === 'GREEN' ? Math.max(0, 1 - candidate.distanceMm / MAGNETIC_SNAP_DISTANCE_MM) : 0,
   };
 }
 

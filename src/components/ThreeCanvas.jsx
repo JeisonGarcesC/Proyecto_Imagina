@@ -28,6 +28,7 @@ import {
   restoreMultipleSystem,
 } from '../mepal/multiple/system/multipleSystemIntegration.js';
 import { getMultipleSystemProductFromHit, describeMultipleProductSnap, previewMultipleProductDrag, commitMultipleProductDrag } from '../mepal/multiple/system/layout/MultipleSmartLayoutInteraction.js';
+import { getStandaloneMultipleProducts, previewMultipleStandardSnap, commitMultipleStandardSnap, describeMultipleStandardSnap } from '../mepal/multiple/connections/multipleStandardSnap.js';
 // ThreeCanvas.jsx (MEZCLA: mantiene tu 2D/zoom/controles tal como estaban + agrega muros bien implementados)
 // ✅ Lo único “nuevo” es: wallsGroupRef + crear un group en la escena + useEffect EXTERNO que reconstruye muros.
 // ✅ También corregí: applyFinishToActivePart (materialDef no estaba definido) y cleanup de listeners.
@@ -102,6 +103,21 @@ import {
 import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekSocialInstance';
 import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
 import { createCritterium8Instance } from '../mepal/critterium8/factories/createCritterium8Instance.js';
+import { resolveCritterium8BOM } from '../mepal/critterium8/bom/critterium8BOM.js';
+import { validateCritteriumSequenceDraft, validateCritteriumSystemDraft } from '../mepal/critterium8/integration/critterium8Configurator.js';
+import { createCritterium8SlotId } from '../mepal/critterium8/composition/frameSlotDefinition.js';
+import { restoreCritterium8Sequence } from '../mepal/critterium8/integration/critterium8SequencePersistence.js';
+import {
+  addSequenceToCritteriumSystem, createCritteriumSystemFromSequences, deleteCritteriumSystem,
+  getCritteriumSystemRoot, moveCritteriumSequenceInSystem, moveCritteriumSystem,
+  registerCritteriumSystem, removeSequenceFromCritteriumSystem,
+  connectCritteriumSystemSequences, disconnectCritteriumSystemSequences,
+} from '../mepal/critterium8/system/critteriumSystem.js';
+import { restoreCritteriumSystem } from '../mepal/critterium8/system/critteriumSystemPersistence.js';
+import { captureCritteriumSpatialState, applyCritteriumSpatialState } from '../mepal/critterium8/system/critteriumSpatialHistory.js';
+import { previewCritteriumSequenceSnap } from '../mepal/critterium8/system/layout/CritteriumSnapEngine.js';
+import { resolveCritteriumConnectionPoints, collectCritteriumSpatialDiagnostics } from '../mepal/critterium8/system/layout/CritteriumConnectionResolver.js';
+import { alignCritteriumSequences, distributeCritteriumSequences, layoutCritteriumLinear, rotateCritteriumSequence90, translateCritteriumSequence } from '../mepal/critterium8/system/layout/CritteriumLayoutEngine.js';
 import { createLockerInstance } from '../mepal/lockers/factories/createLockerInstance.js';
 import { registerLockerInstance } from '../mepal/lockers/integration/lockerRegistration.js';
 import { rebuildLockerInstance } from '../mepal/lockers/integration/rebuildLockerInstance.js';
@@ -768,6 +784,15 @@ function ThreeCanvas({
     multipleSnapMarker.visible = false;
     multipleSnapMarker.userData = { excludeFromBOM: true, isHelper: true };
     scene.add(multipleSnapMarker);
+    const critteriumSnapMarker = new THREE.Group();
+    const critteriumSnapOrigin = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }));
+    const critteriumSnapTarget = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), new THREE.MeshBasicMaterial({ color: 0x16a34a, depthTest: false }));
+    const critteriumSnapFinal = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.07, 24), new THREE.MeshBasicMaterial({ color: 0x16a34a, side: THREE.DoubleSide, depthTest: false }));
+    const critteriumSnapLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0x16a34a, depthTest: false }));
+    critteriumSnapMarker.add(critteriumSnapOrigin, critteriumSnapTarget, critteriumSnapFinal, critteriumSnapLine);
+    critteriumSnapMarker.visible = false;
+    critteriumSnapMarker.userData = { excludeFromBOM: true, isHelper: true };
+    scene.add(critteriumSnapMarker);
     // sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(
@@ -2465,6 +2490,10 @@ function ThreeCanvas({
             metadata: { ...(critteriumSequence.userData?.metadata || {}) },
           }
           : null,
+        critteriumSystem: obj.userData?.kind === 'CRITERIUM_SYSTEM'
+          ? { systemId: obj.userData.systemId, sequenceIds: [...obj.userData.sequenceIds],
+            position: obj.position.toArray(), rotationY: obj.rotation.y }
+          : null,
       });
     }
 
@@ -2501,6 +2530,7 @@ function ThreeCanvas({
         .map(({ obj, code }) => {
           if (!obj) return null;
           if (obj.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') return null;
+          if (obj.userData?.kind === 'CRITERIUM_SYSTEM') return null;
           if (obj.userData?.kind === 'CRITTERIUM_8_PART') return null;
 
           obj.updateMatrixWorld(true);
@@ -3044,15 +3074,19 @@ function ThreeCanvas({
         groupCount,
         groupInstanceId,
         typologyReferenceCode,
-        category
+        category,
+        commercialVariant = null
       ) {
         if (!code) return;
 
         const normalizedCode = normalizeText(code);
         const normalizedGroupId = normalizeText(groupId);
-        const rowKey = normalizedGroupId
+        const variantKey = commercialVariant
+          ? JSON.stringify([commercialVariant.reference ?? null, commercialVariant.materialCode ?? null, commercialVariant.finishCode ?? null])
+          : '';
+        const rowKey = (normalizedGroupId
           ? `T:${normalizedGroupId}::${normalizedCode}`
-          : `S::${normalizedCode}`;
+          : `S::${normalizedCode}`) + variantKey;
 
         const item = catalogByCodeRef.current?.get?.(normalizedCode);
 
@@ -3088,6 +3122,11 @@ function ThreeCanvas({
           section: normalizeText(category) || null,
           groupCount: groupCount || null,
           typologyReferenceCode: normalizeText(typologyReferenceCode) || null,
+          ...(commercialVariant ? {
+            reference: commercialVariant.reference ?? null,
+            materialCode: commercialVariant.materialCode ?? null,
+            finishCode: commercialVariant.finishCode ?? null,
+          } : {}),
           _groupInstanceIds: new Set(),
         };
 
@@ -3328,6 +3367,12 @@ function ThreeCanvas({
 
         handledMoreaAssemblies.add(assemblyRoot);
         return true;
+      }
+
+      const critteriumBOM = resolveCritterium8BOM(parts);
+      for (const item of critteriumBOM.rows) {
+        addRow(item.code, item.qty, resolveCatalogDescription(item.code, item.description), null,
+          null, null, undefined, null, item.sourceId, null, item.category, item);
       }
 
       for (const p of parts) {
@@ -6412,7 +6457,7 @@ function ThreeCanvas({
         pickables,
       });
       selectCritterium8Sequence(prepared.sequenceRoot);
-      historyManager.pushAction({
+      if (options.recordHistory !== false) historyManager.pushAction({
         type: HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_CREATE,
         sequenceId: prepared.sequence.id,
         frameIds: [...prepared.sequence.frameIds],
@@ -6432,6 +6477,83 @@ function ThreeCanvas({
         )
       );
       return createCritterium8SequenceFromFrames(assemblies, options);
+    }
+
+    async function createConfiguredCritteriumSequence(draft, { recordHistory = true, select = true, offset = [0, 0, 0], placementOverrides = null } = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const validation = validateCritteriumSequenceDraft(draft);
+      if (!validation.success) return validation;
+      const instances = [];
+      try {
+        for (const [index, item] of validation.placements.entries()) {
+          const placement = placementOverrides?.[index];
+          const position = (placement?.position || item.position).map((value, axis) => value + (Number(offset[axis]) || 0));
+          const transform = placement ? { position, quaternion: placement.quaternion } : { position, rotation: [0, item.rotationY, 0] };
+          const instanceId = `C8_${THREE.MathUtils.generateUUID()}`;
+          const frameId = `${instanceId}_FRAME`;
+          const tiles = (item.config.tiles || []).map((tile, tileIndex) => {
+            const oldIndex = Number(String(tile.slotId || '').match(/_(\d+)$/)?.[1] ?? tileIndex);
+            return { ...tile, slotId: createCritterium8SlotId(frameId, oldIndex) };
+          });
+          const instance = await createCritterium8Instance({ ...item.config, tiles, instanceId, frameId, transform });
+          const error = instance.diagnostics?.find((diagnostic) => diagnostic.level === 'ERROR');
+          if (error) throw new Error(error.code);
+          instances.push(instance);
+        }
+        const roots = instances.map((instance) => instance.assembly);
+        instances.forEach((instance) => registerCritterium8Instance({ instance, parent: scene, partsRegistry: parts, pickables }));
+        const result = createCritterium8SequenceFromFrames(roots, { recordHistory: false });
+        if (!result.success) throw new Error(result.reason);
+        if (recordHistory) recordCreateObjects({ objects: [result.sequenceRoot] });
+        if (!select) clearSelectionAfterRemoval();
+        emitBOM();
+        return { ...result, instances };
+      } catch (error) {
+        instances.forEach(({ assembly }) => {
+          const sequence = getCritterium8SequenceRoot(assembly);
+          if (sequence) {
+            sequence.parent?.remove(sequence);
+            for (let index = parts.length - 1; index >= 0; index -= 1) if (parts[index].obj === sequence || sequence.getObjectById(parts[index].obj?.id)) parts.splice(index, 1);
+            for (let index = pickables.length - 1; index >= 0; index -= 1) if (sequence.getObjectById(pickables[index]?.id)) pickables.splice(index, 1);
+          }
+          assembly.parent?.remove(assembly);
+          for (let index = parts.length - 1; index >= 0; index -= 1)
+            if (parts[index].obj === assembly || assembly.getObjectById(parts[index].obj?.id)) parts.splice(index, 1);
+          for (let index = pickables.length - 1; index >= 0; index -= 1)
+            if (pickables[index] === assembly || assembly.getObjectById(pickables[index]?.id)) pickables.splice(index, 1);
+        });
+        return { success: false, reason: error.message };
+      }
+    }
+
+    async function createConfiguredCritteriumSystem(drafts) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const validation = validateCritteriumSystemDraft(drafts);
+      if (!validation.success) return validation;
+      const created = [];
+      try {
+        for (const [index, draft] of drafts.entries()) {
+          const result = await createConfiguredCritteriumSequence(draft, { recordHistory: false, select: false, offset: [0, 0, index * 2] });
+          if (!result.success) throw new Error(result.reason);
+          created.push(result.sequenceRoot);
+        }
+        const system = createCritteriumSystemFromSequences(created);
+        registerCritteriumSystem({ system, scene, partsRegistry: parts });
+        recordCreateObjects({ objects: [system] });
+        syncSelectedIds3D([system.userData.systemId]);
+        setActivePart(system, { targetIds: [system.userData.systemId] });
+        emitBOM(); refreshFloorAndGrid();
+        return { success: true, system };
+      } catch (error) {
+        created.forEach((sequence) => {
+          sequence.parent?.remove(sequence);
+          sequence.traverse((node) => {
+            for (let index = parts.length - 1; index >= 0; index -= 1) if (parts[index].obj === node) parts.splice(index, 1);
+            for (let index = pickables.length - 1; index >= 0; index -= 1) if (pickables[index] === node) pickables.splice(index, 1);
+          });
+        });
+        return { success: false, reason: error.message };
+      }
     }
 
     function rebuildCritterium8Sequence(sequenceRoot, options = {}) {
@@ -6487,6 +6609,8 @@ function ThreeCanvas({
     function dissolveCritterium8Sequence(sequenceRoot, options = {}) {
       if (readOnly || !isCritterium8SequenceRoot(sequenceRoot))
         return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      if (getCritteriumSystemRoot(sequenceRoot))
+        return { success: false, reason: 'CRITERIUM_SYSTEM_DETACH_SEQUENCE_FIRST' };
       const sequenceId = sequenceRoot.userData.sequenceId;
       const frameIds = [...(sequenceRoot.userData.frameIds || [])];
       const frames = sequenceRoot.children.filter(
@@ -6572,6 +6696,8 @@ function ThreeCanvas({
     function removeFrameFromCritterium8Sequence(sequenceRoot, frameId, options = {}) {
       if (readOnly || !isCritterium8SequenceRoot(sequenceRoot))
         return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
+      if (getCritteriumSystemRoot(sequenceRoot))
+        return { success: false, reason: 'CRITERIUM_SYSTEM_DETACH_SEQUENCE_FIRST' };
       const parent = sequenceRoot.parent || scene;
       const allFrames = sequenceRoot.children.filter(
         (child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'
@@ -6642,6 +6768,213 @@ function ThreeCanvas({
 
     const buildCritterium8SequenceFromSelectedFrames = createCritterium8SequenceFromSelection;
 
+    function findCritteriumSequenceById(sequenceId) {
+      return parts.find(({ obj }) => obj?.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' && obj.userData.sequenceId === sequenceId)?.obj || null;
+    }
+
+    function findCritteriumSystemById(systemId) {
+      return parts.find(({ obj }) => obj?.userData?.kind === 'CRITERIUM_SYSTEM' && obj.userData.systemId === systemId)?.obj || null;
+    }
+
+    function captureCritteriumSystemState(system) {
+      return captureCritteriumSpatialState(system);
+    }
+
+    function applyCritteriumSystemHistoryState(systemId, state) {
+      let system = findCritteriumSystemById(systemId);
+      if (!state) {
+        if (system) deleteCritteriumSystem(system, { partsRegistry: parts, parent: scene });
+        refreshFloorAndGrid();
+        return;
+      }
+      if (!system) {
+        system = restoreCritteriumSystem(state, { scene, partsRegistry: parts, findSequence: findCritteriumSequenceById });
+      } else {
+        [...system.userData.sequenceIds].filter((id) => !state.sequenceIds.includes(id)).forEach((id) => removeSequenceFromCritteriumSystem(system, id, scene));
+        state.sequenceIds.filter((id) => !system.userData.sequenceIds.includes(id)).forEach((id) => addSequenceToCritteriumSystem(system, findCritteriumSequenceById(id)));
+        system.userData.sequenceIds = [...state.sequenceIds];
+      }
+      applyCritteriumSpatialState(system, state);
+      refreshFloorAndGrid();
+    }
+
+    function createCritteriumSystemFromSequenceIds(sequenceIds = []) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const sequences = sequenceIds.map(findCritteriumSequenceById);
+      if (sequences.some((sequence) => !sequence)) return { success: false, reason: 'CRITERIUM_SYSTEM_MISSING_SEQUENCE' };
+      try {
+        const system = createCritteriumSystemFromSequences(sequences);
+        registerCritteriumSystem({ system, scene, partsRegistry: parts });
+        historyManager.pushAction({ type: HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_CREATE, systemId: system.userData.systemId, before: null, after: captureCritteriumSystemState(system) });
+        setActivePart(system);
+        refreshFloorAndGrid();
+        return { success: true, system };
+      } catch (error) { return { success: false, reason: error.message }; }
+    }
+
+    function changeCritteriumSystemSequence(systemId, sequenceId, add) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const system = findCritteriumSystemById(systemId);
+      const sequence = findCritteriumSequenceById(sequenceId);
+      if (!system || (add && !sequence)) return { success: false, reason: 'CRITERIUM_SYSTEM_OR_SEQUENCE_NOT_FOUND' };
+      const before = captureCritteriumSystemState(system);
+      try {
+        if (add) addSequenceToCritteriumSystem(system, sequence);
+        else removeSequenceFromCritteriumSystem(system, sequenceId, scene);
+        system.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(system);
+        historyManager.pushAction({ type: add ? HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_ADD_SEQUENCE : HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_REMOVE_SEQUENCE,
+          systemId, before, after: captureCritteriumSystemState(system) });
+        refreshFloorAndGrid();
+        return { success: true, system };
+      } catch (error) { return { success: false, reason: error.message }; }
+    }
+
+    async function duplicateCritteriumSystemSequence(systemId, sequenceId) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const system = findCritteriumSystemById(systemId);
+      const source = findCritteriumSequenceById(sequenceId);
+      if (!system || source?.parent !== system) return { success: false, reason: 'CRITERIUM_SYSTEM_SEQUENCE_NOT_FOUND' };
+      const frames = source.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY');
+      const draft = { frames: frames.map((frame) => structuredClone(frame.userData.config)), orientationDeg: 0 };
+      const before = captureCritteriumSystemState(system);
+      const placementOverrides = frames.map((frame) => ({ position: frame.getWorldPosition(new THREE.Vector3()).toArray(),
+        quaternion: frame.getWorldQuaternion(new THREE.Quaternion()).toArray() }));
+      const result = await createConfiguredCritteriumSequence(draft, { recordHistory: false, select: false,
+        offset: [0, 0, 2], placementOverrides });
+      if (!result.success) return result;
+      try {
+        addSequenceToCritteriumSystem(system, result.sequenceRoot);
+        const createdObjects = captureCreatedObjects([result.sequenceRoot]);
+        historyManager.pushAction({ type: HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DUPLICATE_SEQUENCE,
+          systemId, sequenceId: result.sequenceRoot.userData.sequenceId, createdObjects,
+          before, after: captureCritteriumSystemState(system) });
+        selectCritterium8Sequence(result.sequenceRoot);
+        refreshFloorAndGrid();
+        return { success: true, sequence: result.sequenceRoot };
+      } catch (error) {
+        result.sequenceRoot.parent?.remove(result.sequenceRoot);
+        result.sequenceRoot.traverse((node) => {
+          for (let index = parts.length - 1; index >= 0; index -= 1) if (parts[index].obj === node) parts.splice(index, 1);
+          for (let index = pickables.length - 1; index >= 0; index -= 1) if (pickables[index] === node) pickables.splice(index, 1);
+        });
+        return { success: false, reason: error.message };
+      }
+    }
+
+    function deleteCritteriumSystemSequence(systemId, sequenceId) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const system = findCritteriumSystemById(systemId);
+      const sequence = findCritteriumSequenceById(sequenceId);
+      if (!system || sequence?.parent !== system) return { success: false, reason: 'CRITERIUM_SYSTEM_SEQUENCE_NOT_FOUND' };
+      const before = captureCritteriumSystemState(system);
+      removeSequenceFromCritteriumSystem(system, sequenceId, scene);
+      system.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(system);
+      const deletedObjects = captureCreatedObjects([sequence]);
+      const after = captureCritteriumSystemState(system);
+      disconnectDeletedObjects(deletedObjects);
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DELETE_SEQUENCE,
+        systemId, sequenceId, deletedObjects, before, after });
+      emitBOM();
+      return { success: true };
+    }
+
+    function moveCritteriumSystemBy(systemId, delta) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const system = findCritteriumSystemById(systemId);
+      if (!system) return { success: false, reason: 'CRITERIUM_SYSTEM_NOT_FOUND' };
+      const before = captureCritteriumSystemState(system);
+      moveCritteriumSystem(system, delta);
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_MOVE, systemId, before, after: captureCritteriumSystemState(system) });
+      refreshFloorAndGrid();
+      return { success: true, system };
+    }
+
+    function moveCritteriumSequenceBy(systemId, sequenceId, delta) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const system = findCritteriumSystemById(systemId);
+      if (!system) return { success: false, reason: 'CRITERIUM_SYSTEM_NOT_FOUND' };
+      const before = captureCritteriumSystemState(system);
+      try {
+        const sequence = moveCritteriumSequenceInSystem(system, sequenceId, delta);
+        historyManager.pushAction({ type: HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_MOVE_SEQUENCE, systemId, before, after: captureCritteriumSystemState(system) });
+        refreshFloorAndGrid();
+        return { success: true, sequence };
+      } catch (error) { return { success: false, reason: error.message }; }
+    }
+
+    function runCritteriumSpatialOperation(systemId, type, operation) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const system = findCritteriumSystemById(systemId);
+      if (!system) return { success: false, reason: 'CRITERIUM_SYSTEM_NOT_FOUND' };
+      const before = captureCritteriumSystemState(system);
+      try {
+        const value = operation(system);
+        system.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(system);
+        const after = captureCritteriumSystemState(system);
+        if (JSON.stringify(before) !== JSON.stringify(after)) {
+          historyManager.pushAction({ type, systemId, before, after });
+          refreshFloorAndGrid();
+        }
+        return { success: true, value };
+      } catch (error) {
+        applyCritteriumSystemHistoryState(systemId, before);
+        return { success: false, reason: error.message };
+      }
+    }
+
+    function connectCritteriumSequencesById(systemId, sourceSequenceId, targetSequenceId) {
+      return runCritteriumSpatialOperation(systemId, HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_CONNECT_SEQUENCE, (system) => {
+        const source = findCritteriumSequenceById(sourceSequenceId);
+        if (source?.parent !== system) throw new Error('CRITERIUM_SYSTEM_SEQUENCE_NOT_FOUND');
+        const preview = previewCritteriumSequenceSnap(system, source, { targetSequenceId });
+        if (preview?.status !== 'GREEN') throw new Error(preview?.reason || 'CRITERIUM_SNAP_OUTSIDE_TOLERANCE');
+        translateCritteriumSequence(source, preview.deltaWorld);
+        return connectCritteriumSystemSequences(system, {
+          sourceSequenceId, targetSequenceId,
+          sourcePointId: preview.sourcePointId, targetPointId: preview.targetPointId, type: preview.type,
+        });
+      });
+    }
+
+    function disconnectCritteriumSequencesById(systemId, connectionId) {
+      return runCritteriumSpatialOperation(systemId, HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DISCONNECT_SEQUENCE,
+        (system) => disconnectCritteriumSystemSequences(system, connectionId));
+    }
+
+    function alignCritteriumSystemSequences(systemId, sequenceIds, mode) {
+      return runCritteriumSpatialOperation(systemId, HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_ALIGN_SEQUENCE,
+        (system) => alignCritteriumSequences(system, sequenceIds, mode));
+    }
+
+    function distributeCritteriumSystemSequences(systemId, sequenceIds, axis) {
+      return runCritteriumSpatialOperation(systemId, HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DISTRIBUTE_SEQUENCE,
+        (system) => distributeCritteriumSequences(system, sequenceIds, axis));
+    }
+
+    function rotateCritteriumSystemSequence(systemId, sequenceId, clockwise = true) {
+      return runCritteriumSpatialOperation(systemId, HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_ROTATE_SEQUENCE, (system) => {
+        const sequence = system.children.find((child) => child.userData?.sequenceId === sequenceId);
+        if (!sequence) throw new Error('CRITERIUM_SYSTEM_SEQUENCE_NOT_FOUND');
+        return rotateCritteriumSequence90(sequence, clockwise);
+      });
+    }
+
+    function organizeCritteriumSystem(systemId, separationM = 0.05) {
+      return runCritteriumSpatialOperation(systemId, HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_AUTO_LAYOUT,
+        (system) => layoutCritteriumLinear(system, system.userData.sequenceIds, { separationM }));
+    }
+
+    function deleteCritteriumSystemById(systemId) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const system = findCritteriumSystemById(systemId);
+      if (!system) return { success: false, reason: 'CRITERIUM_SYSTEM_NOT_FOUND' };
+      const before = captureCritteriumSystemState(system);
+      deleteCritteriumSystem(system, { partsRegistry: parts, parent: scene });
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DELETE, systemId, before, after: null });
+      refreshFloorAndGrid();
+      return { success: true };
+    }
+
     async function rebuildCritterium8Assembly(assembly, patch = {}, options = {}) {
       if (readOnly || !isCritterium8AssemblyRoot(assembly)) {
         return { success: false, reason: 'CRITTERIUM8_ASSEMBLY_REQUIRED', diagnostics: [] };
@@ -6654,7 +6987,7 @@ function ThreeCanvas({
       const prepared = await rebuildCritterium8Instance({ assembly, patch });
       if (!prepared.success) return prepared;
 
-      removePartObject(assembly, { emitBom: false, disposeResources: true });
+      removePartObject(assembly, { emitBom: false, disposeResources: true, exactTarget: true, allowCritteriumSystemMember: true });
       const { assembly: nextAssembly } = registerCritterium8Instance({
         instance: prepared.instance,
         parent,
@@ -9647,6 +9980,8 @@ function ThreeCanvas({
       } = options;
       const root = exactTarget ? obj : getRootPartObject(obj) || obj;
       if (root.userData?.lockedDelete) return false;
+      if (root.userData?.kind === 'CRITERIUM_SYSTEM') return false;
+      if (getCritteriumSystemRoot(root) && !options.allowCritteriumSystemMember) return false;
 
       // Puestos Kuo AV (sencillo o doble): si el usuario unió 2 o más puestos
       // en una misma bancada, ninguno se puede eliminar individualmente para
@@ -10136,6 +10471,17 @@ function ThreeCanvas({
         }
       }
 
+      function createPersistedCritterium8Sequence(entity) {
+        return restoreCritterium8Sequence(entity, {
+          scene, partsRegistry: parts, pickables,
+          findFrame: (frameId) => parts.find(({ obj }) => obj?.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' && obj.userData.frameId === frameId)?.obj,
+        });
+      }
+
+      function createPersistedCritteriumSystem(entity) {
+        return restoreCritteriumSystem(entity, { scene, partsRegistry: parts, findSequence: findCritteriumSequenceById });
+      }
+
       function createPersistedLink(entity) {
         const instance = restoreLinkEntity(entity, {
           applyFinishes: applyLinkFinishes,
@@ -10273,6 +10619,8 @@ function ThreeCanvas({
           addCatalogItem,
           createKoncisaPlus: createPersistedKoncisaPlus,
           createCritterium8: createPersistedCritterium8,
+          createCritterium8Sequence: createPersistedCritterium8Sequence,
+          createCritteriumSystem: createPersistedCritteriumSystem,
           createVetro: createPersistedVetro,
           createLink: createPersistedLink,
           createMultiple: createPersistedMultiple,
@@ -10287,7 +10635,16 @@ function ThreeCanvas({
             }),
         };
 
-        for (const [index, entity] of project.entities.entries()) {
+        const orderedEntities = [
+          ...project.entities.map((entity, index) => [index, entity]).filter(([, entity]) => entity.kind !== 'CRITTERIUM_8_SEQUENCE' && entity.kind !== 'CRITERIUM_SYSTEM'),
+          ...project.entities.map((entity, index) => [index, entity]).filter(([, entity]) => entity.kind === 'CRITTERIUM_8_SEQUENCE'),
+          ...project.entities.map((entity, index) => [index, entity]).filter(([, entity]) => entity.kind === 'CRITERIUM_SYSTEM'),
+        ];
+        for (const [index, entity] of orderedEntities) {
+          if (entity.kind === 'PART' && String(entity.codigoPT || '').startsWith('C8_SEQUENCE_')) {
+            result.failed.push({ index, kind: entity.kind, codigoPT: entity.codigoPT, reason: 'CRITTERIUM_SEQUENCE_LEGACY_RELATION_MISSING', diagnostics: [] });
+            continue;
+          }
           try {
             const object = await loadPersistedEntity(entity, context);
             restorePersistedEntityState(object, entity);
@@ -11178,10 +11535,63 @@ function ThreeCanvas({
       buildCritterium8SequenceFromSelectedFrames,
       createCritterium8SequenceFromSelection,
       createCritterium8SequenceFromFrames,
+      createConfiguredCritteriumSequence,
+      createConfiguredCritteriumSystem,
+      getCritteriumStructure: () => ({
+        sequences: parts.filter(({ obj }) => obj?.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY').map(({ obj }) => ({
+          sequenceId: obj.userData.sequenceId, frameCount: obj.userData.frameIds?.length || 0,
+          parentSystemId: obj.userData.parentSystemId || null,
+          frameIds: [...(obj.userData.frameIds || [])],
+          frameInstanceIds: obj.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY').map((frame) => frame.userData.instanceId),
+          frames: obj.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY').map((frame) => structuredClone(frame.userData.config)),
+        })),
+        systems: parts.filter(({ obj }) => obj?.userData?.kind === 'CRITERIUM_SYSTEM').map(({ obj }) => ({
+          systemId: obj.userData.systemId, sequenceIds: [...obj.userData.sequenceIds],
+          connections: structuredClone(obj.userData.connections || []),
+          layout: structuredClone(obj.userData.layout || {}),
+          spatialDiagnostics: structuredClone(obj.userData.spatialDiagnostics || []),
+        })),
+      }),
+      selectCritteriumSequenceById: (sequenceId) => {
+        const sequence = findCritteriumSequenceById(sequenceId);
+        if (!sequence) return false;
+        selectCritterium8Sequence(sequence);
+        return true;
+      },
+      selectCritteriumFrameByInstanceId: (instanceId) => {
+        const frame = parts.find(({ obj }) => obj?.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' && obj.userData.instanceId === instanceId)?.obj;
+        if (!frame) return false;
+        syncSelectedIds3D([instanceId]);
+        setActivePart(frame, { targetIds: [instanceId] });
+        return true;
+      },
       rebuildSelectedCritterium8Sequence,
       dissolveSelectedCritterium8Sequence,
       addFrameToSelectedCritterium8Sequence,
       removeFrameFromSelectedCritterium8Sequence,
+      createCritteriumSystemFromSequenceIds,
+      addSequenceToCritteriumSystem: (systemId, sequenceId) => changeCritteriumSystemSequence(systemId, sequenceId, true),
+      removeSequenceFromCritteriumSystem: (systemId, sequenceId) => changeCritteriumSystemSequence(systemId, sequenceId, false),
+      duplicateCritteriumSystemSequence,
+      deleteCritteriumSystemSequence,
+      moveCritteriumSystemBy,
+      moveCritteriumSequenceBy,
+      connectCritteriumSequencesById,
+      disconnectCritteriumSequencesById,
+      alignCritteriumSystemSequences,
+      distributeCritteriumSystemSequences,
+      rotateCritteriumSystemSequence,
+      organizeCritteriumSystem,
+      getCritteriumConnectionPoints: (sequenceId) => resolveCritteriumConnectionPoints(findCritteriumSequenceById(sequenceId)),
+      deleteCritteriumSystemById,
+      selectCritteriumSystemById: (systemId) => {
+        const system = findCritteriumSystemById(systemId);
+        if (!system) return false;
+        syncSelectedIds3D([systemId]);
+        setActivePart(system, { targetIds: [systemId] });
+        return true;
+      },
+      getCritteriumSystemForObject: getCritteriumSystemRoot,
       updateSelectedCritterium8,
       updateSelectedCritterium8Tile,
       rebuildSelectedCritterium8,
@@ -11779,6 +12189,8 @@ function ThreeCanvas({
         object,
         parent: object.parent || null,
         position: position.toArray(),
+        spatialConnections: object.userData?.kind === 'MULTIPLE_PRODUCT' && !object.userData?.systemId
+          ? structuredClone(object.userData.spatialConnections || []) : undefined,
       };
     }
 
@@ -11798,7 +12210,7 @@ function ThreeCanvas({
           previous.position.some(
             (value, component) =>
               Math.abs(value - next.position[component]) > TRANSFORM_HISTORY_EPSILON
-          )
+          ) || JSON.stringify(previous.spatialConnections) !== JSON.stringify(next.spatialConnections)
         );
       });
     }
@@ -11874,9 +12286,10 @@ function ThreeCanvas({
     }
 
     function applyMoveHistoryState(snapshots) {
-      snapshots.forEach(({ object, parent, position }) => {
+      snapshots.forEach(({ object, parent, position, spatialConnections }) => {
         if (!object || object.parent !== parent) return;
         object.position.fromArray(position);
+        if (spatialConnections) object.userData.spatialConnections = structuredClone(spatialConnections);
         object.updateMatrixWorld(true);
       });
       persistLinkComponentTransforms(snapshots.map(({ object }) => object));
@@ -11984,6 +12397,15 @@ function ThreeCanvas({
       let removedAny = false;
       deletedObjects.forEach(({ object }) => {
         if (!object || (!object.parent && !parts.some(({ obj }) => obj === object))) return;
+        if (object.userData?.kind === 'CRITERIUM_SYSTEM' || object.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') {
+          const descendants = new Set();
+          object.traverse((node) => descendants.add(node));
+          object.parent?.remove(object);
+          for (let index = parts.length - 1; index >= 0; index -= 1) if (descendants.has(parts[index].obj)) parts.splice(index, 1);
+          for (let index = pickables.length - 1; index >= 0; index -= 1) if (descendants.has(pickables[index])) pickables.splice(index, 1);
+          removedAny = true;
+          return;
+        }
         const removed = removePartObject(object, {
           skipFloatingChildren: true,
           disposeResources: false,
@@ -12049,6 +12471,8 @@ function ThreeCanvas({
       const retainedObjects =
         action.type === HISTORY_ACTION_TYPES.DELETE
           ? action.deletedObjects
+          : action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DELETE_SEQUENCE
+            ? action.deletedObjects
           : action.type === HISTORY_ACTION_TYPES.CREATE_OBJECTS
             ? action.createdObjects
             : null;
@@ -12213,6 +12637,37 @@ function ThreeCanvas({
         action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_SEQUENCE_REMOVE_FRAME
       ) {
         applyCritterium8SequenceHistoryState(state || {});
+      } else if (action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DUPLICATE_SEQUENCE) {
+        if (direction === 'undo') {
+          applyCritteriumSystemHistoryState(action.systemId, action.before);
+          disconnectDeletedObjects(action.createdObjects || []);
+        } else {
+          restoreDeletedObjects(action.createdObjects || []);
+          applyCritteriumSystemHistoryState(action.systemId, action.after);
+        }
+      } else if (action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DELETE_SEQUENCE) {
+        if (direction === 'undo') {
+          restoreDeletedObjects(action.deletedObjects || []);
+          applyCritteriumSystemHistoryState(action.systemId, action.before);
+        } else {
+          applyCritteriumSystemHistoryState(action.systemId, action.after);
+          disconnectDeletedObjects(action.deletedObjects || []);
+        }
+      } else if (
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_CREATE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_ADD_SEQUENCE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_REMOVE_SEQUENCE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_MOVE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_MOVE_SEQUENCE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_CONNECT_SEQUENCE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DISCONNECT_SEQUENCE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_ALIGN_SEQUENCE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DISTRIBUTE_SEQUENCE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_ROTATE_SEQUENCE ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_AUTO_LAYOUT ||
+        action.type === HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_DELETE
+      ) {
+        applyCritteriumSystemHistoryState(action.systemId, state);
       } else if (dimensionHistoryActionTypes.has(action.type)) {
         if (typeof dimensionHistoryReplayHandler !== 'function') {
           throw new Error('Dimension2D history replay handler is not registered.');
@@ -15509,13 +15964,17 @@ function ThreeCanvas({
       if (product?.userData?.kind !== 'MULTIPLE_PRODUCT') return;
       try {
         if (window.localStorage.getItem('MULTIPLE_SMART_LAYOUT_DEBUG') === 'true')
-          console.debug('[MULTIPLE SNAP DEBUG]', phase, describeMultipleProductSnap(product));
+          console.debug('[MULTIPLE SNAP DEBUG]', phase,
+            product.parent?.userData?.kind === 'MULTIPLE_SYSTEM'
+              ? describeMultipleProductSnap(product)
+              : describeMultipleStandardSnap(product, getStandaloneMultipleProducts(scene)));
       } catch (error) { void error; }
     }
 
     function restoreDragSession() {
       if (!dragSession3D) return;
       multipleSnapMarker.visible = false;
+      critteriumSnapMarker.visible = false;
       dragSession3D.initialPositions.forEach(({ obj, localPosition }) => {
         obj.position.copy(localPosition);
         obj.updateMatrixWorld(true);
@@ -15670,7 +16129,9 @@ function ThreeCanvas({
               : isCritterium8AssemblyRoot(root)
                 ? getCritterium8EditablePart(hitObj) || root
                 : root;
-      const movementRoot = multipleSystemProduct || (moveAsGroupRef.current
+      const selectedCritteriumSystem = activePart?.userData?.kind === 'CRITERIUM_SYSTEM' &&
+        getCritteriumSystemRoot(hitObj) === activePart ? activePart : null;
+      const movementRoot = selectedCritteriumSystem || multipleSystemProduct || (moveAsGroupRef.current
         ? root
         : getIndividualMovementRoot(hitObj) || propertiesTarget || root);
 
@@ -16043,6 +16504,9 @@ function ThreeCanvas({
       if (!dragTargets.length) {
         dragTargets = [targetToDrag];
       }
+      if (selectedCritteriumSystem || movementRoot.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') {
+        dragTargets = [movementRoot];
+      }
 
       if (dragTargets.some((obj) => obj.userData?.lockedMovement)) return;
 
@@ -16059,8 +16523,16 @@ function ThreeCanvas({
           localPosition: obj.position.clone(),
           worldPosition: obj.getWorldPosition(new THREE.Vector3()),
         })),
+        standaloneSpatialBefore: dragTargets.length === 1 && dragTargets[0].userData?.kind === 'MULTIPLE_PRODUCT' && !dragTargets[0].userData?.systemId
+          ? getStandaloneMultipleProducts(scene).map((obj) => createMoveSnapshot(obj)) : null,
+        critteriumSpatialBefore: dragTargets.length === 1 && dragTargets[0].userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' &&
+          dragTargets[0].parent?.userData?.kind === 'CRITERIUM_SYSTEM'
+          ? captureCritteriumSystemState(dragTargets[0].parent) : null,
+        critteriumSystemBefore: dragTargets.length === 1 && dragTargets[0].userData?.kind === 'CRITERIUM_SYSTEM'
+          ? captureCritteriumSystemState(dragTargets[0]) : null,
       };
-      if (multipleSystemProduct) logMultipleSnapDebug('POINTER_DOWN', multipleSystemProduct);
+      if (dragTargets.length === 1 && dragTargets[0].userData?.kind === 'MULTIPLE_PRODUCT')
+        logMultipleSnapDebug('POINTER_DOWN', dragTargets[0]);
       isDragging = false;
       hasMoved3D = false;
 
@@ -16172,9 +16644,27 @@ function ThreeCanvas({
             }
           });
           multipleSnapMarker.visible = false;
+          critteriumSnapMarker.visible = false;
           if (dragSession3D.initialPositions.length === 1) {
             const moved = dragSession3D.initialPositions[0].obj;
-            const preview = previewMultipleProductDrag(moved);
+            if (moved.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' && moved.parent?.userData?.kind === 'CRITERIUM_SYSTEM') {
+              const preview = previewCritteriumSequenceSnap(moved.parent, moved);
+              dragSession3D.critteriumPreview = preview;
+              if (preview) {
+                const color = preview.status === 'GREEN' ? 0x16a34a : preview.status === 'YELLOW' ? 0xeab308 : 0xdc2626;
+                for (const marker of [critteriumSnapOrigin, critteriumSnapTarget, critteriumSnapFinal, critteriumSnapLine]) marker.material.color.setHex(color);
+                critteriumSnapOrigin.position.fromArray(preview.originWorld);
+                critteriumSnapTarget.position.fromArray(preview.destinationWorld);
+                critteriumSnapFinal.position.fromArray(preview.finalPositionWorld);
+                critteriumSnapFinal.rotation.x = -Math.PI / 2;
+                critteriumSnapLine.geometry.setFromPoints([critteriumSnapOrigin.position, critteriumSnapTarget.position]);
+                critteriumSnapMarker.visible = true;
+              }
+            }
+            const preview = moved.userData?.kind === 'MULTIPLE_PRODUCT' && moved.parent?.userData?.kind === 'MULTIPLE_SYSTEM'
+              ? previewMultipleProductDrag(moved)
+              : moved.userData?.kind === 'MULTIPLE_PRODUCT'
+                ? previewMultipleStandardSnap(moved, getStandaloneMultipleProducts(scene)) : null;
             logMultipleSnapDebug('DRAG_PREVIEW', moved);
             if (preview) {
               const color = preview.status === 'GREEN' ? 0x16a34a : preview.status === 'YELLOW' ? 0xeab308 : 0xdc2626;
@@ -16188,6 +16678,11 @@ function ThreeCanvas({
               multipleSnapFinal.rotation.x = -Math.PI / 2;
               multipleSnapLine.geometry.setFromPoints([multipleSnapOrigin.position, multipleSnapTarget.position]);
               multipleSnapMarker.visible = true;
+              if (preview.status === 'GREEN' && preview.magneticStrength > 0) {
+                const currentWorld = moved.getWorldPosition(new THREE.Vector3());
+                const finalWorld = new THREE.Vector3(...preview.finalPositionWorld);
+                setObjectWorldPosition(moved, currentWorld.lerp(finalWorld, preview.magneticStrength));
+              }
             }
           }
 
@@ -17005,6 +17500,7 @@ function ThreeCanvas({
       hasMoved3D = false;
       dragSession3D = null;
       multipleSnapMarker.visible = false;
+      critteriumSnapMarker.visible = false;
       controls.enabled = true;
 
       try {
@@ -17022,7 +17518,8 @@ function ThreeCanvas({
         const snappedMila = !!milaSnapResult?.snapped;
 
         let activeLocalBeforeSnap = null;
-        if (!snappedMila && !(activePart?.userData?.kind === 'MULTIPLE_PRODUCT' && activePart.parent?.userData?.kind === 'MULTIPLE_SYSTEM')) {
+        if (!snappedMila && !(activePart?.userData?.kind === 'MULTIPLE_PRODUCT') &&
+          activePart?.userData?.kind !== 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') {
           activeLocalBeforeSnap = activePart?.position.clone();
           const activeWorldBeforeSnap = activePart?.getWorldPosition(new THREE.Vector3());
           snapActivePart(true);
@@ -17233,6 +17730,56 @@ function ThreeCanvas({
             const result = commitMultipleProductDrag(systemObject, movedProducts);
             movedProducts.forEach((product) => logMultipleSnapDebug(result.rejected ? 'REJECTED' : 'POINTER_UP', product));
             if (result.changed) historyManager.pushAction({ type: movedProducts.length === 1 ? HISTORY_ACTION_TYPES.MULTIPLE_LAYOUT_MOVE : HISTORY_ACTION_TYPES.MULTIPLE_SYSTEM_MOVE, instanceId: systemObject.userData.systemId, before: result.before, after: result.after });
+          } else if (completedDragSession.critteriumSystemBefore &&
+            completedDragSession.initialPositions.length === 1 &&
+            completedDragSession.initialPositions[0].obj.userData?.kind === 'CRITERIUM_SYSTEM') {
+            const system = completedDragSession.initialPositions[0].obj;
+            system.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(system);
+            const afterState = captureCritteriumSystemState(system);
+            if (JSON.stringify(completedDragSession.critteriumSystemBefore) !== JSON.stringify(afterState)) {
+              historyManager.pushAction({ type: HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_MOVE,
+                systemId: system.userData.systemId, before: completedDragSession.critteriumSystemBefore, after: afterState });
+            }
+          } else if (completedDragSession.critteriumSpatialBefore &&
+            completedDragSession.initialPositions.length === 1 &&
+            completedDragSession.initialPositions[0].obj.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') {
+            const sequence = completedDragSession.initialPositions[0].obj;
+            const system = sequence.parent;
+            const preview = previewCritteriumSequenceSnap(system, sequence);
+            if (preview?.status === 'GREEN') {
+              try {
+                const pairKey = [preview.sourceSequenceId, preview.targetSequenceId].sort().join('|');
+                const existingConnection = system.userData.connections.find((item) =>
+                  [item.sourceSequenceId, item.targetSequenceId].sort().join('|') === pairKey);
+                const sameEndpoints = !existingConnection ||
+                  (existingConnection.sourceSequenceId === preview.sourceSequenceId &&
+                    existingConnection.sourcePointId === preview.sourcePointId &&
+                    existingConnection.targetPointId === preview.targetPointId) ||
+                  (existingConnection.sourceSequenceId === preview.targetSequenceId &&
+                    existingConnection.sourcePointId === preview.targetPointId &&
+                    existingConnection.targetPointId === preview.sourcePointId);
+                if (sameEndpoints) translateCritteriumSequence(sequence, preview.deltaWorld);
+                if (!existingConnection && sameEndpoints) {
+                  connectCritteriumSystemSequences(system, {
+                    sourceSequenceId: preview.sourceSequenceId, targetSequenceId: preview.targetSequenceId,
+                    sourcePointId: preview.sourcePointId, targetPointId: preview.targetPointId, type: preview.type,
+                  });
+                }
+              } catch (error) { console.warn('[CRITERIUM SNAP]', error); }
+            }
+            system.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(system);
+            const afterState = captureCritteriumSystemState(system);
+            if (JSON.stringify(completedDragSession.critteriumSpatialBefore) !== JSON.stringify(afterState)) {
+              historyManager.pushAction({ type: HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_MOVE_SEQUENCE,
+                systemId: system.userData.systemId, before: completedDragSession.critteriumSpatialBefore, after: afterState });
+            }
+          } else if (completedDragSession.standaloneSpatialBefore?.length &&
+            completedDragSession.initialPositions[0].obj.userData?.kind === 'MULTIPLE_PRODUCT') {
+            const product = completedDragSession.initialPositions[0].obj;
+            commitMultipleStandardSnap(product, getStandaloneMultipleProducts(scene));
+            logMultipleSnapDebug('POINTER_UP', product);
+            pushMoveHistory(completedDragSession.standaloneSpatialBefore,
+              captureMoveState(getStandaloneMultipleProducts(scene)));
           } else {
             pushMoveHistory(before, after);
           }

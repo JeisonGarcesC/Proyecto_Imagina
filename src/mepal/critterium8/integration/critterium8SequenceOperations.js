@@ -88,11 +88,48 @@ export function prepareCritterium8SequenceRebuild(sequenceRoot, options = {}) {
     return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
   }
   const frames = (sequenceRoot.children || []).filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY');
-  return prepareCritterium8Sequence({
-    frameAssemblies: frames,
-    options: { ...options, sequenceId: sequenceRoot.userData.sequenceId },
-    previousSequence: sequenceRoot.userData.sequence,
-  });
+  let sceneRoot = sequenceRoot;
+  while (sceneRoot.parent) sceneRoot = sceneRoot.parent;
+  const staging = new THREE.Group();
+  sceneRoot.add(staging);
+  staging.position.copy(sequenceRoot.getWorldPosition(new THREE.Vector3()));
+  staging.quaternion.copy(sequenceRoot.getWorldQuaternion(new THREE.Quaternion()));
+  staging.scale.copy(sequenceRoot.getWorldScale(new THREE.Vector3()));
+  staging.updateMatrixWorld(true);
+  frames.forEach((frame) => staging.attach(frame));
+  staging.position.set(0, 0, 0);
+  staging.quaternion.identity();
+  staging.scale.set(1, 1, 1);
+  staging.updateMatrixWorld(true);
+  try {
+    const prepared = prepareCritterium8Sequence({
+      frameAssemblies: frames,
+      options: { ...options, sequenceId: sequenceRoot.userData.sequenceId },
+      previousSequence: sequenceRoot.userData.sequence,
+    });
+    if (prepared.success) {
+      prepared.sequenceRoot.position.copy(sequenceRoot.position);
+      prepared.sequenceRoot.quaternion.copy(sequenceRoot.quaternion);
+      prepared.sequenceRoot.scale.copy(sequenceRoot.scale);
+      prepared.sequenceRoot.updateMatrixWorld(true);
+    } else {
+      staging.position.copy(sequenceRoot.getWorldPosition(new THREE.Vector3()));
+      staging.quaternion.copy(sequenceRoot.getWorldQuaternion(new THREE.Quaternion()));
+      staging.scale.copy(sequenceRoot.getWorldScale(new THREE.Vector3()));
+      staging.updateMatrixWorld(true);
+      frames.forEach((frame) => sequenceRoot.attach(frame));
+    }
+    return prepared;
+  } catch (error) {
+    staging.position.copy(sequenceRoot.getWorldPosition(new THREE.Vector3()));
+    staging.quaternion.copy(sequenceRoot.getWorldQuaternion(new THREE.Quaternion()));
+    staging.scale.copy(sequenceRoot.getWorldScale(new THREE.Vector3()));
+    staging.updateMatrixWorld(true);
+    frames.filter((frame) => frame.parent === staging).forEach((frame) => sequenceRoot.attach(frame));
+    throw error;
+  } finally {
+    sceneRoot.remove(staging);
+  }
 }
 
 export function validateFrameAdditionToCritterium8Sequence(sequenceRoot, frameAssembly, options = {}) {

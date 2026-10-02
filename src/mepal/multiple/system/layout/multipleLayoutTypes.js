@@ -1,4 +1,5 @@
 export const SNAP_DISTANCE_MM = 300;
+export const MAGNETIC_SNAP_DISTANCE_MM = 150;
 export const SNAP_TOLERANCE_MM = SNAP_DISTANCE_MM;
 export const DEFAULT_MULTIPLE_LAYOUT = Object.freeze({ snapEnabled: true, snapDistanceMm: SNAP_DISTANCE_MM, snapToleranceMm: SNAP_DISTANCE_MM });
 export const MULTIPLE_CONNECTION_TYPES = Object.freeze(['LINEAR_START', 'LINEAR_END', 'CORNER_LEFT', 'CORNER_RIGHT', 'DOOR_CONNECTION']);

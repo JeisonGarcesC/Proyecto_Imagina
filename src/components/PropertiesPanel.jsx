@@ -95,7 +95,7 @@ export default function PropertiesPanel({
   //para poner el acabado por grupos
   const canApplyGroup = !!part?.groupId;
 
-  if (part?.critterium8 || part?.critterium8Sequence) {
+  if (part?.critterium8 || part?.critterium8Sequence || part?.critteriumSystem) {
     return <Critterium8Properties part={part} api={api} readOnly={readOnly} />;
   }
 

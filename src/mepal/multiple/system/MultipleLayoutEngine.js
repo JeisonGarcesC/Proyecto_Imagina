@@ -1,4 +1,4 @@
-import { toWorldUnitsFromCm } from './layout/multipleSpatialUnits.js';
+import { toWorldUnitsFromCm } from '../connections/multipleSpatialUnits.js';
 
 const moduleWidthM = (module) => toWorldUnitsFromCm(module.config?.widthCm || 0);
 

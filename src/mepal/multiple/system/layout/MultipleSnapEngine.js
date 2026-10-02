@@ -2,17 +2,18 @@ import { Vector3 } from 'three';
 import { getMultipleConnectionPoints, resolveMultipleConnection } from './MultipleConnectionResolver.js';
 import { normalizeMultipleLayout } from './multipleLayoutTypes.js';
 import { detectMultipleCollisions } from './MultipleCollisionEngine.js';
-import { toWorldUnitsFromMm, toMmFromWorldUnits } from './multipleSpatialUnits.js';
+import { toWorldUnitsFromMm, toMmFromWorldUnits } from '../../connections/multipleSpatialUnits.js';
 
 const sameDimension = (a, b, key) => Number(a.config?.[key]) === Number(b.config?.[key]);
 
-export function previewMultipleSnap(moving, others = [], layout = {}, { worldMatrix } = {}) {
+export function previewMultipleSnap(moving, others = [], layout = {}, { worldMatrix, allowedPointIds = null } = {}) {
   const settings = normalizeMultipleLayout(layout);
   if (!settings.snapEnabled) return null;
   const neighbors = others.filter((module) => module.moduleId !== moving.moduleId);
   let best = null;
   for (const target of neighbors) {
     for (const a of getMultipleConnectionPoints(target)) for (const b of getMultipleConnectionPoints(moving)) {
+      if (allowedPointIds && (!allowedPointIds.includes(a.id) || !allowedPointIds.includes(b.id))) continue;
       const sourceWorld = new Vector3(...b.position);
       const targetWorld = new Vector3(...a.position);
       if (worldMatrix) { sourceWorld.applyMatrix4(worldMatrix); targetWorld.applyMatrix4(worldMatrix); }
