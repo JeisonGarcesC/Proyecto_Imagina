@@ -285,6 +285,7 @@ export default function LeftPanel({
   setEspesorFilter,
   materials, // 👈 nuevo
   selectedPart,
+  critteriumHistoryRevision,
   onApplyGlobalMaterial,
   onAddCatalogItem,
   onAddTypology,
@@ -2793,7 +2794,7 @@ export default function LeftPanel({
 
 
       {section === 'critterium8' && (
-        <CriteriumPanel threeApiRef={threeApiRef} onCreateFrame={onAddCritterium8} readOnly={readOnly} />
+        <CriteriumPanel threeApiRef={threeApiRef} onCreateFrame={onAddCritterium8} readOnly={readOnly} selectedPart={selectedPart} historyRevision={critteriumHistoryRevision} catalogItems={catalogItems} country={country} />
       )}
 
       {/* ======================= KUO GO ======================= */}

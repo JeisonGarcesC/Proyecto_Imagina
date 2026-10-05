@@ -6,6 +6,7 @@ import {
 import { resolveCritterium8SequenceJunctionParts } from '../junctions/junctionPartResolver.js';
 import { buildCritterium8SequenceJunctionLayouts } from '../junctions/layout/junctionLayoutBuilder.js';
 import { buildCritterium8FrameSequence3D } from '../builders/Critterium8SequenceRenderBuilder.js';
+import { reconcileCritteriumModuleSlots } from '../composition/sequenceModuleSlots.js';
 
 export function describeCritterium8FrameAssembly(assembly) {
   if (assembly?.userData?.kind !== 'CRITTERIUM_8_ASSEMBLY') return null;
@@ -20,6 +21,7 @@ export function describeCritterium8FrameAssembly(assembly) {
     position: { x: position.x, z: position.z },
     rotationY: rotation.y,
     widthCm: Number(definition.widthCm ?? config.widthCm),
+    depthCm: Number(assembly.userData.layout?.depthCm ?? definition.thicknessCm ?? 8),
     heightCm: Number(definition.heightCm ?? config.heightCm),
     frameMode: String(definition.frameMode || config.frameMode || 'HALF_HEIGHT'),
     projectHeightCm: Number(config.projectHeightCm ?? definition.heightCm),
@@ -67,6 +69,7 @@ export function prepareCritterium8Sequence({ frameAssemblies = [], options = {},
   }
   let sequence = resolveCritterium8FrameSequence(frames, options).sequence;
   sequence = preserveJunctionOverrides(sequence, previousSequence);
+  sequence = reconcileCritteriumModuleSlots(sequence, frames, previousSequence);
   const resolution = resolveCritterium8SequenceJunctionParts({ sequence, frames });
   const layouts = buildCritterium8SequenceJunctionLayouts({ sequence, frames, resolutions: resolution.results });
   const sequenceRoot = buildCritterium8FrameSequence3D({

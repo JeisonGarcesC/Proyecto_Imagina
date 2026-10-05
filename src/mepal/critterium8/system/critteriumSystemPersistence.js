@@ -5,6 +5,7 @@ import {
   registerCritteriumSystem,
 } from './critteriumSystem.js';
 import { collectCritteriumSpatialDiagnostics } from './layout/CritteriumConnectionResolver.js';
+import { analyzeCritteriumSpatialTopology } from './layout/CritteriumSpatialTopology.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -12,10 +13,16 @@ export function serializeCritteriumSystem(system) {
   if (system?.userData?.kind !== 'CRITERIUM_SYSTEM') throw new Error('CRITERIUM_SYSTEM_REQUIRED');
   const sequenceIds = system.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY').map((child) => child.userData.sequenceId);
   if (JSON.stringify(sequenceIds) !== JSON.stringify(system.userData.sequenceIds)) throw new Error('CRITERIUM_SYSTEM_SEQUENCE_MISMATCH');
+  const topology = analyzeCritteriumSpatialTopology(system);
   return {
     kind: 'CRITERIUM_SYSTEM', systemId: system.userData.systemId,
     sequenceIds, connections: clone(system.userData.connections || []), layout: clone(system.userData.layout || {}),
     spatialConfig: clone(system.userData.spatialConfig || {}),
+    spatialNodes: topology.spatialNodes,
+    spatialConnections: topology.spatialConnections,
+    closedLoops: topology.closedLoops,
+    spatialMeasurements: { lengths: topology.lengths, totalLengthM: topology.totalLengthM },
+    ...(system.userData.commercialSnapshot ? { commercialSnapshot: clone(system.userData.commercialSnapshot) } : {}),
     transform: { position: system.position.toArray(), quaternion: system.quaternion.toArray(), scale: system.scale.toArray() },
   };
 }
@@ -27,6 +34,7 @@ export function restoreCritteriumSystem(entity, { scene, partsRegistry, findSequ
   if (sequences.some((sequence) => !sequence)) throw new Error(`CRITERIUM_SYSTEM_MISSING_SEQUENCE:${entity.sequenceIds.filter((_, index) => !sequences[index]).join(',')}`);
   if (sequences.some((sequence) => sequence.userData.parentSystemId)) throw new Error('CRITERIUM_SYSTEM_SEQUENCE_ALREADY_ATTACHED');
   const system = createCritteriumSystem({ systemId: entity.systemId, layout: entity.layout, spatialConfig: entity.spatialConfig, transform: entity.transform });
+  if (entity.commercialSnapshot) system.userData.commercialSnapshot = clone(entity.commercialSnapshot);
   scene.add(system);
   try {
     sequences.forEach((sequence) => addSequenceToCritteriumSystem(system, sequence));

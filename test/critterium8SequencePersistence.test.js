@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { createCritterium8Instance } from '../src/mepal/critterium8/factories/createCritterium8Instance.js';
 import { registerCritterium8Instance } from '../src/mepal/critterium8/integration/critterium8Registration.js';
 import { prepareCritterium8Sequence, prepareCritterium8SequenceRebuild } from '../src/mepal/critterium8/integration/critterium8SequenceOperations.js';
-import { registerCritterium8Sequence } from '../src/mepal/critterium8/integration/critterium8SequenceRegistration.js';
+import { registerCritterium8Sequence, unregisterCritterium8Sequence } from '../src/mepal/critterium8/integration/critterium8SequenceRegistration.js';
 import { restoreCritterium8Sequence } from '../src/mepal/critterium8/integration/critterium8SequencePersistence.js';
 import { serializeProjectEntities } from '../src/core/persistence/entitySerializers.js';
 import { loadPersistedEntity } from '../src/core/persistence/entityLoaders.js';
@@ -71,14 +71,18 @@ test('guardar y cargar secuencia preserva frames, junctions, conexiones, IDs y t
   assert.deepEqual(edited.sequenceRoot.userData.junctionIds, entity.junctionIds);
 });
 
-test('frame faltante o junction inconsistente no crea secuencia ni duplica frames', async () => {
+test('frame faltante conserva secuencia modular con diagnóstico; junction inconsistente se rechaza', async () => {
   const project = await createProject();
   const entity = serializeProjectEntities(project.parts).entities.find((item) => item.kind === 'CRITTERIUM_8_SEQUENCE');
   const scene = new THREE.Scene(); const parts = []; const pickables = [];
   const frame = project.frames[0]; scene.attach(frame);
   parts.push({ code: frame.userData.instanceId, obj: frame });
   const context = { scene, partsRegistry: parts, pickables, findFrame: (id) => id === frame.userData.frameId ? frame : null };
-  assert.throws(() => restoreCritterium8Sequence(entity, context), /CRITTERIUM_SEQUENCE_MISSING_FRAME/);
+  const incomplete = restoreCritterium8Sequence(entity, context);
+  assert.equal(incomplete.userData.sequenceId, entity.sequenceId);
+  assert.deepEqual(incomplete.userData.diagnostics.map((item) => item.code), ['CRITTERIUM_MODULE_MISSING_FRAME']);
+  assert.equal(incomplete.userData.sequence.slots.filter((slot) => slot.status === 'MISSING_FRAME').length, 1);
+  unregisterCritterium8Sequence({ sequenceRoot: incomplete, partsRegistry: parts, pickables, preserveFrames: true, targetParent: scene });
   assert.equal(parts.length, 1);
   const wrong = { ...entity, junctionIds: ['MISSING_JUNCTION'] };
   context.findFrame = (id) => project.frames.find((item) => item.userData.frameId === id);

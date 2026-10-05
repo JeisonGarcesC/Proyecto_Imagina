@@ -1,0 +1,2289 @@
+{
+  "version": "2.0",
+  "schemaVersion": 2,
+  "units": "m",
+  "floor": {
+    "showGrid": true,
+    "gridSize": 0.1,
+    "materialCode": null
+  },
+  "camera": {
+    "position": [
+      2.0340982986705813,
+      3.3833898666147797,
+      6.336072763986616
+    ],
+    "target": [
+      0.9,
+      0.6524999999441207,
+      0
+    ]
+  },
+  "entities": [
+    {
+      "kind": "CRITTERIUM_8",
+      "instanceId": "C8_0ad323f4-c22e-4e86-8680-10312e972320",
+      "assemblyId": "C8_0ad323f4-c22e-4e86-8680-10312e972320",
+      "groupId": "C8_0ad323f4-c22e-4e86-8680-10312e972320",
+      "frameId": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+      "family": "CRITTERIUM_8",
+      "config": {
+        "widthCm": 90,
+        "heightCm": 128,
+        "frameMode": "HALF_HEIGHT",
+        "compositionMode": "MODULAR",
+        "projectHeightCm": 128,
+        "growthModules": [],
+        "tiles": []
+      },
+      "transform": {
+        "position": [
+          1.3623092520970512,
+          0,
+          -0.7923092520970522
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "metadata": {
+        "provisionalGeometry": true
+      }
+    },
+    {
+      "kind": "CRITTERIUM_8",
+      "instanceId": "C8_38dc85a9-2596-468b-b46d-d69822651482",
+      "assemblyId": "C8_38dc85a9-2596-468b-b46d-d69822651482",
+      "groupId": "C8_38dc85a9-2596-468b-b46d-d69822651482",
+      "frameId": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+      "family": "CRITTERIUM_8",
+      "config": {
+        "widthCm": 90,
+        "heightCm": 128,
+        "frameMode": "HALF_HEIGHT",
+        "compositionMode": "MODULAR",
+        "projectHeightCm": 128,
+        "growthModules": [],
+        "tiles": []
+      },
+      "transform": {
+        "position": [
+          2.2623092520970514,
+          0,
+          -0.7923092520970522
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "metadata": {
+        "provisionalGeometry": true
+      }
+    },
+    {
+      "kind": "CRITTERIUM_8",
+      "instanceId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5",
+      "assemblyId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5",
+      "groupId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5",
+      "frameId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+      "family": "CRITTERIUM_8",
+      "config": {
+        "widthCm": 90,
+        "heightCm": 128,
+        "frameMode": "HALF_HEIGHT",
+        "compositionMode": "MODULAR",
+        "projectHeightCm": 128,
+        "growthModules": [],
+        "tiles": []
+      },
+      "transform": {
+        "position": [
+          3.1623092520970517,
+          0,
+          -0.792309252097052
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "metadata": {
+        "provisionalGeometry": true
+      }
+    },
+    {
+      "kind": "CRITTERIUM_8",
+      "instanceId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db",
+      "assemblyId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db",
+      "groupId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db",
+      "frameId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+      "family": "CRITTERIUM_8",
+      "config": {
+        "widthCm": 90,
+        "heightCm": 128,
+        "frameMode": "HALF_HEIGHT",
+        "compositionMode": "MODULAR",
+        "projectHeightCm": 128,
+        "growthModules": [],
+        "tiles": []
+      },
+      "transform": {
+        "position": [
+          4.062309252097052,
+          0,
+          -0.792309252097052
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "metadata": {
+        "provisionalGeometry": true
+      }
+    },
+    {
+      "kind": "CRITTERIUM_8",
+      "instanceId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9",
+      "assemblyId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9",
+      "groupId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9",
+      "frameId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+      "family": "CRITTERIUM_8",
+      "config": {
+        "widthCm": 90,
+        "heightCm": 128,
+        "frameMode": "HALF_HEIGHT",
+        "compositionMode": "MODULAR",
+        "projectHeightCm": 128,
+        "growthModules": [],
+        "tiles": []
+      },
+      "transform": {
+        "position": [
+          3.1623092520970517,
+          0,
+          -0.792309252097052
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "metadata": {
+        "provisionalGeometry": true
+      }
+    },
+    {
+      "kind": "CRITTERIUM_8",
+      "instanceId": "C8_238655a4-9370-4324-8114-f0813c15603b",
+      "assemblyId": "C8_238655a4-9370-4324-8114-f0813c15603b",
+      "groupId": "C8_238655a4-9370-4324-8114-f0813c15603b",
+      "frameId": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+      "family": "CRITTERIUM_8",
+      "config": {
+        "widthCm": 90,
+        "heightCm": 128,
+        "frameMode": "HALF_HEIGHT",
+        "compositionMode": "MODULAR",
+        "projectHeightCm": 128,
+        "growthModules": [],
+        "tiles": []
+      },
+      "transform": {
+        "position": [
+          4.062309252097052,
+          0,
+          -0.792309252097052
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "metadata": {
+        "provisionalGeometry": true
+      }
+    },
+    {
+      "kind": "CRITTERIUM_8_SEQUENCE",
+      "sequenceId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+      "frameIds": [
+        "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+        "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME"
+      ],
+      "junctionIds": [
+        "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_119JDBU",
+        "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1UP9ZTJ",
+        "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1VT1K6"
+      ],
+      "connections": [
+        {
+          "id": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1UP9ZTJ_EDGE_0",
+          "source": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+          "target": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+          "junctionId": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1UP9ZTJ"
+        }
+      ],
+      "sequence": {
+        "schemaVersion": 1,
+        "id": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+        "family": "CRITTERIUM_8",
+        "type": "FRAME_SEQUENCE",
+        "frameIds": [
+          "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+          "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME"
+        ],
+        "frames": [
+          {
+            "frameId": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+            "instanceId": "C8_0ad323f4-c22e-4e86-8680-10312e972320",
+            "position": {
+              "x": 0.45,
+              "z": 0
+            },
+            "rotationY": 0,
+            "widthCm": 90,
+            "heightCm": 128,
+            "frameMode": "HALF_HEIGHT",
+            "projectHeightCm": 128,
+            "metadata": {},
+            "startAnchor": {
+              "x": 0,
+              "z": 0
+            },
+            "endAnchor": {
+              "x": 0.9,
+              "z": 0
+            }
+          },
+          {
+            "frameId": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+            "instanceId": "C8_38dc85a9-2596-468b-b46d-d69822651482",
+            "position": {
+              "x": 1.35,
+              "z": 0
+            },
+            "rotationY": 0,
+            "widthCm": 90,
+            "heightCm": 128,
+            "frameMode": "HALF_HEIGHT",
+            "projectHeightCm": 128,
+            "metadata": {},
+            "startAnchor": {
+              "x": 0.9000000000000001,
+              "z": 0
+            },
+            "endAnchor": {
+              "x": 1.8,
+              "z": 0
+            }
+          }
+        ],
+        "junctions": [
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_119JDBU",
+            "family": "CRITTERIUM_8",
+            "type": "TERMINAL",
+            "point": {
+              "x": 0,
+              "z": 0
+            },
+            "frameIds": [
+              "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+                "endpoint": "START"
+              }
+            ],
+            "angles": [],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1UP9ZTJ",
+            "family": "CRITTERIUM_8",
+            "type": "DEG_180",
+            "point": {
+              "x": 0.9000000000000001,
+              "z": 0
+            },
+            "frameIds": [
+              "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+              "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+                "endpoint": "END"
+              },
+              {
+                "frameId": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+                "endpoint": "START"
+              }
+            ],
+            "angles": [
+              180
+            ],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1VT1K6",
+            "family": "CRITTERIUM_8",
+            "type": "TERMINAL",
+            "point": {
+              "x": 1.8,
+              "z": 0
+            },
+            "frameIds": [
+              "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+                "endpoint": "END"
+              }
+            ],
+            "angles": [],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          }
+        ],
+        "diagnostics": [],
+        "graph": {
+          "nodes": [
+            {
+              "id": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+              "frameId": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME"
+            },
+            {
+              "id": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+              "frameId": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME"
+            }
+          ],
+          "edges": [
+            {
+              "id": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1UP9ZTJ_EDGE_0",
+              "source": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+              "target": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+              "junctionId": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1UP9ZTJ"
+            }
+          ]
+        },
+        "metadata": {
+          "dirtyConnections": false,
+          "dirtyJunctions": false,
+          "connectionToleranceM": 0.01,
+          "angleToleranceDeg": 2
+        },
+        "slots": [
+          {
+            "slotId": "C8_SLOT_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+            "sequenceId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+            "index": 0,
+            "position": [
+              0.45,
+              0,
+              0
+            ],
+            "orientation": 0,
+            "widthCm": 90,
+            "depthCm": 8,
+            "moduleType": "FRAME",
+            "frameMode": "HALF_HEIGHT",
+            "heightCm": 128,
+            "moduleId": "C8_MODULE_C8_0ad323f4-c22e-4e86-8680-10312e972320",
+            "frameId": "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+            "status": "OCCUPIED",
+            "transformOverride": null
+          },
+          {
+            "slotId": "C8_SLOT_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+            "sequenceId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+            "index": 1,
+            "position": [
+              1.35,
+              0,
+              0
+            ],
+            "orientation": 0,
+            "widthCm": 90,
+            "depthCm": 8,
+            "moduleType": "FRAME",
+            "frameMode": "HALF_HEIGHT",
+            "heightCm": 128,
+            "moduleId": "C8_MODULE_C8_38dc85a9-2596-468b-b46d-d69822651482",
+            "frameId": "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+            "status": "OCCUPIED",
+            "transformOverride": null
+          }
+        ],
+        "slotConnections": [
+          {
+            "sourceSlotId": "C8_SLOT_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+            "targetSlotId": "C8_SLOT_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+            "type": "ADJACENT"
+          }
+        ]
+      },
+      "transform": {
+        "position": [
+          0.9123092520970513,
+          0,
+          -0.7923092520970522
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "kind": "CRITTERIUM_8_SEQUENCE",
+      "sequenceId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+      "frameIds": [
+        "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+        "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME"
+      ],
+      "junctionIds": [
+        "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_1RGYY1N",
+        "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_TEYI80",
+        "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_2A4Y2S"
+      ],
+      "connections": [
+        {
+          "id": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_TEYI80_EDGE_0",
+          "source": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+          "target": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+          "junctionId": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_TEYI80"
+        }
+      ],
+      "sequence": {
+        "schemaVersion": 1,
+        "id": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+        "family": "CRITTERIUM_8",
+        "type": "FRAME_SEQUENCE",
+        "frameIds": [
+          "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+          "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME"
+        ],
+        "frames": [
+          {
+            "frameId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+            "instanceId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5",
+            "position": {
+              "x": 0.45,
+              "z": 2
+            },
+            "rotationY": 0,
+            "widthCm": 90,
+            "heightCm": 128,
+            "frameMode": "HALF_HEIGHT",
+            "projectHeightCm": 128,
+            "metadata": {},
+            "startAnchor": {
+              "x": 0,
+              "z": 2
+            },
+            "endAnchor": {
+              "x": 0.9,
+              "z": 2
+            }
+          },
+          {
+            "frameId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+            "instanceId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db",
+            "position": {
+              "x": 1.35,
+              "z": 2
+            },
+            "rotationY": 0,
+            "widthCm": 90,
+            "heightCm": 128,
+            "frameMode": "HALF_HEIGHT",
+            "projectHeightCm": 128,
+            "metadata": {},
+            "startAnchor": {
+              "x": 0.9000000000000001,
+              "z": 2
+            },
+            "endAnchor": {
+              "x": 1.8,
+              "z": 2
+            }
+          }
+        ],
+        "junctions": [
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_1RGYY1N",
+            "family": "CRITTERIUM_8",
+            "type": "TERMINAL",
+            "point": {
+              "x": 0,
+              "z": 2
+            },
+            "frameIds": [
+              "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+                "endpoint": "START"
+              }
+            ],
+            "angles": [],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_TEYI80",
+            "family": "CRITTERIUM_8",
+            "type": "DEG_180",
+            "point": {
+              "x": 0.9000000000000001,
+              "z": 2
+            },
+            "frameIds": [
+              "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+              "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+                "endpoint": "END"
+              },
+              {
+                "frameId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+                "endpoint": "START"
+              }
+            ],
+            "angles": [
+              180
+            ],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_2A4Y2S",
+            "family": "CRITTERIUM_8",
+            "type": "TERMINAL",
+            "point": {
+              "x": 1.8,
+              "z": 2
+            },
+            "frameIds": [
+              "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+                "endpoint": "END"
+              }
+            ],
+            "angles": [],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          }
+        ],
+        "diagnostics": [],
+        "graph": {
+          "nodes": [
+            {
+              "id": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+              "frameId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME"
+            },
+            {
+              "id": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+              "frameId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME"
+            }
+          ],
+          "edges": [
+            {
+              "id": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_TEYI80_EDGE_0",
+              "source": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+              "target": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+              "junctionId": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_TEYI80"
+            }
+          ]
+        },
+        "metadata": {
+          "dirtyConnections": false,
+          "dirtyJunctions": false,
+          "connectionToleranceM": 0.01,
+          "angleToleranceDeg": 2
+        },
+        "slots": [
+          {
+            "slotId": "C8_SLOT_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+            "sequenceId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+            "index": 0,
+            "position": [
+              0.45,
+              0,
+              2
+            ],
+            "orientation": 0,
+            "widthCm": 90,
+            "depthCm": 8,
+            "moduleType": "FRAME",
+            "frameMode": "HALF_HEIGHT",
+            "heightCm": 128,
+            "moduleId": "C8_MODULE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5",
+            "frameId": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+            "status": "OCCUPIED",
+            "transformOverride": null
+          },
+          {
+            "slotId": "C8_SLOT_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+            "sequenceId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+            "index": 1,
+            "position": [
+              1.35,
+              0,
+              2
+            ],
+            "orientation": 0,
+            "widthCm": 90,
+            "depthCm": 8,
+            "moduleType": "FRAME",
+            "frameMode": "HALF_HEIGHT",
+            "heightCm": 128,
+            "moduleId": "C8_MODULE_C8_c6611d28-1832-43ae-ad6f-7971087ef3db",
+            "frameId": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+            "status": "OCCUPIED",
+            "transformOverride": null
+          }
+        ],
+        "slotConnections": [
+          {
+            "sourceSlotId": "C8_SLOT_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+            "targetSlotId": "C8_SLOT_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+            "type": "ADJACENT"
+          }
+        ]
+      },
+      "transform": {
+        "position": [
+          2.7123092520970515,
+          0,
+          -2.792309252097052
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "kind": "CRITTERIUM_8_SEQUENCE",
+      "sequenceId": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+      "frameIds": [
+        "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+        "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME"
+      ],
+      "junctionIds": [
+        "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1VKVZSL",
+        "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1WZ08G8",
+        "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_U7V76Q"
+      ],
+      "connections": [
+        {
+          "id": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1WZ08G8_EDGE_0",
+          "source": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+          "target": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+          "junctionId": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1WZ08G8"
+        }
+      ],
+      "sequence": {
+        "schemaVersion": 1,
+        "id": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+        "family": "CRITTERIUM_8",
+        "type": "FRAME_SEQUENCE",
+        "frameIds": [
+          "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+          "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME"
+        ],
+        "frames": [
+          {
+            "frameId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+            "instanceId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9",
+            "position": {
+              "x": 0.45,
+              "z": 4
+            },
+            "rotationY": 0,
+            "widthCm": 90,
+            "heightCm": 128,
+            "frameMode": "HALF_HEIGHT",
+            "projectHeightCm": 128,
+            "metadata": {},
+            "startAnchor": {
+              "x": 0,
+              "z": 4
+            },
+            "endAnchor": {
+              "x": 0.9,
+              "z": 4
+            }
+          },
+          {
+            "frameId": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+            "instanceId": "C8_238655a4-9370-4324-8114-f0813c15603b",
+            "position": {
+              "x": 1.35,
+              "z": 4
+            },
+            "rotationY": 0,
+            "widthCm": 90,
+            "heightCm": 128,
+            "frameMode": "HALF_HEIGHT",
+            "projectHeightCm": 128,
+            "metadata": {},
+            "startAnchor": {
+              "x": 0.9000000000000001,
+              "z": 4
+            },
+            "endAnchor": {
+              "x": 1.8,
+              "z": 4
+            }
+          }
+        ],
+        "junctions": [
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1VKVZSL",
+            "family": "CRITTERIUM_8",
+            "type": "TERMINAL",
+            "point": {
+              "x": 0,
+              "z": 4
+            },
+            "frameIds": [
+              "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+                "endpoint": "START"
+              }
+            ],
+            "angles": [],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1WZ08G8",
+            "family": "CRITTERIUM_8",
+            "type": "DEG_180",
+            "point": {
+              "x": 0.9000000000000001,
+              "z": 4
+            },
+            "frameIds": [
+              "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+              "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+                "endpoint": "END"
+              },
+              {
+                "frameId": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+                "endpoint": "START"
+              }
+            ],
+            "angles": [
+              180
+            ],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          },
+          {
+            "schemaVersion": 1,
+            "id": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_U7V76Q",
+            "family": "CRITTERIUM_8",
+            "type": "TERMINAL",
+            "point": {
+              "x": 1.8,
+              "z": 4
+            },
+            "frameIds": [
+              "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME"
+            ],
+            "endpointRefs": [
+              {
+                "frameId": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+                "endpoint": "END"
+              }
+            ],
+            "angles": [],
+            "variant": null,
+            "metadata": {
+              "heightsCm": [
+                128
+              ],
+              "projectHeightsCm": [],
+              "heightTransition": false,
+              "explicitVariant": null
+            }
+          }
+        ],
+        "diagnostics": [],
+        "graph": {
+          "nodes": [
+            {
+              "id": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+              "frameId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME"
+            },
+            {
+              "id": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+              "frameId": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME"
+            }
+          ],
+          "edges": [
+            {
+              "id": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1WZ08G8_EDGE_0",
+              "source": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+              "target": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+              "junctionId": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1WZ08G8"
+            }
+          ]
+        },
+        "metadata": {
+          "dirtyConnections": false,
+          "dirtyJunctions": false,
+          "connectionToleranceM": 0.01,
+          "angleToleranceDeg": 2
+        },
+        "slots": [
+          {
+            "slotId": "C8_SLOT_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+            "sequenceId": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+            "index": 0,
+            "position": [
+              0.45,
+              0,
+              4
+            ],
+            "orientation": 0,
+            "widthCm": 90,
+            "depthCm": 8,
+            "moduleType": "FRAME",
+            "frameMode": "HALF_HEIGHT",
+            "heightCm": 128,
+            "moduleId": "C8_MODULE_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9",
+            "frameId": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+            "status": "OCCUPIED",
+            "transformOverride": null
+          },
+          {
+            "slotId": "C8_SLOT_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+            "sequenceId": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+            "index": 1,
+            "position": [
+              1.35,
+              0,
+              4
+            ],
+            "orientation": 0,
+            "widthCm": 90,
+            "depthCm": 8,
+            "moduleType": "FRAME",
+            "frameMode": "HALF_HEIGHT",
+            "heightCm": 128,
+            "moduleId": "C8_MODULE_C8_238655a4-9370-4324-8114-f0813c15603b",
+            "frameId": "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+            "status": "OCCUPIED",
+            "transformOverride": null
+          }
+        ],
+        "slotConnections": [
+          {
+            "sourceSlotId": "C8_SLOT_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+            "targetSlotId": "C8_SLOT_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME",
+            "type": "ADJACENT"
+          }
+        ]
+      },
+      "transform": {
+        "position": [
+          2.7123092520970515,
+          0,
+          -4.792309252097052
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "kind": "CRITERIUM_SYSTEM",
+      "systemId": "b0f9641b-efbc-405e-9a26-96286b95d4c3",
+      "sequenceIds": [
+        "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+        "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+        "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME"
+      ],
+      "connections": [
+        {
+          "connectionId": "86e72934-a112-4dcc-a262-5d892d90b353",
+          "sourceSequenceId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+          "sourcePointId": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1VT1K6",
+          "targetSequenceId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+          "targetPointId": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_1RGYY1N",
+          "sequenceAId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+          "pointAId": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1VT1K6",
+          "sequenceBId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+          "pointBId": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_1RGYY1N",
+          "type": "LINEAR"
+        }
+      ],
+      "layout": {},
+      "spatialConfig": {
+        "snapDistanceM": 0.3,
+        "previewDistanceM": 0.45
+      },
+      "spatialNodes": [
+        {
+          "nodeId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME|C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_119JDBU",
+          "systemId": "b0f9641b-efbc-405e-9a26-96286b95d4c3",
+          "sequenceId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+          "position": [
+            0.912309,
+            0,
+            -0.792309
+          ],
+          "orientation": 0,
+          "connectionPoint": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_119JDBU",
+          "connections": []
+        },
+        {
+          "nodeId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME|C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1VT1K6",
+          "systemId": "b0f9641b-efbc-405e-9a26-96286b95d4c3",
+          "sequenceId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+          "position": [
+            2.712309,
+            0,
+            -0.792309
+          ],
+          "orientation": 0,
+          "connectionPoint": "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1VT1K6",
+          "connections": [
+            "86e72934-a112-4dcc-a262-5d892d90b353"
+          ]
+        },
+        {
+          "nodeId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME|C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_1RGYY1N",
+          "systemId": "b0f9641b-efbc-405e-9a26-96286b95d4c3",
+          "sequenceId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+          "position": [
+            2.712309,
+            0,
+            -0.792309
+          ],
+          "orientation": 0,
+          "connectionPoint": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_1RGYY1N",
+          "connections": [
+            "86e72934-a112-4dcc-a262-5d892d90b353"
+          ]
+        },
+        {
+          "nodeId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME|C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_2A4Y2S",
+          "systemId": "b0f9641b-efbc-405e-9a26-96286b95d4c3",
+          "sequenceId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+          "position": [
+            4.512309,
+            0,
+            -0.792309
+          ],
+          "orientation": 0,
+          "connectionPoint": "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_2A4Y2S",
+          "connections": []
+        },
+        {
+          "nodeId": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME|C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1VKVZSL",
+          "systemId": "b0f9641b-efbc-405e-9a26-96286b95d4c3",
+          "sequenceId": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+          "position": [
+            2.712309,
+            0,
+            -0.792309
+          ],
+          "orientation": 0,
+          "connectionPoint": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1VKVZSL",
+          "connections": []
+        },
+        {
+          "nodeId": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME|C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_U7V76Q",
+          "systemId": "b0f9641b-efbc-405e-9a26-96286b95d4c3",
+          "sequenceId": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+          "position": [
+            4.512309,
+            0,
+            -0.792309
+          ],
+          "orientation": 0,
+          "connectionPoint": "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_U7V76Q",
+          "connections": []
+        }
+      ],
+      "spatialConnections": [
+        {
+          "connectionId": "86e72934-a112-4dcc-a262-5d892d90b353",
+          "connectionType": "LINEAR",
+          "valid": true,
+          "source": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+          "target": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+          "anchorPoint": [
+            2.712309,
+            0,
+            -0.792309
+          ],
+          "orientation": 3.141593
+        }
+      ],
+      "closedLoops": [],
+      "spatialMeasurements": {
+        "lengths": [
+          {
+            "sequenceId": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+            "lengthM": 1.8
+          },
+          {
+            "sequenceId": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+            "lengthM": 1.8
+          },
+          {
+            "sequenceId": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+            "lengthM": 1.8
+          }
+        ],
+        "totalLengthM": 5.4
+      },
+      "commercialSnapshot": {
+        "currency": "COP",
+        "items": [
+          {
+            "code": "22191900011",
+            "reference": null,
+            "description": "Marco Critterium 8 90 × 128 cm",
+            "materialCommercial": "LAMINA",
+            "finishCommercial": null,
+            "quantity": 6,
+            "unitPrice": 525000
+          },
+          {
+            "code": "22191900127",
+            "reference": null,
+            "description": "Kit de unión TERMINAL",
+            "materialCommercial": "INDEFINIDO",
+            "finishCommercial": null,
+            "quantity": 6,
+            "unitPrice": 169050
+          },
+          {
+            "code": "22000014321",
+            "reference": null,
+            "description": "Kit de unión DEG_180",
+            "materialCommercial": "PLASTICO",
+            "finishCommercial": null,
+            "quantity": 3,
+            "unitPrice": 123900
+          }
+        ]
+      },
+      "transform": {
+        "position": [
+          0,
+          0,
+          0.12000000000000001
+        ],
+        "quaternion": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "parts": [
+    {
+      "codigoPT": null,
+      "transform": {
+        "position": [
+          0,
+          0,
+          0.12000000000000001
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_0ad323f4-c22e-4e86-8680-10312e972320",
+      "transform": {
+        "position": [
+          0.45,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_FRAME_LEFT_POST",
+      "transform": {
+        "position": [
+          -0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_FRAME_RIGHT_POST",
+      "transform": {
+        "position": [
+          0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_BOTTOM_PLINTH",
+      "transform": {
+        "position": [
+          0,
+          0.07,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_TOP_BEVEL",
+      "transform": {
+        "position": [
+          0,
+          1.28,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_LEVELER",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_38dc85a9-2596-468b-b46d-d69822651482",
+      "transform": {
+        "position": [
+          1.35,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_FRAME_LEFT_POST",
+      "transform": {
+        "position": [
+          -0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_FRAME_RIGHT_POST",
+      "transform": {
+        "position": [
+          0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_BOTTOM_PLINTH",
+      "transform": {
+        "position": [
+          0,
+          0.07,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_TOP_BEVEL",
+      "transform": {
+        "position": [
+          0,
+          1.28,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_LEVELER",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+      "transform": {
+        "position": [
+          0.9123092520970513,
+          0,
+          -0.9123092520970522
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5",
+      "transform": {
+        "position": [
+          0.45,
+          0,
+          2
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_FRAME_LEFT_POST",
+      "transform": {
+        "position": [
+          -0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_FRAME_RIGHT_POST",
+      "transform": {
+        "position": [
+          0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_BOTTOM_PLINTH",
+      "transform": {
+        "position": [
+          0,
+          0.07,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_TOP_BEVEL",
+      "transform": {
+        "position": [
+          0,
+          1.28,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_LEVELER",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_c6611d28-1832-43ae-ad6f-7971087ef3db",
+      "transform": {
+        "position": [
+          1.35,
+          0,
+          2
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_FRAME_LEFT_POST",
+      "transform": {
+        "position": [
+          -0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_FRAME_RIGHT_POST",
+      "transform": {
+        "position": [
+          0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_BOTTOM_PLINTH",
+      "transform": {
+        "position": [
+          0,
+          0.07,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_TOP_BEVEL",
+      "transform": {
+        "position": [
+          0,
+          1.28,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_LEVELER",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+      "transform": {
+        "position": [
+          2.7123092520970515,
+          0,
+          -2.912309252097052
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9",
+      "transform": {
+        "position": [
+          0.45,
+          0,
+          4
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_FRAME_LEFT_POST",
+      "transform": {
+        "position": [
+          -0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_FRAME_RIGHT_POST",
+      "transform": {
+        "position": [
+          0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_BOTTOM_PLINTH",
+      "transform": {
+        "position": [
+          0,
+          0.07,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_TOP_BEVEL",
+      "transform": {
+        "position": [
+          0,
+          1.28,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_LEVELER",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_238655a4-9370-4324-8114-f0813c15603b",
+      "transform": {
+        "position": [
+          1.35,
+          0,
+          4
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_FRAME_LEFT_POST",
+      "transform": {
+        "position": [
+          -0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_FRAME_RIGHT_POST",
+      "transform": {
+        "position": [
+          0.45,
+          0.64,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_BOTTOM_PLINTH",
+      "transform": {
+        "position": [
+          0,
+          0.07,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_TOP_BEVEL",
+      "transform": {
+        "position": [
+          0,
+          1.28,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_PART_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_LEVELER",
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    },
+    {
+      "codigoPT": "C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+      "transform": {
+        "position": [
+          2.7123092520970515,
+          0,
+          -4.912309252097052
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      },
+      "materialBase": null,
+      "materialCode": null,
+      "finishes": null,
+      "activeSubKey": null,
+      "activeSubName": null
+    }
+  ],
+  "persistenceDiagnostics": {
+    "skipped": []
+  },
+  "plan2D": null,
+  "architecture": {
+    "walls": [],
+    "columns": [],
+    "openings": []
+  }
+}

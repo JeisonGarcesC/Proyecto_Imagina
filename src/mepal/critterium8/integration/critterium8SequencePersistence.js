@@ -3,11 +3,14 @@ import { prepareCritterium8Sequence } from './critterium8SequenceOperations.js';
 import { registerCritterium8Sequence } from './critterium8SequenceRegistration.js';
 import { disposeCritterium8Sequence3D } from '../builders/Critterium8SequenceRenderBuilder.js';
 
+import { captureCritteriumModuleOverrides } from '../composition/sequenceModuleSlots.js';
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 export function serializeCritterium8Sequence(root) {
   if (root?.userData?.kind !== 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') throw new Error('CRITTERIUM8_SEQUENCE_ROOT_REQUIRED');
-  const sequence = clone(root.userData.sequence);
+  const sequence = captureCritteriumModuleOverrides(clone(root.userData.sequence), root.children
+    .filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY')
+    .map((frame) => ({ frameId: frame.userData.frameId, position: frame.position.toArray(), quaternion: frame.quaternion.toArray() })));
   root.updateWorldMatrix(true, false);
   return {
     kind: 'CRITTERIUM_8_SEQUENCE',
@@ -32,9 +35,32 @@ export function restoreCritterium8Sequence(entity, { scene, partsRegistry, picka
     throw new Error('CRITTERIUM_SEQUENCE_DUPLICATE');
   }
   const frames = ids.map((id) => findFrame(id));
-  if (frames.some((frame) => !frame || frame.userData?.kind !== 'CRITTERIUM_8_ASSEMBLY')) {
-    throw new Error(`CRITTERIUM_SEQUENCE_MISSING_FRAME:${ids.filter((_, index) => !frames[index] || frames[index].userData?.kind !== 'CRITTERIUM_8_ASSEMBLY').join(',')}`);
+  const missingIds = ids.filter((_, index) => !frames[index] || frames[index].userData?.kind !== 'CRITTERIUM_8_ASSEMBLY');
+  if (missingIds.length && Array.isArray(entity.sequence?.slots)) {
+    // An incomplete modular sequence remains addressable for inspection and
+    // repair. Never fabricate commercial frames or junction parts on load.
+    const root = new Group();
+    root.name = `CRITTERIUM_8_SEQUENCE_${entity.sequenceId}`;
+    root.userData = {
+      kind: 'CRITTERIUM_8_SEQUENCE_ASSEMBLY', family: 'CRITTERIUM_8',
+      sequenceId: entity.sequenceId, instanceId: entity.sequenceId,
+      frameIds: [...ids], junctionIds: [...(entity.junctionIds || [])],
+      isAssemblyRoot: true, isPartRoot: true, selectionRoot: true, excludeFromBOM: true,
+      sequence: clone(entity.sequence),
+      diagnostics: missingIds.map((frameId) => ({ code: 'CRITTERIUM_MODULE_MISSING_FRAME', frameId, level: 'ERROR' })),
+    };
+    root.userData.sequence.slots = root.userData.sequence.slots.map((slot) =>
+      missingIds.includes(slot.frameId) ? { ...slot, status: 'MISSING_FRAME' } : slot);
+    scene.add(root);
+    if (Array.isArray(entity.transform?.position)) root.position.fromArray(entity.transform.position);
+    if (Array.isArray(entity.transform?.quaternion)) root.quaternion.fromArray(entity.transform.quaternion);
+    if (Array.isArray(entity.transform?.scale)) root.scale.fromArray(entity.transform.scale);
+    root.updateMatrixWorld(true);
+    frames.filter(Boolean).forEach((frame) => root.attach(frame));
+    registerCritterium8Sequence({ sequenceRoot: root, parent: scene, partsRegistry, pickables });
+    return root;
   }
+  if (missingIds.length) throw new Error(`CRITTERIUM_SEQUENCE_MISSING_FRAME:${missingIds.join(',')}`);
   if (frames.some((frame) => frame.userData.parentSequenceId)) throw new Error('CRITTERIUM_SEQUENCE_FRAME_ALREADY_ATTACHED');
   const transform = entity.transform || {};
   const staging = new Group();

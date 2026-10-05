@@ -97,6 +97,9 @@ function hasPoint(sequence, pointId) {
 
 export function connectCritteriumSystemSequences(system, connection) {
   if (!isSystem(system)) throw new Error('CRITERIUM_SYSTEM_REQUIRED');
+  if (['T_JUNCTION', 'CROSS'].includes(connection?.type))
+    throw new Error(`UNSUPPORTED_SPATIAL_TOPOLOGY: ${connection.type} requiere un anclaje físico lateral o intermedio; ninguna pieza CRITERIUM actual lo documenta.`);
+  if (connection?.type && !['LINEAR', 'DEG_90', 'RELATION'].includes(connection.type)) throw new Error('CRITERIUM_SYSTEM_INVALID_CONNECTION_TYPE');
   const { sourceSequenceId, sourcePointId, targetSequenceId, targetPointId } = connection || {};
   if (!sourceSequenceId || !targetSequenceId || sourceSequenceId === targetSequenceId) throw new Error('CRITERIUM_SYSTEM_INVALID_CONNECTION');
   const source = system.children.find((child) => child.userData?.sequenceId === sourceSequenceId);

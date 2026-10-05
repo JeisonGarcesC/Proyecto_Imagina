@@ -183,6 +183,13 @@ test('guardar y restaurar conserva snap, conexiones, transformaciones, frames y 
   assert.deepEqual(saved.connections, systemEntity.connections);
   assert.deepEqual(saved.spatialConfig, systemEntity.spatialConfig);
   assert.deepEqual(loaded.children.map((sequence) => sequence.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY').length), [2, 2]);
+  for (const original of [context.a.sequence, context.b.sequence]) {
+    const reopened = loaded.children.find((sequence) => sequence.userData.sequenceId === original.userData.sequenceId);
+    assert.deepEqual(reopened.userData.sequence.slots.map((slot) => slot.slotId),
+      original.userData.sequence.slots.map((slot) => slot.slotId));
+    assert.deepEqual(reopened.userData.sequence.slotConnections,
+      original.userData.sequence.slotConnections);
+  }
 });
 
 test('reapertura diagnostica una conexión espacial desplazada sin destruir secuencias', async () => {
