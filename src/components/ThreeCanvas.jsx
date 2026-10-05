@@ -4257,7 +4257,9 @@ function ThreeCanvas({
         addRow(
           String(code),
           1,
-          obj.userData?.description || null,
+          obj.userData?.kind === 'PRIVACY_PANEL'
+            ? resolveCatalogDescription(code, obj.userData?.description || '')
+            : obj.userData?.description || null,
           obj.userData?.unitPrice || 0,
           groupId,
           groupName,
