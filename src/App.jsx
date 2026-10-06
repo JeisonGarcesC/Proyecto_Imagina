@@ -184,6 +184,7 @@ export default function App() {
 
   const [isReady, setIsReady] = useState(false);
   const [selectedPart, setSelectedPart] = useState(null);
+  const [critteriumHistoryRevision, setCritteriumHistoryRevision] = useState(0);
 
   useEffect(() => {
     const isEditableTarget = (target) => {
@@ -233,7 +234,12 @@ export default function App() {
 
       event.preventDefault();
       const replay = isUndo ? api.undoHistory() : api.redoHistory();
-      Promise.resolve(replay).catch((error) => {
+      Promise.resolve(replay).then((action) => {
+        const isCritterium = action?.type?.startsWith('CRITERIUM_') || action?.type?.startsWith('CRITTERIUM_') ||
+          action?.type === 'CREATE_OBJECTS' && action.createdObjects?.some(({ object }) =>
+            ['CRITERIUM_SYSTEM', 'CRITTERIUM_8_SEQUENCE_ASSEMBLY', 'CRITTERIUM_8_ASSEMBLY'].includes(object?.userData?.kind));
+        if (isCritterium) setCritteriumHistoryRevision((value) => value + 1);
+      }).catch((error) => {
         console.error(`No se pudo ${isUndo ? 'deshacer' : 'rehacer'} la acción.`, error);
       });
     };
@@ -1316,6 +1322,7 @@ export default function App() {
               espesorFilter={espesorFilter}
               setEspesorFilter={setEspesorFilter}
               selectedPart={selectedPart}
+              critteriumHistoryRevision={critteriumHistoryRevision}
               onAddCatalogItem={(codigoPT) =>
                 !readOnly && threeApiRef.current?.addCatalogItem?.(codigoPT)
               }

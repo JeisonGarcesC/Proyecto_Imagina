@@ -18,7 +18,7 @@ export function linkPart(role, key, dimensions, position, code, description, ext
     rawCodigoPT: code,
     description,
     name: description,
-    materialRole: role === 'SURFACE' ? 'surface' : role === 'PEDESTAL' ? 'pedestal' : 'structure',
+    materialRole: role === 'SURFACE' ? 'surface' : role === 'PEDESTAL' ? 'pedestal' : (role === 'PANTALLA_FRONTAL_BOARD' || role === 'PANTALLA_LATERAL_BOARD' || role === 'PANTALLA_FALDA_BOARD') ? 'pantalla' : 'structure',
     model,
     ...metadata,
   };

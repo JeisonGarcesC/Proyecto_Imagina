@@ -1,6 +1,6 @@
 import LinkProperties from './linkCarpetaProperties/LinkProperties.jsx';
 import MultipleProperties from '../../mepal/multiple/properties/MultipleProperties.jsx';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import KoncisaPlusProperties, {
   isKoncisaPlusEditablePart,
 } from './koncisaPlusCarpetaProperties/KoncisaPlusProperties';
@@ -29,7 +29,9 @@ function isAlmacenamientoPart(part) {
 
 export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const boxRef = useRef(null);
-  const anchorRef = useRef({ open: false, x: 0, y: 0 });
+  const [anchor, setAnchor] = useState({ open, x, y });
+  const dragRef = useRef(null);
+  const [dragPosition, setDragPosition] = useState(null);
 
   useEffect(() => {
     if (!open) return;
@@ -54,16 +56,22 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   }, [open, onClose]);
 
   useEffect(() => {
-    if (open && !anchorRef.current.open) {
-      anchorRef.current = { open: true, x, y };
-    } else if (!open) {
-      anchorRef.current.open = false;
-    }
-  }, [open, x, y]);
+    if (!open) dragRef.current = null;
+  }, [open]);
+
+  if (anchor.open !== open) {
+    setAnchor({ open, x, y });
+    setDragPosition(null);
+  }
 
   if (!open || !part) return null;
 
   const isFloor = part?.kind === 'FLOOR_VISUAL';
+  const hasIntegration = Boolean(part?.meta?.integrationSetId || part?.integrationSetId);
+  const isIntegrationLeg = Boolean(part?.meta?.isIntegrationLeg || part?.isIntegrationLeg);
+  const isLinkLeg = part?.kind === 'LINK_PRODUCT' && (part?.componentRole === 'SUPPORT' || part?.componentRole === 'PEDESTAL');
+  const hasSpecificIntegrationButton = isIntegrationLeg || isLinkLeg;
+  const showGenericIntegrationButton = hasIntegration && !hasSpecificIntegrationButton;
 
   const hasEditableProperties =
     part?.kind === 'LINK_PRODUCT' ||
@@ -80,33 +88,86 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isMoreaEditablePart(part) ||
     isMilaEditablePart(part) ||
     isLockerEditablePart(part) ||
-    isFloor;
+    isFloor ||
+    showGenericIntegrationButton;
 
   const popupWidth = 330;
-  const anchorX = anchorRef.current.open ? anchorRef.current.x : x;
-  const anchorY = anchorRef.current.open ? anchorRef.current.y : y;
-  const popupLeft = Math.min(anchorX + 12, window.innerWidth - popupWidth - 12);
+  const anchorX = anchor.x;
+  const anchorY = anchor.y;
+  const popupLeft = Math.max(0, Math.min(anchorX + 12, window.innerWidth - popupWidth - 12));
   const popupTop = Math.max(12, Math.min(anchorY + 12, window.innerHeight - 420));
+  const isKoncisaPopup = isKoncisaPlusEditablePart(part);
+  const left = isKoncisaPopup && dragPosition ? dragPosition.left : popupLeft;
+  const top = isKoncisaPopup && dragPosition ? dragPosition.top : popupTop;
 
+  function startKoncisaDrag(event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left, top };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveKoncisaDrag(event) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDragPosition({
+      left: Math.max(0, Math.min(drag.left + event.clientX - drag.x, window.innerWidth - popupWidth)),
+      top: Math.max(0, Math.min(drag.top + event.clientY - drag.y, window.innerHeight - 40)),
+    });
+  }
+
+  function stopKoncisaDrag(event) {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
   return (
     <div
       ref={boxRef}
       style={{
         position: 'fixed',
-        left: popupLeft,
-        top: popupTop,
+        left,
+        top,
         zIndex: 99999,
         width: popupWidth,
-        maxHeight: `calc(100vh - ${popupTop + 24}px)`,
-        overflowY: 'auto',
+        maxHeight: `calc(100vh - ${top + 12}px)`,
+        display: 'flex',
+        flexDirection: 'column',
         background: '#fff',
         border: '1px solid #d1d5db',
         borderRadius: 12,
         boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
-        padding: 12,
       }}
     >
-      <PropertyHeader title="Propiedades" onClose={onClose} />
+      {isKoncisaPopup && (
+        <div
+          onPointerDown={startKoncisaDrag}
+          onPointerMove={moveKoncisaDrag}
+          onPointerUp={stopKoncisaDrag}
+          onPointerCancel={stopKoncisaDrag}
+          title="Arrastrar cuadro de propiedades"
+          aria-label="Mover cuadro de propiedades"
+          style={{
+            height: 16,
+            margin: '10px 12px 0',
+            borderRadius: 6,
+            background: '#f3f4f6',
+            cursor: 'grab',
+            touchAction: 'none',
+            flexShrink: 0,
+          }}
+        />
+      )}
+      <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
+        <PropertyHeader title="Propiedades" onClose={onClose} />
+      </div>
+      <div style={{ padding: '0 12px 12px 12px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
       <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
         {part.description || part.code || 'Elemento'}
@@ -145,6 +206,34 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       {!isMoreaEditablePart(part) && <MilaProperties part={part} api={api} onClose={onClose} />}
 
       <LockerPopupProperties part={part} api={api} onClose={onClose} />
+
+      {showGenericIntegrationButton && (
+        <div style={sectionStyle}>
+          <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.75, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+            Esta pieza pertenece a un puesto de integración.
+          </div>
+          <button
+            type="button"
+            style={{
+              marginTop: 10,
+              width: '100%',
+              padding: '6px 12px',
+              background: '#b91c1c',
+              color: '#fff',
+              border: '1px solid #b91c1c',
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+            onClick={async () => {
+              await api?.removeSelectedIntegrationAndRestoreCostado?.();
+            }}
+          >
+            Quitar puesto de integración
+          </button>
+        </div>
+      )}
 
       {isFloor && (
         <div style={sectionStyle}>
@@ -201,6 +290,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
           Este elemento aún no tiene propiedades editables desde el popup.
         </div>
       )}
+      </div>
     </div>
   );
 }

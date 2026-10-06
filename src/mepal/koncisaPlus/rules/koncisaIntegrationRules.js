@@ -477,11 +477,7 @@ export function canAttachKoncisaIntegrationToPart(part) {
     .trim()
     .toUpperCase();
 
-  const isDouble =
-    tipoPuesto === 'doble' ||
-    tipoPuesto === 'double' ||
-    userData.isDouble === true ||
-    meta.isDouble === true;
+  const isDouble = true; // Permitted for single desks too per user request
 
   const isCostado =
     partType.includes('costado') ||

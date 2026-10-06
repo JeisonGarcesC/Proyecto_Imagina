@@ -33,6 +33,7 @@ export function registerCritterium8Sequence({ sequenceRoot, parent, partsRegistr
   }
   const sequenceId = String(sequenceRoot.userData.sequenceId || '');
   if (parent && sequenceRoot.parent !== parent) parent.add(sequenceRoot);
+  if (sequenceRoot.parent?.userData?.kind === 'CRITERIUM_SYSTEM') sequenceRoot.userData.parentSystemId = sequenceRoot.parent.userData.systemId;
   frameAssemblies(sequenceRoot).forEach((frame) => setParentSequence(frame, sequenceId));
   junctionRoots(sequenceRoot).forEach((junction) => setParentSequence(junction, sequenceId));
   if (!partsRegistry.some(({ obj }) => obj === sequenceRoot)) partsRegistry.push({ code: sequenceId, obj: sequenceRoot });

@@ -1,0 +1,71 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { Group, Quaternion, Raycaster, Vector3 } from 'three';
+import { createMultipleConfigurationState } from '../src/mepal/multiple/configurator/multipleConfigurationState.js';
+import { MultipleSystem } from '../src/mepal/multiple/system/MultipleSystem.js';
+import { buildMultipleSystem } from '../src/mepal/multiple/system/MultipleSystemBuilder.js';
+import { registerMultipleSystem } from '../src/mepal/multiple/system/multipleSystemIntegration.js';
+import { getMultipleConnectionPoints } from '../src/mepal/multiple/system/layout/MultipleConnectionResolver.js';
+import { getMultipleSystemProductFromHit, describeMultipleProductSnap, previewMultipleProductDrag, commitMultipleProductDrag } from '../src/mepal/multiple/system/layout/MultipleSmartLayoutInteraction.js';
+import { serializeMultipleSystem, restoreMultipleSystem } from '../src/mepal/multiple/system/multipleSystemSerialization.js';
+
+test('raycast y drag del producto 3D real conectan dos paneles estándar bajo una raíz transformada', () => {
+  const config = createMultipleConfigurationState({ widthCm: 120, heightCm: 90, thicknessCm: 8 });
+  const system = new MultipleSystem().addModule(config).addModule(config);
+  system.updateModule(system.modules[1].moduleId, { position: { x: 1.4, y: 0, z: 0 } });
+  system.transform = { position: [4, 0, 2], quaternion: new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 6).toArray(), scale: [1, 1, 1] };
+  const built = buildMultipleSystem(system);
+  assert.equal(built.success, true, built.reason);
+  const scene = new Group();
+  const partsRegistry = []; const pickables = [];
+  registerMultipleSystem({ instance: built, parent: scene, partsRegistry, pickables });
+  const [a, b] = built.products;
+  assert.equal(b.userData.kind, 'MULTIPLE_PRODUCT');
+  assert.equal(b.parent, built.object);
+  assert.equal(b.userData.moduleId, system.modules[1].moduleId);
+  assert.equal(b.userData.instanceId, system.modules[1].instanceId);
+  assert.equal(b.userData.config.widthCm, 120);
+  assert.ok(pickables.includes(b));
+
+  const aim = b.localToWorld(new Vector3(0, 0.45, 0));
+  const outward = new Vector3(0, 0, 1).applyQuaternion(b.getWorldQuaternion(new Quaternion()));
+  const raycaster = new Raycaster(aim.clone().addScaledVector(outward, 5), outward.clone().negate());
+  const hits = raycaster.intersectObjects(pickables, true);
+  assert.ok(hits.length);
+  assert.equal(getMultipleSystemProductFromHit(hits[0].object), b);
+
+  const moduleA = built.object.userData.modules[0];
+  const moduleB = built.object.userData.modules[1];
+  const rightA = getMultipleConnectionPoints(moduleA).find((point) => point.id === 'END');
+  const leftB = getMultipleConnectionPoints(moduleB).find((point) => point.id === 'START');
+  assert.ok(Math.abs(rightA.position[0] - 0.6) < 1e-12);
+  assert.ok(Math.abs(leftB.position[0] - 0.8) < 1e-12);
+  const rightWorld = built.object.localToWorld(new Vector3(...rightA.position));
+  const leftWorld = built.object.localToWorld(new Vector3(...leftB.position));
+  assert.ok(Math.abs(rightWorld.distanceTo(leftWorld) - 0.2) < 1e-12);
+
+  const debug = describeMultipleProductSnap(b);
+  assert.equal(debug.source.productId, 'MULTIPLE_PRODUCT');
+  assert.equal(debug.sourcePoint, 'START');
+  assert.equal(debug.targetPoint, 'END');
+  assert.ok(Math.abs(debug.distanceMm - 200) < 1e-9);
+  assert.equal(debug.compatible, true);
+  const preview = previewMultipleProductDrag(b);
+  assert.equal(preview.status, 'GREEN');
+  assert.equal(built.object.userData.connections.length, 0);
+  const identity = { moduleId: b.userData.moduleId, instanceId: b.userData.instanceId };
+  const committed = commitMultipleProductDrag(built.object, [b]);
+  assert.equal(committed.changed, true);
+  assert.ok(Math.abs(b.position.x - 1.2) < 1e-12);
+  assert.deepEqual({ moduleId: b.userData.moduleId, instanceId: b.userData.instanceId }, identity);
+  assert.equal(built.object.userData.connections.length, 1);
+  const joinedLeft = built.object.localToWorld(new Vector3(...getMultipleConnectionPoints({ ...moduleB, position: { x: b.position.x, y: b.position.y, z: b.position.z } }).find((point) => point.id === 'START').position));
+  assert.ok(rightWorld.distanceTo(joinedLeft) < 1e-12);
+
+  const saved = serializeMultipleSystem(built.object);
+  const reopened = restoreMultipleSystem(saved);
+  assert.equal(reopened.success, true, reopened.reason);
+  assert.equal(reopened.products[1].userData.moduleId, identity.moduleId);
+  assert.equal(reopened.object.userData.connections.length, 1);
+  assert.ok(Math.abs(reopened.products[1].position.x - 1.2) < 1e-12);
+});

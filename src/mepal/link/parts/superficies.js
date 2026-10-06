@@ -15,4 +15,29 @@ export function createSuperficie({config,key,widthMm,depthMm,position,moduleInde
     {moduleIndex,rotationY,materialBase:rule.materialBase,componentConfig:component,leaderRole,
       grommetHole:hole,meta:{category:'superficies',layoutType:leaderRole?'LEADER':'STANDARD',leaderRole}});
 }
-
+export const LINK_INTEGRACION_LENGTH_MM = 300;
+export function resolveIntegracionHole(widthMm, depthMm, holeSide = 'derecha') {
+  const edgeOffsetXMm = 53;
+  // Separado del borde frontal para quedar en linea recta con la entrada (placa) del ducto cableado:
+  // el ducto esta a 75 mm del frente y la placa a 23.7 mm de su eje, centro del orificio a 98.7 mm del frente.
+  const holeCornerRadiusMm = 10;
+  const holeWidthMm = 106;
+  const holeDepthMm = 90;
+  const edgeOffsetZMm = 75 + 23.7 - holeDepthMm / 2;
+  const xSign = holeSide === 'izquierda' ? -1 : 1;
+  return {
+    widthMm: holeWidthMm,
+    depthMm: holeDepthMm,
+    cornerRadiusMm: holeCornerRadiusMm,
+    xMm: xSign * (widthMm / 2 - edgeOffsetXMm - holeWidthMm / 2),
+    zMm: -depthMm / 2 + edgeOffsetZMm + holeDepthMm / 2,
+    side: holeSide,
+  };
+}
+export function createSuperficieIntegracion({config, key, widthMm, depthMm, position, rotationY = 0, type, holeSide = null}) {
+  // Solo la integración individual lleva orificio (entrada del ducto a techo).
+  const integracionHole = type === 'individual' && holeSide ? resolveIntegracionHole(widthMm, depthMm, holeSide) : null;
+  return linkPart('SURFACE', key, [widthMm, 30, depthMm], [position[0], 710 + 15, position[2]],
+    'LINK_SUPERFICIE_INT', `Superficie de integración ${type}`,
+    {rotationY, materialBase: 'FORMICA', meta: {category: 'superficies', integracionType: type}, integracionType: type, integracionHole, materialRole: 'surface'});
+}

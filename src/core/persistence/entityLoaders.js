@@ -5,6 +5,8 @@ const LOADERS = {
   LOCKER_PRODUCT: (entity, context) => context.createLocker(entity),
   KONCISA_PLUS: (entity, context) => context.createKoncisaPlus(entity),
   CRITTERIUM_8: (entity, context) => context.createCritterium8(entity),
+  CRITTERIUM_8_SEQUENCE: (entity, context) => context.createCritterium8Sequence(entity),
+  CRITERIUM_SYSTEM: (entity, context) => context.createCritteriumSystem(entity),
   VETRO_PRODUCT: (entity, context) => context.createVetro(entity),
   MILA: (entity, context) => context.createMila(entity),
   SURFACE: (entity, context) => context.createSurface(entity),
@@ -31,7 +33,7 @@ export function getEntityLoader(kind) {
 export async function loadPersistedEntity(entity, context) {
   const loader = getEntityLoader(entity?.kind);
   if (!loader) throw new Error(`UNSUPPORTED_KIND:${entity?.kind || 'UNKNOWN'}`);
-  if (!entity?.codigoPT && !['LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM', 'SURFACE', 'CRITTERIUM_8', 'VETRO_PRODUCT', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
+  if (!entity?.codigoPT && !['LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM', 'SURFACE', 'CRITTERIUM_8', 'CRITTERIUM_8_SEQUENCE', 'CRITERIUM_SYSTEM', 'VETRO_PRODUCT', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
     throw new Error('MISSING_CODIGO_PT');
   }
 

@@ -2,7 +2,7 @@ import { linkComponentConfig } from '../rules/linkComponentRules.js';
 import { resolveLinkCostado } from '../rules/linkCostadoRules.js';
 import { resolveLeaderCostadoOutlet } from '../leader/rules/leaderCostadoOutletRules.js';
 
-export function createCostado({config,key,terminal=true,depthMm,position,moduleIndex=0,rotationY=0,leaderRole=null}) {
+export function createCostado({config,key,terminal=true,replaceZone=null,depthMm,position,moduleIndex=0,rotationY=0,leaderRole=null}) {
   const component=linkComponentConfig(config,key,{shape:config.tipoCostado,supportFinish:config.supportFinish,hasOutletBox:false,pedestal:false});
   const rule=resolveLinkCostado({type:config.type,depthMm:config.depthMm,terminal,shape:component.shape,supportFinish:component.supportFinish});
   if(leaderRole==='MAIN_RETURN_JUNCTION'&&component.hasOutletBox)rule.code=resolveLeaderCostadoOutlet(config.depthMm,component.shape,component.supportFinish).code;
@@ -37,11 +37,13 @@ export function createCostado({config,key,terminal=true,depthMm,position,moduleI
     meta:{
       category:'costados',
       tipo:subtype,
+      tipoPuesto:config.type,
       terminal,
       shape:component.shape,
       supportFinish:component.supportFinish,
       depthMm,
       moduleIndex,
+      replaceZone,
       layoutType:leaderRole?'LEADER':'STANDARD',
       leaderRole,
       pedestalTarget:leaderRole==='RETURN_END',

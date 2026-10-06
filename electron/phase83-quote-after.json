@@ -1,0 +1,135 @@
+{
+  "kind": "CRITERIUM_QUOTATION",
+  "systemId": "b0f9641b-efbc-405e-9a26-96286b95d4c3",
+  "generatedAt": "2026-10-05T07:09:56.093Z",
+  "currency": "COP",
+  "currencySource": "/data/xml/PriceList_CO_2.xml",
+  "items": [
+    {
+      "code": "22191900011",
+      "reference": null,
+      "description": "Marco Critterium 8 90 × 128 cm",
+      "quantity": 6,
+      "materialCommercial": "LAMINA",
+      "finishCommercial": null,
+      "materialSource": "PTSINBOM",
+      "finishStatus": "NO_DATA",
+      "category": "CRITTERIUM_8",
+      "sourceIds": [
+        "C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME",
+        "C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME",
+        "C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME",
+        "C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME",
+        "C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME",
+        "C8_238655a4-9370-4324-8114-f0813c15603b_FRAME"
+      ],
+      "unitPrice": 525000,
+      "subtotal": 3150000,
+      "commercialStatus": "PRICED",
+      "priceSource": "/data/xml/PriceList_CO_2.xml"
+    },
+    {
+      "code": "22191900127",
+      "reference": null,
+      "description": "Kit de unión TERMINAL",
+      "quantity": 6,
+      "materialCommercial": "INDEFINIDO",
+      "finishCommercial": null,
+      "materialSource": "PTSINBOM",
+      "finishStatus": "NO_DATA",
+      "category": "CRITTERIUM_8",
+      "sourceIds": [
+        "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_119JDBU",
+        "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1VT1K6",
+        "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_1RGYY1N",
+        "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_2A4Y2S",
+        "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1VKVZSL",
+        "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_U7V76Q"
+      ],
+      "unitPrice": 169050,
+      "subtotal": 1014300,
+      "commercialStatus": "PRICED",
+      "priceSource": "/data/xml/PriceList_CO_2.xml"
+    },
+    {
+      "code": "22000014321",
+      "reference": null,
+      "description": "Kit de unión DEG_180",
+      "quantity": 3,
+      "materialCommercial": "PLASTICO",
+      "finishCommercial": null,
+      "materialSource": "PTSINBOM",
+      "finishStatus": "NO_DATA",
+      "category": "CRITTERIUM_8",
+      "sourceIds": [
+        "C8_JUNCTION_C8_SEQUENCE_C8_0ad323f4-c22e-4e86-8680-10312e972320_FRAME_C8_38dc85a9-2596-468b-b46d-d69822651482_FRAME_1UP9ZTJ",
+        "C8_JUNCTION_C8_SEQUENCE_C8_447c3dcc-92a7-4916-92c8-e7f33ff8a9c5_FRAME_C8_c6611d28-1832-43ae-ad6f-7971087ef3db_FRAME_TEYI80",
+        "C8_JUNCTION_C8_SEQUENCE_C8_238655a4-9370-4324-8114-f0813c15603b_FRAME_C8_34661ebd-4719-40fb-87c9-e3c2e0557bc9_FRAME_1WZ08G8"
+      ],
+      "unitPrice": 123900,
+      "subtotal": 371700,
+      "commercialStatus": "PRICED",
+      "priceSource": "/data/xml/PriceList_CO_2.xml"
+    }
+  ],
+  "subtotal": 4536000,
+  "total": 4536000,
+  "tax": null,
+  "status": "CONFIGURATION_COMPLETE",
+  "isPartial": false,
+  "diagnostics": [
+    {
+      "code": "CRITERIUM_FINISH_CATALOG_LIMITED",
+      "level": "INFO"
+    },
+    {
+      "code": "CRITERIUM_DOOR_NOT_DOCUMENTED",
+      "level": "INFO"
+    }
+  ],
+  "snapshot": {
+    "currency": "COP",
+    "items": [
+      {
+        "code": "22191900011",
+        "reference": null,
+        "description": "Marco Critterium 8 90 × 128 cm",
+        "materialCommercial": "LAMINA",
+        "finishCommercial": null,
+        "quantity": 6,
+        "unitPrice": 525000
+      },
+      {
+        "code": "22191900127",
+        "reference": null,
+        "description": "Kit de unión TERMINAL",
+        "materialCommercial": "INDEFINIDO",
+        "finishCommercial": null,
+        "quantity": 6,
+        "unitPrice": 169050
+      },
+      {
+        "code": "22000014321",
+        "reference": null,
+        "description": "Kit de unión DEG_180",
+        "materialCommercial": "PLASTICO",
+        "finishCommercial": null,
+        "quantity": 3,
+        "unitPrice": 123900
+      }
+    ]
+  },
+  "office": {
+    "sequenceCount": 3,
+    "moduleCount": 6,
+    "frameCount": 6,
+    "connectionCount": 1,
+    "doorCount": 0,
+    "lengthM": null,
+    "closedLoopCount": 0,
+    "componentCount": 15,
+    "referenceCount": 0,
+    "pricedCount": 3,
+    "unpricedCount": 0
+  }
+}

@@ -32,7 +32,15 @@ export function normalizeLinkConfig(input = {}) {
   if (!LINK_SUPPORT_SHAPES.some(s => s.value === c.tipoCostado)) throw new Error('Tipo de costado no disponible.');
   if (!['PINTADO','CROMADO'].includes(c.supportFinish)) throw new Error('Acabado de costado inválido.');
   if (!['none','grommet'].includes(c.cableAccess) || !['ALUMINIUM','PAINTED'].includes(c.grommetFinish)) throw new Error('Grommet LINK no válido.');
+  if (!['ninguna', 'individual', 'recta', 'redonda', 'curva'].includes(c.integracionType)) throw new Error('Superficie de integración LINK no válida.');
+  if (!['ambas', 'izquierda', 'derecha'].includes(c.integracionSide)) throw new Error('Lado de integración LINK no válido.');
+  if (!['izquierda', 'derecha'].includes(c.integracionHoleSide)) throw new Error('Lado del orificio LINK no válido.');
+  if (c.type === 'sencillo' && !['ninguna', 'individual'].includes(c.integracionType)) throw new Error('En puesto individual, la integración LINK disponible es la individual.');
+  if (c.type === 'doble' && ['individual'].includes(c.integracionType)) throw new Error('La integración individual LINK solo está disponible en puesto individual.');
+  if (!['sencillo', 'doble'].includes(c.type) && c.integracionType !== 'ninguna') throw new Error('Superficie de integración LINK no disponible para este tipo.');
   if (typeof c.leaderReturnGrommet !== 'boolean' || typeof c.leaderCredenza !== 'boolean') throw new Error('Configuración líder LINK inválida.');
+  if (typeof c.hasPantallaFalda !== 'boolean' || !['formica', 'vidrio', 'melamina', 'tela'].includes(c.pantallaFaldaMaterial)) throw new Error('Falda pantalla LINK no válida.');
+  if (c.hasPantallaFalda && c.type !== 'sencillo') throw new Error('La falda pantalla LINK solo está disponible para puesto individual.');
   const leaderCredenzaLengthMm = Number(c.leaderCredenzaLengthMm);
   if (![1200,1500].includes(leaderCredenzaLengthMm)) throw new Error('Largo de credenza LINK no válido.');
   for (const key of ['surfaceColor','structureColor','pedestalColor']) if (!/^#[\da-f]{6}$/i.test(c[key])) throw new Error('Color LINK inválido.');
@@ -45,5 +53,9 @@ export function normalizeLinkConfig(input = {}) {
     componentTransforms:normalizeLinkComponentTransforms(c.componentTransforms),
     components:normalizeLinkComponents(c.components,c.type), leaderReturnGrommet:c.leaderReturnGrommet,
     leaderCredenza:c.leaderCredenza, leaderCredenzaLengthMm,
-    surfaceColor:c.surfaceColor, structureColor:c.structureColor, pedestalColor:c.pedestalColor };
+    surfaceColor:c.surfaceColor, structureColor:c.structureColor, pedestalColor:c.pedestalColor,
+    hasPantallaFrontal:c.type==='doble' && c.hasPantallaFrontal, pantallaFrontalMaterial:c.pantallaFrontalMaterial,
+    hasPantallaLateral:c.hasPantallaLateral, pantallaLateralMaterial:c.pantallaLateralMaterial,
+    hasPantallaFalda:c.hasPantallaFalda, pantallaFaldaMaterial:c.pantallaFaldaMaterial,
+    integracionType:c.integracionType, integracionSide:c.integracionSide, integracionHoleSide:c.integracionHoleSide };
 }

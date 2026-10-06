@@ -134,8 +134,15 @@ export default function BOMView({
         groupLabel: isGrouped ? gname || `Tipología ${gid}` : 'SUELTOS',
 
         code: safeStr(it.code),
-        description: safeStr(it.description),
-        category: resolveBomCategoryLabel(it.category || it.section || it.bomSection || it.type),
+        description: it.category === 'CRITTERIUM_8'
+          ? [safeStr(it.description), it.reference ? `Ref.: ${it.reference}` : '', it.materialCode ? `Material: ${it.materialCode}` : '', it.finishCode ? `Acabado: ${it.finishCode}` : ''].filter(Boolean).join(' · ')
+          : safeStr(it.description),
+        reference: it.reference ?? null,
+        materialCode: it.materialCode ?? null,
+        finishCode: it.finishCode ?? null,
+        category: it.category === 'CRITTERIUM_8'
+          ? 'CRITTERIUM_8'
+          : resolveBomCategoryLabel(it.category || it.section || it.bomSection || it.type),
         qty,
         groupCount: Number(it.groupCount || 0),
         typologyReferenceCode: safeStr(it.typologyReferenceCode).replace(/\D+/g, ''),
@@ -163,7 +170,9 @@ export default function BOMView({
       const consolidateRows = (rows) => {
       const byCode = new Map();
       for (const row of rows) {
-        const key = row.code;
+        const key = row.category === 'CRITTERIUM_8'
+          ? JSON.stringify([row.code, row.reference, row.materialCode, row.finishCode])
+          : row.code;
         const previous = byCode.get(key);
         if (!previous) {
           byCode.set(key, { ...row });
@@ -928,7 +937,9 @@ export default function BOMView({
                       const rowBg = i % 2 === 0 ? '#ffffff' : palette.rowAlt;
 
                       return (
-                        <React.Fragment key={`${g.key}__${r.category}__${r.code}`}>
+                        <React.Fragment key={JSON.stringify([
+                          g.key, r.category, r.code, r.reference, r.materialCode, r.finishCode, i,
+                        ])}>
                           {groupMode === 'typology' &&
                             (i === 0 || r.category !== g.items[i - 1]?.category) && (
                               <tr>

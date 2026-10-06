@@ -47,6 +47,7 @@ export default function DuctConfigModal({
               <option value="TERMINAL">Terminal</option>
               <option value="INTERMEDIO">Intermedio</option>
               {tipoPasoCable !== 'pasacable' && <option value="INDIVIDUAL">Individual</option>}
+              {tipoPasoCable !== 'grommet' && <option value="NONE">Sin ducto</option>}
             </select>
           </div>
         ))}
