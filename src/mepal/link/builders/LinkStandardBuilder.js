@@ -1,10 +1,11 @@
 import { resolveLinkSurfaceLayout } from '../rules/linkSurfaceRules.js';
-import { createSuperficie, createSuperficieIntegracion } from '../parts/superficies.js';
+import { createSuperficie, createSuperficieIntegracion, LINK_INTEGRACION_LENGTH_MM } from '../parts/superficies.js';
 import { createCostado } from '../parts/costados.js';
 import { createViga } from '../parts/vigas.js';
 import { createGrommet } from '../parts/grommets.js';
 import { createDucto,createDuctAccessories } from '../parts/ductos.js';
-import { createPantallaFrontal, createPantallaLateral } from '../parts/pantallas.js';
+import { createPantallaFrontal, createPantallaLateral, createPantallaFalda, LINK_FALDA_PANTALLA_GAP_MM, LINK_FALDA_PANTALLA_TERMINAL_INSET_MM, LINK_PANTALLA_DEFAULT_HEIGHT_MM } from '../parts/pantallas.js';
+import { linkComponentConfig } from '../rules/linkComponentRules.js';
 export function buildLinkStandard(config){
   const c=config,parts=[],layout=resolveLinkSurfaceLayout(c);
   for(let moduleIndex=0;moduleIndex<c.puestos;moduleIndex++){
@@ -31,7 +32,7 @@ export function buildLinkStandard(config){
       const duct=createDucto({config:c,moduleIndex,x,z:c.type==='doble'?0:-layout.surfaceDepthMm/2+75});
       if(duct)parts.push(duct,...createDuctAccessories(c,duct));
     }
-    if (c.hasPantallaFrontal) {
+    if (c.type === 'doble' && c.hasPantallaFrontal) {
       const pantallaZ = c.type === 'doble' ? 0 : -layout.surfaceDepthMm / 2 + 30;
       const pantallaParts = createPantallaFrontal({
         key: `pantalla-${moduleIndex}`,
@@ -39,6 +40,7 @@ export function buildLinkStandard(config){
         material: c.pantallaFrontalMaterial,
         position: [x, 750, pantallaZ], // 750 is roughly base height for screen
         moduleIndex,
+        heightMm: linkComponentConfig(c, `pantalla-${moduleIndex}-top`, { heightMm: LINK_PANTALLA_DEFAULT_HEIGHT_MM }).heightMm,
       });
       parts.push(...pantallaParts);
     }
@@ -72,22 +74,42 @@ export function buildLinkStandard(config){
           position: [boundaryX, 740, z],
           rotationY: surfaceIndex === 1 ? Math.PI : 0,
           moduleIndex: index,
+          heightMm: linkComponentConfig(c, `pantalla-lateral-${index}-${surfaceIndex}-board`, { heightMm: LINK_PANTALLA_DEFAULT_HEIGHT_MM }).heightMm,
         });
         parts.push(...lateralParts);
       });
     }
   }
   let integracionExtraWidth = 0;
-  if (c.integracionType && c.integracionType !== 'ninguna') {
+  if (c.type === 'sencillo' && c.hasPantallaFalda) {
+    // Falda pantalla: solo individual, una por puesto a todo lo largo del canto del lado de los grommets.
+    // Entre puestos queda un espacio (como entre las pantallas); en los lados que terminan en un costado la falda no llega a la pata.
+    for (let moduleIndex = 0; moduleIndex < c.puestos; moduleIndex++) {
+      const leftInset = moduleIndex > 0 ? LINK_FALDA_PANTALLA_GAP_MM / 2 : LINK_FALDA_PANTALLA_TERMINAL_INSET_MM;
+      const rightInset = moduleIndex < c.puestos - 1 ? LINK_FALDA_PANTALLA_GAP_MM / 2 : LINK_FALDA_PANTALLA_TERMINAL_INSET_MM;
+      const moduleX = (moduleIndex - (c.puestos - 1) / 2) * c.widthMm;
+      parts.push(...createPantallaFalda({
+        key: `pantalla-falda-${moduleIndex}`,
+        lengthMm: c.widthMm - leftInset - rightInset,
+        material: c.pantallaFaldaMaterial,
+        position: [moduleX + (leftInset - rightInset) / 2, 0, -layout.surfaceDepthMm / 2],
+        moduleIndex,
+      }));
+    }
+  }
+  const integracionEnabled = (c.type === 'sencillo' && c.integracionType === 'individual')
+    || (c.type === 'doble' && ['recta', 'redonda', 'curva'].includes(c.integracionType));
+  if (integracionEnabled) {
     const type = c.integracionType;
-    const side = c.integracionSide || 'ambas';
-    const intLength = 300;
+    const isIndividual = type === 'individual';
+    const side = c.integracionSide || (isIndividual ? 'derecha' : 'ambas');
+    const intLength = LINK_INTEGRACION_LENGTH_MM;
     
     if (side === 'ambas' || side === 'izquierda') {
       const leftX = -c.widthMm * c.puestos / 2 - intLength / 2;
       parts.push(createSuperficieIntegracion({
         config: c, key: `int-left`, widthMm: intLength, depthMm: layout.totalDepthMm,
-        position: [leftX, 0, 0], rotationY: Math.PI, type
+        position: [leftX, 0, 0], rotationY: isIndividual ? 0 : Math.PI, type, holeSide: isIndividual ? 'derecha' : null
       }));
       integracionExtraWidth += intLength;
     }
@@ -96,7 +118,7 @@ export function buildLinkStandard(config){
       const rightX = c.widthMm * c.puestos / 2 + intLength / 2;
       parts.push(createSuperficieIntegracion({
         config: c, key: `int-right`, widthMm: intLength, depthMm: layout.totalDepthMm,
-        position: [rightX, 0, 0], rotationY: 0, type
+        position: [rightX, 0, 0], rotationY: 0, type, holeSide: isIndividual ? 'izquierda' : null
       }));
       integracionExtraWidth += intLength;
     }

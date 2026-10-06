@@ -12,7 +12,8 @@ export function createLinkComponentPatch(object,componentKey,patch){
   const allowed=role==='SURFACE'?['finishId','grommet','grommetFinish','grommetPosition',...(config.type==='lider'?['floorDuct','floorSide']:[])]:
     role==='SUPPORT'?['shape','supportFinish',...(target.leaderRole==='MAIN_RETURN_JUNCTION'?['hasOutletBox']:[]),...(target.leaderRole==='RETURN_END'?['pedestal']:[])]:
     role==='DUCT'?['coverLeft','coverRight','floorDuct','floorSide','ceilingSide','supportFinish','removed']:
-    role==='PEDESTAL'?['pedestal']:[];
+    role==='PEDESTAL'?['pedestal']:
+    role==='PANTALLA_FRONTAL_BOARD'||role==='PANTALLA_LATERAL_BOARD'?['heightMm']:[];
   if(Object.keys(patch).some(key=>!allowed.includes(key)))throw new Error('Esta propiedad no corresponde a la pieza seleccionada.');
   const normalized=normalizeLinkComponentConfig(patch,config.type);
   return {components:{...config.components,[targetKey]:{...config.components?.[targetKey],...normalized}}};

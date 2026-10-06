@@ -30,7 +30,7 @@ function LinkComponentProperties({ part, api, readOnly }) {
     case 'SUPPORT': case 'PEDESTAL': controls = <LinkCostadoProperties {...props} />; break;
     case 'SURFACE': case 'GROMMET': controls = <LinkSurfaceProperties {...props} />; break;
     case 'FLOOR_DUCT': case 'CEILING_DUCT': case 'DUCT_COVER': controls = <LinkBajanteDuctProperties {...props} />; break;
-    case 'PANTALLA_FRONTAL_BOARD': case 'PANTALLA_LATERAL_BOARD': controls = <LinkPantallaProperties {...props} />; break;
+    case 'PANTALLA_FRONTAL_BOARD': case 'PANTALLA_LATERAL_BOARD': case 'PANTALLA_FALDA_BOARD': controls = <LinkPantallaProperties {...props} />; break;
     default: controls = <div style={{ fontSize: 12 }}>Selecciona una pieza para ver sus opciones. Los acabados se editan en el panel de propiedades.</div>;
   }
   return <div style={sectionStyle}>{controls}{error && <div role="alert" style={{ color: '#b91c1c', fontSize: 12 }}>{error}</div>}</div>;

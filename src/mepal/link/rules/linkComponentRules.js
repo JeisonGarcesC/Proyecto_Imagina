@@ -6,7 +6,7 @@ export function normalizeLinkComponentConfig(value={},type='sencillo') {
   const result={};
   for(const key of booleans)if(Object.hasOwn(value,key)){if(typeof value[key]!=='boolean')throw new Error('Propiedad LINK inválida: '+key);result[key]=value[key];}
   const options={shape:LINK_SUPPORT_SHAPES.map(s=>s.value),supportFinish:['PINTADO','CROMADO'],grommetFinish:['ALUMINIUM','PAINTED'],
-    finishId:getLinkFinishOptions(type).map(f=>f.id),floorSide:sides,ceilingSide:['NONE','LEFT','RIGHT'],grommetPosition:sides};
+    finishId:getLinkFinishOptions(type).map(f=>f.id),floorSide:sides,ceilingSide:['NONE','LEFT','RIGHT'],grommetPosition:sides,heightMm:[300,500]};
   for(const [key,allowed] of Object.entries(options))if(Object.hasOwn(value,key)){
     if(!allowed.includes(value[key]))throw new Error('Propiedad LINK inválida: '+key);result[key]=value[key];
   }

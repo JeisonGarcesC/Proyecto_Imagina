@@ -90,6 +90,11 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   if (!open || !part) return null;
 
   const isFloor = part?.kind === 'FLOOR_VISUAL';
+  const hasIntegration = Boolean(part?.meta?.integrationSetId || part?.integrationSetId);
+  const isIntegrationLeg = Boolean(part?.meta?.isIntegrationLeg || part?.isIntegrationLeg);
+  const isLinkLeg = part?.kind === 'LINK_PRODUCT' && (part?.componentRole === 'SUPPORT' || part?.componentRole === 'PEDESTAL');
+  const hasSpecificIntegrationButton = isIntegrationLeg || isLinkLeg;
+  const showGenericIntegrationButton = hasIntegration && !hasSpecificIntegrationButton;
 
   const hasEditableProperties =
     part?.kind === 'LINK_PRODUCT' ||
@@ -106,7 +111,8 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     isMoreaEditablePart(part) ||
     isMilaEditablePart(part) ||
     isLockerEditablePart(part) ||
-    isFloor;
+    isFloor ||
+    showGenericIntegrationButton;
 
   const popupWidth = 330;
   const anchorX = anchorRef.current.open ? anchorRef.current.x : x;
@@ -190,6 +196,34 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       {!isMoreaEditablePart(part) && <MilaProperties part={part} api={api} onClose={onClose} />}
 
       <LockerPopupProperties part={part} api={api} onClose={onClose} />
+
+      {showGenericIntegrationButton && (
+        <div style={sectionStyle}>
+          <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.75, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+            Esta pieza pertenece a un puesto de integración.
+          </div>
+          <button
+            type="button"
+            style={{
+              marginTop: 10,
+              width: '100%',
+              padding: '6px 12px',
+              background: '#b91c1c',
+              color: '#fff',
+              border: '1px solid #b91c1c',
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+            onClick={async () => {
+              await api?.removeSelectedIntegrationAndRestoreCostado?.();
+            }}
+          >
+            Quitar puesto de integración
+          </button>
+        </div>
+      )}
 
       {isFloor && (
         <div style={sectionStyle}>

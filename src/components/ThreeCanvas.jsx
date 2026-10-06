@@ -13575,13 +13575,23 @@ function ThreeCanvas({
         };
 
         if (cableAccess.type === 'grommet') {
-          await addExternalGlbPart({
+          const grommetObj = await addExternalGlbPart({
             ...cableAccessPart,
             model: {
               kind: 'glb',
               src: cableAccess.modelSrc,
             },
           });
+          
+          if (grommetObj && isLinkComponent) {
+            grommetObj.traverse((node) => {
+              if (node.isMesh && node.material) {
+                node.material = node.material.clone();
+                // Oscurecer el grommet para que coincida con el negro/gris oscuro de Link
+                node.material.color.set('#22252a');
+              }
+            });
+          }
         } else {
           addNativeBlockPart({
             ...cableAccessPart,
@@ -13695,19 +13705,42 @@ function ThreeCanvas({
       if (readOnly) return false;
       if (!activePart) return false;
 
-      const selectedObj = getActiveEditablePartObject();
+      const selectedObj = getActiveEditablePartObject() || activePart;
+      if (!selectedObj) return false;
       const selectedMeta = selectedObj?.userData?.meta || {};
 
-      const integrationSetId =
-        selectedMeta.integrationSetId || selectedObj?.userData?.integrationSetId || null;
+      let integrationSetId = null;
+      let currSearch = activeSubMesh || activePart;
+      while (currSearch) {
+        integrationSetId =
+          currSearch.userData?.meta?.integrationSetId ||
+          currSearch.userData?.integrationSetId ||
+          null;
+        if (integrationSetId) break;
+        currSearch = currSearch.parent;
+      }
+
+      if (!integrationSetId) {
+        integrationSetId =
+          selectedObj.userData?.meta?.integrationSetId ||
+          selectedObj.userData?.integrationSetId ||
+          null;
+      }
 
       if (!integrationSetId) {
         alert('Selecciona una pieza que pertenezca a un puesto de integración.');
         return false;
       }
 
-      const parentGroup =
-        selectedObj.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || selectedObj.parent?.userData?.kind === 'LINK_PRODUCT' ? selectedObj.parent : null;
+      let parentGroup = null;
+      let curr = activePart;
+      while (curr) {
+        if (curr.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || curr.userData?.kind === 'LINK_PRODUCT') {
+          parentGroup = curr;
+          break;
+        }
+        curr = curr.parent;
+      }
 
       let integrationLegObj = null;
       let originalCostadoSnapshot = null;
@@ -13724,11 +13757,16 @@ function ThreeCanvas({
         if (meta.integrationSetId !== integrationSetId && node.userData?.integrationSetId !== integrationSetId) return;
 
         const isRootPart = node.userData?.isPartRoot === true;
-
         if (!isRootPart) return;
 
-        if (node.userData?.kind === 'LINK_COMPONENT' && node.userData?.type === 'costado') {
-          // This is the original Link leg, do not remove it, just clear its integration metadata
+        const isLinkLeg = 
+          node.userData?.kind === 'LINK_COMPONENT' || 
+          node.userData?.componentRole === 'SUPPORT' || 
+          node.userData?.componentRole === 'PEDESTAL' ||
+          node.userData?.kind === 'LINK_PRODUCT';
+
+        if (isLinkLeg) {
+          // This is the original Link piece, do not remove it, just clear its integration metadata
           delete node.userData.integrationSetId;
           if (node.userData.meta) {
             delete node.userData.meta.integrationSetId;
@@ -15813,6 +15851,25 @@ function ThreeCanvas({
         root.userData._milaQuantity = seatNodes.length;
       }
 
+      let popupIntegrationSetId =
+        propertiesTarget.userData?.meta?.integrationSetId ||
+        propertiesTarget.userData?.integrationSetId || null;
+      let popupIsIntegrationLeg = propertiesTarget.userData?.meta?.isIntegrationLeg || false;
+
+      if (!popupIntegrationSetId && hitObj) {
+        let curr = hitObj;
+        while (curr) {
+          popupIntegrationSetId =
+            curr.userData?.meta?.integrationSetId ||
+            curr.userData?.integrationSetId || null;
+          if (curr.userData?.meta?.isIntegrationLeg) {
+            popupIsIntegrationLeg = true;
+          }
+          if (popupIntegrationSetId) break;
+          curr = curr.parent;
+        }
+      }
+
       //para propiedades flotantes p popup:
       onFloatingEditorRequest?.({
         open: true,
@@ -15823,6 +15880,8 @@ function ThreeCanvas({
           kind: propertiesTarget.userData?.kind || null,
           line: propertiesTarget.userData?.line || null,
           meta: propertiesTarget.userData?.meta || null,
+          integrationSetId: popupIntegrationSetId,
+          isIntegrationLeg: popupIsIntegrationLeg,
           role:
             propertiesTarget.userData?.role ||
             propertiesTarget.userData?.meta?.role ||

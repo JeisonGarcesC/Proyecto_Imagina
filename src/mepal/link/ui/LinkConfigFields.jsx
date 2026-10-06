@@ -6,7 +6,26 @@ import LinkLeaderFields from '../leader/ui/LinkLeaderFields.jsx';
 export default function LinkConfigFields({config:c,onChange,disabled=false}) {
   const leader=c.type==='lider', widths=leader?LINK_LEADER_WIDTHS:LINK_WIDTHS;
   if (leader) return <LinkLeaderFields config={c} onChange={onChange} disabled={disabled}/>;
-  const change=(key,value)=>onChange({...c,[key]:value,...(key==='type'&&value==='sencillo'?{surfaceMode:'principal'}:{})});
+  const change=(key,value)=>{
+    if (key === 'type') {
+      const next = { ...c, type: value };
+      if (value === 'sencillo') {
+        next.surfaceMode = 'principal';
+        if (!['ninguna', 'individual'].includes(next.integracionType)) {
+          next.integracionType = 'ninguna';
+          next.integracionSide = 'ambas';
+        }
+      } else if (value === 'doble' && next.integracionType === 'individual') {
+        next.integracionType = 'ninguna';
+        next.integracionSide = 'ambas';
+      }
+      if (value !== 'sencillo') next.hasPantallaFalda = false;
+      if (value !== 'doble') next.hasPantallaFrontal = false;
+      onChange(next);
+      return;
+    }
+    onChange({ ...c, [key]: value });
+  };
   const select=(label,key,options)=><label style={labelStyle}>{label}<select style={inputStyle} disabled={disabled} value={c[key]}
     onChange={e=>change(key,key.endsWith('Mm')||key==='puestos'?Number(e.target.value):e.target.value)}>
     {options.map(o=><option key={o.value??o} value={o.value??o}>{o.label??o}</option>)}
@@ -28,13 +47,17 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
       }}/> {leader?'Puesto líder rematable / medida especial':'Puesto especial'}</label>
       {dimension('Largo real','widthMm',widths,leader?1500:900,1800)}
       {c.type==='doble'&&select('Configuración de superficie','surfaceMode',[{value:'principal',label:'Superficie principal'},{value:'plena',label:'Superficie plena doble'}])}
-      {select('Superficie de integración', 'integracionType', [
+      {c.type==='sencillo'&&select('Superficie de integración', 'integracionType', [
+        {value: 'ninguna', label: 'Ninguna'},
+        {value: 'individual', label: 'Integración individual (con orificio)'}
+      ])}
+      {c.type==='doble'&&select('Superficie de integración', 'integracionType', [
         {value: 'ninguna', label: 'Ninguna'},
         {value: 'recta', label: 'Integración esquinas rectas'},
         {value: 'redonda', label: 'Integración esquinas redondas'},
         {value: 'curva', label: 'Integración frente curvada'}
       ])}
-      {c.integracionType && c.integracionType !== 'ninguna' && select('Lado de la integración', 'integracionSide', [
+      {c.integracionType&&c.integracionType!=='ninguna'&&select('Lado de la integración', 'integracionSide', [
         {value: 'ambas', label: 'Ambos lados'},
         {value: 'izquierda', label: 'Izquierda'},
         {value: 'derecha', label: 'Derecha'}
@@ -78,6 +101,14 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
         {value:'melamina',label:'Melamina'},
         {value:'tela',label:'Tela'}
       ])}
+      {c.type === 'sencillo' && (
+        <>
+          <label style={labelStyle}><input type="checkbox" checked={!!c.hasPantallaFalda} onChange={e=>{
+            const checked = e.target.checked;
+            onChange({ ...c, hasPantallaFalda: checked, ...(checked && !c.pantallaFaldaMaterial ? { pantallaFaldaMaterial: 'formica' } : {}) });
+          }}/> Incluir falda pantalla</label>
+        </>
+      )}
     </div>
   </fieldset>;
 }
