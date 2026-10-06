@@ -223,3 +223,32 @@ test('builder publica el BOM oficial y no factura piezas visuales duplicadas', (
   assert.equal(rows.get('22000116690').quantity, 2);
   assert.equal(rows.has('KUBAL01'), false);
 });
+
+test('puesto doble factura las tres opciones de pantalla y centra la perimetral', () => {
+  const cases = [
+    ['FORMICA', '22000116713', 1203300, 15475950],
+    ['VIDRIO', '22000116695', 1293600, 15566250],
+    ['FRONTAL_PERIMETRAL', '22000118213', 1321950, 15594600],
+  ];
+
+  for (const [pantallaTipo, code, price, total] of cases) {
+    const built = buildKuoAVDoble({
+      ...BASE_CONFIG,
+      anchoMm: 1200,
+      pantalla: true,
+      pantallaTipo,
+      pantallaPosicion: 'FRONTAL',
+    });
+    const screenPart = built.parts.find((part) => part.type === 'pantalla');
+    const screenRow = byCode(built.bom).get(code);
+
+    assert.ok(screenPart, `${pantallaTipo} debe estar construida`);
+    assert.equal(screenPart.codigo, code);
+    assert.equal(screenRow?.unitPrice, price);
+    assert.equal(calculateKuoAVDobleTotal(built.bom), total);
+    if (pantallaTipo === 'FRONTAL_PERIMETRAL') {
+      assert.equal(screenPart.position[2], 0.203);
+      assert.equal(built.config.pantallaPosicion, 'CENTRAL');
+    }
+  }
+});

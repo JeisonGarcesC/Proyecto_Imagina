@@ -349,7 +349,7 @@ export function buildKuoAVBOM(built) {
         description: part.name,
         category: 'PANTALLA',
         type: 'pantalla',
-        unitPrice: 0,
+        unitPrice: part.unitPrice || 0,
         logicalCode: part.logicalCode,
       })
     );

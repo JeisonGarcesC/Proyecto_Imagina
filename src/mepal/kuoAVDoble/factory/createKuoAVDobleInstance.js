@@ -8,6 +8,8 @@
 import * as THREE from 'three';
 import { buildKuoAVDoble } from '../builder/KuoAVDobleBuilder.js';
 import { createSurfaceMesh } from '../../../factories/surfaceFactory.js';
+import { applyKuoAVMaterialFinish } from '../../kuoAV/materials/kuoAVFinish.js';
+import { applyKuoAVUpperSegmentTravel } from '../../kuoAV/transform/kuoAVAssetTransforms.js';
 
 function cloneAsset(source) {
   const clone = source.clone ? source.clone(true) : source;
@@ -139,22 +141,10 @@ export async function createKuoAVDobleInstance({
 
             // Variantes de color en parales, estructura y kit fuente
             if (part.colorVariante) {
-              const hex =
-                part.colorVariante === 'Blanco' || part.colorVariante === 'Anodizado'
-                  ? 0xffffff
-                  : part.colorVariante === 'Gris'
-                  ? 0x707070
-                  : part.colorVariante === 'Negro'
-                  ? 0x1e1e1e
-                  : typeof part.colorVariante === 'string' && part.colorVariante.startsWith('#')
-                  ? parseInt(part.colorVariante.slice(1), 16)
-                  : 0xffffff;
               partObj.traverse((child) => {
                 if (child.isMesh && child.material) {
                   forEachMaterial(child, (material) => {
-                    material.color.setHex(hex);
-                    material.roughness = 0.35;
-                    material.metalness = 0.1;
+                    applyKuoAVMaterialFinish(material, part.colorVariante, part.acabado ?? null);
                   });
                 }
               });
@@ -176,6 +166,7 @@ export async function createKuoAVDobleInstance({
       if (part.position) partObj.position.fromArray(part.position);
       if (part.rotation) partObj.rotation.fromArray(part.rotation);
       if (part.scale) partObj.scale.fromArray(part.scale);
+      if (part.heightTravelMm) applyKuoAVUpperSegmentTravel(partObj, part.heightTravelMm);
 
       const partInstanceId = `${instanceId}__${part.partId}`;
       const partType = part.type || 'GLB_PART';

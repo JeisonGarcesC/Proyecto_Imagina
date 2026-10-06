@@ -66,7 +66,7 @@ export const KUO_AV_DOBLE_RANGOS = Object.freeze({
   anchosPermitidos: [1200, 1500, 1650],
   profundidadesPermitidas: [600, 750],
   espesoresPermitidos: [18, 25, 30],
-  alturasPermitidas: [730, 750],
+  alturasPermitidas: [730, 1200],
 });
 
 export const KUO_AV_DOBLE_CALIBRATION = Object.freeze({

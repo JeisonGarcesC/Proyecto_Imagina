@@ -1,3 +1,6 @@
+import { KUO_AV_BOM_CATALOG } from '../../kuoAV/bom/kuoAVBOMCatalog.js';
+import { KUO_AV_PANTALLA_CATALOG } from '../../kuoAV/config/kuoAVPantallaCatalog.js';
+
 const WIDTH_BOM = Object.freeze({
   1200: Object.freeze({
     widthCm: 120,
@@ -42,12 +45,6 @@ const DEPTH_BOM = Object.freeze({
   }),
 });
 
-const POWER_KIT_CODES = Object.freeze({
-  BLANCO: '22000126680',
-  NEGRO: '22000126681',
-  GRIS: '22000128023',
-});
-
 function normalizeUpper(value) {
   return String(value || '')
     .trim()
@@ -61,7 +58,19 @@ function resolveWidth(widthMm) {
   return 1650;
 }
 
-function createItem({ code, lookupTag, description, quantity, unitPrice, type }) {
+function createItem({ code, lookupTag, description, quantity, unitPrice, type, category }) {
+  const categoryByType = {
+    control: 'BOTONERA',
+    vertebra: 'VERTEBRA',
+    ducto: 'DUCTO',
+    grommet: 'GROMMET',
+    soporte_tomas: 'KIT SOPORTE TOMAS',
+    kit_fuente: 'KIT FUENTE',
+    costado: 'COSTADOS',
+    superficie: 'SUPERFICIE',
+    viga: 'VIGA',
+    pantalla: 'PANTALLA',
+  };
   return {
     code,
     codigo: code,
@@ -72,6 +81,7 @@ function createItem({ code, lookupTag, description, quantity, unitPrice, type })
     qty: quantity,
     cantidad: quantity,
     quantity,
+    category: category || categoryByType[type] || 'COMPONENTES',
     type,
     unitPrice,
     price: unitPrice,
@@ -141,7 +151,10 @@ export function buildKuoAVDobleBOM(config = {}, parts = []) {
     normalizeUpper(config.acabadoGrommet || 'ANODIZADO')
   );
   const powerKitColor = normalizeUpper(config.kitFuenteColor || 'BLANCO');
-  const powerKitCode = POWER_KIT_CODES[powerKitColor] || POWER_KIT_CODES.BLANCO;
+  const powerKit = KUO_AV_BOM_CATALOG.powerKits[powerKitColor] ||
+    KUO_AV_BOM_CATALOG.powerKits.BLANCO;
+  const vertebraQuantity = Number(config.vertebraLeftEnabled ?? true) +
+    Number(config.vertebraRightEnabled ?? true);
   const rows = [];
 
   if (hasRaisedTile) {
@@ -167,14 +180,6 @@ export function buildKuoAVDobleBOM(config = {}, parts = []) {
       type: 'control',
     }),
     createItem({
-      code: '22000116690',
-      lookupTag: 'KUAC650000',
-      description: 'VERTEBRA METALICA 86CM ALTURA VARIABLE KUO KUAC650000',
-      quantity: 2,
-      unitPrice: 277200,
-      type: 'vertebra',
-    }),
-    createItem({
       code: widthData.duct.code,
       lookupTag: isSpecial
         ? widthData.duct.code
@@ -187,6 +192,17 @@ export function buildKuoAVDobleBOM(config = {}, parts = []) {
       type: 'ducto',
     })
   );
+
+  if (vertebraQuantity > 0) {
+    rows.splice(1, 0, createItem({
+      code: '22000116690',
+      lookupTag: 'KUAC650000',
+      description: 'VERTEBRA METALICA 86CM ALTURA VARIABLE KUO KUAC650000',
+      quantity: vertebraQuantity,
+      unitPrice: 277200,
+      type: 'vertebra',
+    }));
+  }
 
   const grommet = isAnodized
     ? {
@@ -222,12 +238,11 @@ export function buildKuoAVDobleBOM(config = {}, parts = []) {
   if (config.kitFuente !== false) {
     rows.push(
       createItem({
-        code: powerKitCode,
-        lookupTag: 'KITFUENTEKUAC1040000',
-        description:
-          'KIT FUENTE ALIMENTACION ALTURA VARIABLE DL5 COLUMNAS BLANCAS KUO KUAC1040000',
+        code: powerKit.code,
+        lookupTag: powerKit.lookupTag,
+        description: powerKit.description,
         quantity: 2,
-        unitPrice: powerKitCode === '22000126680' ? 4552800 : 0,
+        unitPrice: powerKit.price,
         type: 'kit_fuente',
       })
     );
@@ -276,13 +291,16 @@ export function buildKuoAVDobleBOM(config = {}, parts = []) {
 
   for (const part of parts) {
     if (part.type !== 'pantalla') continue;
+    const screenCatalogItem = Object.values(KUO_AV_PANTALLA_CATALOG)
+      .flatMap((byWidth) => Object.values(byWidth))
+      .find((item) => item.codigoPT === String(part.codigo));
     rows.push(
       createItem({
         code: String(part.codigo),
         lookupTag: part.lookupTag || part.codigo,
         description: part.name,
         quantity: 1,
-        unitPrice: 0,
+        unitPrice: screenCatalogItem?.price || 0,
         type: 'pantalla',
       })
     );

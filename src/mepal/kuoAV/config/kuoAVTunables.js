@@ -60,7 +60,10 @@ export const KUO_AV_GLB_FILES = Object.freeze({
   GROMMET_SIMPLE: 'LKAC250000.glb',
   GROMMET_DOBLE: 'LKAC250000_DOBLE.glb',
   VERTEBRA: 'KUAC650000.glb',
+  VERTEBRA_ALTA: 'KUAC650000_ALT.glb',
   VERTEBRA_LATERAL: 'KUAC650000_LAT 1.glb',
+  VERTEBRA_LATERAL_ALTA: 'KUAC650000_ALT_LAT 1.glb',
+  BOTONERA: 'DPBK06.glb',
 });
 
 /**
@@ -373,9 +376,9 @@ export const KUO_AV_CALIBRATION = {
     nodoMaster: 79,
 
     posicionMm: {
-      x: -584.4,
+      x: -580.0,
       y: 15.0,
-      z: 32.7,
+      z: 41.0,
     },
 
     rotacionDeg: {
@@ -406,9 +409,9 @@ export const KUO_AV_CALIBRATION = {
     nodoMaster: 97,
 
     posicionMm: {
-      x: 530.6,
+      x: 535.0,
       y: 15.0,
-      z: 32.7,
+      z: 41.0,
     },
 
     rotacionDeg: {
@@ -541,16 +544,16 @@ export const KUO_AV_CALIBRATION = {
   // ── 9. Botonera LINAK de Control (DPBK06) ──
   botonera: {
     codigo: KUO_AV_CET_CODES.BOTONERA_LINAK,
-    glb: null,
-    visual: false,
-    bomOnly: true,
-    fuente: 'KuoGo_prueba_01.glb',
+    glb: KUO_AV_GLB_FILES.BOTONERA,
+    visual: true,
+    bomOnly: false,
+    fuente: 'Perimetral con aumentar altura.glb',
     nodoMaster: 55,
 
     posicionMm: {
-      x: 510.0,
-      y: 706.6,
-      z: 274.0,
+      x: 480.0,
+      y: 698.0,
+      z: 320.0,
     },
 
     rotacionDeg: {

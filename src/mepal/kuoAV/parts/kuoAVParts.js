@@ -514,11 +514,14 @@ export function createKuoAVDuctPart({
 
 /**
  * 9. Botonera LINAK (DPBK06).
- * Componente lógico/BOM sin GLB. No crea proxy ni malla 3D.
+ * Geometria de referencia CET; conserva la misma partida comercial.
  */
 export function createKuoAVControlPadPart({
   groupId = null,
   groupName = null,
+  x = 0,
+  y = 0,
+  z = 0,
 } = {}) {
   return {
     type: KUO_AV_PART_TYPES.CONTROL,
@@ -542,13 +545,13 @@ export function createKuoAVControlPadPart({
       depthMm: 40,
     },
 
-    position: { x: 0, y: 0, z: 0 },
+    position: { x, y, z },
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
 
     model: {
-      kind: 'logical', // Lógico / BOM Only (sin representación 3D)
-      src: null,
+      kind: 'glb',
+      src: `${KUO_AV_TUNABLES.GLB_BASE}${KUO_AV_TUNABLES.GLB_FILES.BOTONERA}`,
     },
 
     meta: {
@@ -620,6 +623,7 @@ export function createKuoAVPantallaPart({
     logicalCode: itemData?.lookupTag || `PANTALLA_${materialKey}_${anchoMm}`,
     existsInCatalog: !!itemData,
     rawCodigoPT: itemData?.codigoPT || null,
+    unitPrice: itemData?.price || 0,
 
     name: itemData?.name || `Pantalla Frontal ${dimStr}cm ${materialKey} Altura Variable Kuo`,
 
@@ -631,7 +635,11 @@ export function createKuoAVPantallaPart({
 
     position: { x, y, z },
     rotation: { x: 0, y: 0, z: 0 },
-    scale: { x: anchoMm === 1200 ? 1 : widthM / 1.125, y: 1, z: 1 },
+    scale: {
+      x: glbFile.endsWith('_120.glb') && anchoMm !== 1200 ? widthM / 1.125 : 1,
+      y: 1,
+      z: 1,
+    },
 
     model: {
       kind: 'glb',

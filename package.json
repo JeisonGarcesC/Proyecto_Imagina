@@ -15,6 +15,7 @@
     "server:start": "node server/src/server.js",
     "server:test": "node --test server/test",
     "test:walls": "node --test test/walls.test.js test/columns.test.js test/architectureSnap.test.js test/openings.test.js",
+    "test:kuo": "node --test test/kuoAVBOM.test.js test/kuoAVDobleBOM.test.js test/kuoAVVertebra.test.js test/kuoAVOptions.test.js test/kuoAVHeight.test.js",
     "db:generate": "prisma generate --schema server/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema server/prisma/schema.prisma",
     "db:migrate:dev": "prisma migrate dev --schema server/prisma/schema.prisma",

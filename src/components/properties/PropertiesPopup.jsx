@@ -86,7 +86,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const anchorX = anchorRef.current.open ? anchorRef.current.x : x;
   const anchorY = anchorRef.current.open ? anchorRef.current.y : y;
   const popupLeft = Math.min(anchorX + 12, window.innerWidth - popupWidth - 12);
-  const popupTop = Math.min(anchorY + 12, window.innerHeight - 420);
+  const popupTop = Math.max(12, Math.min(anchorY + 12, window.innerHeight - 420));
 
   return (
     <div
@@ -97,7 +97,7 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
         top: popupTop,
         zIndex: 99999,
         width: popupWidth,
-        maxHeight: 'calc(100vh - 40px)',
+        maxHeight: `calc(100vh - ${popupTop + 24}px)`,
         overflowY: 'auto',
         background: '#fff',
         border: '1px solid #d1d5db',

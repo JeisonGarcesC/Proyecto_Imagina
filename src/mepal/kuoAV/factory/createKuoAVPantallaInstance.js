@@ -5,34 +5,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from 'three';
+import { KUO_AV_PANTALLA_CATALOG } from '../config/kuoAVPantallaCatalog.js';
+import { KUO_AV_PERIMETRAL_SCREEN_MOUNT } from '../config/kuoAVPantallaPlacement.js';
 
-export const KUO_AV_PANTALLA_CATALOG = Object.freeze({
-  FORMICA: {
-    1200: { codigoPT: '22000116713', lookupTag: 'KUOPRIVACYPANEL_30_120-22008689', name: 'Pantalla Frontal 120cm Formica Altura Variable Kuo KUAC690000' },
-    1500: { codigoPT: '22000116714', lookupTag: 'KUOPRIVACYPANEL_30_150-22008689', name: 'Pantalla Frontal 150cm Formica Altura Variable Kuo KUAC690000' },
-    1650: { codigoPT: '22000116715', lookupTag: 'KUOPRIVACYPANEL_30_165-22008689', name: 'Pantalla Frontal 165cm Formica Altura Variable Kuo KUAC690000' },
-  },
-  MELAMINA: {
-    1200: { codigoPT: '22000116716', lookupTag: 'KUOPRIVACYPANEL_30_120-22015138', name: 'Pantalla Frontal 120cm Melamínico Altura Variable Kuo KUAC700000' },
-    1500: { codigoPT: '22000116821', lookupTag: 'KUOPRIVACYPANEL_30_150-22015138', name: 'Pantalla Frontal 150cm Melamínico Altura Variable Kuo KUAC700000' },
-    1650: { codigoPT: '22000116822', lookupTag: 'KUOPRIVACYPANEL_30_165-22015138', name: 'Pantalla Frontal 165cm Melamínico Altura Variable Kuo KUAC700000' },
-  },
-  TELA: {
-    1200: { codigoPT: '22000116710', lookupTag: 'KUOPRIVACYPANEL_30_120-22021827', name: 'Pantalla Frontal 120cm Acústica Altura Variable Kuo KUAC670000' },
-    1500: { codigoPT: '22000116711', lookupTag: 'KUOPRIVACYPANEL_30_150-22021827', name: 'Pantalla Frontal 150cm Acústica Altura Variable Kuo KUAC670000' },
-    1650: { codigoPT: '22000116712', lookupTag: 'KUOPRIVACYPANEL_30_165-22021827', name: 'Pantalla Frontal 165cm Acústica Altura Variable Kuo KUAC670000' },
-  },
-  VIDRIO: {
-    1200: { codigoPT: '22000116695', lookupTag: 'KUOPRIVACYPANELGLASS_30_120-22006318', name: 'Pantalla Frontal 120cm Vidrio Laminado Altura Variable Kuo KUAC660000' },
-    1500: { codigoPT: '22000116337', lookupTag: 'KUOPRIVACYPANELGLASS_30_150-22006318', name: 'Pantalla Frontal 150cm Vidrio Laminado Altura Variable Kuo KUAC660000' },
-    1650: { codigoPT: '22000116696', lookupTag: 'KUOPRIVACYPANELGLASS_30_165-22006318', name: 'Pantalla Frontal 165cm Vidrio Laminado Altura Variable Kuo KUAC660000' },
-  },
-  FRONTAL_PERIMETRAL: {
-    1200: { codigoPT: '22000118213', lookupTag: 'KUOPRIVACYPERIMETRALGLASS_30_120-22006318', name: 'Pantalla Frontal Individual 120cm Vidrio Laminado 4+4 Altura Variable Kuo KUAC710000' },
-    1500: { codigoPT: '22000117879', lookupTag: 'KUOPRIVACYPERIMETRALGLASS_30_150-22006318', name: 'Pantalla Frontal Individual 150cm Vidrio Laminado 4+4 Altura Variable Kuo KUAC710000' },
-    1650: { codigoPT: '22000118214', lookupTag: 'KUOPRIVACYPERIMETRALGLASS_30_165-22006318', name: 'Pantalla Frontal Individual 165cm Vidrio Laminado 4+4 Altura Variable Kuo KUAC710000' },
-  },
-});
+export { KUO_AV_PANTALLA_CATALOG } from '../config/kuoAVPantallaCatalog.js';
 
 export async function createKuoAVPantallaInstance({
   config = {},
@@ -124,7 +100,9 @@ export async function createKuoAVPantallaInstance({
     }
 
     // Centrar la pantalla sobre su origen X y centrar el panel en Z=0
-    const centerOffsetZ = isFrontalPerimetral ? 0.2075 : isVidrioDoble ? 0.012 : 0.016;
+    const centerOffsetZ = isFrontalPerimetral
+      ? KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM
+      : isVidrioDoble ? 0.012 : 0.016;
     loadedScene.position.set(-widthM / 2, 0, centerOffsetZ);
 
     // Configuración de materiales (vidrio translúcido o acabado sólido)
@@ -175,6 +153,7 @@ export async function createKuoAVPantallaInstance({
       lookupTag: itemData.lookupTag,
       description: itemData.name,
       quantity: 1,
+      unitPrice: itemData.price,
       role: 'PANTALLA',
       modelKind: 'glb',
     },

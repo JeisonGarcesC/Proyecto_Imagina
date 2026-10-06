@@ -24,6 +24,34 @@ function safeStr(v) {
   return (v ?? '').toString();
 }
 
+const BOM_CATEGORY_LABELS = {
+  control: 'Botonera',
+  botonera: 'Botonera',
+  ducto: 'Ducto',
+  ductos: 'Ducto',
+  vertebra: 'Vértebra',
+  grommet: 'Grommet',
+  kit: 'Kit',
+  kit_fuente: 'Kit fuente',
+  'kit fuente': 'Kit fuente',
+  'kit soporte tomas': 'Kit soporte tomas',
+  soporte: 'Soporte',
+  costado: 'Costados',
+  costados: 'Costados',
+  columna: 'Columnas',
+  superficie: 'Superficie',
+  vigas: 'Viga',
+  viga: 'Viga',
+  pantalla: 'Pantalla',
+  pantallas: 'Pantalla',
+};
+
+function resolveBomCategoryLabel(value) {
+  const normalized = safeStr(value).trim().toLocaleLowerCase('es');
+  if (!normalized || normalized === '-') return 'Componentes';
+  return BOM_CATEGORY_LABELS[normalized] || normalized.charAt(0).toLocaleUpperCase('es') + normalized.slice(1);
+}
+
 function safeFilenameSegment(value, fallback) {
   const sanitized = safeStr(value)
     .replace(/[<>:"/\\|?*]/g, '_')
@@ -107,7 +135,7 @@ export default function BOMView({
 
         code: safeStr(it.code),
         description: safeStr(it.description),
-        category: safeStr(it.category || it.section || it.bomSection || it.type).trim(),
+        category: resolveBomCategoryLabel(it.category || it.section || it.bomSection || it.type),
         qty,
         groupCount: Number(it.groupCount || 0),
         typologyReferenceCode: safeStr(it.typologyReferenceCode).replace(/\D+/g, ''),
@@ -201,9 +229,17 @@ export default function BOMView({
       });
     }
 
-    // Ordenar y totalizar las filas dentro de cada agrupación elegida.
-    for (const g of groupArr) {
+      // Ordenar y totalizar las filas dentro de cada agrupación elegida.
+      for (const g of groupArr) {
       g.items.sort((a, b) => {
+        if (groupMode === 'typology') {
+          const categoryOrder = safeStr(a.category).localeCompare(
+            safeStr(b.category),
+            'es',
+            { sensitivity: 'base' }
+          );
+          if (categoryOrder) return categoryOrder;
+        }
         const va = a[sortKey];
         const vb = b[sortKey];
 
@@ -892,7 +928,27 @@ export default function BOMView({
                       const rowBg = i % 2 === 0 ? '#ffffff' : palette.rowAlt;
 
                       return (
-                        <React.Fragment key={`${g.key}__${r.code}`}>
+                        <React.Fragment key={`${g.key}__${r.category}__${r.code}`}>
+                          {groupMode === 'typology' &&
+                            (i === 0 || r.category !== g.items[i - 1]?.category) && (
+                              <tr>
+                                <td
+                                  colSpan={6}
+                                  style={{
+                                    padding: '4px 9px 4px 18px',
+                                    background: '#f8fafc',
+                                    borderBottom: `1px solid ${palette.line}`,
+                                    color: palette.muted,
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    letterSpacing: 0.35,
+                                    textTransform: 'uppercase',
+                                  }}
+                                >
+                                  {r.category}
+                                </td>
+                              </tr>
+                            )}
                           <tr style={{ background: rowBg }}>
                             {/* Celda numeradora */}
                             <td

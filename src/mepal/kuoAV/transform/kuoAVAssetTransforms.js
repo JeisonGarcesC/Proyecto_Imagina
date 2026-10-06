@@ -80,8 +80,25 @@ export function applyKuoAVAssetTransform(partObject, part) {
     partObject.scale.set(sx, sy, sz);
   } else {
     partObject.rotation.set(0, 0, 0);
-    partObject.scale.set(1, 1, 1);
+    partObject.scale.set(part.scale?.x ?? 1, part.scale?.y ?? 1, part.scale?.z ?? 1);
   }
+
+  const travelMm = part.meta?.heightTravelMm || 0;
+  if (part.type === KUO_AV_PART_TYPES.KIT_FUENTE && travelMm !== 0) {
+    applyKuoAVUpperSegmentTravel(partObject, travelMm);
+  }
+}
+
+export function applyKuoAVUpperSegmentTravel(partObject, travelMm) {
+    const upperSegment = partObject.getObjectByName('4');
+    if (!upperSegment?.isMesh || !upperSegment.parent) {
+      throw new Error('KUO AV: no se encontro el segmento movil de KUAC1040000_74.');
+    }
+    partObject.updateMatrixWorld(true);
+    const parentRotation = upperSegment.parent.getWorldQuaternion(new THREE.Quaternion());
+    const displacement = new THREE.Vector3(0, travelMm / 1000, 0)
+      .applyQuaternion(parentRotation.invert());
+    upperSegment.position.add(displacement);
 }
 
 export default applyKuoAVAssetTransform;
