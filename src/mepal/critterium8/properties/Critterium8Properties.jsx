@@ -8,9 +8,10 @@ const selectStyle = { width: '100%', boxSizing: 'border-box', padding: '8px 10px
 export default function Critterium8Properties({ part, api, readOnly = false }) {
   const context = part?.critterium8;
   const sequence = part?.critterium8Sequence;
+  const system = part?.critteriumSystem;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  if (!context && !sequence) return null;
+  if (!context && !sequence && !system) return null;
   const { config = {}, composition = {}, editablePart = null } = context || {};
 
   const run = async (operation) => {
@@ -30,6 +31,14 @@ export default function Critterium8Properties({ part, api, readOnly = false }) {
     <div className="pp-shell">
       <div className="pp-header"><p className="pp-title">Critterium 8</p></div>
       {readOnly && <div className="pp-readonly-banner">Modo solo lectura.</div>}
+      {system && <div style={sectionStyle}>
+        <strong>Sistema de oficina</strong>
+        <div>ID: {system.systemId}</div>
+        <div>Secuencias: {system.sequenceIds.length}</div>
+        <div>Posición: {system.position.map((value) => value.toFixed(2)).join(', ')}</div>
+        <div>Rotación: {(system.rotationY * 180 / Math.PI).toFixed(1)}°</div>
+        <div>Para agregar o retirar secuencias, usa el panel de CRITERIUM.</div>
+      </div>}
       {sequence && (
         <div style={sectionStyle}>
           <strong>FrameSequence</strong>

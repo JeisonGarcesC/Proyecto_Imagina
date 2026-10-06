@@ -5,13 +5,13 @@ import { getMultipleLayoutDiagnostics } from './multipleLayoutDiagnostics.js';
 import { normalizeMultipleLayout } from './multipleLayoutTypes.js';
 import { detectMultipleCollisions } from './MultipleCollisionEngine.js';
 
-export function moveMultipleModule(system, moduleId, position) {
+export function moveMultipleModule(system, moduleId, position, options = {}) {
   const moving = system.modules.find((module) => module.moduleId === moduleId);
   if (!moving) throw new Error('MULTIPLE_SYSTEM_MODULE_NOT_FOUND');
   const proposed = { ...moving, position: { ...moving.position, ...position } };
-  const candidate = findMultipleSnap(proposed, system.modules.filter((module) => module.moduleId !== moduleId), system.layout);
+  const candidate = findMultipleSnap(proposed, system.modules.filter((module) => module.moduleId !== moduleId), system.layout, options);
   const snappedModules = system.modules.map((module) => module.moduleId === moduleId ? { ...module, position: candidate?.position || proposed.position } : module);
-  const snap = candidate && !detectMultipleCollisions(snappedModules).some((collision) => collision.moduleA === moduleId || collision.moduleB === moduleId) ? candidate : null;
+  const snap = candidate && !detectMultipleCollisions(snappedModules).some((collision) => collision.type === 'COLLISION_REAL' && (collision.moduleA === moduleId || collision.moduleB === moduleId)) ? candidate : null;
   const finalModules = system.modules.map((module) => module.moduleId === moduleId ? { ...module, position: snap?.position || proposed.position } : module);
   const collision = detectMultipleCollisions(finalModules).find((item) => item.type === 'COLLISION_REAL' && (item.moduleA === moduleId || item.moduleB === moduleId));
   if (collision) return { system, snap: null, collision, rejected: true };

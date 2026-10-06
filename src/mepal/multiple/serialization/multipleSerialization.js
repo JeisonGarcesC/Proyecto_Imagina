@@ -15,6 +15,7 @@ export function serializeMultipleEntity(object) {
   return { kind: 'MULTIPLE_PRODUCT', family: 'MULTIPLE', instanceId: data.instanceId, groupId: data.groupId,
     config: JSON.parse(JSON.stringify(data.config)), composition: JSON.parse(JSON.stringify(data.composition)),
     commercial,
+    spatialConnections: structuredClone(data.spatialConnections || []),
     transform: { position: object.position.toArray(), quaternion: object.quaternion.toArray(), scale: object.scale.toArray() } };
 }
 
@@ -22,6 +23,7 @@ export function restoreMultipleEntity(entity) {
   if (!entity?.config) throw new Error('MULTIPLE_MISSING_CONFIG');
   const result = createMultipleInstance({ config: entity.config, instanceId: entity.instanceId, groupId: entity.groupId, transform: entity.transform });
   if (!result.success) throw new Error(result.reason);
+  result.object.userData.spatialConnections = structuredClone(entity.spatialConnections || []);
   const current = new Map(result.object.children.map((component) => [component.userData.componentKey, component.userData]));
   const diagnostics = [];
   for (const previous of entity.commercial || []) {

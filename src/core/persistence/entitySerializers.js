@@ -1,6 +1,8 @@
 import { serializeLinkEntity } from '../../mepal/link/integration/linkPersistence.js';
 import { serializeMultipleEntity } from '../../mepal/multiple/integration/multipleIntegration.js';
 import { serializeMultipleSystem } from '../../mepal/multiple/system/multipleSystemSerialization.js';
+import { serializeCritterium8Sequence } from '../../mepal/critterium8/integration/critterium8SequencePersistence.js';
+import { serializeCritteriumSystem } from '../../mepal/critterium8/system/critteriumSystemPersistence.js';
 import { serializeKoncisaPlusRecipe } from '../../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe.js';
 
 import { serializeLockerEntity } from '../../mepal/lockers/integration/lockerPersistence.js';
@@ -122,6 +124,10 @@ export function serializeCritterium8Entity(assembly) {
   const instanceId = data.instanceId || assembly?.uuid || null;
   const assemblyId = data.assemblyId || instanceId;
   const groupId = data.groupId || assemblyId;
+  assembly.updateMatrixWorld(true);
+  const worldPosition = assembly.getWorldPosition(assembly.position.clone()).toArray();
+  const worldQuaternion = assembly.getWorldQuaternion(assembly.quaternion.clone()).toArray();
+  const worldScale = assembly.getWorldScale(assembly.scale.clone()).toArray();
   return {
     kind: 'CRITTERIUM_8',
     instanceId,
@@ -131,10 +137,10 @@ export function serializeCritterium8Entity(assembly) {
     family: 'CRITTERIUM_8',
     config: cloneSerializable(data.config || {}),
     transform: {
-      position: assembly.position.toArray(),
-      quaternion: assembly.quaternion.toArray(),
+      position: worldPosition,
+      quaternion: worldQuaternion,
       rotation: [assembly.rotation.x, assembly.rotation.y, assembly.rotation.z],
-      scale: assembly.scale.toArray(),
+      scale: worldScale,
     },
     metadata: {
       provisionalGeometry: Array.isArray(data.renderReport?.diagnostics)
@@ -269,6 +275,24 @@ export function serializeProjectEntities(parts = [], options = {}) {
   });
 
   parts.forEach((partRecord) => {
+    const root = partRecord?.obj;
+    if (root?.userData?.kind !== 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') return;
+    const sequenceId = root.userData.sequenceId;
+    if (processedAssemblies.has(sequenceId)) return;
+    processedAssemblies.add(sequenceId);
+    entities.push(serializeCritterium8Sequence(root));
+  });
+
+  parts.forEach((partRecord) => {
+    const root = partRecord?.obj;
+    if (root?.userData?.kind !== 'CRITERIUM_SYSTEM') return;
+    const systemId = root.userData.systemId;
+    if (processedAssemblies.has(systemId)) return;
+    processedAssemblies.add(systemId);
+    entities.push(serializeCritteriumSystem(root));
+  });
+
+  parts.forEach((partRecord) => {
     const assembly = findMilaAssembly(partRecord?.obj);
     if (!assembly) return;
     const assemblyId = assembly.userData?.instanceId || assembly.userData?.code || assembly.uuid;
@@ -308,6 +332,8 @@ export function serializeProjectEntities(parts = [], options = {}) {
     if (
       findKoncisaAssembly(partRecord?.obj) ||
       findCritterium8Assembly(partRecord?.obj) ||
+      partRecord?.obj?.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' ||
+      partRecord?.obj?.userData?.kind === 'CRITERIUM_SYSTEM' ||
       findMilaAssembly(partRecord?.obj) ||
       ['VETRO_PRODUCT', 'LOCKER_PRODUCT', 'LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM'].includes(partRecord?.obj?.userData?.kind) ||
       partRecord?.obj?.userData?.parametricOwner === 'LINK_PRODUCT' ||

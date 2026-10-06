@@ -30,16 +30,11 @@ function isAlmacenamientoPart(part) {
 export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const boxRef = useRef(null);
   const anchorRef = useRef({ open: false, x: 0, y: 0 });
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef({ startX: 0, startY: 0, initialOffset: { x: 0, y: 0 } });
+  const dragRef = useRef(null);
+  const [dragPosition, setDragPosition] = useState(null);
 
   useEffect(() => {
-    if (!open) {
-      setDragOffset({ x: 0, y: 0 });
-      setIsDragging(false);
-      return;
-    }
+    if (!open) return;
 
     function handleMouseDown(e) {
       if (boxRef.current && !boxRef.current.contains(e.target)) {
@@ -61,29 +56,12 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   }, [open, onClose]);
 
   useEffect(() => {
-    if (!isDragging) return;
-    function handlePointerMove(e) {
-      setDragOffset({
-        x: dragStartRef.current.initialOffset.x + (e.clientX - dragStartRef.current.startX),
-        y: dragStartRef.current.initialOffset.y + (e.clientY - dragStartRef.current.startY)
-      });
-    }
-    function handlePointerUp() {
-      setIsDragging(false);
-    }
-    document.addEventListener('pointermove', handlePointerMove);
-    document.addEventListener('pointerup', handlePointerUp);
-    return () => {
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
-    };
-  }, [isDragging]);
-
-  useEffect(() => {
     if (open && !anchorRef.current.open) {
       anchorRef.current = { open: true, x, y };
     } else if (!open) {
       anchorRef.current.open = false;
+      dragRef.current = null;
+      setDragPosition(null);
     }
   }, [open, x, y]);
 
@@ -117,20 +95,46 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const popupWidth = 330;
   const anchorX = anchorRef.current.open ? anchorRef.current.x : x;
   const anchorY = anchorRef.current.open ? anchorRef.current.y : y;
-  
-  let popupLeft = Math.min(anchorX + 12, window.innerWidth - popupWidth - 12) + dragOffset.x;
-  let popupTop = Math.min(anchorY + 12, window.innerHeight - 420) + dragOffset.y;
-  
-  popupLeft = Math.max(0, Math.min(popupLeft, window.innerWidth - popupWidth));
-  popupTop = Math.max(0, Math.min(popupTop, window.innerHeight - 50));
+  const popupLeft = Math.max(0, Math.min(anchorX + 12, window.innerWidth - popupWidth - 12));
+  const popupTop = Math.max(0, Math.min(anchorY + 12, window.innerHeight - 40));
+  const isKoncisaPopup = isKoncisaPlusEditablePart(part);
+  const left = isKoncisaPopup && dragPosition ? dragPosition.left : popupLeft;
+  const top = isKoncisaPopup && dragPosition ? dragPosition.top : popupTop;
 
+  function startKoncisaDrag(event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left, top };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveKoncisaDrag(event) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDragPosition({
+      left: Math.max(0, Math.min(drag.left + event.clientX - drag.x, window.innerWidth - popupWidth)),
+      top: Math.max(0, Math.min(drag.top + event.clientY - drag.y, window.innerHeight - 40)),
+    });
+  }
+
+  function stopKoncisaDrag(event) {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    event.stopPropagation();
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
   return (
     <div
       ref={boxRef}
       style={{
         position: 'fixed',
-        left: popupLeft,
-        top: popupTop,
+        left,
+        top,
         zIndex: 99999,
         width: popupWidth,
         maxHeight: 'calc(100vh - 40px)',
@@ -142,22 +146,29 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
         boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
       }}
     >
-      <div 
-        onPointerDown={(e) => {
-          dragStartRef.current = {
-            startX: e.clientX,
-            startY: e.clientY,
-            initialOffset: dragOffset
-          };
-          setIsDragging(true);
-          if (e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId);
-        }}
-        style={{ cursor: 'move', userSelect: 'none', touchAction: 'none', padding: '12px 12px 0 12px' }}
-      >
+      {isKoncisaPopup && (
+        <div
+          onPointerDown={startKoncisaDrag}
+          onPointerMove={moveKoncisaDrag}
+          onPointerUp={stopKoncisaDrag}
+          onPointerCancel={stopKoncisaDrag}
+          title="Arrastrar cuadro de propiedades"
+          aria-label="Mover cuadro de propiedades"
+          style={{
+            height: 16,
+            margin: '10px 12px 0',
+            borderRadius: 6,
+            background: '#f3f4f6',
+            cursor: 'grab',
+            touchAction: 'none',
+            flexShrink: 0,
+          }}
+        />
+      )}
+      <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
         <PropertyHeader title="Propiedades" onClose={onClose} />
       </div>
-
-      <div style={{ padding: '0 12px 12px 12px', overflowY: 'auto', flex: 1 }}>
+      <div style={{ padding: '0 12px 12px 12px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
       <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
         {part.description || part.code || 'Elemento'}

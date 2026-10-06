@@ -1,5 +1,8 @@
-const width = (module) => Number(module.config?.widthCm || 0) / 100;
-const depth = (module) => Number(module.config?.thicknessCm || 0) / 100;
+import { toWorldUnitsFromCm } from '../../connections/multipleSpatialUnits.js';
+import { getMultipleProductConnectionPoints } from '../../connections/multipleConnectionPoints.js';
+
+const width = (module) => toWorldUnitsFromCm(module.config?.widthCm || 0);
+const depth = (module) => toWorldUnitsFromCm(module.config?.thicknessCm || 0);
 const rotate = ([x, y, z], angle) => [x * Math.cos(angle) + z * Math.sin(angle), y, -x * Math.sin(angle) + z * Math.cos(angle)];
 
 export function getMultipleConnectionPoints(module) {
@@ -7,15 +10,18 @@ export function getMultipleConnectionPoints(module) {
   const origin = module.position || {};
   const point = (id, type, local, direction, compatibleWith) => {
     const offset = rotate(local, angle);
-    return { id, type, position: [Number(origin.x || 0) + offset[0], Number(origin.y || 0) + offset[1], Number(origin.z || 0) + offset[2]], direction: rotate(direction, angle), compatibleWith };
+    return { id, type, connectionType: type, position: [Number(origin.x || 0) + offset[0], Number(origin.y || 0) + offset[1], Number(origin.z || 0) + offset[2]], direction: rotate(direction, angle), normal: rotate([0, 0, 1], angle), compatibleWith };
   };
   const startType = module.config?.door?.enabled ? 'DOOR_CONNECTION' : 'LINEAR_START';
   const endType = module.config?.door?.enabled ? 'DOOR_CONNECTION' : 'LINEAR_END';
+  const productPoints = getMultipleProductConnectionPoints(module.config, module.moduleId);
+  const left = productPoints.find((item) => item.id === 'LEFT');
+  const right = productPoints.find((item) => item.id === 'RIGHT');
   return [
-    point('START', startType, [0, 0, 0], [-1, 0, 0], ['LINEAR_END', 'DOOR_CONNECTION', 'CORNER_LEFT']),
-    point('END', endType, [width(module), 0, 0], [1, 0, 0], ['LINEAR_START', 'DOOR_CONNECTION', 'CORNER_RIGHT']),
-    point('LEFT', 'CORNER_LEFT', [0, 0, depth(module) / 2], [0, 0, 1], ['LINEAR_END', 'CORNER_RIGHT']),
-    point('RIGHT', 'CORNER_RIGHT', [width(module), 0, -depth(module) / 2], [0, 0, -1], ['LINEAR_START', 'CORNER_LEFT']),
+    point('START', startType, left.positionLocal, left.directionLocal, ['LINEAR_END', 'DOOR_CONNECTION', 'CORNER_LEFT']),
+    point('END', endType, right.positionLocal, right.directionLocal, ['LINEAR_START', 'DOOR_CONNECTION', 'CORNER_RIGHT']),
+    point('LEFT', 'CORNER_LEFT', [-width(module) / 2, 0, depth(module) / 2], [0, 0, 1], ['LINEAR_END', 'CORNER_RIGHT']),
+    point('RIGHT', 'CORNER_RIGHT', [width(module) / 2, 0, -depth(module) / 2], [0, 0, -1], ['LINEAR_START', 'CORNER_LEFT']),
   ];
 }
 

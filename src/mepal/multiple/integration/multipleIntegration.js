@@ -27,6 +27,7 @@ export function rebuildMultipleInstance({ object, patch = {}, partsRegistry = []
     ordered.push(previous);
   }
   for (const removed of previousByKey.values()) { disposeMultipleComponent(removed); object.remove(removed); }
-  object.clear(); ordered.forEach((component) => object.add(component)); object.userData = { ...object.userData, ...next.object.userData };
+  const spatialConnections = object.userData.spatialConnections || [];
+  object.clear(); ordered.forEach((component) => object.add(component)); object.userData = { ...object.userData, ...next.object.userData, spatialConnections };
   syncMultipleRegistry(object, partsRegistry); object.updateMatrixWorld(true); return { ...next, object };
 }

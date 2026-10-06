@@ -1,9 +1,11 @@
+import { toWorldUnitsFromCm } from '../../connections/multipleSpatialUnits.js';
+
 function corners(module) {
-  const width = Number(module.config?.widthCm || 0) / 100;
-  const depth = Number(module.config?.thicknessCm || 0) / 100;
+  const width = toWorldUnitsFromCm(module.config?.widthCm || 0);
+  const depth = toWorldUnitsFromCm(module.config?.thicknessCm || 0);
   const angle = Number(module.rotation?.y || 0);
   const origin = module.position || {};
-  return [[0, -depth / 2], [width, -depth / 2], [width, depth / 2], [0, depth / 2]].map(([x, z]) => [Number(origin.x || 0) + x * Math.cos(angle) + z * Math.sin(angle), Number(origin.z || 0) - x * Math.sin(angle) + z * Math.cos(angle)]);
+  return [[-width / 2, -depth / 2], [width / 2, -depth / 2], [width / 2, depth / 2], [-width / 2, depth / 2]].map(([x, z]) => [Number(origin.x || 0) + x * Math.cos(angle) + z * Math.sin(angle), Number(origin.z || 0) - x * Math.sin(angle) + z * Math.cos(angle)]);
 }
 
 function projects(points, axis) {
@@ -16,8 +18,8 @@ export function detectMultipleCollisions(modules = [], { realThresholdM = 0.001,
   for (let i = 0; i < modules.length; i += 1) for (let j = i + 1; j < modules.length; j += 1) {
     const a = modules[i]; const b = modules[j];
     const aMin = Number(a.position?.y || 0); const bMin = Number(b.position?.y || 0);
-    const aMax = aMin + Number(a.config?.heightCm || 0) / 100;
-    const bMax = bMin + Number(b.config?.heightCm || 0) / 100;
+    const aMax = aMin + toWorldUnitsFromCm(a.config?.heightCm || 0);
+    const bMax = bMin + toWorldUnitsFromCm(b.config?.heightCm || 0);
     const verticalOverlap = Math.min(aMax, bMax) - Math.max(aMin, bMin);
     if (verticalOverlap < -nearThresholdM) continue;
     const pa = corners(a); const pb = corners(b);

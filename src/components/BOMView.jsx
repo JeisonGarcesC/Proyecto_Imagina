@@ -106,7 +106,12 @@ export default function BOMView({
         groupLabel: isGrouped ? gname || `Tipología ${gid}` : 'SUELTOS',
 
         code: safeStr(it.code),
-        description: safeStr(it.description),
+        description: it.category === 'CRITTERIUM_8'
+          ? [safeStr(it.description), it.reference ? `Ref.: ${it.reference}` : '', it.materialCode ? `Material: ${it.materialCode}` : '', it.finishCode ? `Acabado: ${it.finishCode}` : ''].filter(Boolean).join(' · ')
+          : safeStr(it.description),
+        reference: it.reference ?? null,
+        materialCode: it.materialCode ?? null,
+        finishCode: it.finishCode ?? null,
         category: safeStr(it.category || it.section || it.bomSection || it.type).trim(),
         qty,
         groupCount: Number(it.groupCount || 0),
@@ -135,7 +140,9 @@ export default function BOMView({
       const consolidateRows = (rows) => {
       const byCode = new Map();
       for (const row of rows) {
-        const key = row.code;
+        const key = row.category === 'CRITTERIUM_8'
+          ? JSON.stringify([row.code, row.reference, row.materialCode, row.finishCode])
+          : row.code;
         const previous = byCode.get(key);
         if (!previous) {
           byCode.set(key, { ...row });
