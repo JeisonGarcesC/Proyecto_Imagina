@@ -4318,6 +4318,8 @@ function ThreeCanvas({
     function getRootPartObject(intersectObj) {
       const linkRoot = getLinkRoot(intersectObj);
       if (linkRoot) return linkRoot;
+      const critteriumFrame = getCritterium8FrameAssembly(intersectObj);
+      if (critteriumFrame) return critteriumFrame;
       const sequence = getCritterium8SequenceRoot(intersectObj);
       if (sequence) return sequence;
       // 1. Si pertenece a un ensamble estructurado (Mila, Koncisa Plus), la raíz es el ensamble completo
@@ -7590,7 +7592,12 @@ function ThreeCanvas({
       }
     }
 
-    function connectCritteriumSequencesById(systemId, sourceSequenceId, targetSequenceId, expectedType = null) {
+    function connectCritteriumSequencesById(
+      systemId,
+      sourceSequenceId,
+      targetSequenceId,
+      expectedType = null
+    ) {
       return runCritteriumSpatialOperation(
         systemId,
         HISTORY_ACTION_TYPES.CRITERIUM_SYSTEM_CONNECT_SEQUENCE,
