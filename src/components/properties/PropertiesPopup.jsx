@@ -29,7 +29,7 @@ function isAlmacenamientoPart(part) {
 
 export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const boxRef = useRef(null);
-  const anchorRef = useRef({ open: false, x: 0, y: 0 });
+  const [anchor, setAnchor] = useState({ open, x, y });
   const dragRef = useRef(null);
   const [dragPosition, setDragPosition] = useState(null);
 
@@ -56,14 +56,13 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   }, [open, onClose]);
 
   useEffect(() => {
-    if (open && !anchorRef.current.open) {
-      anchorRef.current = { open: true, x, y };
-    } else if (!open) {
-      anchorRef.current.open = false;
-      dragRef.current = null;
-      setDragPosition(null);
-    }
-  }, [open, x, y]);
+    if (!open) dragRef.current = null;
+  }, [open]);
+
+  if (anchor.open !== open) {
+    setAnchor({ open, x, y });
+    setDragPosition(null);
+  }
 
   if (!open || !part) return null;
 
@@ -93,10 +92,10 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
     showGenericIntegrationButton;
 
   const popupWidth = 330;
-  const anchorX = anchorRef.current.open ? anchorRef.current.x : x;
-  const anchorY = anchorRef.current.open ? anchorRef.current.y : y;
+  const anchorX = anchor.x;
+  const anchorY = anchor.y;
   const popupLeft = Math.max(0, Math.min(anchorX + 12, window.innerWidth - popupWidth - 12));
-  const popupTop = Math.max(0, Math.min(anchorY + 12, window.innerHeight - 40));
+  const popupTop = Math.max(12, Math.min(anchorY + 12, window.innerHeight - 420));
   const left = dragPosition ? dragPosition.left : popupLeft;
   const top = dragPosition ? dragPosition.top : popupTop;
 
@@ -137,10 +136,12 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
         top,
         zIndex: 99999,
         width: popupWidth,
-        maxHeight: 'calc(100vh - 40px)',
+        maxHeight: `calc(100vh - ${top + 12}px)`,
         display: 'flex',
         flexDirection: 'column',
         background: '#fff',
+        color: '#1f2937',
+        colorScheme: 'light',
         border: '1px solid #d1d5db',
         borderRadius: 12,
         boxShadow: '0 16px 40px rgba(0,0,0,0.14)',

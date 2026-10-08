@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { buildKuoAV } from '../builder/KuoAVBuilder.js';
 import { createSurfaceMesh } from '../../../factories/surfaceFactory.js';
+import { applyKuoAVMaterialFinish } from '../materials/kuoAVFinish.js';
 import { applyKuoAVAssetTransform } from '../transform/kuoAVAssetTransforms.js';
 import { KUO_AV_PART_ROLES, KUO_AV_PART_TYPES } from '../parts/kuoAVParts.js';
 import { buildKuoAVBOM } from '../bom/kuoAVBOMCatalog.js';
@@ -248,6 +249,11 @@ export async function createKuoAVInstance({
           child.receiveShadow = true;
           child.frustumCulled = false;
           forEachMaterial(child, (material) => {
+            if (part.type === 'kit_fuente' || part.type === 'columna') {
+              applyKuoAVMaterialFinish(material, built.config.kitFuenteColor);
+            } else if (part.type === 'grommet') {
+              applyKuoAVMaterialFinish(material, built.config.acabadoGrommet, built.config.acabadoGrommet);
+            }
             material.depthWrite = true;
             material.depthTest = true;
             material.side = THREE.DoubleSide;

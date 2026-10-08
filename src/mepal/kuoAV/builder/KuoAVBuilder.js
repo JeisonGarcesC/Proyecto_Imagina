@@ -13,6 +13,11 @@ import {
 } from '../config/kuoAVTunables.js';
 import { resolveKuoAVSurfaceRules } from '../rules/kuoAVSurfaceRules.js';
 import { resolveKuoAVBaseRules } from '../rules/kuoAVBaseRules.js';
+import { KUO_AV_HEIGHT_REFERENCE, resolveKuoAVHeightPlacement } from '../config/kuoAVHeightPlacement.js';
+import {
+  KUO_AV_PERIMETRAL_SCREEN_MOUNT,
+  resolveKuoAVPerimetralScreenHeight,
+} from '../config/kuoAVPantallaPlacement.js';
 import {
   createKuoAVSurfacePart,
   createKuoAVColumnPart,
@@ -93,6 +98,7 @@ export function buildKuoAV(config = {}) {
     alturaMm,
     thickMm,
   });
+  const heightPlacement = resolveKuoAVHeightPlacement(baseRules.alturaMm, thickMm);
 
   const parts = [];
   const cal = KUO_AV_CALIBRATION;
@@ -108,7 +114,7 @@ export function buildKuoAV(config = {}) {
     canto,
     perforada,
     x: 0,
-    y: baseRules.elevation.surfaceYMm,
+    y: heightPlacement.surfaceCenterMm,
     z: 0,
   });
 
@@ -184,7 +190,7 @@ export function buildKuoAV(config = {}) {
     const basePosY = calViga?.posicionMm?.y ?? 660.0;
     const basePosZ = calViga?.posicionMm?.z ?? 250.0;
     const posX = basePosX + (calViga?.offsetMm?.x || 0);
-    const posY = basePosY + (calViga?.offsetMm?.y || 0);
+    const posY = basePosY + (calViga?.offsetMm?.y || 0) + heightPlacement.crossbarTravelMm;
     const posZ = basePosZ + (calViga?.offsetMm?.z || 0);
 
     const crossbarPart = createKuoAVCrossbarPart({
@@ -225,12 +231,13 @@ export function buildKuoAV(config = {}) {
     console.log(`[KUO VARIANT]\nMesa: ${widthMm}\nViga: ${vigaGlbName}\nDucto: ${ductoGlbName}`);
   }
 
-  // 8. Botonera LINAK (DPBK06 - Componente Lógico/BOM)
+  // 8. Botonera LINAK (DPBK06).
   const calBotonera = cal.botonera;
   const baseBot = calBotonera?.posicionMm || calBotonera?.posicionImaginaCanonicaMm || { x: 510.0, y: 706.6, z: 274.0 };
-  const botX = baseBot.x + (calBotonera?.offsetMm?.x || 0);
-  const botY = baseBot.y + (calBotonera?.offsetMm?.y || 0);
-  const botZ = baseBot.z + (calBotonera?.offsetMm?.z || 0);
+  const botX = baseBot.x + (widthMm - 1200) / 2 + (calBotonera?.offsetMm?.x || 0);
+  const botY = baseBot.y + (calBotonera?.offsetMm?.y || 0)
+    + heightPlacement.surfaceTravelMm;
+  const botZ = baseBot.z + (depthMm - 600) / 2 + (calBotonera?.offsetMm?.z || 0);
 
   const controlPadPart = createKuoAVControlPadPart({
     groupId,
@@ -245,7 +252,7 @@ export function buildKuoAV(config = {}) {
   if (kitFuente) {
     // 9a. Columna Motorizada Izquierda (KUAC1040000_74.glb)
     const calKitIzq = cal.kitFuenteIzq || cal.kitFuente;
-    const baseKitIzqX = -widthMm / 2 + 15.6;
+    const baseKitIzqX = -widthMm / 2 + 20.0;
     const baseKitIzqY = calKitIzq?.posicionMm?.y ?? 15.0;
     const baseKitIzqZ = calKitIzq?.posicionMm?.z ?? 32.7;
     const kitIzqX = baseKitIzqX + (calKitIzq?.offsetMm?.x || 0);
@@ -257,15 +264,21 @@ export function buildKuoAV(config = {}) {
       groupName,
       side: 'left',
       elevado: elevarKitFIzquierdo,
+      modelSrc: heightPlacement.useRaisedAsset
+        ? '/assets/models/Kuo AV/Puesto Doble/KUAC1040000_120.glb'
+        : null,
       x: kitIzqX,
       y: kitIzqY,
       z: kitIzqZ,
     });
+    powerKitPartIzq.meta.heightTravelMm = heightPlacement.useRaisedAsset ? 0 : heightPlacement.columnTravelMm;
+    powerKitPartIzq.meta.heightState = heightPlacement.useRaisedAsset ? 'raised' : 'normal';
+    powerKitPartIzq.dimMm.heightMm = heightPlacement.useRaisedAsset ? 1142 : 695;
     parts.push(powerKitPartIzq);
 
     // 9b. Columna Motorizada Derecha (KUAC1040000_74.glb)
     const calKitDer = cal.kitFuenteDer;
-    const baseKitDerX = widthMm / 2 - 69.4;
+    const baseKitDerX = widthMm / 2 - 65.0;
     const baseKitDerY = calKitDer?.posicionMm?.y ?? 15.0;
     const baseKitDerZ = calKitDer?.posicionMm?.z ?? 32.7;
     const kitDerX = baseKitDerX + (calKitDer?.offsetMm?.x || 0);
@@ -277,16 +290,23 @@ export function buildKuoAV(config = {}) {
       groupName,
       side: 'right',
       elevado: false,
+      modelSrc: heightPlacement.useRaisedAsset
+        ? '/assets/models/Kuo AV/Puesto Doble/KUAC1040000_120.glb'
+        : null,
       x: kitDerX,
       y: kitDerY,
       z: kitDerZ,
     });
+    powerKitPartDer.meta.heightTravelMm = heightPlacement.useRaisedAsset ? 0 : heightPlacement.columnTravelMm;
+    powerKitPartDer.meta.heightState = heightPlacement.useRaisedAsset ? 'raised' : 'normal';
+    powerKitPartDer.dimMm.heightMm = heightPlacement.useRaisedAsset ? 1142 : 695;
     parts.push(powerKitPartDer);
 
     const calSoporte = cal.soporteTomas;
     const baseSop = calSoporte?.posicionImaginaCanonicaMm || calSoporte?.posicionMm || { x: -303.51, y: 558.00, z: -70.07 };
     const sopX = baseSop.x + (calSoporte?.offsetMm?.x || 0);
-    const sopY = baseSop.y + (calSoporte?.offsetMm?.y || 0);
+    const sopY = baseSop.y + (calSoporte?.offsetMm?.y || 0)
+      + KUO_AV_HEIGHT_REFERENCE.socketSupportNormalCorrectionMm + heightPlacement.surfaceTravelMm;
     const sopZ = baseSop.z + (calSoporte?.offsetMm?.z || 0);
 
     const socketSupportPart = createKuoAVSocketSupportPart({
@@ -306,8 +326,13 @@ export function buildKuoAV(config = {}) {
     calVert?.posicionImaginaCanonicaMm ||
     { x: -35.0, y: 25.0, z: -88.7 };
   const vertX = baseVert.x + (calVert?.offsetMm?.x || 0);
-  const vertY = baseVert.y + (calVert?.offsetMm?.y || 0);
-  const vertZ = baseVert.z + (calVert?.offsetMm?.z || 0);
+  const vertY = (heightPlacement.useRaisedAsset && !vertebraLateral ? 205 : baseVert.y)
+    + (calVert?.offsetMm?.y || 0);
+  const vertZ = (heightPlacement.useRaisedAsset && !vertebraLateral ? -215 : baseVert.z)
+    + (calVert?.offsetMm?.z || 0);
+  const vertebraGlb = heightPlacement.useRaisedAsset
+    ? vertebraLateral ? KUO_AV_TUNABLES.GLB_FILES.VERTEBRA_LATERAL_ALTA : KUO_AV_TUNABLES.GLB_FILES.VERTEBRA_ALTA
+    : vertebraLateral ? KUO_AV_TUNABLES.GLB_FILES.VERTEBRA_LATERAL : KUO_AV_TUNABLES.GLB_FILES.VERTEBRA;
 
   parts.push(
     createKuoAVVertebraPart({
@@ -316,6 +341,7 @@ export function buildKuoAV(config = {}) {
       alturaMm,
       lado: ladoVertebra,
       isLateral: vertebraLateral,
+      modelSrc: `${KUO_AV_TUNABLES.GLB_BASE}${vertebraGlb}`,
       x: vertX,
       y: vertY,
       z: vertZ,
@@ -341,7 +367,8 @@ export function buildKuoAV(config = {}) {
     const baseGromY = baseGrom.y ?? grommetMetrics?.posY ?? 696.44;
     const baseGromZ = baseGrom.z ?? grommetMetrics?.posZ ?? -184.62;
     const gromX = baseGromX + (calGrommet?.offsetMm?.x || 0);
-    const gromY = baseGromY + (calGrommet?.offsetMm?.y || 0);
+    const gromY = baseGromY + (calGrommet?.offsetMm?.y || 0)
+      + KUO_AV_HEIGHT_REFERENCE.grommetNormalCorrectionMm + heightPlacement.surfaceTravelMm;
     const gromZ = baseGromZ + (calGrommet?.offsetMm?.z || 0);
 
     console.log('[KUO GROMMET CALIBRATION]', {
@@ -374,7 +401,7 @@ export function buildKuoAV(config = {}) {
       : config.pantallaEnabled !== undefined
       ? !!config.pantallaEnabled
       : false;
-  const pantallaTipo = config.pantallaTipo || 'FORMICA';
+  const pantallaTipo = 'FRONTAL_PERIMETRAL';
   // El acabado se resuelve por catálogo según el material (no es un color libre
   // seleccionable por el usuario): vidrios llevan tono translúcido, el resto un
   // gris neutro estándar de fábrica.
@@ -382,10 +409,6 @@ export function buildKuoAV(config = {}) {
   const pantallaAcabado = config.pantallaAcabado || (isPantallaVidrio ? '#a5f3fc' : '#dedede');
 
   if (hasPantalla) {
-    // Mismo pivote/origen de GLB que en KuoAVDobleBuilder: la pieza nace en el
-    // borde izquierdo (x=0 del GLB) y su base queda ~268mm por debajo del
-    // centro de la superficie. Se replica esa misma fórmula para que la
-    // pantalla quede pegada al borde posterior de la mesa, sin flotar.
     const panWidthMm = widthMm === 1500 ? 1425 : widthMm >= 1650 ? 1575 : 1125;
     const pantallaPart = createKuoAVPantallaPart({
       groupId,
@@ -394,8 +417,8 @@ export function buildKuoAV(config = {}) {
       tipo: pantallaTipo,
       acabado: pantallaAcabado,
       x: -panWidthMm / 2,
-      y: baseRules.elevation.surfaceYMm - 268,
-      z: -depthMm / 2,
+      y: resolveKuoAVPerimetralScreenHeight(heightPlacement.surfaceTopMm, thickMm) * 1000,
+      z: -depthMm / 2 + KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM * 1000,
     });
     parts.push(pantallaPart);
   }
@@ -405,6 +428,7 @@ export function buildKuoAV(config = {}) {
     anchoMm: widthMm,
     profundidadMm: depthMm,
     alturaMm: baseRules.alturaMm,
+    physicalHeightMm: heightPlacement.surfaceTopMm,
     thickMm,
     espesor: config.espesor || `Espesor Formica ${thickMm}`,
     espesorTipo: config.espesorTipo || config.espesor || `Formica ${thickMm}`,
@@ -434,6 +458,7 @@ export function buildKuoAV(config = {}) {
       widthMm,
       depthMm,
       alturaMm: baseRules.alturaMm,
+      physicalHeightMm: heightPlacement.surfaceTopMm,
       thickMm,
     },
     parts,

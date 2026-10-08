@@ -10,12 +10,20 @@ import {
 } from '../config/kuoAVDobleTunables.js';
 import { KUO_AV_DOBLE_PART_ROLES } from '../parts/kuoAVDobleParts.js';
 import { buildKuoAVDobleBOM } from '../bom/kuoAVDobleBOMCatalog.js';
+import { KUO_AV_PANTALLA_CATALOG } from '../../kuoAV/config/kuoAVPantallaCatalog.js';
+import { resolveKuoAVDobleHeightPlacement } from '../config/kuoAVDobleHeightPlacement.js';
+import {
+  KUO_AV_PERIMETRAL_SCREEN_MOUNT,
+  resolveKuoAVPerimetralScreenHeight,
+} from '../../kuoAV/config/kuoAVPantallaPlacement.js';
 
 export function buildKuoAVDoble(config = {}) {
   const widthMm = Number(config.anchoMm || 1200);
   const depthMm = Number(config.profundidadMm || 600); // Fondo nominal por puesto (600 o 750)
-  const alturaMm = Number(config.alturaMm || 730);
   const thickMm = Number(config.thickMm || 30);
+  const heightPlacement = resolveKuoAVDobleHeightPlacement(
+    config.alturaMm ?? (config.aumentarAltura === true ? 1200 : 730), thickMm);
+  const alturaMm = heightPlacement.alturaMm;
 
   // En Kuo AV Doble cada puesto conserva siempre su estructura completa (2 pies y 4 parales)
   const tipoPuesto = config.tipoPuesto || 'INICIAL';
@@ -36,32 +44,28 @@ export function buildKuoAVDoble(config = {}) {
   const acabadoGrommet = config.acabadoGrommet || 'Anodizado';
   const especial = !!config.especial;
   const baldosaFormica = !!config.baldosaFormica;
-  const legacyVertebraEnabled =
-    typeof config.vertebraLateral === 'boolean' ? config.vertebraLateral : true;
+  const vertebraLateral = !!config.vertebraLateral;
   const vertebraLeftEnabled =
     typeof config.vertebraLeftEnabled === 'boolean'
       ? config.vertebraLeftEnabled
-      : legacyVertebraEnabled;
+      : true;
   const vertebraRightEnabled =
     typeof config.vertebraRightEnabled === 'boolean'
       ? config.vertebraRightEnabled
-      : legacyVertebraEnabled;
+      : true;
 
   // Resolución de variantes de ancho (1200 / 1500 / 1650)
   let variantKey = 1200;
   let vigaWidthRealMm = 1196;
   let ductoWidthRealMm = 1109.1;
-  let canalWidthRealMm = 1109.0;
   if (widthMm >= 1650) {
     variantKey = 1650;
     vigaWidthRealMm = 1646;
     ductoWidthRealMm = 1559.1;
-    canalWidthRealMm = 1559.0;
   } else if (widthMm >= 1500) {
     variantKey = 1500;
     vigaWidthRealMm = 1496;
     ductoWidthRealMm = 1409.1;
-    canalWidthRealMm = 1409.0;
   }
 
   // Resolución de variantes de fondo (1200 / 1500)
@@ -72,10 +76,8 @@ export function buildKuoAVDoble(config = {}) {
     costadoDepthRealMm = 1525.92;
   }
 
-  const canalVariantCode = variantKey >= 1650 ? '165' : variantKey >= 1500 ? '150' : '120';
   const vigaGlb = KUO_AV_DOBLE_VARIANTS.vigaSoporte[variantKey] || 'KUSO420000_120.glb';
   const ductoGlb = KUO_AV_DOBLE_VARIANTS.ductoCentral[variantKey] || 'KUSO830000_120.glb';
-  const canalGlb = `KUSO860000_${canalVariantCode}.glb`;
   const costadoDobleGlb = KUO_AV_DOBLE_VARIANTS.costadoDoble[depthVariantKey] || 'KUSO820000_120.glb';
 
   const groupId = config.groupId || `KUOAVD_${widthMm}x${depthMm * 2}_H${alturaMm}_T${thickMm}`;
@@ -83,12 +85,11 @@ export function buildKuoAVDoble(config = {}) {
 
   const parts = [];
 
-  const surfaceTopY = alturaMm / 1000;
-  const surfaceBottomY = (alturaMm - thickMm) / 1000;
-  const surfaceCenterY = (alturaMm - thickMm / 2) / 1000;
+  const surfaceTopY = heightPlacement.surfaceTopMm / 1000;
+  const surfaceCenterY = heightPlacement.surfaceCenterMm / 1000;
 
   // Espaciado central entre las dos superficies
-  const gapCentralMm = 13.0;
+  const gapCentralMm = 26.0;
   const halfDepthM = depthMm / 1000 / 2;
   const gapM = (gapCentralMm / 2) / 1000;
   const halfWidthM = widthMm / 1000 / 2;
@@ -181,12 +182,12 @@ export function buildKuoAVDoble(config = {}) {
   }
 
   // 4. Parales Linak KUAC1040000
-  const paralGlb = alturaMm >= 1000 ? 'KUAC1040000_120.glb' : 'KUAC1040000_74.glb';
-  const paralScaleY = (alturaMm - thickMm) / 700.0;
+  const paralGlb = heightPlacement.useRaisedAsset ? 'KUAC1040000_120.glb' : 'KUAC1040000_74.glb';
+  const paralScaleY = 1;
 
   const zParalOffset = (depthMm - 600) / 2000.0;
-  const zParalFront = 0.350 + zParalOffset;
-  const zParalBack = -(0.270 + zParalOffset);
+  const zParalFront = 0.323 + zParalOffset;
+  const zParalBack = -0.303 - zParalOffset;
 
   // Parales Izquierdos
   if (hasLeftParales) {
@@ -256,8 +257,8 @@ export function buildKuoAVDoble(config = {}) {
 
   // 5. Vigas Soporte Longitudinales KUSO420000
   const vigaHalfXM = (vigaWidthRealMm / 2) / 1000;
-  const vigaYM = surfaceBottomY - 0.050;
-  const vigaZM = (depthMm / 1000) - 0.0435;
+  const vigaYM = 0.660 + heightPlacement.beamTravelMm / 1000;
+  const vigaZM = (depthMm / 1000) - 0.039;
 
   parts.push({
     partId: `${groupId}_BEAM_FRONT`,
@@ -289,43 +290,9 @@ export function buildKuoAVDoble(config = {}) {
     scale: [1, 1, 1],
   });
 
-  // 6. Canales Superiores de Electrificación KUSO860000
-  const canalHalfXM = (canalWidthRealMm / 2) / 1000;
-  const canalYM = surfaceBottomY - 0.1459;
-
-  parts.push({
-    partId: `${groupId}_CANAL_SUP_F`,
-    groupId,
-    codigo: `KUSO860000_${variantKey}_F`,
-    lookupTag: 'KUSO860000',
-    role: KUO_AV_DOBLE_PART_ROLES.DOUBLE_DUCT,
-    name: `Canal Superior Frontal ${variantKey}`,
-    modelKind: 'glb',
-    glb: `/assets/models/Kuo AV/Puesto Perimetral/${canalGlb}`,
-    colorVariante: acabadoEstructura,
-    position: [-canalHalfXM, canalYM, 0.140],
-    rotation: [0, 0, 0],
-    scale: [1, 1, 1],
-  });
-
-  parts.push({
-    partId: `${groupId}_CANAL_SUP_P`,
-    groupId,
-    codigo: `KUSO860000_${variantKey}_P`,
-    lookupTag: 'KUSO860000',
-    role: KUO_AV_DOBLE_PART_ROLES.DOUBLE_DUCT,
-    name: `Canal Superior Posterior ${variantKey}`,
-    modelKind: 'glb',
-    glb: `/assets/models/Kuo AV/Puesto Perimetral/${canalGlb}`,
-    colorVariante: acabadoEstructura,
-    position: [canalHalfXM, canalYM, -0.140],
-    rotation: [0, Math.PI, 0],
-    scale: [1, 1, 1],
-  });
-
   // 7. Ducto Central Inferior KUSO830000
   const ductoHalfXM = (ductoWidthRealMm / 2) / 1000;
-  const ductoYM = 0.308;
+  const ductoYM = 0.305;
 
   parts.push({
     partId: `${groupId}_DOUBLE_DUCT`,
@@ -354,7 +321,7 @@ export function buildKuoAVDoble(config = {}) {
     glb: '/assets/models/Kuo AV/Puesto Doble/LKAC250000_DOBLE.glb',
     colorVariante: acabadoGrommet,
     acabado: acabadoGrommet,
-    position: [-0.256, surfaceTopY - 0.0335, 0.1285],
+    position: [-0.256, 0.714 + heightPlacement.grommetTravelMm / 1000, 0.1285],
     rotation: [0, 0, 0],
     scale: [1, 1, 1],
   });
@@ -370,7 +337,7 @@ export function buildKuoAVDoble(config = {}) {
     modelKind: 'glb',
     glb: '/assets/models/Kuo AV/Puesto Perimetral/KUAC680000.glb',
     colorVariante: acabadoEstructura,
-    position: [-0.3035, canalYM, 0.1161],
+    position: [-0.3035, 0.572 + heightPlacement.socketTravelMm / 1000, 0.244],
     rotation: [0, 0, 0],
     scale: [1, 1, 1],
   });
@@ -385,29 +352,10 @@ export function buildKuoAVDoble(config = {}) {
     modelKind: 'glb',
     glb: '/assets/models/Kuo AV/Puesto Perimetral/KUAC680000.glb',
     colorVariante: acabadoEstructura,
-    position: [0.3035, canalYM, -0.1161],
+    position: [0.303, 0.572 + heightPlacement.socketTravelMm / 1000, -0.243],
     rotation: [0, Math.PI, 0],
     scale: [1, 1, 1],
   });
-
-  // 10. Kit Fuente Doble (KUAC1040000_74Doble)
-  if (kitFuente) {
-    const yKit = elevaKitF ? surfaceBottomY - 0.288 : surfaceBottomY - 0.5761;
-    parts.push({
-      partId: `${groupId}_POWER_KIT`,
-      groupId,
-      codigo: 'KUAC1040000_74Doble',
-      lookupTag: 'KUAC1040000',
-      role: KUO_AV_DOBLE_PART_ROLES.POWER_KIT_LEFT,
-      name: 'Kit Fuente Central Doble',
-      modelKind: 'glb',
-      glb: '/assets/models/Kuo AV/Puesto Doble/KUAC1040000_74Doble.glb',
-      colorVariante: kitFuenteColor,
-      position: [-0.024, yKit, 0.040],
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1],
-    });
-  }
 
   // 11. Vértebras Pasacables KUAC650000
   if (vertebraLeftEnabled) {
@@ -420,10 +368,13 @@ export function buildKuoAVDoble(config = {}) {
       type: 'vertebra',
       name: 'Vértebra Pasacables Frontal',
       modelKind: 'glb',
-      glb: '/assets/models/Kuo AV/Puesto Doble/KUAC650000.glb',
+      glb: vertebraLateral
+        ? `/assets/models/Kuo AV/Puesto Perimetral/KUAC650000_${heightPlacement.useRaisedAsset ? 'ALT_LAT' : 'LAT'} 1.glb`
+        : `/assets/models/Kuo AV/Puesto Perimetral/${heightPlacement.useRaisedAsset ? 'KUAC650000_ALT.glb' : 'KUAC650000.glb'}`,
       colorVariante: acabadoEstructura,
-      position: [-0.035, 0.08, 0.10],
-      rotation: [0, 0, 0],
+      position: vertebraLateral ? [halfWidthM - 0.315, 0.425, -0.023]
+        : [0.04, heightPlacement.useRaisedAsset ? 0.205 : 0.025, 0.047],
+      rotation: [0, vertebraLateral ? 0 : Math.PI, 0],
       scale: [1, 1, 1],
     });
   }
@@ -438,10 +389,13 @@ export function buildKuoAVDoble(config = {}) {
       type: 'vertebra',
       name: 'Vértebra Pasacables Posterior',
       modelKind: 'glb',
-      glb: '/assets/models/Kuo AV/Puesto Doble/KUAC650000.glb',
+      glb: vertebraLateral
+        ? `/assets/models/Kuo AV/Puesto Perimetral/KUAC650000_${heightPlacement.useRaisedAsset ? 'ALT_LAT' : 'LAT'} 1.glb`
+        : `/assets/models/Kuo AV/Puesto Perimetral/${heightPlacement.useRaisedAsset ? 'KUAC650000_ALT.glb' : 'KUAC650000.glb'}`,
       colorVariante: acabadoEstructura,
-      position: [0.035, 0.08, -0.10],
-      rotation: [0, Math.PI, 0],
+      position: vertebraLateral ? [halfWidthM - 0.320, 0.425, 0.095]
+        : [-0.04, heightPlacement.useRaisedAsset ? 0.205 : 0.025, -0.043],
+      rotation: [0, 0, 0],
       scale: [1, 1, 1],
     });
   }
@@ -454,7 +408,11 @@ export function buildKuoAVDoble(config = {}) {
     lookupTag: 'DPBK06',
     role: KUO_AV_DOBLE_PART_ROLES.BUTTONS,
     name: 'Botonera LINAK Control Frontal',
-    modelKind: 'logical',
+    modelKind: 'glb',
+    glb: '/assets/models/Kuo AV/Puesto Perimetral/DPBK06.glb',
+    position: [halfWidthM - 0.120, 0.698 + heightPlacement.progress * 0.486, depthMm / 1000 + 0.033],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
     type: 'control',
   });
 
@@ -465,7 +423,11 @@ export function buildKuoAVDoble(config = {}) {
     lookupTag: 'DPBK06',
     role: KUO_AV_DOBLE_PART_ROLES.BUTTONS,
     name: 'Botonera LINAK Control Posterior',
-    modelKind: 'logical',
+    modelKind: 'glb',
+    glb: '/assets/models/Kuo AV/Puesto Perimetral/DPBK06.glb',
+    position: [-halfWidthM + 0.120, 0.698 + heightPlacement.progress * 0.486, -depthMm / 1000 - 0.033],
+    rotation: [0, Math.PI, 0],
+    scale: [1, 1, 1],
     type: 'control',
   });
 
@@ -499,8 +461,8 @@ export function buildKuoAVDoble(config = {}) {
       : config.pantallaEnabled !== undefined
       ? !!config.pantallaEnabled
       : false;
-  const pantallaTipo = config.pantallaTipo || 'FORMICA'; // FORMICA | MELAMINA | TELA
-  const pantallaPosicion = config.pantallaPosicion || 'CENTRAL'; // CENTRAL | POSTERIOR | FRONTAL
+  const pantallaTipo = config.pantallaTipo || 'FORMICA'; // FMT, vidrio laminado o frontal perimetral
+  const pantallaPosicion = 'CENTRAL';
   const isPantallaVidrioDoble = pantallaTipo === 'VIDRIO' || pantallaTipo === 'VIDRIO LAMINADO';
   const pantallaAcabado = config.pantallaAcabado || (isPantallaVidrioDoble ? '#a5f3fc' : '#dedede');
 
@@ -522,7 +484,16 @@ export function buildKuoAVDoble(config = {}) {
 
     let glbPath = `/assets/models/Kuo AV/Pantalla FMT/KUAC690000_${panDimStr}.glb`;
 
-    if (pantallaTipo === 'VIDRIO' || pantallaTipo === 'VIDRIO LAMINADO') {
+    if (pantallaTipo === 'FRONTAL_PERIMETRAL') {
+      const widthKey = widthMm >= 1650 ? 1650 : widthMm >= 1500 ? 1500 : 1200;
+      const screen = KUO_AV_PANTALLA_CATALOG.FRONTAL_PERIMETRAL[widthKey];
+      codigoPT = screen.codigoPT;
+      lookupTag = screen.lookupTag;
+      planoCode = 'KUAC710000';
+      materialName = 'VIDRIO LAMINADO 4+4';
+      const glbWidth = widthKey === 1500 ? '120' : panDimStr;
+      glbPath = `/assets/models/Kuo AV/Frontal Perimetral/KUAC710000_${glbWidth}.glb`;
+    } else if (pantallaTipo === 'VIDRIO' || pantallaTipo === 'VIDRIO LAMINADO') {
       planoCode = 'KUAC660000';
       materialName = 'VIDRIO LAMINADO';
       if (widthMm === 1200) codigoPT = '22000116695';
@@ -551,14 +522,8 @@ export function buildKuoAVDoble(config = {}) {
       else codigoPT = '22000116715';
     }
 
-    let posZ = 0; // Central (eje Z=0)
-    if (pantallaPosicion === 'POSTERIOR') {
-      posZ = -(halfDepthM * 2 + gapM);
-    } else if (pantallaPosicion === 'FRONTAL') {
-      posZ = (halfDepthM * 2 + gapM);
-    }
-
-    const scaleX = (pantallaTipo === 'VIDRIO' || pantallaTipo === 'VIDRIO LAMINADO') && widthMm !== 1200
+    const isPerimetral = pantallaTipo === 'FRONTAL_PERIMETRAL';
+    const scaleX = (isPantallaVidrioDoble && widthMm !== 1200) || (isPerimetral && widthMm === 1500)
       ? panWidthM / 1.125
       : 1;
 
@@ -573,10 +538,27 @@ export function buildKuoAVDoble(config = {}) {
       type: 'pantalla',
       glb: glbPath,
       colorVariante: pantallaAcabado,
-      position: [-panWidthM / 2, surfaceCenterY - 0.268, posZ],
+      position: [
+        -panWidthM / 2,
+        isPerimetral ? resolveKuoAVPerimetralScreenHeight(heightPlacement.surfaceTopMm, thickMm) : surfaceCenterY - 0.268,
+        isPerimetral ? KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM : 0,
+      ],
       rotation: [0, 0, 0],
       scale: [scaleX, 1, 1],
     });
+  }
+
+  for (const part of parts) {
+    if (!part.partId.includes('_PARAL_')) continue;
+    const left = part.partId.includes('_IZQ_');
+    const front = part.partId.endsWith('_F');
+    part.position = [
+      left ? -halfWidthM + 0.012 : halfWidthM - 0.062,
+      0.015,
+      (front ? -0.275 - zParalOffset : 0.351 + zParalOffset) + (left ? 0 : 0.002),
+    ];
+    part.rotation = [0, 0, 0];
+    part.heightTravelMm = heightPlacement.useRaisedAsset ? 0 : heightPlacement.columnTravelMm;
   }
 
   const effectiveConfig = {
@@ -584,6 +566,8 @@ export function buildKuoAVDoble(config = {}) {
     anchoMm: widthMm,
     profundidadMm: depthMm,
     alturaMm,
+    aumentarAltura: alturaMm > 730,
+    physicalHeightMm: heightPlacement.surfaceTopMm,
     thickMm,
     tipoPuesto,
     pieIzquierdo: hasLeftFoot,
@@ -605,6 +589,7 @@ export function buildKuoAVDoble(config = {}) {
       typeof config.costadoIntermedio === 'boolean' ? config.costadoIntermedio : false,
     vertebraLeftEnabled,
     vertebraRightEnabled,
+    vertebraLateral,
     pantalla: hasPantalla,
     pantallaTipo,
     pantallaPosicion,

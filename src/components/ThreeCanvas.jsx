@@ -105,6 +105,8 @@ import { createKuoGoInstance } from '../mepal/kuoGo/factories/createKuoGoInstanc
 import { createKuoAVInstance } from '../mepal/kuoAV/factory/createKuoAVInstance';
 import { createKuoAVDobleInstance } from '../mepal/kuoAVDoble/factory/createKuoAVDobleInstance';
 import { createKuoAVPantallaInstance } from '../mepal/kuoAV/factory/createKuoAVPantallaInstance';
+import { resolveKuoAVPerimetralScreenHeight, syncKuoAVPerimetralScreenAttachment } from '../mepal/kuoAV/config/kuoAVPantallaPlacement.js';
+import { resolveKuoAVInsertionX } from '../mepal/kuoAV/config/kuoAVInsertionPlacement.js';
 import { createSaludInstance } from '../mepal/salud/factories/createSaludInstance';
 import {
   getSaludVariantOptionsByCode,
@@ -4689,6 +4691,10 @@ function ThreeCanvas({
       )
         return false;
 
+      // Los puestos de una importación nueva conservan su distribución y no
+      // se acoplan magnéticamente a otras importaciones o bancadas existentes.
+      if (assembly.userData?.kuoBatchId) return false;
+
       // Asegurar siempre nivel de piso en Y = 0
       assembly.position.y = 0;
       assembly.updateMatrixWorld(true);
@@ -7871,21 +7877,8 @@ function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
-    function getNextKuoAVOffsetX() {
-      // Calcula el borde derecho real (bounding box) de TODOS los ensambles
-      // Kuo AV existentes (sencillo + doble juntos), para que uno nunca quede
-      // superpuesto sobre el otro sin importar en qué orden se agreguen.
-      let maxRightEdge = null;
-      parts.forEach(({ obj }) => {
-        const kind = obj?.userData?.kind;
-        if (kind !== 'KUO_AV_ASSEMBLY' && kind !== 'KUO_AV_DOBLE_ASSEMBLY') return;
-        obj.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(obj);
-        if (!Number.isFinite(box.max.x)) return;
-        maxRightEdge = maxRightEdge === null ? box.max.x : Math.max(maxRightEdge, box.max.x);
-      });
-      if (maxRightEdge === null) return 0;
-      return maxRightEdge + 0.05; // pequeño margen de 5cm entre bancadas distintas
+    function getNextKuoAVOffsetX(incomingObject = null) {
+      return resolveKuoAVInsertionX(parts.map(({ obj }) => obj), incomingObject);
     }
 
     async function addKuoAV(config = {}) {
@@ -7899,11 +7892,14 @@ function ThreeCanvas({
         });
       } catch (error) {
         console.error('[addKuoAV] Error al crear Kuo AV:', error);
-        return;
+        throw error;
       }
       if (!result) return;
 
       const { object, partRecord } = result;
+      if (config.kuoBatchId) {
+        object.userData.kuoBatchId = config.kuoBatchId;
+      }
       if (config.position) {
         if (Array.isArray(config.position)) {
           object.position.fromArray(config.position);
@@ -7911,7 +7907,7 @@ function ThreeCanvas({
           object.position.copy(config.position);
         }
       } else {
-        object.position.set(getNextKuoAVOffsetX(), 0, 0);
+        object.position.set(getNextKuoAVOffsetX(object), 0, 0);
       }
       object.updateMatrixWorld(true);
       scene.add(object);
@@ -7921,6 +7917,7 @@ function ThreeCanvas({
       emitBOM();
       if (parts.length === 1) frameObject(object);
       refreshFloorAndGrid();
+      return result;
     }
 
     async function swapKuoAVVariant(instanceId, nextConfig = {}) {
@@ -7975,7 +7972,7 @@ function ThreeCanvas({
         });
       } catch (error) {
         console.error('[swapKuoAVVariant] Error en createKuoAVInstance:', error);
-        return;
+        throw error;
       }
       if (!result) {
         console.warn('[swapKuoAVVariant] createKuoAVInstance devolvió null');
@@ -7993,16 +7990,31 @@ function ThreeCanvas({
 
       // Sincronizar estado en userData
       Object.assign(oldObj.userData, newObj.userData);
+      if (oldObj.userData?.kuoBatchId) {
+        newObj.userData.kuoBatchId = oldObj.userData.kuoBatchId;
+      }
 
       newObj.position.copy(savedPos);
       newObj.rotation.copy(savedRot);
       newObj.scale.copy(savedScale);
       newObj.updateMatrixWorld(true);
+      const attachedScreens = parts
+        .filter(({ obj }) => obj?.userData?.attachment?.targetAssemblyId === currentConfig.instanceId
+          && obj.userData.attachment.mode === 'PERIMETRAL_SCREEN_ATTACHMENT')
+        .map(({ obj }) => ({ object: obj, attachment: { ...obj.userData.attachment } }));
       removePartObject(oldObj);
       if (parentGroup) parentGroup.add(newObj);
       else scene.add(newObj);
       parts.push(partRecord);
       pickables.push(newObj);
+      for (const { object: screen, attachment } of attachedScreens) {
+        screen.userData.attachment = attachment;
+        syncKuoAVPerimetralScreenAttachment(screen, newObj);
+      }
+      if (attachedScreens.length) {
+        newObj.userData.attachedNeighbors = new Set(attachedScreens.map(({ object: screen }) =>
+          screen.userData.instanceId || screen.uuid));
+      }
       setActivePart(newObj);
       emitBOM();
       refreshFloorAndGrid();
@@ -8046,11 +8058,14 @@ function ThreeCanvas({
         });
       } catch (error) {
         console.error('[addKuoAVDoble] Error al crear Puesto Doble Kuo AV:', error);
-        return;
+        throw error;
       }
       if (!result) return;
 
       const { object, partRecord } = result;
+      if (config.kuoBatchId) {
+        object.userData.kuoBatchId = config.kuoBatchId;
+      }
       if (config.position) {
         if (Array.isArray(config.position)) {
           object.position.fromArray(config.position);
@@ -8058,10 +8073,11 @@ function ThreeCanvas({
           object.position.copy(config.position);
         }
       } else {
-        object.position.set(getNextKuoAVOffsetX(), 0, 0);
+        object.position.set(getNextKuoAVOffsetX(object), 0, 0);
       }
       object.updateMatrixWorld(true);
       scene.add(object);
+      const isFirstPart = parts.length === 0;
       parts.push(partRecord);
       pickables.push(object);
 
@@ -8081,8 +8097,9 @@ function ThreeCanvas({
 
       setActivePart(object);
       emitBOM();
-      if (parts.length === 1) frameObject(object);
+      if (isFirstPart) frameObject(object);
       refreshFloorAndGrid();
+      return result;
     }
 
     async function swapKuoAVDobleVariant(instanceId, nextConfig = {}) {
@@ -8125,7 +8142,7 @@ function ThreeCanvas({
         });
       } catch (error) {
         console.error('[swapKuoAVDobleVariant] Error en createKuoAVDobleInstance:', error);
-        return;
+        throw error;
       }
       if (!result) {
         console.warn('[swapKuoAVDobleVariant] createKuoAVDobleInstance devolvió null');
@@ -8134,6 +8151,16 @@ function ThreeCanvas({
       const { object: newObj, partRecord } = result;
 
       // Limpiar hijos anteriores de parts y pickables
+      const attachedScreens = parts
+        .map((part) => part.obj)
+        .filter((object) =>
+          object?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY'
+          && object.userData.attachment?.targetAssemblyId === instanceId
+        )
+        .map((object) => ({ object, attachment: { ...object.userData.attachment } }));
+      if (oldObj.userData?.kuoBatchId) {
+        newObj.userData.kuoBatchId = oldObj.userData.kuoBatchId;
+      }
       const oldChildIds = new Set(
         oldObj.children?.map((c) => c.userData?.instanceId).filter(Boolean) || []
       );
@@ -8149,6 +8176,9 @@ function ThreeCanvas({
       }
 
       Object.assign(oldObj.userData, newObj.userData);
+      if (oldObj.userData?.kuoBatchId) {
+        newObj.userData.kuoBatchId = oldObj.userData.kuoBatchId;
+      }
       newObj.position.copy(savedPos);
       newObj.rotation.copy(savedRot);
       newObj.scale.copy(savedScale);
@@ -8159,6 +8189,14 @@ function ThreeCanvas({
       parts.push(partRecord);
       pickables.push(newObj);
 
+      for (const { object: screen, attachment } of attachedScreens) {
+        screen.userData.attachment = attachment;
+        syncKuoAVPerimetralScreenAttachment(screen, newObj);
+      }
+      if (attachedScreens.length) {
+        newObj.userData.attachedNeighbors = new Set(attachedScreens.map(({ object: screen }) =>
+          screen.userData.instanceId || screen.uuid));
+      }
       newObj.children.forEach((child) => {
         if (child.userData?.isPartRoot) {
           parts.push({
@@ -8235,7 +8273,9 @@ function ThreeCanvas({
             spawnX = sceneBox.max.x + 1.0;
           }
         }
-        const defaultY = config.tipo === 'FRONTAL_PERIMETRAL' ? 0.632 : 0.462;
+        const defaultY = config.tipo === 'FRONTAL_PERIMETRAL'
+          ? resolveKuoAVPerimetralScreenHeight()
+          : 0.462;
         object.position.set(spawnX, defaultY, spawnZ);
       }
       object.updateMatrixWorld(true);
@@ -10704,12 +10744,11 @@ function ThreeCanvas({
       if (root.userData?.kind === 'CRITERIUM_SYSTEM') return false;
       if (getCritteriumSystemRoot(root) && !options.allowCritteriumSystemMember) return false;
 
-      // Puestos Kuo AV (sencillo o doble): si el usuario unió 2 o más puestos
-      // en una misma bancada, ninguno se puede eliminar individualmente para
-      // no romper la continuidad de la unión. Con un único puesto sí se puede
-      // borrar con normalidad.
       const rootKind = root.userData?.kind;
-      if (rootKind === 'KUO_AV_ASSEMBLY' || rootKind === 'KUO_AV_DOBLE_ASSEMBLY') {
+      if (
+        !root.userData?.kuoBatchId &&
+        (rootKind === 'KUO_AV_ASSEMBLY' || rootKind === 'KUO_AV_DOBLE_ASSEMBLY')
+      ) {
         const kuoAssemblyCount = parts.filter(
           ({ obj: partObj }) =>
             partObj?.userData?.kind === 'KUO_AV_ASSEMBLY' ||
@@ -12626,8 +12665,21 @@ function ThreeCanvas({
         ? getAssemblyObject(target) || target
         : getIndividualMovementRoot(target) || target;
 
-      const targets =
-        moveAsGroupRef.current && effectiveTarget?.userData?.groupId
+      const batchId = effectiveTarget?.userData?.kuoBatchId;
+      const targets = batchId
+        ? Array.from(
+            new Set(
+              parts
+                .map(({ obj }) => obj)
+                .filter(
+                  (obj) =>
+                    obj?.userData?.kuoBatchId === batchId &&
+                    (obj.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+                      obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY')
+                )
+            )
+          )
+        : moveAsGroupRef.current && effectiveTarget?.userData?.groupId
           ? getGroupedObjects(effectiveTarget)
           : [effectiveTarget];
 
@@ -12647,6 +12699,7 @@ function ThreeCanvas({
       if (movingId) {
         parts.forEach(({ obj }) => {
           if (obj && obj !== target && obj.userData?.attachment?.targetAssemblyId === movingId) {
+            if (syncKuoAVPerimetralScreenAttachment(obj, target)) return;
             const off = obj.userData.attachment.offsetLocal;
             if (off) {
               obj.position.set(target.position.x + off.x, 0, target.position.z + off.z);
@@ -13116,7 +13169,19 @@ function ThreeCanvas({
         roots.push(...expandedTargets);
       });
 
-      const uniqueRoots = Array.from(new Set(roots.filter(Boolean)));
+      const expandedBatchRoots = [...roots];
+      roots.forEach((root) => {
+        const batchId = root?.userData?.kuoBatchId;
+        if (!batchId) return;
+        parts.forEach(({ obj }) => {
+          if (
+            obj?.userData?.kuoBatchId === batchId &&
+            (obj.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+              obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY')
+          ) expandedBatchRoots.push(obj);
+        });
+      });
+      const uniqueRoots = Array.from(new Set(expandedBatchRoots.filter(Boolean)));
       const rootSet = new Set(uniqueRoots);
       return uniqueRoots.filter((object) => {
         let ancestor = object.parent;
@@ -17300,9 +17365,20 @@ function ThreeCanvas({
           const physicalObjects = parts.map(({ obj }) => obj).filter(Boolean);
 
           // Encontrar todas las mesas acopladas magnéticamente en el cluster
-          const clusterAssemblies = new Set([assembly]);
+          const batchId = assembly.userData?.kuoBatchId;
+          const clusterAssemblies = new Set(
+            batchId
+              ? physicalObjects.filter(
+                  (candidate) =>
+                    candidate.userData?.kuoBatchId === batchId &&
+                    (candidate.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+                      candidate.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY')
+                )
+              : [assembly]
+          );
+          if (!clusterAssemblies.has(assembly)) clusterAssemblies.add(assembly);
           let changed = true;
-          while (changed) {
+          while (!batchId && changed) {
             changed = false;
             physicalObjects.forEach((candidate) => {
               const candAssembly = candidate.userData?.kind?.includes('ASSEMBLY')
@@ -17334,12 +17410,14 @@ function ThreeCanvas({
             assemblyIds.add(ass.uuid);
           });
 
-          const members = physicalObjects.filter(
-            (candidate) =>
-              clusterAssemblies.has(candidate) ||
-              [...clusterAssemblies].some((ass) => isDescendantOf(candidate, ass)) ||
-              assemblyIds.has(candidate.userData?.parentAssemblyId)
-          );
+          const members = batchId
+            ? [...clusterAssemblies]
+            : physicalObjects.filter(
+                (candidate) =>
+                  clusterAssemblies.has(candidate) ||
+                  [...clusterAssemblies].some((ass) => isDescendantOf(candidate, ass)) ||
+                  assemblyIds.has(candidate.userData?.parentAssemblyId)
+              );
           dragGroupStartRef.current = members.map((obj) => ({
             obj,
             position: obj.position.clone(),
@@ -17425,7 +17503,7 @@ function ThreeCanvas({
         dragTargets = [movementRoot];
       }
 
-      if (dragTargets.some((obj) => obj.userData?.lockedMovement)) return;
+        if (dragTargets.some((obj) => obj.userData?.lockedMovement)) return;
 
       dragPlane.set(
         new THREE.Vector3(0, 1, 0),
@@ -17727,6 +17805,7 @@ function ThreeCanvas({
                   obj !== activePart &&
                   obj.userData?.attachment?.targetAssemblyId === movingId
                 ) {
+                  if (syncKuoAVPerimetralScreenAttachment(obj, activePart)) return;
                   const off = obj.userData.attachment.offsetLocal;
                   if (off) {
                     obj.position.set(
@@ -18596,7 +18675,10 @@ function ThreeCanvas({
                 const depthMm = nearestDesk.userData?.config?.profundidadMm || 600;
                 const halfDepthM = depthMm / 2000;
                 const offsetZ = -halfDepthM;
-                const offsetY = 0.632;
+                const offsetY = resolveKuoAVPerimetralScreenHeight(
+                  nearestDesk.userData?.config?.physicalHeightMm || nearestDesk.userData?.config?.alturaMm,
+                  nearestDesk.userData?.config?.thickMm
+                );
 
                 activePart.position.set(deskPos.x, deskPos.y + offsetY, deskPos.z + offsetZ);
                 activePart.updateMatrixWorld(true);
@@ -18610,6 +18692,7 @@ function ThreeCanvas({
                     z: offsetZ,
                   },
                 };
+                syncKuoAVPerimetralScreenAttachment(activePart, nearestDesk);
               } else {
                 // En Puesto Doble, ranura Central, Frontal o Posterior
                 const depthMm = nearestDesk.userData?.config?.profundidadMm || 600;
@@ -18618,11 +18701,16 @@ function ThreeCanvas({
 
                 const localZ = panWorld.z - deskPos.z;
                 let offsetZ = 0;
-                const offsetY = isPerimetralScreen ? 0.632 : 0.452;
+                const offsetY = isPerimetralScreen
+                  ? resolveKuoAVPerimetralScreenHeight(
+                      nearestDesk.userData?.config?.physicalHeightMm || nearestDesk.userData?.config?.alturaMm,
+                      nearestDesk.userData?.config?.thickMm
+                    )
+                  : 0.452;
 
-                if (localZ > 0.2) {
+                if (!isPerimetralScreen && localZ > 0.2) {
                   offsetZ = halfDepthM * 2 + gapM;
-                } else if (localZ < -0.2) {
+                } else if (!isPerimetralScreen && localZ < -0.2) {
                   offsetZ = -(halfDepthM * 2 + gapM);
                 } else {
                   offsetZ = 0; // Centro exacto en la ranura
@@ -18640,6 +18728,7 @@ function ThreeCanvas({
                     z: offsetZ,
                   },
                 };
+                syncKuoAVPerimetralScreenAttachment(activePart, nearestDesk);
               }
 
               if (!nearestDesk.userData.attachedNeighbors) {
@@ -18650,7 +18739,9 @@ function ThreeCanvas({
               );
             } else {
               // Sin mesa compatible cerca: permanece a altura de mesa sin acoples
-              activePart.position.y = isPerimetralScreen ? 0.632 : 0.462;
+              activePart.position.y = isPerimetralScreen
+                ? resolveKuoAVPerimetralScreenHeight()
+                : 0.462;
               activePart.updateMatrixWorld(true);
               activePart.userData.attachment = null;
             }
@@ -18658,7 +18749,10 @@ function ThreeCanvas({
         }
 
         parts.forEach(({ obj }) => {
-          if (obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
+          if (
+            obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' &&
+            !obj.userData?.kuoBatchId
+          ) {
             checkAndApplyKuoAVLUnion(obj);
           }
         });
