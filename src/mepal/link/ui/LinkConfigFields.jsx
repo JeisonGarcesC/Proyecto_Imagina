@@ -2,6 +2,7 @@ import { LINK_WIDTHS, LINK_LEADER_WIDTHS, LINK_DEPTHS } from '../catalog/linkCat
 import { getLinkFinishOptions, LINK_SUPPORT_SHAPES } from '../catalog/linkFinishCatalog.js';
 import { inputStyle, labelStyle, sectionStyle } from '../../../components/properties/shared/PropertyStyles.js';
 import LinkLeaderFields from '../leader/ui/LinkLeaderFields.jsx';
+import { LINK_CREDENZA_EXE_LENGTHS, LINK_CREDENZA_EXE_SIDES, LINK_CREDENZA_EXE_MODELS } from '../rules/linkCredenzaExeRules.js';
 
 export default function LinkConfigFields({config:c,onChange,disabled=false}) {
   const leader=c.type==='lider', widths=leader?LINK_LEADER_WIDTHS:LINK_WIDTHS;
@@ -34,9 +35,17 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
   const dimension=(label,key,options,min,max)=>c.modoEspecial ? select(label,key,specialWidths.map(v=>({value:v,label:v+' mm'})))
     : select(label,key,options.map(v=>({value:v,label:(v/10)+' cm'})));
   return <fieldset disabled={disabled} style={{border:0,padding:0,margin:0,minWidth:0}}>
-    <div style={sectionStyle}><label style={labelStyle}>Tipo de configuración<select style={inputStyle} value="STANDARD" disabled>
-      <option value="STANDARD">Superficie principal</option>
+    <div style={sectionStyle}><label style={labelStyle}>Tipo de configuración<select style={inputStyle} value={c.type==='credenza'?'CREDENZA':'LINK'}
+      onChange={e=>onChange({...c,type:e.target.value==='CREDENZA'?'credenza':(c.type==='credenza'?'sencillo':c.type)})}>
+      <option value="LINK">Link</option>
+      <option value="CREDENZA">Credenza</option>
     </select></label></div>
+    {c.type==='credenza'?<div style={sectionStyle}>
+      {select('Modelo','credenzaModel',LINK_CREDENZA_EXE_MODELS.map(m=>({value:m.value,label:m.label})))}
+      {select('Lado','side',LINK_CREDENZA_EXE_SIDES)}
+      {select('Largo','credenzaLengthMm',LINK_CREDENZA_EXE_LENGTHS.map(v=>({value:v,label:(v/10)+' cm'})))}
+      <div style={{fontSize:11}}>Referencia {c.credenzaModel}.</div>
+    </div>:<>
     <div style={sectionStyle}>
       {!leader && <>{select('Tipo de puesto','type',[{value:'sencillo',label:'Individual'},{value:'doble',label:'Doble'}])}
         {select('Cantidad de puestos','puestos',Array.from({length:12},(_,i)=>({value:i+1,label:(i+1)+' '+(i?'puestos':'puesto')})))}
@@ -46,6 +55,7 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
         onChange({...c,modoEspecial:mode,...(!mode?{widthMm:widths.find(w=>w>=c.widthMm)||widths[0],depthMm:c.depthMm<=600?600:750,returnLengthMm:c.returnLengthMm<=900?900:1000}:{widthMm: 1051})});
       }}/> {leader?'Puesto líder rematable / medida especial':'Puesto especial'}</label>
       {dimension('Largo real','widthMm',widths,leader?1500:900,1800)}
+      {select('Ancho','depthMm',LINK_DEPTHS.map(v=>({value:v,label:(v/10)+' cm'})))}
       {c.type==='doble'&&select('Configuración de superficie','surfaceMode',[{value:'principal',label:'Superficie principal'},{value:'plena',label:'Superficie plena doble'}])}
       {c.type==='sencillo'&&select('Superficie de integración', 'integracionType', [
         {value: 'ninguna', label: 'Ninguna'},
@@ -110,5 +120,6 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
         </>
       )}
     </div>
+    </>}
   </fieldset>;
 }

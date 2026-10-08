@@ -2,6 +2,7 @@ import { LINK_DEFAULT_CONFIG } from '../definitions/linkDefaults.js';
 import { LINK_TYPES, LINK_WIDTHS, LINK_LEADER_WIDTHS, LINK_DEPTHS } from '../catalog/linkCatalog.js';
 import { getLinkFinishOptions, LINK_SUPPORT_SHAPES } from '../catalog/linkFinishCatalog.js';
 import { normalizeLinkComponents } from './linkComponentRules.js';
+import { LINK_CREDENZA_EXE_LENGTHS, LINK_CREDENZA_EXE_MODELS } from './linkCredenzaExeRules.js';
 import { normalizeLinkComponentTransforms } from '../integration/linkComponentIdentity.js';
 
 export function isLinkLeader(type) { return type === 'lider' || type === 'jefatura'; }
@@ -11,6 +12,15 @@ export function normalizeLinkConfig(input = {}) {
   // Backward compatibility: the earlier synonymous name is never offered as a separate product.
   if (c.type === 'jefatura') c.type = 'lider';
   if (!LINK_TYPES.some(t => t.value === c.type)) throw new Error('Tipo de puesto LINK no disponible.');
+  if (c.type === 'credenza') {
+    // Credenza independiente (Link Exe): una sola pieza GLB, sin superficies, costados ni accesorios de puesto.
+    const credenzaLengthMm = Number(c.credenzaLengthMm);
+    if (!LINK_CREDENZA_EXE_LENGTHS.includes(credenzaLengthMm)) throw new Error('Largo de credenza LINK no válido.');
+    if (!LINK_CREDENZA_EXE_MODELS.some(m => m.value === c.credenzaModel)) throw new Error('Modelo de credenza LINK no válido.');
+    Object.assign(c, { credenzaLengthMm, widthMm: credenzaLengthMm, depthMm: 600, puestos: 1, modoEspecial: false, surfaceMode: 'principal',
+      hasDuct: false, hasPantallaFrontal: false, hasPantallaLateral: false, hasPantallaFalda: false, integracionType: 'ninguna',
+      leaderCredenza: false, leaderReturnGrommet: false });
+  }
   for (const key of ['pasacable', 'ducto', 'ductCover', 'floorDuct', 'ceilingDuct']) {
     if (input[key] && input[key] !== 'none') throw new Error('Configura los accesorios desde la pieza LINK correspondiente.');
   }
@@ -21,7 +31,7 @@ export function normalizeLinkConfig(input = {}) {
   const widthMm = Number(c.widthMm), depthMm = Number(c.depthMm), puestos = Number(c.puestos);
   if (!Number.isInteger(puestos) || puestos < 1 || puestos > 12 || (leader && puestos !== 1)) throw new Error('Cantidad de puestos no válida.');
   const special = c.modoEspecial === true;
-  if (special ? !Number.isFinite(widthMm) || widthMm < (leader ? 1500 : 900) || widthMm > 1800 || !Number.isFinite(depthMm) || depthMm < 600 || depthMm > 750
+  if (special ? !Number.isFinite(widthMm) || widthMm < (leader ? 1500 : 900) || widthMm > (leader ? 1800 : 1851) || !Number.isFinite(depthMm) || depthMm < 600 || depthMm > 750
     : !widths.includes(widthMm) || !LINK_DEPTHS.includes(depthMm)) throw new Error('Dimensiones LINK no disponibles.');
   if (!['principal', 'plena'].includes(c.surfaceMode) || (c.type !== 'doble' && c.surfaceMode !== 'principal')) throw new Error('Superficie LINK no disponible.');
   if (!['derecha', 'izquierda'].includes(c.side)) throw new Error('Entrega LINK no disponible.');
@@ -52,7 +62,7 @@ export function normalizeLinkConfig(input = {}) {
     hasDuct:c.hasDuct, cableAccess:c.cableAccess, grommetFinish:c.grommetFinish, finishAssignments,
     componentTransforms:normalizeLinkComponentTransforms(c.componentTransforms),
     components:normalizeLinkComponents(c.components,c.type), leaderReturnGrommet:c.leaderReturnGrommet,
-    leaderCredenza:c.leaderCredenza, leaderCredenzaLengthMm,
+    leaderCredenza:c.leaderCredenza, leaderCredenzaLengthMm, credenzaLengthMm:Number(c.credenzaLengthMm), credenzaModel:c.credenzaModel,
     surfaceColor:c.surfaceColor, structureColor:c.structureColor, pedestalColor:c.pedestalColor,
     hasPantallaFrontal:c.type==='doble' && c.hasPantallaFrontal, pantallaFrontalMaterial:c.pantallaFrontalMaterial,
     hasPantallaLateral:c.hasPantallaLateral, pantallaLateralMaterial:c.pantallaLateralMaterial,

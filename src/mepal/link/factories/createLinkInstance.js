@@ -27,7 +27,7 @@ export function createLinkInstance({ config = {}, instanceId = MathUtils.generat
     visualSource: 'LINK_ASSEMBLY', bom: bom.rows, bomStatus: bom.status, missingBOM: bom.missing,
     diagnostics: product.diagnostics,
     dim: { widthMm: product.bounds?.widthMm || c.widthMm * c.puestos, thickMm: product.thickMm, depthMm: product.bounds?.depthMm || product.layout.totalDepthMm,
-      heightMm: LINK_DIMENSIONS.supportHeightMm + product.thickMm },
+      heightMm: product.bounds?.heightMm || LINK_DIMENSIONS.supportHeightMm + product.thickMm },
   });
   object.children.forEach((component) => initializeLinkComponent(component, object));
   if (Array.isArray(transform.position)) object.position.fromArray(transform.position);

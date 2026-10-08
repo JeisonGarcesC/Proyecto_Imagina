@@ -3,7 +3,7 @@ export const LINK_DEFAULT_CONFIG = Object.freeze({
   hasDuct: true, supportFinish: 'PINTADO', cableAccess: 'grommet', grommetFinish: 'ALUMINIUM', finishAssignments: {}, components: {}, componentTransforms: {},
   type: 'sencillo', widthMm: 1200, depthMm: 600, surfaceMode: 'principal',
   returnLengthMm: 900, side: 'derecha', leaderReturnGrommet: false,
-  leaderCredenza: false, leaderCredenzaLengthMm: 1200,
+  leaderCredenza: false, leaderCredenzaLengthMm: 1200, credenzaLengthMm: 1200, credenzaModel: 'LKAL160000',
   surfaceColor: '#d8c4a5', structureColor: '#444b52', pedestalColor: '#d8c4a5',
   hasPantallaFrontal: false, pantallaFrontalMaterial: 'formica',
   hasPantallaFalda: false, pantallaFaldaMaterial: 'formica',

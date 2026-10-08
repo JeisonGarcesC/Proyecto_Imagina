@@ -8,6 +8,9 @@ import { resolveIntegracionHole, LINK_INTEGRACION_LENGTH_MM } from './superficie
 
 // Largo real del GLB del ducto cableado sencillo (LKSO150000_120cm), que se dibuja a tamaño exacto.
 const LINK_DUCT_SENCILLO_GLB_WIDTH_MM = 1199;
+// El GLB del ducto sencillo solo existe a 120 cm: se estira a lo largo (X) en proporción al largo real del puesto.
+const LINK_DUCT_SENCILLO_BASE_WIDTH_MM = 1200;
+const sencilloDuctLengthScale = (config) => config.type === 'sencillo' ? config.widthMm / LINK_DUCT_SENCILLO_BASE_WIDTH_MM : 1;
 // Puesto individual: bajantes de sección cuadrada (más delgados que el catálogo) para que quepan en el cuadrado del ducto.
 const LINK_SENCILLO_BAJANTE_SECTION_MM = 70;
 const LINK_BAJANTE_GAP_MM = 2;
@@ -34,9 +37,10 @@ export function createDucto({config,moduleIndex=0,x=0,z=0,key='duct-'+moduleInde
   const component=linkComponentConfig(config,key,{coverLeft:false,coverRight:false,floorDuct:false,floorSide:'RIGHT',ceilingSide:'NONE',supportFinish:'PINTADO',removed:false});
   if(component.removed)return null;
   const rule=resolveLinkDucto({...config,moduleIndex});
+  const lengthScale=sencilloDuctLengthScale(config);
   return linkPart('DUCT',key,[rule.widthMm,rule.heightMm,rule.depthMm],[x+rule.offsetXMm,697-rule.heightMm/2,z],
     rule.code,'LINK ducto cableado '+(config.type==='doble'?'doble':'sencillo')+' intermedio',
-    {moduleIndex,rotationY,materialBase:'METAL',model:{kind:'glb',src:rule.modelSrc,exactSize:config.type === 'sencillo'},componentConfig:component,
+    {moduleIndex,rotationY,materialBase:'METAL',model:{kind:'glb',src:rule.modelSrc,exactSize:config.type === 'sencillo',...(lengthScale!==1?{lengthScale}:{})},componentConfig:component,
       meta:{category:'ductos',tipoModulo:'INTERMEDIO',tipoPuesto:config.type}});
 }
 export function createFloorDuct({config,key,targetKey,position,component,ductHeight,rotationY=0,invertFootprint=true,footprintMm=null}) {
@@ -50,6 +54,7 @@ export function createFloorDuct({config,key,targetKey,position,component,ductHei
 export function createDuctAccessories(config,duct) {
   if(!duct)return [];
   const c=duct.componentConfig,result=[],[w,h,d]=duct.dimensions;
+  const sencilloScale=sencilloDuctLengthScale(config);
   
   // Altura base del ducto para conectar los bajantes perfectamente
   const ductBottomY = duct.position[1] - h/2;
@@ -58,14 +63,14 @@ export function createDuctAccessories(config,duct) {
     const ruleF=resolveLinkFloorDuct(config.type);
     // En LINK el bajante a piso solo va a izquierda o derecha (CENTER heredado se resuelve como derecha),
     // al ras del extremo real del ducto cableado, dentro del cuadrado de su boca.
-    const ductHalfWidth=(config.type==='sencillo'?LINK_DUCT_SENCILLO_GLB_WIDTH_MM:w)/2;
+    const ductHalfWidth=(config.type==='sencillo'?LINK_DUCT_SENCILLO_GLB_WIDTH_MM*sencilloScale:w)/2;
     const sign=c.floorSide==='LEFT'?-1:1;
     if(config.type==='sencillo') {
       // Individual: bajante a piso encajado bajo la placa con el círculo del extremo del ducto cableado.
       result.push(createFloorDuct({
         config,key:duct.key+'-floor',targetKey:duct.key,
-        position:[duct.position[0]+sign*LINK_DUCT_SENCILLO_PLATE_CENTER_X_MM,0,duct.position[2]+LINK_DUCT_SENCILLO_PLATE_CENTER_Z_MM],
-        component:c, ductHeight: ductBottomY, footprintMm:LINK_SENCILLO_FLOOR_FOOTPRINT_MM
+        position:[duct.position[0]+sign*LINK_DUCT_SENCILLO_PLATE_CENTER_X_MM*sencilloScale,0,duct.position[2]+LINK_DUCT_SENCILLO_PLATE_CENTER_Z_MM],
+        component:c, ductHeight: ductBottomY, footprintMm:[LINK_SENCILLO_FLOOR_FOOTPRINT_MM[0]*sencilloScale,LINK_SENCILLO_FLOOR_FOOTPRINT_MM[1]]
       }));
     } else if(config.type==='doble') {
       // Doble: una sola pieza que cubre los dos cuadrados del extremo (escalados como se dibuja el GLB).

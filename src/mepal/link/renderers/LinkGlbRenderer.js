@@ -30,7 +30,8 @@ function createVisual(source, part, material) {
     // Determine uniform scale factor (assuming model might be in mm or m).
     // If size.y is ~710, it's in mm, so scale is 1/1000. If ~0.71, scale is 1.
     const scale = size.y > 10 ? 1 / 1000 : 1;
-    visual.scale.set(scale, scale, scale);
+    // Eje largo del GLB del costado = X local (la rotación Y de la pieza lo lleva a la profundidad).
+    visual.scale.set(scale * (part.model.lengthScale || 1), scale, scale);
   } else {
     visual.scale.set(...dimensions.map((value, index) => value / 1000 / size.getComponent(index)));
   }
