@@ -29,6 +29,9 @@ del export perimetral CET; no se escala verticalmente la columna completa.
 La vertebra central elevada usa KUAC650000_ALT y la lateral elevada usa
 KUAC650000_ALT_LAT 1, conservando una sola partida KUAC650000 en el BOM.
 Los dos estados de altura no activan automaticamente la casilla lateral.
+La pantalla del doble queda centrada de forma fija para todos sus materiales;
+el editor no muestra controles de ubicacion ni un selector separado de acabado
+de pantalla.
 Las alturas intermedias de configuraciones antiguas trasladan solamente el
 segmento superior del modelo 74; la interfaz sigue ofreciendo los dos estados.
 Las pantallas integradas y las anexadas mediante la API existente siguen el

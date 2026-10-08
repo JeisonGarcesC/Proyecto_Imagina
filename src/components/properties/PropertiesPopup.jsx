@@ -140,6 +140,8 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
         display: 'flex',
         flexDirection: 'column',
         background: '#fff',
+        color: '#1f2937',
+        colorScheme: 'light',
         border: '1px solid #d1d5db',
         borderRadius: 12,
         boxShadow: '0 16px 40px rgba(0,0,0,0.14)',

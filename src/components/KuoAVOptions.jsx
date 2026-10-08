@@ -9,15 +9,17 @@ const SCREEN_TYPES = [
 ];
 
 const buttonStyle = (selected) => ({
-  flex: '1 1 65px',
-  padding: '6px 4px',
-  border: '1px solid #a6c9a2',
-  borderRadius: 4,
-  background: selected ? '#fff' : '#cce6c9',
-  color: '#173c1d',
+  width: '100%',
+  minHeight: 34,
+  padding: '6px 8px',
+  border: `1px solid ${selected ? '#86b99a' : '#d1d5db'}`,
+  borderRadius: 7,
+  background: selected ? '#eaf5ee' : '#fff',
+  color: '#1f2937',
   fontWeight: selected ? 700 : 500,
   cursor: 'pointer',
   fontSize: 12,
+  lineHeight: 1.25,
 });
 
 export default function KuoAVOptions({ config, onChange, isDoble = false }) {
@@ -40,13 +42,15 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
 
   function checkbox(label, checked, change) {
     return (
-      <label style={{ display: 'contents', cursor: 'pointer' }}>
-        <span style={{ lineHeight: 1.3 }}>{label}</span>
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 30, lineHeight: 1.3, cursor: 'pointer' }}>
+        <span>
+          {label}
+        </span>
         <input
           type="checkbox"
           checked={checked}
           onChange={(event) => onChange(change(event.target.checked))}
-          style={{ justifySelf: 'start', width: 16, height: 16 }}
+          style={{ width: 16, height: 16, margin: 0, flexShrink: 0, accentColor: '#16803c' }}
         />
       </label>
     );
@@ -64,7 +68,7 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
             <select
               value={config[key] || values[0]}
               onChange={(event) => onChange({ [key]: Number(event.target.value) })}
-              style={{ width: '100%', marginTop: 4 }}
+              style={{ width: '100%', marginTop: 4, minHeight: 34, color: '#1f2937', background: '#fff', border: '1px solid #d1d5db', borderRadius: 7, padding: '4px 8px', colorScheme: 'light' }}
             >
               {values.map((value) => <option key={value} value={value}>{value} mm</option>)}
             </select>
@@ -74,17 +78,17 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(100px, 0.9fr) minmax(0, 1.4fr)',
-        alignItems: 'center',
-        gap: '10px 8px',
+        gridTemplateColumns: 'minmax(0, 1fr)',
+        gap: 8,
         padding: 10,
-        border: '1px solid #b8dcb4',
+        border: '1px solid #e2e8f0',
         borderRadius: 8,
-        background: '#d9efd7',
+        background: '#f8fafc',
         fontSize: 12,
+        color: '#1f2937',
       }}>
-        <span id={`${id}-surface`}>Espesor Superficie</span>
-        <div role="group" aria-labelledby={`${id}-surface`} style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        <span id={`${id}-surface`} style={{ fontWeight: 600 }}>Espesor Superficie</span>
+        <div role="group" aria-labelledby={`${id}-surface`} style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
           {['Formica 30', 'Melamina 30'].map((material) => (
             <button
               key={material}
@@ -98,8 +102,8 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
           ))}
         </div>
 
-        <span id={`${id}-kit`}>Kit Fuente</span>
-        <div role="group" aria-labelledby={`${id}-kit`} style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        <span id={`${id}-kit`} style={{ fontWeight: 600 }}>Kit Fuente</span>
+        <div role="group" aria-labelledby={`${id}-kit`} style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
           {['Blanco', 'Negro', 'Gris'].map((color) => (
             <button
               key={color}
@@ -112,7 +116,7 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
                 ...(isDoble ? { acabadoParales: color } : {}),
               })}
             >
-              Kit Fuente {color}
+              {color}
             </button>
           ))}
         </div>
@@ -136,12 +140,16 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
           }))}
       </div>
 
-      <div style={{ display: 'grid', gap: 8, padding: 10, border: '1px solid #ddd', borderRadius: 8 }}>
+      <div style={{ display: 'grid', gap: 8, padding: 10, border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', color: '#1f2937' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
           <input
             type="checkbox"
             checked={pantalla}
-            onChange={(event) => onChange({ pantalla: event.target.checked, pantallaEnabled: event.target.checked })}
+            onChange={(event) => onChange({
+              pantalla: event.target.checked,
+              pantallaEnabled: event.target.checked,
+              ...(isDoble && event.target.checked ? { pantallaPosicion: 'CENTRAL' } : {}),
+            })}
           />
           Incluir pantalla
         </label>
@@ -155,39 +163,11 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
                   pantallaTipo: event.target.value === 'FMT' ? 'FORMICA' : event.target.value,
                   ...(event.target.value === 'FRONTAL_PERIMETRAL' ? { pantallaPosicion: 'CENTRAL' } : {}),
                 })}
-                style={{ width: '100%' }}
+                style={{ width: '100%', minHeight: 36, padding: '6px 8px', color: '#1f2937', background: '#fff', border: '1px solid #d1d5db', borderRadius: 7, colorScheme: 'light' }}
               >
                 {screenTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
-            {isDoble && pantallaFamilia === 'FMT' && (
-              <label style={{ fontSize: 12 }}>
-                Acabado de pantalla
-                <select
-                  value={pantallaTipo}
-                  onChange={(event) => onChange({ pantallaTipo: event.target.value })}
-                  style={{ width: '100%' }}
-                >
-                  <option value="FORMICA">Formica</option>
-                  <option value="MELAMINA">Melamina</option>
-                  <option value="TELA">Tela</option>
-                </select>
-              </label>
-            )}
-            {isDoble && pantallaFamilia !== 'FRONTAL_PERIMETRAL' && (
-              <label style={{ fontSize: 12 }}>
-                Ubicación de pantalla
-                <select
-                  value={config.pantallaPosicion || 'CENTRAL'}
-                  onChange={(event) => onChange({ pantallaPosicion: event.target.value })}
-                  style={{ width: '100%' }}
-                >
-                  <option value="CENTRAL">Central</option>
-                  <option value="POSTERIOR">Posterior</option>
-                  <option value="FRONTAL">Frontal</option>
-                </select>
-              </label>
-            )}
           </>
         )}
       </div>

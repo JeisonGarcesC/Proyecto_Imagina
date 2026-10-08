@@ -32,6 +32,7 @@ export default function KuoAVPanel({ threeApiRef }) {
     setConfig((previous) => ({
       ...previous,
       alturaMm: 730,
+      ...(type === 'doble' ? { pantallaPosicion: 'CENTRAL' } : {}),
       ...(type === 'sencillo' ? { pantallaTipo: 'FRONTAL_PERIMETRAL' } : {}),
       ...(type === 'doble' && previous.pantallaTipo === 'FRONTAL_PERIMETRAL'
         ? { pantallaTipo: 'FORMICA' }
