@@ -99,6 +99,7 @@ export function buildLinkStandard(config){
       parts.push(...createPantallaFalda({
         key: `pantalla-falda-${moduleIndex}`,
         lengthMm: c.widthMm - leftInset - rightInset,
+        nominalWidthMm: c.widthMm,
         material: c.pantallaFaldaMaterial,
         position: [moduleX + (leftInset - rightInset) / 2, 0, -layout.surfaceDepthMm / 2],
         moduleIndex,
