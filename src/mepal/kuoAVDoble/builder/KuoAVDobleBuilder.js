@@ -462,9 +462,7 @@ export function buildKuoAVDoble(config = {}) {
       ? !!config.pantallaEnabled
       : false;
   const pantallaTipo = config.pantallaTipo || 'FORMICA'; // FMT, vidrio laminado o frontal perimetral
-  const pantallaPosicion = pantallaTipo === 'FRONTAL_PERIMETRAL'
-    ? 'CENTRAL'
-    : config.pantallaPosicion || 'CENTRAL'; // CENTRAL | POSTERIOR | FRONTAL
+  const pantallaPosicion = 'CENTRAL';
   const isPantallaVidrioDoble = pantallaTipo === 'VIDRIO' || pantallaTipo === 'VIDRIO LAMINADO';
   const pantallaAcabado = config.pantallaAcabado || (isPantallaVidrioDoble ? '#a5f3fc' : '#dedede');
 
@@ -524,13 +522,6 @@ export function buildKuoAVDoble(config = {}) {
       else codigoPT = '22000116715';
     }
 
-    let posZ = 0; // Central (eje Z=0)
-    if (pantallaTipo !== 'FRONTAL_PERIMETRAL' && pantallaPosicion === 'POSTERIOR') {
-      posZ = -(halfDepthM * 2 + gapM);
-    } else if (pantallaTipo !== 'FRONTAL_PERIMETRAL' && pantallaPosicion === 'FRONTAL') {
-      posZ = (halfDepthM * 2 + gapM);
-    }
-
     const isPerimetral = pantallaTipo === 'FRONTAL_PERIMETRAL';
     const scaleX = (isPantallaVidrioDoble && widthMm !== 1200) || (isPerimetral && widthMm === 1500)
       ? panWidthM / 1.125
@@ -550,7 +541,7 @@ export function buildKuoAVDoble(config = {}) {
       position: [
         -panWidthM / 2,
         isPerimetral ? resolveKuoAVPerimetralScreenHeight(heightPlacement.surfaceTopMm, thickMm) : surfaceCenterY - 0.268,
-        isPerimetral ? KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM : posZ,
+        isPerimetral ? KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM : 0,
       ],
       rotation: [0, 0, 0],
       scale: [scaleX, 1, 1],

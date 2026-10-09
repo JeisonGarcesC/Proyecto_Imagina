@@ -15,7 +15,7 @@ export default function LinkEditor({ initialConfig, onApply, editing = false, re
     setBusy(true); setMessage('');
     try {
       const result = await onApply?.(config);
-      setMessage(result?.success ? (editing ? 'Puesto actualizado.' : 'Puesto creado.') : result?.reason || 'No se pudo crear el puesto LINK.');
+      setMessage(result?.success ? (editing ? 'Puesto actualizado.' : 'Puesto creado.') : result?.reason || (config.type === 'credenza' ? 'No se pudo crear el puesto credenza.' : 'No se pudo crear el puesto LINK.'));
     } catch (error) { setMessage(error.message); }
     finally { setBusy(false); }
   }
@@ -31,14 +31,17 @@ export default function LinkEditor({ initialConfig, onApply, editing = false, re
       
     </div>}
     <div style={{ fontSize: 12, color: '#666' }}>Selecciona una pieza en el puesto para aplicar sus acabados desde Propiedades.</div>
-    {product && <div style={sectionStyle}>
+    {product && config.type === 'credenza' && <div style={sectionStyle}>
+      <div style={{fontSize:12}}>Medida: {product.bounds.widthMm} × {product.bounds.depthMm} × {product.bounds.heightMm} mm</div>
+    </div>}
+    {product && config.type !== 'credenza' && <div style={sectionStyle}>
       <div style={{fontSize:12}}>Puestos: {product.config.puestos} · Superficies: {product.parts.filter(p=>p.role==='SURFACE').length}</div>
       <div style={{fontSize:12}}>Medida por módulo: {product.config.widthMm} × {product.layout.totalDepthMm} mm</div>
       {product.config.modoEspecial && <div style={{fontSize:11}}>Código nominal de superficie: {product.codes.billingWidthMm} × {product.codes.billingDepthMm} mm. Se fabrica a la medida real indicada.</div>}
     </div>}
     {preview.error && <div role="alert">{preview.error}</div>}
     <button type="button" disabled={readOnly || busy || !!preview.error} onClick={apply} style={btnStyle}>
-      {busy ? 'Aplicando…' : editing ? 'Aplicar cambios' : 'Crear puesto LINK'}
+      {busy ? 'Aplicando…' : editing ? 'Aplicar cambios' : config.type === 'credenza' ? 'Crear puesto credenza' : 'Crear puesto LINK'}
     </button>
     {message && <div role="status" style={{ fontSize: 12 }}>{message}</div>}
   </div>;

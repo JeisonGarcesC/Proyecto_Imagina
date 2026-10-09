@@ -1,5 +1,11 @@
 import { linkPart } from './linkParts.js';
 import { getPrivacyPanelSupportConfig } from '../../koncisaPlus/parts/pantallas.js';
+import {
+  resolveLinkPantallaFrontalCode,
+  resolveLinkPantallaLateralCode,
+  resolveLinkPantallaFaldaCode,
+  LINK_PANTALLA_LATERAL_SUPPORT_CODE,
+} from '../rules/linkPantallaRules.js';
 
 export const LINK_PANTALLA_HEIGHTS_MM = [300, 500];
 export const LINK_PANTALLA_DEFAULT_HEIGHT_MM = 300;
@@ -22,7 +28,7 @@ export function createPantallaFrontal({ key, widthMm, material, position, module
   parts.push(linkPart('PANTALLA_FRONTAL_BOARD', `${key}-top`, 
     [screenWidth, heightMm, thickMm], 
     [position[0], 740 + heightMm / 2, position[2]], 
-    'LINK_PANTALLA_FRONTAL', 
+    resolveLinkPantallaFrontalCode(material, widthMm, heightMm),
     `Pantalla frontal ${material} ${screenWidth}x${heightMm}`,
     { materialBase: material.toUpperCase(), moduleIndex, componentConfig, configTargetKey: targetKey, meta: { category: 'pantallas' } }
   ));
@@ -33,9 +39,9 @@ export function createPantallaFrontal({ key, widthMm, material, position, module
   parts.push(linkPart('PANTALLA_FRONTAL_BOARD', `${key}-leg`, 
     [legWidth, legHeight, thickMm], 
     [position[0], 740 - legHeight / 2, position[2]], 
-    'LINK_PANTALLA_FRONTAL_LEG', 
+    null, // La pata va incluida en el código de la pantalla frontal: no se factura aparte.
     `Soporte pantalla ${material}`,
-    { materialBase: material.toUpperCase(), moduleIndex, componentConfig, configTargetKey: targetKey, meta: { category: 'pantallas' } }
+    { materialBase: material.toUpperCase(), moduleIndex, componentConfig, configTargetKey: targetKey, excludeFromBOM: true, meta: { category: 'pantallas' } }
   ));
 
   return parts;
@@ -53,7 +59,7 @@ export function createPantallaLateral({ key, depthMm, material = 'formica', posi
   parts.push(linkPart('PANTALLA_LATERAL_BOARD', `${key}-board`, 
     [screenDepth, heightMm, thickMm], 
     [position[0], 740 + heightMm / 2, position[2]], 
-    'LINK_PANTALLA_LATERAL', 
+    resolveLinkPantallaLateralCode(material, screenDepth),
     `Pantalla lateral ${material} ${screenDepth}x${heightMm}`,
     { materialBase: material.toUpperCase(), moduleIndex, componentConfig, meta: { category: 'pantallas' }, rotationY: Math.PI / 2 }
   ));
@@ -68,8 +74,8 @@ export function createPantallaLateral({ key, depthMm, material = 'formica', posi
     parts.push(linkPart('STRUCTURE', `${key}-support`,
       [supportConfig.widthMm || 30, supportConfig.heightMm || 300, supportConfig.depthMm || screenDepth],
       [position[0], 740, position[2]],
-      supportConfig.code,
-      supportConfig.name,
+      LINK_PANTALLA_LATERAL_SUPPORT_CODE, // Juego soporte pantalla lateral LINK (LKAC051000)
+      'JUEGO SOPORTE PANTALLA LATERAL ACCESORIO LINK LKAC051000',
       { model: supportConfig.model, meta: { category: 'accesorios' }, rotationY } // Apply the passed rotationY
     ));
   }
@@ -87,13 +93,13 @@ export const LINK_FALDA_PANTALLA_GAP_MM = 80;
 // Lado que termina en un costado (individual y terminales): la falda se queda corta antes de la pata
 // (pata a 65 mm del extremo de la mesa, tubo de 50.8 mm, más ~10 mm de holgura).
 export const LINK_FALDA_PANTALLA_TERMINAL_INSET_MM = 100;
-export function createPantallaFalda({ key, lengthMm, material = 'formica', position, moduleIndex = 0 }) {
+export function createPantallaFalda({ key, lengthMm, nominalWidthMm = null, material = 'formica', position, moduleIndex = 0 }) {
   const heightMm = LINK_FALDA_PANTALLA_TOP_MM - LINK_FALDA_PANTALLA_BOTTOM_MM;
   const thickMm = material === 'vidrio' ? 8 : (material === 'melamina' ? 18 : (material === 'tela' ? 24 : 16));
   return [linkPart('PANTALLA_FALDA_BOARD', `${key}-board`,
     [lengthMm, heightMm, thickMm],
     [position[0], LINK_FALDA_PANTALLA_BOTTOM_MM + heightMm / 2, position[2] - thickMm / 2],
-    'LINK_PANTALLA_FALDA',
+    resolveLinkPantallaFaldaCode(material, nominalWidthMm ?? lengthMm),
     `Falda pantalla ${material} ${lengthMm}x${heightMm}`,
     { materialBase: material.toUpperCase(), moduleIndex, meta: { category: 'pantallas' } }
   )];

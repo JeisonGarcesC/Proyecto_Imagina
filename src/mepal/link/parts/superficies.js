@@ -1,12 +1,12 @@
 import { linkPart } from './linkParts.js';
 import { linkComponentConfig } from '../rules/linkComponentRules.js';
-import { resolveLinkSurface } from '../rules/linkSurfaceRules.js';
+import { resolveLinkSurface, resolveLinkSurfacePosition, resolveLinkIntegracionCode } from '../rules/linkSurfaceRules.js';
 import { resolveLinkLeaderSurface } from '../leader/rules/leaderSurfaceRules.js';
 import { resolveLinkGrommet } from '../rules/linkCableAccessRules.js';
 export function createSuperficie({config,key,widthMm,depthMm,position,moduleIndex=0,rotationY=0,leaderRole=null}) {
   const component=linkComponentConfig(config,key,{finishId:config.finishId,grommet:config.cableAccess==='grommet',
     grommetFinish:config.grommetFinish,grommetPosition:'CENTER',floorDuct:false,floorSide:'CENTER'});
-  const rule=leaderRole?resolveLinkLeaderSurface(config,component,leaderRole):resolveLinkSurface({...config,finishId:component.finishId});
+  const rule=leaderRole?resolveLinkLeaderSurface(config,component,leaderRole):resolveLinkSurface({...config,finishId:component.finishId},resolveLinkSurfacePosition(config,moduleIndex));
   const grommet=resolveLinkGrommet({leader:!!leaderRole,finish:component.grommetFinish});
   const hole=component.grommet?{widthMm:grommet.widthMm,depthMm:100,zMm:-depthMm/2+70,
     xMm:component.grommetPosition==='LEFT'?-(widthMm-grommet.widthMm)/2+80:component.grommetPosition==='RIGHT'?(widthMm-grommet.widthMm)/2-80:0}:null;
@@ -34,10 +34,10 @@ export function resolveIntegracionHole(widthMm, depthMm, holeSide = 'derecha') {
     side: holeSide,
   };
 }
-export function createSuperficieIntegracion({config, key, widthMm, depthMm, position, rotationY = 0, type, holeSide = null}) {
+export function createSuperficieIntegracion({config, key, widthMm, depthMm, position, rotationY = 0, type, holeSide = null, side = null}) {
   // Solo la integración individual lleva orificio (entrada del ducto a techo).
   const integracionHole = type === 'individual' && holeSide ? resolveIntegracionHole(widthMm, depthMm, holeSide) : null;
   return linkPart('SURFACE', key, [widthMm, 30, depthMm], [position[0], 710 + 15, position[2]],
-    'LINK_SUPERFICIE_INT', `Superficie de integración ${type}`,
+    resolveLinkIntegracionCode(config, type, side) || 'LINK_SUPERFICIE_INT', `Superficie de integración ${type}`,
     {rotationY, materialBase: 'FORMICA', meta: {category: 'superficies', integracionType: type}, integracionType: type, integracionHole, materialRole: 'surface'});
 }

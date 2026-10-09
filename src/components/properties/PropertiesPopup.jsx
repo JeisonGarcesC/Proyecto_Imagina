@@ -96,12 +96,12 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
   const anchorY = anchor.y;
   const popupLeft = Math.max(0, Math.min(anchorX + 12, window.innerWidth - popupWidth - 12));
   const popupTop = Math.max(12, Math.min(anchorY + 12, window.innerHeight - 420));
-  const isKoncisaPopup = isKoncisaPlusEditablePart(part);
-  const left = isKoncisaPopup && dragPosition ? dragPosition.left : popupLeft;
-  const top = isKoncisaPopup && dragPosition ? dragPosition.top : popupTop;
+  const left = dragPosition ? dragPosition.left : popupLeft;
+  const top = dragPosition ? dragPosition.top : popupTop;
 
   function startKoncisaDrag(event) {
     if (event.button !== 0) return;
+    if (event.target.closest?.('button')) return;
     event.preventDefault();
     event.stopPropagation();
     dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, left, top };
@@ -140,31 +140,21 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
         display: 'flex',
         flexDirection: 'column',
         background: '#fff',
+        color: '#1f2937',
+        colorScheme: 'light',
         border: '1px solid #d1d5db',
         borderRadius: 12,
         boxShadow: '0 16px 40px rgba(0,0,0,0.14)',
       }}
     >
-      {isKoncisaPopup && (
-        <div
-          onPointerDown={startKoncisaDrag}
-          onPointerMove={moveKoncisaDrag}
-          onPointerUp={stopKoncisaDrag}
-          onPointerCancel={stopKoncisaDrag}
-          title="Arrastrar cuadro de propiedades"
-          aria-label="Mover cuadro de propiedades"
-          style={{
-            height: 16,
-            margin: '10px 12px 0',
-            borderRadius: 6,
-            background: '#f3f4f6',
-            cursor: 'grab',
-            touchAction: 'none',
-            flexShrink: 0,
-          }}
-        />
-      )}
-      <div style={{ padding: '8px 12px 0', flexShrink: 0 }}>
+      <div
+        onPointerDown={startKoncisaDrag}
+        onPointerMove={moveKoncisaDrag}
+        onPointerUp={stopKoncisaDrag}
+        onPointerCancel={stopKoncisaDrag}
+        title="Arrastrar para mover"
+        style={{ padding: '10px 12px 0', flexShrink: 0, cursor: 'move', userSelect: 'none', touchAction: 'none' }}
+      >
         <PropertyHeader title="Propiedades" onClose={onClose} />
       </div>
       <div style={{ padding: '0 12px 12px 12px', overflowY: 'auto', flex: 1, minHeight: 0 }}>

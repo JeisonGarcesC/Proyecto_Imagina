@@ -14682,7 +14682,6 @@ function ThreeCanvas({
 
       const integrationCenterLocalX = placement.surfaceCenter.x;
       const integrationCenterOutwardZ = placement.surfaceCenter.z;
-      const integrationNearEdgeOutwardZ = placement.nearEdgeZ;
       const integrationSurfaceCenter = localToWorldMm(
         integrationCenterLocalX,
         integrationCenterOutwardZ

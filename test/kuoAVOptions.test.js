@@ -14,6 +14,20 @@ import { createKuoAVPantallaInstance } from '../src/mepal/kuoAV/factory/createKu
 import { resolveKuoAVPerimetralScreenHeight } from '../src/mepal/kuoAV/config/kuoAVPantallaPlacement.js';
 import { resolveKuoAVInsertionX, KUO_AV_CONFIGURATION_GAP_M } from '../src/mepal/kuoAV/config/kuoAVInsertionPlacement.js';
 
+test('pantalla doble usa ubicación central por defecto y no muestra selector de acabado', () => {
+  const optionsSource = readFileSync(new URL('../src/components/KuoAVOptions.jsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(optionsSource, /Acabado de pantalla/);
+  assert.doesNotMatch(optionsSource, /Ubicación de pantalla/);
+
+  for (const pantallaTipo of ['FORMICA', 'VIDRIO', 'FRONTAL_PERIMETRAL']) {
+    const built = buildKuoAVDoble({ pantalla: true, pantallaTipo, pantallaPosicion: 'POSTERIOR' });
+    assert.equal(built.config.pantallaPosicion, 'CENTRAL');
+    const screen = built.parts.find((part) => part.type === 'pantalla');
+    assert.ok(screen);
+    assert.equal(screen.position[2], pantallaTipo === 'FRONTAL_PERIMETRAL' ? 0.203 : 0);
+  }
+});
+
 test('nuevas configuraciones KUO se separan por sus limites reales y el mismo lote sigue unido', () => {
   function desk(width, kind = 'KUO_AV_ASSEMBLY') {
     const object = new THREE.Group();

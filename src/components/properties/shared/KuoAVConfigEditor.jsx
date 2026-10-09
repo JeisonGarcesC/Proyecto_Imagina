@@ -43,7 +43,7 @@ export default function KuoAVConfigEditor({ part, api, isDoble = false }) {
   }
 
   return (
-    <div style={{ ...sectionStyle, padding: 10 }}>
+    <div style={{ ...sectionStyle, padding: 10, color: '#1f2937', colorScheme: 'light' }}>
       <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 10 }}>
         {isDoble ? 'Puesto Doble KUO AV' : 'KUO AV - Superficie Perimetral'}
       </div>

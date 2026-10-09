@@ -1,7 +1,8 @@
 import { LINK_CATALOG } from '../catalog/linkCatalog.js';
 import { LINK_FINISH_CODES } from '../catalog/linkFinishCatalog.js';
 import { isLinkLeader } from '../rules/linkConfigRules.js';
-const ceiling = (value, options) => options.find(n => n >= value);
+// Puesto especial por encima del mayor nominal: se resuelve con el mayor código del catálogo.
+const ceiling = (value, options) => options.find(n => n >= value) ?? options[options.length - 1];
 export function resolveLinkCodes(c) {
   const leader = isLinkLeader(c.type);
   const width = ceiling(c.widthMm,leader ? [1500,1650,1800] : [1200,1500,1800]);
