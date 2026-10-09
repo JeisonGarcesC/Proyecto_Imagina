@@ -6,6 +6,7 @@ import { CRITTERIUM_OFFICE_TEMPLATES, createCritteriumOfficeSequenceDraft } from
 import { loadCritteriumPriceCatalog } from '../mepal/critterium8/commercial/critteriumPriceCatalog.js';
 import { buildCritteriumQuotation, exportCritteriumQuotationJson } from '../mepal/critterium8/commercial/critteriumQuotation.js';
 import { describeCritteriumDiagnostic } from '../mepal/critterium8/ui/critteriumDiagnostics.js';
+import CritteriumCompositionPanel from '../mepal/critterium8/ui/CritteriumCompositionPanel.jsx';
 
 const field = { width: '100%', boxSizing: 'border-box', padding: '7px', borderRadius: 6, border: '1px solid #cbd5e1' };
 const button = { ...field, cursor: 'pointer', background: '#eef3f8', textAlign: 'left', marginTop: 6 };
@@ -156,6 +157,20 @@ export default function CriteriumPanel({ threeApiRef, onCreateFrame, readOnly, s
         {value === 'FRAME' ? 'Frame' : value === 'SEQUENCE' ? 'Secuencia' : 'Sistema'}
       </button>)}
     </nav>
+    <CritteriumCompositionPanel structure={structure} systemId={systemId} selectedPart={selectedPart}
+      selectedConnectionId={selectedConnectionId} readOnly={readOnly} busy={busy}
+      onSelectSystem={(id) => { setSystemId(id); setSelectedConnectionId(''); threeApiRef.current?.clearCritteriumConnectionSelection?.(); threeApiRef.current?.selectCritteriumSystemById?.(id); }}
+      onSelectSequence={(id) => { setSelectedConnectionId(''); threeApiRef.current?.clearCritteriumConnectionSelection?.(); threeApiRef.current?.selectCritteriumSequenceById?.(id); }}
+      onSelectFrame={(id) => { setSelectedConnectionId(''); threeApiRef.current?.clearCritteriumConnectionSelection?.(); threeApiRef.current?.selectCritteriumFrameByInstanceId?.(id); }}
+      onSelectConnection={(id) => { if (threeApiRef.current?.selectCritteriumConnectionById?.(systemId, id)) setSelectedConnectionId(id); }}
+      onEditSlot={(id, operation, patch) => run(() => threeApiRef.current?.editCritteriumSequenceSlot?.(id, operation, patch))}
+      onAddModule={(id) => run(() => threeApiRef.current?.editCritteriumSequenceSlot?.(id, 'ADD'))}
+      onAddSequence={() => run(() => threeApiRef.current?.createCritteriumSequenceInSystem?.(systemId, newSequenceDraft))}
+      onDisconnect={(id, connectionId) => run(() => {
+        const result = threeApiRef.current?.disconnectCritteriumSequencesById?.(id, connectionId);
+        if (result?.success) { setSelectedConnectionId(''); threeApiRef.current?.clearCritteriumConnectionSelection?.(); }
+        return result;
+      })} />
     {mode === 'FRAME' && <section style={{ display: 'grid', gap: 8 }}>
       <label>Ancho (cm)<select style={field} value={frameWidth} onChange={(event) => setFrameWidth(Number(event.target.value))}>
         {CRITTERIUM8_CODED_FRAME_WIDTHS_CM.map((value) => <option key={value}>{value}</option>)}
@@ -361,7 +376,7 @@ export default function CriteriumPanel({ threeApiRef, onCreateFrame, readOnly, s
         </label>
         <button type="button" style={button} disabled={readOnly || busy || !sourceSequenceId || !targetSequenceId || sourceSequenceId === targetSequenceId} onClick={() => run(() => threeApiRef.current?.connectCritteriumSequencesById?.(systemId, sourceSequenceId, targetSequenceId))}>Conectar extremos cercanos</button>
         <button type="button" style={button} disabled={readOnly || busy || !sourceSequenceId || !targetSequenceId || sourceSequenceId === targetSequenceId} onClick={() => run(() => threeApiRef.current?.connectCritteriumSequencesById?.(systemId, sourceSequenceId, targetSequenceId, 'DEG_90'))}>Conectar esquina 90°</button>
-        {(spatialTopology?.spatialConnections || []).map((connection) => <button key={connection.connectionId} type="button" style={{ ...button, background: selectedConnectionId === connection.connectionId ? '#dbeafe' : button.background }} onClick={() => setSelectedConnectionId(connection.connectionId)}>
+        {(spatialTopology?.spatialConnections || []).map((connection) => <button key={connection.connectionId} type="button" style={{ ...button, background: selectedConnectionId === connection.connectionId ? '#dbeafe' : button.background }} onClick={() => { if (threeApiRef.current?.selectCritteriumConnectionById?.(systemId, connection.connectionId)) setSelectedConnectionId(connection.connectionId); }}>
           Seleccionar conexión {connection.source} ↔ {connection.target} ({connection.connectionType})
         </button>)}
         {selectedConnection && <div style={{ border: '1px solid #cbd5e1', padding: 8, fontSize: 12 }}>

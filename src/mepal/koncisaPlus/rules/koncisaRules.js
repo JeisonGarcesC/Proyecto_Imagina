@@ -1,4 +1,5 @@
 // src/koncisaPlus/rules/koncisaRules.js
+import { resolveKoncisaDuctBillingWidth } from './koncisaDuctoRules.js';
 
 // ==============================
 // COSTADOS
@@ -556,7 +557,30 @@ export function getDuctosConfig({
       ductY = placement.y ?? ductY;
       ductZ = placement.z ?? ductZ;
       ductRotY = placement.rotY ?? ductRotY;
+
+      const billingWidthMm = resolveKoncisaDuctBillingWidth(largoRealMm);
+      const isSpecialIntermediate =
+        tipoModulo.toUpperCase() === 'INTERMEDIO' &&
+        billingWidthMm != null &&
+        billingWidthMm !== Number(largoRealMm);
+
+      if (isSpecialIntermediate) {
+        ductX = baseX;
+        ductZ = 0;
+      }
     }
+
+    const billingWidthMm = resolveKoncisaDuctBillingWidth(largoRealMm);
+    const isSpecialTerminal =
+      tipoModulo.toUpperCase() === 'TERMINAL' &&
+      billingWidthMm != null &&
+      billingWidthMm !== Number(largoRealMm);
+
+    if (isSpecialTerminal) {
+      ductX = baseX;
+      ductZ = 0;
+    }
+
     //console.log('anchoRealMm: ', largoRealMm);
     //console.log('anchoRealMm: ', anchoRealMm);
     //console.log('ductX', ductX);

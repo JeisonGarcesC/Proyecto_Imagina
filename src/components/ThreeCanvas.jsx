@@ -105,7 +105,10 @@ import { createKuoGoInstance } from '../mepal/kuoGo/factories/createKuoGoInstanc
 import { createKuoAVInstance } from '../mepal/kuoAV/factory/createKuoAVInstance';
 import { createKuoAVDobleInstance } from '../mepal/kuoAVDoble/factory/createKuoAVDobleInstance';
 import { createKuoAVPantallaInstance } from '../mepal/kuoAV/factory/createKuoAVPantallaInstance';
-import { resolveKuoAVPerimetralScreenHeight, syncKuoAVPerimetralScreenAttachment } from '../mepal/kuoAV/config/kuoAVPantallaPlacement.js';
+import {
+  resolveKuoAVPerimetralScreenHeight,
+  syncKuoAVPerimetralScreenAttachment,
+} from '../mepal/kuoAV/config/kuoAVPantallaPlacement.js';
 import { resolveKuoAVInsertionX } from '../mepal/kuoAV/config/kuoAVInsertionPlacement.js';
 import { createSaludInstance } from '../mepal/salud/factories/createSaludInstance';
 import {
@@ -888,6 +891,7 @@ function ThreeCanvas({
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.zoomSpeed = 1.25;
 
     // Lights
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
@@ -7878,7 +7882,10 @@ function ThreeCanvas({
     }
 
     function getNextKuoAVOffsetX(incomingObject = null) {
-      return resolveKuoAVInsertionX(parts.map(({ obj }) => obj), incomingObject);
+      return resolveKuoAVInsertionX(
+        parts.map(({ obj }) => obj),
+        incomingObject
+      );
     }
 
     async function addKuoAV(config = {}) {
@@ -7999,8 +8006,11 @@ function ThreeCanvas({
       newObj.scale.copy(savedScale);
       newObj.updateMatrixWorld(true);
       const attachedScreens = parts
-        .filter(({ obj }) => obj?.userData?.attachment?.targetAssemblyId === currentConfig.instanceId
-          && obj.userData.attachment.mode === 'PERIMETRAL_SCREEN_ATTACHMENT')
+        .filter(
+          ({ obj }) =>
+            obj?.userData?.attachment?.targetAssemblyId === currentConfig.instanceId &&
+            obj.userData.attachment.mode === 'PERIMETRAL_SCREEN_ATTACHMENT'
+        )
         .map(({ obj }) => ({ object: obj, attachment: { ...obj.userData.attachment } }));
       removePartObject(oldObj);
       if (parentGroup) parentGroup.add(newObj);
@@ -8012,8 +8022,9 @@ function ThreeCanvas({
         syncKuoAVPerimetralScreenAttachment(screen, newObj);
       }
       if (attachedScreens.length) {
-        newObj.userData.attachedNeighbors = new Set(attachedScreens.map(({ object: screen }) =>
-          screen.userData.instanceId || screen.uuid));
+        newObj.userData.attachedNeighbors = new Set(
+          attachedScreens.map(({ object: screen }) => screen.userData.instanceId || screen.uuid)
+        );
       }
       setActivePart(newObj);
       emitBOM();
@@ -8153,9 +8164,10 @@ function ThreeCanvas({
       // Limpiar hijos anteriores de parts y pickables
       const attachedScreens = parts
         .map((part) => part.obj)
-        .filter((object) =>
-          object?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY'
-          && object.userData.attachment?.targetAssemblyId === instanceId
+        .filter(
+          (object) =>
+            object?.userData?.kind === 'KUO_AV_PANTALLA_ASSEMBLY' &&
+            object.userData.attachment?.targetAssemblyId === instanceId
         )
         .map((object) => ({ object, attachment: { ...object.userData.attachment } }));
       if (oldObj.userData?.kuoBatchId) {
@@ -8194,8 +8206,9 @@ function ThreeCanvas({
         syncKuoAVPerimetralScreenAttachment(screen, newObj);
       }
       if (attachedScreens.length) {
-        newObj.userData.attachedNeighbors = new Set(attachedScreens.map(({ object: screen }) =>
-          screen.userData.instanceId || screen.uuid));
+        newObj.userData.attachedNeighbors = new Set(
+          attachedScreens.map(({ object: screen }) => screen.userData.instanceId || screen.uuid)
+        );
       }
       newObj.children.forEach((child) => {
         if (child.userData?.isPartRoot) {
@@ -8273,9 +8286,8 @@ function ThreeCanvas({
             spawnX = sceneBox.max.x + 1.0;
           }
         }
-        const defaultY = config.tipo === 'FRONTAL_PERIMETRAL'
-          ? resolveKuoAVPerimetralScreenHeight()
-          : 0.462;
+        const defaultY =
+          config.tipo === 'FRONTAL_PERIMETRAL' ? resolveKuoAVPerimetralScreenHeight() : 0.462;
         object.position.set(spawnX, defaultY, spawnZ);
       }
       object.updateMatrixWorld(true);
@@ -12420,6 +12432,52 @@ function ThreeCanvas({
       organizeCritteriumSystem,
       getCritteriumConnectionPoints: (sequenceId) =>
         resolveCritteriumConnectionPoints(findCritteriumSequenceById(sequenceId)),
+      selectCritteriumConnectionById: (systemId, connectionId) => {
+        const system = findCritteriumSystemById(systemId);
+        const connection = system?.userData.connections?.find(
+          (item) => item.connectionId === connectionId
+        );
+        const source = connection && findCritteriumSequenceById(connection.sourceSequenceId);
+        const target = connection && findCritteriumSequenceById(connection.targetSequenceId);
+        if (!source || !target || source.parent !== system || target.parent !== system)
+          return false;
+        const origin = resolveCritteriumConnectionPoints(source).find(
+          (item) => item.connectionId === connection.sourcePointId
+        );
+        const destination = resolveCritteriumConnectionPoints(target).find(
+          (item) => item.connectionId === connection.targetPointId
+        );
+        if (!origin || !destination) return false;
+        for (const marker of [
+          critteriumSnapOrigin,
+          critteriumSnapTarget,
+          critteriumSnapFinal,
+          critteriumSnapLine,
+        ])
+          marker.material.color.setHex(0x2563eb);
+        critteriumSnapOrigin.position.fromArray(origin.position);
+        critteriumSnapTarget.position.fromArray(destination.position);
+        critteriumSnapFinal.position
+          .copy(critteriumSnapOrigin.position)
+          .add(critteriumSnapTarget.position)
+          .multiplyScalar(0.5);
+        critteriumSnapFinal.rotation.x = -Math.PI / 2;
+        critteriumSnapLine.geometry.setFromPoints([
+          critteriumSnapOrigin.position,
+          critteriumSnapTarget.position,
+        ]);
+        critteriumSnapMarker.userData.selectedConnectionId = connectionId;
+        critteriumSnapMarker.visible = true;
+        return true;
+      },
+      clearCritteriumConnectionSelection: () => {
+        critteriumSnapMarker.visible = false;
+        delete critteriumSnapMarker.userData.selectedConnectionId;
+      },
+      getSelectedCritteriumConnectionId: () =>
+        critteriumSnapMarker.visible
+          ? critteriumSnapMarker.userData.selectedConnectionId || null
+          : null,
       deleteCritteriumSystemById,
       selectCritteriumSystemById: (systemId) => {
         const system = findCritteriumSystemById(systemId);
@@ -13178,7 +13236,8 @@ function ThreeCanvas({
             obj?.userData?.kuoBatchId === batchId &&
             (obj.userData?.kind === 'KUO_AV_ASSEMBLY' ||
               obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY')
-          ) expandedBatchRoots.push(obj);
+          )
+            expandedBatchRoots.push(obj);
         });
       });
       const uniqueRoots = Array.from(new Set(expandedBatchRoots.filter(Boolean)));
@@ -14941,7 +15000,7 @@ function ThreeCanvas({
               src: cableAccess.modelSrc,
             },
           });
-          
+
           if (grommetObj && isLinkComponent) {
             grommetObj.traverse((node) => {
               if (node.isMesh && node.material) {
@@ -15094,7 +15153,10 @@ function ThreeCanvas({
       let parentGroup = null;
       let curr = selectedObj;
       while (curr) {
-        if (curr.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' || curr.userData?.kind === 'LINK_PRODUCT') {
+        if (
+          curr.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ||
+          curr.userData?.kind === 'LINK_PRODUCT'
+        ) {
           parentGroup = curr;
           break;
         }
@@ -15122,9 +15184,9 @@ function ThreeCanvas({
         const isRootPart = node.userData?.isPartRoot === true;
         if (!isRootPart) return;
 
-        const isLinkLeg = 
-          node.userData?.kind === 'LINK_COMPONENT' || 
-          node.userData?.componentRole === 'SUPPORT' || 
+        const isLinkLeg =
+          node.userData?.kind === 'LINK_COMPONENT' ||
+          node.userData?.componentRole === 'SUPPORT' ||
           node.userData?.componentRole === 'PEDESTAL' ||
           node.userData?.kind === 'LINK_PRODUCT';
 
@@ -15673,6 +15735,8 @@ function ThreeCanvas({
         return false;
       }
 
+      const isSpecialNativeTerminal =
+        root.userData?.meta?.isSpecial === true && root.userData?.meta?.useNativeModel === true;
       const isCurrentlyRotated = !!root.userData?.ductRotated180;
 
       if (!isCurrentlyRotated) {
@@ -15731,7 +15795,7 @@ function ThreeCanvas({
 
         const { minX: rotatedMinX } = getBoundsXInParent();
 
-        if (Number.isFinite(rotatedMinX)) {
+        if (Number.isFinite(rotatedMinX) && !isSpecialNativeTerminal) {
           const ductMeta = root.userData?.meta || {};
           const isDoublePasacable =
             String(ductMeta.tipoPuesto || '').toUpperCase() === 'DOBLE' &&
@@ -17239,15 +17303,15 @@ function ThreeCanvas({
 
       let popupIntegrationSetId =
         propertiesTarget.userData?.meta?.integrationSetId ||
-        propertiesTarget.userData?.integrationSetId || null;
+        propertiesTarget.userData?.integrationSetId ||
+        null;
       let popupIsIntegrationLeg = propertiesTarget.userData?.meta?.isIntegrationLeg || false;
 
       if (!popupIntegrationSetId && hitObj) {
         let curr = hitObj;
         while (curr) {
           popupIntegrationSetId =
-            curr.userData?.meta?.integrationSetId ||
-            curr.userData?.integrationSetId || null;
+            curr.userData?.meta?.integrationSetId || curr.userData?.integrationSetId || null;
           if (curr.userData?.meta?.isIntegrationLeg) {
             popupIsIntegrationLeg = true;
           }
@@ -17504,7 +17568,7 @@ function ThreeCanvas({
         dragTargets = [movementRoot];
       }
 
-        if (dragTargets.some((obj) => obj.userData?.lockedMovement)) return;
+      if (dragTargets.some((obj) => obj.userData?.lockedMovement)) return;
 
       dragPlane.set(
         new THREE.Vector3(0, 1, 0),
@@ -18677,7 +18741,8 @@ function ThreeCanvas({
                 const halfDepthM = depthMm / 2000;
                 const offsetZ = -halfDepthM;
                 const offsetY = resolveKuoAVPerimetralScreenHeight(
-                  nearestDesk.userData?.config?.physicalHeightMm || nearestDesk.userData?.config?.alturaMm,
+                  nearestDesk.userData?.config?.physicalHeightMm ||
+                    nearestDesk.userData?.config?.alturaMm,
                   nearestDesk.userData?.config?.thickMm
                 );
 
@@ -18704,7 +18769,8 @@ function ThreeCanvas({
                 let offsetZ = 0;
                 const offsetY = isPerimetralScreen
                   ? resolveKuoAVPerimetralScreenHeight(
-                      nearestDesk.userData?.config?.physicalHeightMm || nearestDesk.userData?.config?.alturaMm,
+                      nearestDesk.userData?.config?.physicalHeightMm ||
+                        nearestDesk.userData?.config?.alturaMm,
                       nearestDesk.userData?.config?.thickMm
                     )
                   : 0.452;
@@ -18750,10 +18816,7 @@ function ThreeCanvas({
         }
 
         parts.forEach(({ obj }) => {
-          if (
-            obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' &&
-            !obj.userData?.kuoBatchId
-          ) {
+          if (obj?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' && !obj.userData?.kuoBatchId) {
             checkAndApplyKuoAVLUnion(obj);
           }
         });
@@ -19696,6 +19759,10 @@ function ThreeCanvas({
         .toUpperCase();
 
       const isPasacable = accesoCableado === 'PASACABLE';
+
+      if (part?.meta?.isSpecial === true && tipoModulo === 'TERMINAL') {
+        return { x: 0, y: 0, z: 0 };
+      }
 
       if (tipoPuesto === 'DOBLE') {
         const zOffsetDoble = isPasacable ? 0 : 0;

@@ -58,6 +58,12 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [selectedPrivacyPanelFinishId, setSelectedPrivacyPanelFinishId] = useState(
     'PANEL_LATERAL_FORMICA_22008689'
   );
+  const [selectedLateralPrivacyPanelFinishId, setSelectedLateralPrivacyPanelFinishId] = useState(
+    'PANEL_LATERAL_FORMICA_22008689'
+  );
+  const [selectedFrontalPrivacyPanelFinishId, setSelectedFrontalPrivacyPanelFinishId] = useState(
+    KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.find((option) => option.tipo === 'frontal')?.id
+  );
 
   const [tipoCostado, setTipoCostado] = useState('RECT');
 
@@ -72,16 +78,26 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const selectedPrivacyPanelFinish = useMemo(() => {
     return getKoncisaPrivacyPanelFinishById(selectedPrivacyPanelFinishId);
   }, [selectedPrivacyPanelFinishId]);
+  const selectedFrontalPrivacyPanelFinish = useMemo(() =>
+    getKoncisaPrivacyPanelFinishById(selectedFrontalPrivacyPanelFinishId),
+  [selectedFrontalPrivacyPanelFinishId]);
+  const selectedLateralPrivacyPanelFinish = useMemo(() =>
+    getKoncisaPrivacyPanelFinishById(selectedLateralPrivacyPanelFinishId),
+  [selectedLateralPrivacyPanelFinishId]);
 
   const visiblePrivacyPanelFinishOptions = useMemo(
-    () => KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.filter((option) => option.tipo === privacyPanelType),
+    () => KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.filter((option) => option.tipo === (privacyPanelType === 'both' ? 'lateral' : privacyPanelType)),
     [privacyPanelType]
   );
 
   const handlePrivacyPanelTypeChange = (tipo) => {
     setPrivacyPanelType(tipo);
-    const firstOption = KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.find((option) => option.tipo === tipo);
-    if (firstOption) setSelectedPrivacyPanelFinishId(firstOption.id);
+    if (tipo === 'both') {
+      setSelectedPrivacyPanelFinishId(selectedLateralPrivacyPanelFinishId);
+      return;
+    }
+    setSelectedPrivacyPanelFinishId(tipo === 'frontal'
+      ? selectedFrontalPrivacyPanelFinishId : selectedLateralPrivacyPanelFinishId);
   };
 
   const largoCobroMm = useMemo(() => {
@@ -231,6 +247,19 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
         lengthMm: selectedPrivacyPanelFinish.tipo === 'lateral' ? anchoCobroMm : largoCobroMm,
       },
+      privacyPanels: includePrivacyPanel && privacyPanelType === 'both' ? [
+        {
+          enabled: true, tipo: 'lateral', material: selectedLateralPrivacyPanelFinish.material,
+          finishCode: selectedLateralPrivacyPanelFinish.finishCode, finishLabel: selectedLateralPrivacyPanelFinish.label,
+          privacyPanelFinishId: selectedLateralPrivacyPanelFinish.id, heightMm: selectedLateralPrivacyPanelFinish.heightMm,
+          lateralPlacementMode: lateralPanelPlacementMode,
+        },
+        {
+          enabled: true, tipo: 'frontal', material: selectedFrontalPrivacyPanelFinish.material,
+          finishCode: selectedFrontalPrivacyPanelFinish.finishCode, finishLabel: selectedFrontalPrivacyPanelFinish.label,
+          privacyPanelFinishId: selectedFrontalPrivacyPanelFinish.id, heightMm: selectedFrontalPrivacyPanelFinish.heightMm,
+        },
+      ] : undefined,
     });
 
     // TEMPORAL: prueba de pantalla lateral visible
@@ -943,7 +972,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
               <>
                 <div>
                   <label>Ubicación de pantalla</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                     <button
                       type="button"
                       onClick={() => handlePrivacyPanelTypeChange('lateral')}
@@ -960,14 +989,23 @@ export default function KoncisaPlusPanel({ onCreate }) {
                     >
                       Frontal
                     </button>
+                    <button type="button" onClick={() => handlePrivacyPanelTypeChange('both')}
+                      aria-pressed={privacyPanelType === 'both'}
+                      style={{ fontWeight: privacyPanelType === 'both' ? 700 : 400 }}>
+                      Poner las dos
+                    </button>
                   </div>
                 </div>
 
                 <div>
-                  <label>Acabado de pantalla {privacyPanelType}</label>
+                  <label>Acabado de pantalla {privacyPanelType === 'both' ? 'lateral' : privacyPanelType}</label>
                   <select
                     value={selectedPrivacyPanelFinishId}
-                    onChange={(e) => setSelectedPrivacyPanelFinishId(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedPrivacyPanelFinishId(e.target.value);
+                      if (privacyPanelType === 'frontal') setSelectedFrontalPrivacyPanelFinishId(e.target.value);
+                      else setSelectedLateralPrivacyPanelFinishId(e.target.value);
+                    }}
                     style={{ width: '100%' }}
                   >
                     {visiblePrivacyPanelFinishOptions.map((option) => (
@@ -978,7 +1016,16 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   </select>
                 </div>
 
-                {privacyPanelType === 'lateral' && (
+                {privacyPanelType === 'both' && <div>
+                  <label>Acabado de pantalla frontal</label>
+                  <select value={selectedFrontalPrivacyPanelFinishId}
+                    onChange={(e) => setSelectedFrontalPrivacyPanelFinishId(e.target.value)} style={{ width: '100%' }}>
+                    {KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.filter((option) => option.tipo === 'frontal').map((option) =>
+                      <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </div>}
+
+                {(privacyPanelType === 'lateral' || privacyPanelType === 'both') && (
                   <div>
                     <label>Ubicación de pantallas laterales</label>
                     <select
