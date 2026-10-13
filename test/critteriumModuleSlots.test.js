@@ -83,6 +83,8 @@ test('crecimiento y reducción físicos reconstruyen junctions y cambian BOM sol
   assert.equal(prepared.success, true, prepared.reason);
   replaceCritterium8Sequence({ previousRoot: a.root, nextRoot: prepared.sequenceRoot,
     parent: system, partsRegistry: parts, pickables });
+  assert.deepEqual(system.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY')
+    .map((child) => child.userData.sequenceId), system.userData.sequenceIds);
   assert.equal(prepared.sequence.slots.length, 4);
   assert.deepEqual(prepared.sequence.slots.slice(0, 3).map((slot) => slot.slotId), originalIds);
   assert.notEqual(bomSignature(), before);
@@ -95,6 +97,8 @@ test('crecimiento y reducción físicos reconstruyen junctions y cambian BOM sol
   assert.equal(preparedReduced.success, true, preparedReduced.reason);
   replaceCritterium8Sequence({ previousRoot: prepared.sequenceRoot, nextRoot: preparedReduced.sequenceRoot,
     parent: system, partsRegistry: parts, pickables });
+  assert.deepEqual(system.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY')
+    .map((child) => child.userData.sequenceId), system.userData.sequenceIds);
   unregisterCritterium8Instance({ assembly: frame, partsRegistry: parts, pickables, dispose: false });
   assert.deepEqual(preparedReduced.sequence.slots.map((slot) => slot.slotId), originalIds);
   assert.equal(bomSignature(), before);

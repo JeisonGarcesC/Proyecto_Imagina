@@ -77,7 +77,7 @@ test('conserva la orientación específica de cada lado en el terminal doble', (
   const left = getDoubleDuct('pasacable', 'TERMINAL', 'LEFT');
   const right = getDoubleDuct('pasacable', 'TERMINAL', 'RIGHT');
   assert.deepEqual({ x: left.x, z: left.z, rotY: left.rotY }, { x: 632, z: -106, rotY: Math.PI });
-  assert.deepEqual({ x: right.x, z: right.z, rotY: right.rotY }, { x: -632, z: 152, rotY: 0 });
+  assert.deepEqual({ x: right.x, z: right.z, rotY: right.rotY }, { x: 632, z: -106, rotY: Math.PI });
 });
 
 test('ubica cada terminal doble en su propio puesto y no depende de la profundidad', () => {
@@ -107,6 +107,31 @@ test('ubica cada terminal doble en su propio puesto y no depende de la profundid
     deep.map(({ moduleIndex, x }) => ({ moduleIndex, x })),
     standard.map(({ moduleIndex, x }) => ({ moduleIndex, x }))
   );
+});
+
+test('centra los ductos dobles intermedios especiales en X y Z', () => {
+  for (const largoRealMm of [1100, 1150, 1300, 1400]) {
+    for (const tipoPasoCable of ['grommet', 'pasacable']) {
+      const duct = getDuctosConfig({
+        puestos: 1,
+        tipoPuesto: 'doble',
+        largoRealMm,
+        anchoRealMm: 1400,
+        ductModes: ['INTERMEDIO'],
+        tipoPasoCable,
+      })[0];
+
+      assert.equal(duct.x, 0, `${largoRealMm} mm ${tipoPasoCable}: X`);
+      assert.equal(duct.z, 0, `${largoRealMm} mm ${tipoPasoCable}: Z`);
+      assert.equal(duct.y, tipoPasoCable === 'pasacable' ? 575 : 510);
+    }
+  }
+});
+
+test('conserva la ubicación de catálogo del ducto doble intermedio estándar', () => {
+  const duct = getDoubleDuct('grommet', 'INTERMEDIO');
+
+  assert.deepEqual({ x: duct.x, y: duct.y, z: duct.z }, { x: -600, y: 510, z: 129 });
 });
 
 test('el costado doble de integración usa el ensamble genérico para ambas medidas', () => {

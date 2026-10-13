@@ -234,12 +234,7 @@ export default function App() {
 
       event.preventDefault();
       const replay = isUndo ? api.undoHistory() : api.redoHistory();
-      Promise.resolve(replay).then((action) => {
-        const isCritterium = action?.type?.startsWith('CRITERIUM_') || action?.type?.startsWith('CRITTERIUM_') ||
-          action?.type === 'CREATE_OBJECTS' && action.createdObjects?.some(({ object }) =>
-            ['CRITERIUM_SYSTEM', 'CRITTERIUM_8_SEQUENCE_ASSEMBLY', 'CRITTERIUM_8_ASSEMBLY'].includes(object?.userData?.kind));
-        if (isCritterium) setCritteriumHistoryRevision((value) => value + 1);
-      }).catch((error) => {
+      Promise.resolve(replay).catch((error) => {
         console.error(`No se pudo ${isUndo ? 'deshacer' : 'rehacer'} la acción.`, error);
       });
     };
@@ -429,12 +424,14 @@ export default function App() {
     const json = JSON.parse(text);
 
     // IMPORTANTE: llama tu API load (la que ya tienes con pendingProject)
-    threeApiRef.current?.loadProject?.(json);
+    await threeApiRef.current?.loadProject?.(json);
+    setCritteriumHistoryRevision((value) => value + 1);
     // o si tu flujo es setProjectToLoad(json), usa el tuyo.
   };
 
   const handleNew = () => {
     threeApiRef.current?.clearProject?.(); // si expusiste clearProject
+    setCritteriumHistoryRevision((value) => value + 1);
     // o resetea el estado del proyecto como lo tengas
   };
 
@@ -864,7 +861,9 @@ export default function App() {
     setSelectedOpeningId(null);
     setOpenings(deserializeOpenings(project));
     await restorePlan2DFromProject(project);
-    return threeApiRef.current?.loadProject?.(project);
+    const result = await threeApiRef.current?.loadProject?.(project);
+    setCritteriumHistoryRevision((value) => value + 1);
+    return result;
   };
 
   const handlePlanEditModeChange = (nextValue) => {
@@ -1492,6 +1491,7 @@ export default function App() {
             columns={columns}
             openings={openings}
             readOnly={readOnly}
+            onHistoryChange={() => setCritteriumHistoryRevision((value) => value + 1)}
             materialsByCode={materialsByCode}
             catalogByCode={byCode}
             country={country}

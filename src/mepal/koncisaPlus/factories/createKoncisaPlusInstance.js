@@ -345,19 +345,21 @@ export async function createKoncisaPlusInstance({
     });
   }
 
-  if (config.privacyPanel?.enabled) {
-    const isLateral = config.privacyPanel.tipo === 'lateral';
+  const privacyPanels = Array.isArray(config.privacyPanels) && config.privacyPanels.length
+    ? config.privacyPanels : [config.privacyPanel];
+  for (const privacyPanel of privacyPanels.filter((panel) => panel?.enabled)) {
+    const isLateral = privacyPanel.tipo === 'lateral';
     const stations = isLateral
       ? resolveKoncisaLateralPanelStations({
           puestos: config.puestos,
           largoRealMm: config.largoRealMm,
-          mode: config.privacyPanel.lateralPlacementMode,
+          mode: privacyPanel.lateralPlacementMode,
         })
       : Array.from({ length: config.puestos }, (_, index) => index * config.largoRealMm);
 
     for (const stationXMm of stations) {
       const placements = resolveKoncisaPrivacyPanelPlacements({
-        tipo: config.privacyPanel.tipo,
+        tipo: privacyPanel.tipo,
         tipoPuesto: config.tipoPuesto,
         moduleIndex: 0,
         stationXMm,
@@ -369,8 +371,8 @@ export async function createKoncisaPlusInstance({
       });
       for (const placement of placements) {
         await api.addKoncisaPrivacyPanel?.({
-          tipo: config.privacyPanel.tipo,
-          material: config.privacyPanel.material,
+          tipo: privacyPanel.tipo,
+          material: privacyPanel.material,
           lengthMm: placement.lengthMm,
           skuLengthMm: placement.skuLengthMm,
           surfaceThicknessMm: config.thickMm,
@@ -378,10 +380,10 @@ export async function createKoncisaPlusInstance({
           descriptionLengthMm: placement.descriptionLengthMm,
           supportEdge: placement.supportEdge,
           supportOffsetZMm: placement.supportOffsetZMm,
-          heightMm: config.privacyPanel.heightMm,
-          finishCode: config.privacyPanel.finishCode,
-          finishLabel: config.privacyPanel.finishLabel,
-          privacyPanelFinishId: config.privacyPanel.privacyPanelFinishId,
+          heightMm: privacyPanel.heightMm,
+          finishCode: privacyPanel.finishCode,
+          finishLabel: privacyPanel.finishLabel,
+          privacyPanelFinishId: privacyPanel.privacyPanelFinishId,
           x: placement.x,
           y: placement.y,
           z: placement.z,

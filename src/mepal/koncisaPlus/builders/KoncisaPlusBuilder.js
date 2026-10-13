@@ -182,6 +182,7 @@ export function buildKoncisaPlus(config = {}) {
     thickMm = 25,
     variant = '',
     ductModes = [],
+    ductSides = [],
   } = config;
 
   const parts = [];
@@ -431,6 +432,7 @@ export function buildKoncisaPlus(config = {}) {
     anchoRealMm,
     hasDuct,
     ductModes,
+    ductSides,
     tipoPasoCable,
   });
 

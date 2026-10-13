@@ -1,4 +1,6 @@
 // src/koncisaPlus/rules/koncisaRules.js
+import { resolveKoncisaDuctBillingWidth } from './koncisaDuctoRules.js';
+import { resolveKoncisaSpecialTerminalGeometry } from './koncisaSpecialTerminalGeometry.js';
 
 // ==============================
 // COSTADOS
@@ -441,6 +443,7 @@ export function getDuctosConfig({
   anchoRealMm,
   hasDuct = true,
   ductModes = [],
+  ductSides = [],
   tipoPasoCable = 'grommet',
   side = 'LEFT',
 }) {
@@ -454,13 +457,16 @@ export function getDuctosConfig({
 
   const SIMPLE_DUCT_PLACEMENT = {
     GROMMET: {
-      TERMINAL: ({ baseX }) => ({ x: baseX - 335, y: 510, z: getSimpleDuctZ(), rotY: 0 }),
+      TERMINAL: ({ baseX, largoRealMm: width, side: terminalSide }) => ({
+        x: terminalSide === 'RIGHT' ? baseX - width / 2 : baseX - 335,
+        y: 510, z: getSimpleDuctZ(), rotY: 0,
+      }),
       INTERMEDIO: ({ moduleStartX }) => ({ x: moduleStartX, y: 510, z: getSimpleDuctZ(), rotY: 0 }),
       INDIVIDUAL: ({ baseX }) => ({ x: baseX - 692 / 2, y: 510, z: getSimpleDuctZ(), rotY: 0 }),
     },
     PASACABLE: {
-      TERMINAL: ({ baseX }) => ({
-        x: baseX - 335 - 8,
+      TERMINAL: ({ baseX, largoRealMm: width, side: terminalSide }) => ({
+        x: terminalSide === 'RIGHT' ? baseX - width / 2 : baseX - 335 - 8,
         y: 510 + 65,
         z: getSimpleDuctZ() - 52,
         rotY: 0,
@@ -511,6 +517,8 @@ export function getDuctosConfig({
     if (String(ductMode).toUpperCase() === 'NONE' && tipoPasoCable !== 'grommet') continue;
 
     const tipoModulo = (ductModes[i] || 'TERMINAL').toLowerCase();
+    const currentSide = String(ductSides[i] || side || 'LEFT').toUpperCase() === 'RIGHT'
+      ? 'RIGHT' : 'LEFT';
 
     let ductLengthMm = largoRealMm;
 
@@ -539,7 +547,9 @@ export function getDuctosConfig({
 
     if (tipoPuesto === 'sencillo') {
       const placementFn = SIMPLE_DUCT_PLACEMENT[accesoCableado]?.[tipoModulo.toUpperCase()];
-      const placement = placementFn?.({ baseX, moduleStartX }) || {};
+      const placement = placementFn?.({
+        baseX, moduleStartX, largoRealMm, side: currentSide,
+      }) || {};
 
       ductX = placement.x ?? ductX;
       ductY = placement.y ?? ductY;
@@ -550,13 +560,58 @@ export function getDuctosConfig({
     if (tipoPuesto === 'doble') {
       const placementFn = DOUBLE_DUCT_PLACEMENT[accesoCableado]?.[tipoModulo.toUpperCase()];
       const placement =
-        placementFn?.({ baseX, moduleStartX, largoRealMm, anchoRealMm, side }) || {};
+        placementFn?.({ baseX, moduleStartX, largoRealMm, anchoRealMm, side: currentSide }) || {};
 
       ductX = placement.x ?? ductX;
       ductY = placement.y ?? ductY;
       ductZ = placement.z ?? ductZ;
       ductRotY = placement.rotY ?? ductRotY;
+
+      const billingWidthMm = resolveKoncisaDuctBillingWidth(largoRealMm);
+      const isSpecialIntermediate =
+        tipoModulo.toUpperCase() === 'INTERMEDIO' &&
+        billingWidthMm != null &&
+        billingWidthMm !== Number(largoRealMm);
+
+      if (isSpecialIntermediate) {
+        ductX = baseX;
+        ductZ = 0;
+      }
     }
+
+    const billingWidthMm = resolveKoncisaDuctBillingWidth(largoRealMm);
+    const isSpecialTerminal =
+      tipoModulo.toUpperCase() === 'TERMINAL' &&
+      billingWidthMm != null &&
+      billingWidthMm !== Number(largoRealMm);
+
+    if (isSpecialTerminal) {
+      const { lengthMm } = resolveKoncisaSpecialTerminalGeometry({
+        realWidthMm: largoRealMm, tipoPuesto, accesoCableado,
+      });
+      // El nativo terminal reproduce el pivote GLB: geometría en X positivo.
+      // El sencillo inicia como el GLB: a la derecha, sin girar el bloque.
+      if (tipoPuesto === 'doble') {
+        ductX = currentSide === 'LEFT'
+          ? baseX - largoRealMm / 2 + lengthMm
+          : baseX + largoRealMm / 2 - lengthMm;
+        if (accesoCableado === 'PASACABLE') ductZ = currentSide === 'LEFT' ? -106 : 105;
+      } else {
+        ductX = currentSide === 'LEFT'
+          ? baseX + largoRealMm / 2 - lengthMm
+          : baseX - largoRealMm / 2;
+      }
+    } else if (tipoPuesto === 'doble' && tipoModulo === 'terminal' && currentSide === 'RIGHT') {
+      // Los GLB IZQ/DER ya contienen cierres opuestos. Ambos necesitan el
+      // mismo pivote y orientación para no cancelar visualmente esa diferencia.
+      const leftPlacement = DOUBLE_DUCT_PLACEMENT[accesoCableado]?.TERMINAL({
+        baseX, largoRealMm, side: 'LEFT',
+      });
+      ductX = leftPlacement.x;
+      ductZ = leftPlacement.z;
+      ductRotY = leftPlacement.rotY;
+    }
+
     //console.log('anchoRealMm: ', largoRealMm);
     //console.log('anchoRealMm: ', anchoRealMm);
     //console.log('ductX', ductX);
@@ -578,7 +633,7 @@ export function getDuctosConfig({
       rotX: 0,
       rotY: ductRotY,
       rotZ: 0,
-      side: 'LEFT',
+      side: currentSide,
       accesoCableado,
     });
   }
