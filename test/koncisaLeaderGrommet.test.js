@@ -40,3 +40,38 @@ test('agrega grommet principal al sustituir el retorno por credenza', () => {
 test('no agrega grommet automáticamente cuando ninguna condición aplica', () => {
   assert.equal(getMainGrommets(buildLeader()).length, 0);
 });
+
+test('omite el ducto bajante principal cuando la credenza está activa', () => {
+  const product = buildLeader({
+    leaderCredenza: { enabled: true },
+    leaderMainFloorDuct: { enabled: true },
+  });
+
+  assert.equal(
+    product.parts.some((part) => part.type === 'ductoPiso'),
+    false
+  );
+});
+
+test('permite el ducto bajante principal cuando no hay credenza', () => {
+  const product = buildLeader({ leaderMainFloorDuct: { enabled: true } });
+
+  assert.equal(product.parts.filter((part) => part.type === 'ductoPiso').length, 1);
+});
+
+test('no agrega caja ni acople de costado cuando la credenza está activa', () => {
+  const product = buildLeader({
+    leaderCredenza: { enabled: true },
+    leaderJunctionHasOutletBox: true,
+    leaderCostadoOutletCoupling: { enabled: true },
+  });
+
+  assert.equal(
+    product.parts.some((part) => part.meta?.leaderRole === 'MAIN_RETURN_JUNCTION'),
+    false
+  );
+  assert.equal(
+    product.parts.some((part) => part.meta?.leaderRole === 'COSTADO_OUTLET_WALL_COUPLING'),
+    false
+  );
+});

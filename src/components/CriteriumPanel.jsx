@@ -13,6 +13,10 @@ import {
   CRITTERIUM_OFFICE_TEMPLATES,
   createCritteriumOfficeSequenceDraft,
 } from '../mepal/critterium8/integration/critteriumOfficeTemplates.js';
+import {
+  CRITTERIUM_LIBRARY_OPTIONS,
+  resolveCritteriumLibraryDrafts,
+} from '../mepal/critterium8/integration/critteriumModuleLibrary.js';
 import { loadCritteriumPriceCatalog } from '../mepal/critterium8/commercial/critteriumPriceCatalog.js';
 import {
   buildCritteriumQuotation,
@@ -153,6 +157,7 @@ export default function CriteriumPanel({
   country = 'CO',
 }) {
   const [mode, setMode] = useState('SYSTEM');
+  const [libraryChoice, setLibraryChoice] = useState('SEQUENCE_2');
   const [frameWidth, setFrameWidth] = useState(90);
   const [frameHeight, setFrameHeight] = useState(128);
   const [draft, setDraft] = useState(defaultCritteriumSequenceDraft);
@@ -183,12 +188,12 @@ export default function CriteriumPanel({
     const parentSystemId = next.sequences.find(
       (item) => item.sequenceId === selectedSequenceId
     )?.parentSystemId;
-    const currentSystemId = next.systems.some((item) => item.systemId === systemId)
-      ? systemId
-      : null;
-    setSystemId(
-      selectedSystemId || parentSystemId || currentSystemId || next.systems[0]?.systemId || ''
-    );
+    setSystemId((current) => {
+      const currentSystemId = next.systems.some((item) => item.systemId === current)
+        ? current
+        : null;
+      return selectedSystemId || parentSystemId || currentSystemId || next.systems[0]?.systemId || '';
+    });
   }, [selectedPart, threeApiRef]);
   useEffect(() => {
     if (!historyRevision) return;
@@ -301,6 +306,31 @@ export default function CriteriumPanel({
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+  const libraryOption = CRITTERIUM_LIBRARY_OPTIONS.find((item) => item.key === libraryChoice);
+  const libraryDrafts = resolveCritteriumLibraryDrafts(libraryChoice);
+  const createFromLibrary = () => {
+    if (libraryChoice === 'SEQUENCE_CUSTOM') {
+      setMode('SEQUENCE');
+      return;
+    }
+    if (libraryChoice === 'MODULE_FRAME') {
+      setMode('FRAME');
+      return;
+    }
+    if (libraryChoice === 'OPERATIONS') {
+      setMode('SYSTEM');
+      return;
+    }
+    if (libraryChoice.startsWith('SEQUENCE_')) {
+      run(() => threeApiRef.current?.createConfiguredCritteriumSequence?.(libraryDrafts[0]));
+      return;
+    }
+    run(() =>
+      libraryDrafts.length
+        ? threeApiRef.current?.createConfiguredCritteriumSystem?.(libraryDrafts)
+        : threeApiRef.current?.createCritteriumSystemFromSequenceIds?.([])
+    );
+  };
   return (
     <div style={{ display: 'grid', gap: 12, minWidth: 0 }}>
       <h3 style={{ margin: 0 }}>CRITERIUM 8</h3>
@@ -323,6 +353,40 @@ export default function CriteriumPanel({
           </button>
         ))}
       </nav>
+      <details aria-label="Biblioteca CRITERIUM" style={{ border: '1px solid #cbd5e1', padding: 8, borderRadius: 6 }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Biblioteca CRITERIUM</summary>
+        <label style={{ display: 'block', marginTop: 8 }}>
+          Configuración
+          <select style={field} value={libraryChoice} onChange={(event) => setLibraryChoice(event.target.value)}>
+            {['SECUENCIAS', 'MÓDULOS', 'OFICINA', 'OPERACIONES'].map((group) => (
+              <optgroup key={group} label={group}>
+                {CRITTERIUM_LIBRARY_OPTIONS.filter((option) => option.group === group).map((option) => (
+                  <option key={option.key} value={option.key}>{option.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+        <div aria-label="Vista previa de biblioteca" style={{ border: '1px solid #d7dee8', padding: 8, margin: '8px 0', fontSize: 12 }}>
+          <strong>{libraryOption?.group} · {libraryOption?.label}</strong>
+          {libraryDrafts && (
+            <>
+              {libraryDrafts.map((sequence, index) => (
+                <div key={index} style={{ marginTop: 5 }}>Secuencia {index + 1}: {sequence.frames.map((_, frameIndex) => `[M${frameIndex + 1}]`).join(' ')}</div>
+              ))}
+              <div>{libraryDrafts.length} secuencias · {libraryDrafts.reduce((sum, sequence) => sum + sequence.frames.length, 0)} módulos/frames · 0 conexiones automáticas</div>
+            </>
+          )}
+          {libraryChoice === 'MODULE_FRAME' && <div>Frame aislado disponible. Los datos comerciales se validan en BOM y cotización; no se asignan precios aquí.</div>}
+          {libraryChoice === 'OPERATIONS' && <div>Las operaciones disponibles se muestran en la composición y en el sistema seleccionado.</div>}
+          {libraryChoice === 'SEQUENCE_CUSTOM' && <div>Configura dimensiones y cantidad con el editor de secuencias existente.</div>}
+        </div>
+        <button type="button" style={button} disabled={readOnly || busy} onClick={createFromLibrary}>
+          {libraryChoice === 'SEQUENCE_CUSTOM' || libraryChoice === 'MODULE_FRAME' || libraryChoice === 'OPERATIONS'
+            ? 'Abrir configuración'
+            : libraryChoice.startsWith('OFFICE_') ? 'Crear oficina' : 'Agregar secuencia'}
+        </button>
+      </details>
       <CritteriumCompositionPanel
         structure={structure}
         systemId={systemId}

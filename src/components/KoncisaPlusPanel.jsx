@@ -163,7 +163,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
         },
 
         leaderMainCostadoForma,
-        leaderJunctionHasOutletBox,
+        leaderJunctionHasOutletBox: leaderJunctionHasOutletBox && !leaderCredenzaEnabled,
 
         thickMm: leaderThickMm,
         leaderMaterialType,
@@ -197,7 +197,10 @@ export default function KoncisaPlusPanel({ onCreate }) {
             !leaderCredenzaEnabled && leaderHasGrommetBox && leaderReturnOutletCouplingEnabled,
         },
         leaderCostadoOutletCoupling: {
-          enabled: leaderJunctionHasOutletBox && leaderCostadoOutletCouplingEnabled,
+          enabled:
+            leaderJunctionHasOutletBox &&
+            !leaderCredenzaEnabled &&
+            leaderCostadoOutletCouplingEnabled,
         },
         // Falda
         leaderHasSkirt,
@@ -542,7 +545,15 @@ export default function KoncisaPlusPanel({ onCreate }) {
               <input
                 type="checkbox"
                 checked={leaderCredenzaEnabled}
-                onChange={(e) => setLeaderCredenzaEnabled(e.target.checked)}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  setLeaderCredenzaEnabled(enabled);
+                  if (enabled) {
+                    setLeaderMainFloorDuctEnabled(false);
+                    setLeaderJunctionHasOutletBox(false);
+                    setLeaderCostadoOutletCouplingEnabled(false);
+                  }
+                }}
               />{' '}
               <img
                 src="/assets/imagen/KoncisaPlusImagenes/credenza.png"
@@ -654,7 +665,8 @@ export default function KoncisaPlusPanel({ onCreate }) {
             <label>
               <input
                 type="checkbox"
-                checked={leaderMainFloorDuctEnabled}
+                checked={leaderMainFloorDuctEnabled && !leaderCredenzaEnabled}
+                disabled={leaderCredenzaEnabled}
                 onChange={(e) => setLeaderMainFloorDuctEnabled(e.target.checked)}
               />{' '}
               Incluir ducto bajante bajo superficie principal
@@ -781,13 +793,14 @@ export default function KoncisaPlusPanel({ onCreate }) {
             <label>
               <input
                 type="checkbox"
-                checked={leaderJunctionHasOutletBox}
+                checked={leaderJunctionHasOutletBox && !leaderCredenzaEnabled}
+                disabled={leaderCredenzaEnabled}
                 onChange={(e) => setLeaderJunctionHasOutletBox(e.target.checked)}
               />{' '}
               Incluir caja de tomas en el costado junto al retorno
             </label>
 
-            {leaderJunctionHasOutletBox && (
+            {leaderJunctionHasOutletBox && !leaderCredenzaEnabled && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                 <input
                   type="checkbox"

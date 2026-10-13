@@ -83,6 +83,32 @@ export function findCritteriumConnectionsAffectedBySequenceEdit(system, sequence
   });
 }
 
+export function describeCritteriumModuleEditVerb(operation) {
+  return {
+    ADD: 'agregar', INSERT: 'insertar', DUPLICATE: 'duplicar', REMOVE: 'eliminar',
+    REORDER: 'reordenar', CONFIGURE: 'configurar', ORGANIZE: 'organizar',
+  }[operation] || 'editar';
+}
+
+export function describeCritteriumBlockedSequenceEdit(system, sequenceId, operation, oldPoints, nextSlots) {
+  const connection = findCritteriumConnectionsAffectedBySequenceEdit(
+    system, sequenceId, oldPoints, nextSlots
+  )[0];
+  if (!connection) return null;
+  const pointId = connection.sourceSequenceId === sequenceId
+    ? connection.sourcePointId : connection.targetPointId;
+  const point = oldPoints.find((item) => String(item.connectionId) === String(pointId));
+  const otherSequenceId = connection.sourceSequenceId === sequenceId
+    ? connection.targetSequenceId : connection.sourceSequenceId;
+  const side = point?.type === 'TERMINAL_START' ? 'inicial' :
+    point?.type === 'TERMINAL_END' ? 'final' : 'identificado por la conexión';
+  const verb = describeCritteriumModuleEditVerb(operation);
+  return `No se puede ${verb} el módulo: el extremo ${side} de la secuencia ${sequenceId}` +
+    `${point?.frameId ? ` (frame ${point.frameId})` : ''} está conectado a la secuencia ` +
+    `${otherSequenceId} (conexión ${connection.connectionId}) y dejaría de ser el mismo terminal físico. ` +
+    'Desconecte primero ese extremo.';
+}
+
 // A rebuilt sequence can assign new junction IDs to its terminal points.
 // Keep both persisted endpoint spellings in sync and discard relationships
 // whose physical terminal frame was removed.
