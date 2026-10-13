@@ -94,6 +94,6 @@ export const LINK_INTEGRACION_DOBLE_CODES = {
 export const LINK_SUPPORT_SHAPES = [
   {value:'Link',label:'Link'}, {value:'Kuo',label:'Kuo'}
 ];
-export function getLinkFinishOptions(type) {
-  return type === 'lider' || type === 'jefatura' ? LINK_FINISH_OPTIONS.slice(0,2) : LINK_FINISH_OPTIONS;
+export function getLinkFinishOptions() {
+  return LINK_FINISH_OPTIONS;
 }
