@@ -82,9 +82,15 @@ export class HistoryManager {
   #maxHistory;
   #replayAction;
   #onDiscard;
+  #onAction;
   #isReplaying = false;
 
-  constructor({ maxHistory = MAX_HISTORY, replayAction = null, onDiscard = null } = {}) {
+  constructor({
+    maxHistory = MAX_HISTORY,
+    replayAction = null,
+    onDiscard = null,
+    onAction = null,
+  } = {}) {
     const normalizedLimit = Math.floor(Number(maxHistory));
     if (!Number.isFinite(normalizedLimit) || normalizedLimit < 1) {
       throw new RangeError('maxHistory must be a positive number.');
@@ -97,10 +103,14 @@ export class HistoryManager {
     if (onDiscard !== null && typeof onDiscard !== 'function') {
       throw new TypeError('onDiscard must be a function or null.');
     }
+    if (onAction !== null && typeof onAction !== 'function') {
+      throw new TypeError('onAction must be a function or null.');
+    }
 
     this.#maxHistory = normalizedLimit;
     this.#replayAction = replayAction;
     this.#onDiscard = onDiscard;
+    this.#onAction = onAction;
   }
 
   get isReplaying() {
@@ -120,6 +130,7 @@ export class HistoryManager {
       this.#discardAction(discardedAction, 'limit');
     }
 
+    this.#onAction?.(normalizedAction, 'push');
     return normalizedAction;
   }
 
@@ -132,6 +143,7 @@ export class HistoryManager {
     try {
       await this.#replayAction?.(action, 'undo');
       this.#redoStack.push(action);
+      this.#onAction?.(action, 'undo');
       return action;
     } catch (error) {
       this.#undoStack.push(action);
@@ -150,6 +162,7 @@ export class HistoryManager {
     try {
       await this.#replayAction?.(action, 'redo');
       this.#undoStack.push(action);
+      this.#onAction?.(action, 'redo');
       return action;
     } catch (error) {
       this.#redoStack.push(action);

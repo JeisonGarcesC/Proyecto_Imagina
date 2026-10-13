@@ -31,14 +31,14 @@ export const KONCISA_DUCTO_RULES = {
   KONPLUSSCABLEDUCTTER100: {
     codigoPT: '22000132400',
     modelSrc: '/assets/models/koncisaPlus/2KSO348000_100.glb',
-    modelSrcLeft: '/assets/models/koncisaPlus/2KSO348000_100_IZQ.glb',
-    modelSrcRight: '/assets/models/koncisaPlus/2KSO348000_100_DER.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO348000_100_IZQ.glb', //.glb
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO348000_100_DER.glb', //
   },
   KONPLUSSCABLEDUCTTER120: {
     codigoPT: '22000132401',
     modelSrc: '/assets/models/koncisaPlus/2KSO348000_120.glb',
-    modelSrcLeft: '/assets/models/koncisaPlus/2KSO348000_120_IZQ.glb',
-    modelSrcRight: '/assets/models/koncisaPlus/2KSO348000_120_DER.glb',
+    modelSrcLeft: '/assets/models/koncisaPlus/2KSO348000_120_IZQ.glb', //
+    modelSrcRight: '/assets/models/koncisaPlus/2KSO348000_120_DER.glb', //
   },
   KONPLUSSCABLEDUCTTER150: {
     codigoPT: '22000132402',
@@ -169,6 +169,17 @@ export const KONCISA_DUCTO_RULES = {
     modelSrcRight: '/assets/models/koncisaPlus/2KSO366000_150_DER.glb',
   },
 };
+
+export function resolveKoncisaDuctSideModels(resolved, tipoPuesto, tipoModulo) {
+  const left = resolved?.modelSrcLeft || null;
+  const right = resolved?.modelSrcRight || null;
+  const swapDoubleTerminal = String(tipoPuesto).toLowerCase() === 'doble' &&
+    String(tipoModulo).toUpperCase() === 'TERMINAL' &&
+    resolved?.useNativeModel !== true;
+  return swapDoubleTerminal
+    ? { modelSrcLeft: right, modelSrcRight: left }
+    : { modelSrcLeft: left, modelSrcRight: right };
+}
 
 export function resolveKoncisaDuctBillingWidth(realWidthMm) {
   const width = Number(realWidthMm || 0);

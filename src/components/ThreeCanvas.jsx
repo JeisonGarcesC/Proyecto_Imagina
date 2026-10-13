@@ -75,11 +75,12 @@ import {
   resolveBomGroupInstanceId,
   resolveKoncisaBomConfigurationKey,
 } from '../utils/bomGrouping.js';
-import { getFootprint2D } from '../plan2d/extractFootprint2D';
+import { getFootprint2D, invalidateFootprint2D } from '../plan2d/extractFootprint2D';
 import {
   extractDetailedFootprint2D,
   getDetailedFootprint2DCacheEntry,
   hasDetailedFootprint2DCacheEntry,
+  invalidateDetailedFootprint2D,
 } from '../plan2d/extractDetailedFootprint2D';
 import { get2DDetailKey } from '../plan2d/detailSelection2D';
 import { resolveFinishAppearance2D } from '../plan2d/finishAppearance2D';
@@ -204,7 +205,11 @@ import {
   normalizeZenVariantCode,
 } from '../mepal/zen/products/zenVariantDefinition.js';
 
-import { resolveKoncisaDucto } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
+import { resolveKoncisaDucto, resolveKoncisaDuctSideModels } from '../mepal/koncisaPlus/rules/koncisaDuctoRules';
+import {
+  resolveKoncisaSpecialTerminalGeometry,
+  resolveKoncisaSpecialTerminalRotationOffsetX,
+} from '../mepal/koncisaPlus/rules/koncisaSpecialTerminalGeometry.js';
 import { resolveKoncisaFloorDuct } from '../mepal/koncisaPlus/rules/koncisaFloorDuctRules';
 import { getDuctosConfig } from '../mepal/koncisaPlus/rules/koncisaRules';
 
@@ -687,6 +692,7 @@ function applyMoreaSeatTurn180(root, rotated180) {
 function ThreeCanvas({
   onApiReady,
   onSelectionChange,
+  onHistoryChange,
   onBOMChange,
   walls = [],
   columns = [],
@@ -699,6 +705,8 @@ function ThreeCanvas({
   transformTool = 'move',
 }) {
   const mountRef = useRef(null);
+  const onHistoryChangeRef = useRef(onHistoryChange);
+  onHistoryChangeRef.current = onHistoryChange;
 
   // ✅ NUEVO: referencia al group de muros (para reconstruir sin romper hooks/zoom/2D)
   const wallsGroupRef = useRef(null);
@@ -963,6 +971,14 @@ function ThreeCanvas({
     const historyManager = createHistoryManager({
       replayAction: replayHistoryAction,
       onDiscard: discardHistoryAction,
+      onAction: (action, direction) => {
+        const isCritteriumAction = action?.type?.startsWith('CRITERIUM_') ||
+          action?.type?.startsWith('CRITTERIUM_') ||
+          action?.type === 'CREATE_OBJECTS' && action.createdObjects?.some(({ object }) =>
+            ['CRITERIUM_SYSTEM', 'CRITTERIUM_8_SEQUENCE_ASSEMBLY', 'CRITTERIUM_8_ASSEMBLY'].includes(object?.userData?.kind));
+        if (isCritteriumAction)
+          onHistoryChangeRef.current?.(action, direction);
+      },
     });
     let isRotating3D = false;
     let rotationPointerStartAngle = 0;
@@ -2802,8 +2818,14 @@ function ThreeCanvas({
             const detailKey = get2DDetailKey(snapshot);
             if (!detailKey || !requestedDetailKeys.has(detailKey)) return snapshot;
             let detailedFootprint = getDetailedFootprint2DCacheEntry(obj);
-            if (!hasDetailedFootprint2DCacheEntry(obj) && detailedGenerationBudget > 0) {
-              detailedGenerationBudget -= 1;
+            const isSpecialKoncisaDuct = obj.userData?.kind === 'ducto' &&
+              obj.userData?.meta?.isSpecial === true &&
+              ['TERMINAL', 'INTERMEDIO'].includes(
+                String(obj.userData?.meta?.tipoModulo || '').toUpperCase()
+              );
+            if (!hasDetailedFootprint2DCacheEntry(obj) &&
+              (detailedGenerationBudget > 0 || isSpecialKoncisaDuct)) {
+              detailedGenerationBudget = Math.max(0, detailedGenerationBudget - 1);
               detailedFootprint = extractDetailedFootprint2D(obj, {
                 normalShape: snapshot.footprint,
               });
@@ -15712,7 +15734,7 @@ function ThreeCanvas({
       };
     }
 
-    function rotateSelectedDuct180() {
+    async function rotateSelectedDuct180() {
       if (readOnly) return false;
       if (!activePart) return false;
 
@@ -15736,6 +15758,10 @@ function ThreeCanvas({
 
       const isSpecialNativeTerminal =
         root.userData?.meta?.isSpecial === true && root.userData?.meta?.useNativeModel === true;
+      if (isSpecialNativeTerminal || (root.userData?.modelSrc &&
+        root.userData?.meta?.modelSrcLeft && root.userData?.meta?.modelSrcRight)) {
+        return toggleSelectedDuctSide();
+      }
       const isCurrentlyRotated = !!root.userData?.ductRotated180;
 
       if (!isCurrentlyRotated) {
@@ -15794,7 +15820,17 @@ function ThreeCanvas({
 
         const { minX: rotatedMinX } = getBoundsXInParent();
 
-        if (Number.isFinite(rotatedMinX) && !isSpecialNativeTerminal) {
+        if (Number.isFinite(rotatedMinX) && isSpecialNativeTerminal) {
+          const rotatedBoundsX = getBoundsXInParent();
+          root.position.x += resolveKoncisaSpecialTerminalRotationOffsetX({
+            baseX: root.userData?.meta?.baseX || 0,
+            realWidthMm: surfaceWidthMm,
+            initialMinX: initialBoundsX.minX,
+            initialMaxX: initialBoundsX.maxX,
+            rotatedMinX: rotatedBoundsX.minX,
+            rotatedMaxX: rotatedBoundsX.maxX,
+          });
+        } else if (Number.isFinite(rotatedMinX)) {
           const ductMeta = root.userData?.meta || {};
           const isDoublePasacable =
             String(ductMeta.tipoPuesto || '').toUpperCase() === 'DOBLE' &&
@@ -15894,144 +15930,137 @@ function ThreeCanvas({
         return false;
       }
 
-      const currentSide = String(oldMeta?.side || 'RIGHT').toUpperCase();
-      const nextSide = currentSide === 'RIGHT' ? 'LEFT' : 'RIGHT';
+      const isSpecialNativeTerminal = oldMeta.isSpecial === true && oldMeta.useNativeModel === true;
+      if (isSpecialNativeTerminal || (root.userData?.modelSrc && oldMeta.modelSrcLeft && oldMeta.modelSrcRight)) {
+        const currentSide = String(oldMeta.side || 'LEFT').toUpperCase();
+        const nextSide = currentSide === 'LEFT' ? 'RIGHT' : 'LEFT';
+        const sideModels = isSpecialNativeTerminal ? oldMeta : resolveKoncisaDuctSideModels(
+          resolveKoncisaDucto({
+            tipoPuesto: oldMeta.tipoPuesto,
+            tipoModulo: oldMeta.tipoModulo,
+            nominalWidthMm: oldMeta.nominalWidthMm,
+            accesoCableado: oldMeta.accesoCableado,
+          }), oldMeta.tipoPuesto, oldMeta.tipoModulo,
+        );
+        const nextModelSrc = nextSide === 'LEFT' ? sideModels.modelSrcLeft : sideModels.modelSrcRight;
+        let replacement;
+        if (isSpecialNativeTerminal) {
+          replacement = createNativeKoncisaSpecialTerminalDuctMesh({
+            code: root.userData?.code,
+            dimMm: root.userData?.dim,
+            meta: { ...oldMeta, side: nextSide },
+          });
+        } else {
+          try {
+            const gltf = await new GLTFLoader().loadAsync(nextModelSrc);
+            replacement = gltf.scene.clone(true);
+          } catch (error) {
+            console.warn('No se pudo cargar el otro GLB terminal:', nextModelSrc, error);
+            return false;
+          }
+        }
 
-      const nextModelSrc = nextSide === 'LEFT' ? oldMeta?.modelSrcLeft : oldMeta?.modelSrcRight;
+        const tipoPuesto = String(oldMeta.tipoPuesto || 'sencillo').toLowerCase();
+        const widthMm = Number(oldMeta.realWidthMm || oldMeta.nominalWidthMm || root.userData?.dim?.widthMm);
+        const moduleIndex = Math.max(0, Number(oldMeta.moduleIndex) || 0);
+        const placement = getDuctosConfig({
+          puestos: moduleIndex + 1,
+          tipoPuesto,
+          largoRealMm: widthMm,
+          anchoRealMm: tipoPuesto === 'doble' ? 1200 : 600,
+          ductModes: Array(moduleIndex + 1).fill('TERMINAL'),
+          tipoPasoCable: oldMeta.accesoCableado,
+          side: nextSide,
+        })[moduleIndex];
+        const nextRotationY = tipoPuesto === 'doble' ? placement?.rotY ?? 0 : 0;
+        const probe = new THREE.Group();
+        probe.add(replacement);
+        probe.rotation.y = nextRotationY;
+        probe.updateMatrixWorld(true);
+        const modelBounds = new THREE.Box3().setFromObject(probe);
+        if (modelBounds.isEmpty() || !Number.isFinite(widthMm) || widthMm <= 0) return false;
+        probe.remove(replacement);
 
-      if (!nextModelSrc) {
-        console.warn('No hay GLB configurado para el lado:', nextSide, oldMeta);
-        return false;
+        const baseX = Number(oldMeta.baseX) || 0;
+        const alignToRightEdge = (tipoPuesto === 'doble') === (nextSide === 'RIGHT');
+        const edgeX = (baseX + (alignToRightEdge ? widthMm / 2 : -widthMm / 2)) / 1000;
+        const nextX = alignToRightEdge
+          ? edgeX - modelBounds.max.x : edgeX - modelBounds.min.x;
+        const oldModelChildren = root.children.filter(
+          (child) => !isDuctAttachmentDescendant(root, child)
+        );
+        if (!oldModelChildren.length) return false;
+        const materialCode = root.userData?.materialCode;
+        if (materialCode) {
+          const materialDef = materialsByCodeRef.current?.get?.(String(materialCode)) || null;
+          applyMaterialToObject3D(replacement, materialCode, materialDef);
+        }
+        replacement.traverse((node) => {
+          if (node.isMesh) {
+            node.castShadow = true;
+            node.receiveShadow = true;
+          }
+          node.userData = {
+            ...(node.userData || {}),
+            parentAssemblyId: root.userData?.parentAssemblyId || null,
+            groupId: root.userData?.groupId || null,
+            groupName: root.userData?.groupName || null,
+          };
+        });
+        oldModelChildren.forEach((child) => root.remove(child));
+        root.add(replacement);
+        root.position.x = nextX;
+        if (tipoPuesto === 'doble' && Number.isFinite(placement?.z)) {
+          root.position.z = placement.z / 1000;
+        }
+        root.rotation.y = nextRotationY;
+        if (!isSpecialNativeTerminal) {
+          root.userData.modelSrc = nextModelSrc;
+          root.userData.model = { ...(root.userData.model || {}), kind: 'glb', src: nextModelSrc };
+        }
+        root.userData.meta = { ...oldMeta, ...sideModels, side: nextSide };
+        root.userData.ductRotated180 = !root.userData.ductRotated180;
+        delete root.userData.ductRotationInitialTransform;
+
+        const assembly = root.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY'
+          ? root.parent : null;
+        if (assembly) {
+          const config = assembly.userData.config || {};
+          const ductSides = [...(config.ductSides || [])];
+          ductSides[moduleIndex] = nextSide;
+          assembly.userData.config = { ...config, ductSides };
+        }
+        await syncDuctCovers(root, root.userData?.ductCovers || oldMeta.ductCovers ||
+          defaultDuctCoverState('terminal'));
+        await syncCeilingDucts(root, root.userData?.ceilingDucts || oldMeta.ceilingDucts ||
+          defaultCeilingDuctState('terminal'));
+        root.updateMatrixWorld(true);
+        const bounds2d = computeBounds2D(root, {
+          exclude: (node) => isDuctAttachmentDescendant(root, node),
+        });
+        if (bounds2d) {
+          root.userData.bounds2d = {
+            localCenter: bounds2d.localCenter.toArray(),
+            sizeLocal: bounds2d.sizeLocal.toArray(),
+          };
+        }
+        invalidateFootprint2D(root);
+        invalidateDetailedFootprint2D(root);
+        if (selectionHelper) selectionHelper.update();
+        setActivePart(root);
+        onFloatingEditorRequest?.({
+          open: true,
+          x: window.innerWidth - 600,
+          y: 220,
+          part: buildDuctPopupPart(root),
+          ductCovers: root.userData?.ductCovers || null,
+        });
+        refreshFloorAndGrid();
+        emitBOM?.();
+        return true;
       }
 
-      // Ajustes de posición por medida y lado.
-      // Estos valores están en milímetros.
-      const DUCT_SIDE_OFFSETS_MM = {
-        1000: {
-          RIGHT: { x: -162, y: 0, z: 0 },
-          LEFT: { x: 0, y: 0, z: 0 },
-        },
-        1200: {
-          RIGHT: { x: -260, y: 0, z: 0 },
-          LEFT: { x: 0, y: 0, z: 0 },
-        },
-        1500: {
-          RIGHT: { x: -410, y: 0, z: 0 },
-          LEFT: { x: 0, y: 0, z: 0 },
-        },
-      };
-
-      const nominalWidthMm = Number(oldMeta?.nominalWidthMm || 1200);
-
-      const currentOffset = DUCT_SIDE_OFFSETS_MM[nominalWidthMm]?.[currentSide] || {
-        x: 0,
-        y: 0,
-        z: 0,
-      };
-
-      const nextOffset = DUCT_SIDE_OFFSETS_MM[nominalWidthMm]?.[nextSide] || { x: 0, y: 0, z: 0 };
-
-      const deltaOffset = {
-        x: nextOffset.x - currentOffset.x,
-        y: nextOffset.y - currentOffset.y,
-        z: nextOffset.z - currentOffset.z,
-      };
-
-      // Guardar datos actuales antes de eliminar el ducto
-      const savedPos = root.position.clone();
-      const savedRot = root.rotation.clone();
-
-      const groupId = root.userData?.groupId || null;
-      const groupName = root.userData?.groupName || null;
-      const line = root.userData?.line || 'KONCISA.PLUS';
-
-      const parentGroup =
-        root.parent?.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ? root.parent : null;
-
-      const oldCovers =
-        root.userData?.ductCovers ||
-        oldMeta?.ductCovers ||
-        defaultDuctCoverState(oldMeta?.tipoModulo || 'terminal');
-      const oldCeilingDucts =
-        root.userData?.ceilingDucts ||
-        oldMeta?.ceilingDucts ||
-        defaultCeilingDuctState(oldMeta?.tipoModulo || 'terminal');
-
-      const code = root.userData?.codigoPT || root.userData?.code;
-      const logicalCode = root.userData?.logicalCode || oldMeta?.logicalCode || null;
-      const description = root.userData?.description || root.name || 'Ducto';
-
-      // Eliminar el GLB actual
-      removePartObject(root);
-
-      // Crear el nuevo ducto con el GLB del otro lado
-      const newDuctObj = await addExternalGlbPart({
-        type: 'ducto',
-        subtype: oldMeta?.tipoModulo || 'terminal',
-        line,
-
-        code,
-        logicalCode,
-        name: description,
-
-        groupId,
-        groupName,
-        parentGroup,
-
-        position: {
-          x: savedPos.x * 1000 + deltaOffset.x,
-          y: savedPos.y * 1000 + deltaOffset.y,
-          z: savedPos.z * 1000 + deltaOffset.z,
-        },
-
-        rotation: {
-          x: savedRot.x,
-          y: savedRot.y,
-          z: savedRot.z,
-        },
-
-        model: {
-          kind: 'glb',
-          src: nextModelSrc,
-        },
-
-        meta: {
-          ...oldMeta,
-
-          category: 'ductos',
-          tipoModulo: oldMeta?.tipoModulo || 'terminal',
-          tipoPuesto: oldMeta?.tipoPuesto || 'sencillo',
-          nominalWidthMm,
-
-          side: nextSide,
-          modelSrcLeft: oldMeta?.modelSrcLeft || null,
-          modelSrcRight: oldMeta?.modelSrcRight || null,
-
-          ductCovers: oldCovers,
-          ceilingDucts: oldCeilingDucts,
-        },
-      });
-
-      if (!newDuctObj) return false;
-
-      // Mantener tapas si tenía
-      await syncDuctCovers(newDuctObj, oldCovers);
-      await syncCeilingDucts(newDuctObj, oldCeilingDucts);
-
-      setActivePart(newDuctObj);
-
-      onFloatingEditorRequest?.({
-        open: true,
-        x: window.innerWidth - 600,
-        y: 220,
-        part: buildDuctPopupPart(newDuctObj),
-        ductCovers: newDuctObj.userData?.ductCovers || null,
-      });
-
-      refreshFloorAndGrid();
-      emitBOM?.();
-
-      return true;
+      return false;
     }
 
     async function addDuctCoverChild(root, side, coverAsset) {
@@ -16521,10 +16550,11 @@ function ThreeCanvas({
       const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
       const parentIndex = parentGroup?.children?.indexOf(oldObj) ?? -1;
       const side = String(oldMeta.side || 'RIGHT').toUpperCase() === 'LEFT' ? 'LEFT' : 'RIGHT';
+      const sideModels = resolveKoncisaDuctSideModels(resolved, tipoPuesto, normalizedType);
       const modelSrc =
         side === 'LEFT'
-          ? resolved.modelSrcLeft || resolved.modelSrc
-          : resolved.modelSrcRight || resolved.modelSrc;
+          ? sideModels.modelSrcLeft || resolved.modelSrc
+          : sideModels.modelSrcRight || resolved.modelSrc;
       const moduleIndex = Math.max(0, Number(oldMeta.moduleIndex) || 0);
       const assemblyConfig = parentGroup?.userData?.config || {};
       const anchoRealMm = Number(
@@ -16575,8 +16605,8 @@ function ThreeCanvas({
           nominalWidthMm,
           side,
           accesoCableado,
-          modelSrcLeft: resolved.modelSrcLeft || null,
-          modelSrcRight: resolved.modelSrcRight || null,
+          modelSrcLeft: sideModels.modelSrcLeft,
+          modelSrcRight: sideModels.modelSrcRight,
           ductCovers: oldCovers,
           ceilingDucts: oldCeilingDucts,
         },
@@ -19762,6 +19792,9 @@ function ThreeCanvas({
       if (part?.meta?.isSpecial === true && tipoModulo === 'TERMINAL') {
         return { x: 0, y: 0, z: 0 };
       }
+      if (part?.meta?.isSpecial === true && tipoModulo === 'INTERMEDIO' && tipoPuesto === 'SENCILLO') {
+        return { x: 0, y: 0, z: 0 };
+      }
 
       if (tipoPuesto === 'DOBLE') {
         const zOffsetDoble = isPasacable ? 0 : 0;
@@ -20020,6 +20053,13 @@ function ThreeCanvas({
     }
 
     function createNativeKoncisaDuctMesh(part = {}) {
+      const isSpecialTerminal = part?.meta?.isSpecial === true &&
+        String(part?.meta?.tipoModulo || part?.subtype || '').toUpperCase() === 'TERMINAL';
+      if (isSpecialTerminal) return createNativeKoncisaSpecialTerminalDuctMesh(part);
+      const isSpecialSingleIntermediate = part?.meta?.isSpecial === true &&
+        String(part?.meta?.tipoModulo || part?.subtype || '').toUpperCase() === 'INTERMEDIO' &&
+        String(part?.meta?.tipoPuesto || '').toUpperCase() === 'SENCILLO';
+      if (isSpecialSingleIntermediate) return createNativeKoncisaSpecialSingleIntermediateDuctMesh(part);
       const tipoPuesto = String(part?.meta?.tipoPuesto || '')
         .trim()
         .toUpperCase();
@@ -20031,11 +20071,249 @@ function ThreeCanvas({
       return createNativeKoncisaSingleDuctMesh(part);
     }
 
+    function createNativeKoncisaSpecialSingleIntermediateDuctMesh(part = {}) {
+      const root = new THREE.Group();
+      root.name = part.code || 'KONCISA_DUCT_SPECIAL_SINGLE_INTERMEDIATE';
+      const realWidthMm = Number(part?.meta?.realWidthMm || part?.dimMm?.widthMm || 1200);
+      const pasacable = String(part?.meta?.accesoCableado).toUpperCase() === 'PASACABLE';
+      // Los 2KSO332000 y 2KSO367000 usan el extremo izquierdo como pivote.
+      const length = (realWidthMm + (pasacable ? 57.1 : -2)) / 1000;
+      const depth = pasacable ? 0.1065 : 0.128;
+      const material = new THREE.MeshStandardMaterial({ color: 0xfefafc, roughness: 0.72, metalness: 0.12 });
+      const sheet = (name, x0, x1, y0, y1, z0, z1) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), material.clone());
+        mesh.name = name;
+        mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+        root.add(mesh);
+      };
+      if (pasacable) {
+        sheet('ducto-intermedio-bandeja', 0, length, 0.0017, 0.007, -0.105, -0.025);
+        sheet('ducto-intermedio-pared-frontal', 0, length, 0.007, 0.1121, -0.028, -0.025);
+        sheet('ducto-intermedio-pared-posterior', 0, length, 0.007, 0.1121, -0.105, -0.102);
+        sheet('ducto-intermedio-riel-posterior', 0.0295, length - 0.0295,
+          0.001, 0.083, -depth, -0.0915);
+        sheet('ducto-intermedio-pestana-frontal', 0.05, length - 0.05,
+          0.0025, 0.0405, -0.0807, -0.0258);
+        for (const x of [0.052, 0.0827, length - 0.0827, length - 0.052]) {
+          sheet('ducto-intermedio-soporte', x - 0.01, x + 0.01,
+            0.0833, 0.1183, -0.1001, -0.03);
+        }
+        for (const x of [0.3625, length - 0.3625]) {
+          sheet('ducto-intermedio-clip-superior', x - 0.01, x + 0.01,
+            0.0652, 0.1356, -0.0328, 0);
+        }
+        for (const x of [0.076, length - 0.076]) {
+          sheet('ducto-intermedio-fijacion', x - 0.0075, x + 0.0075,
+            0.0052, 0.0778, -0.1058, -0.0948);
+        }
+      } else {
+        sheet('ducto-intermedio-bandeja', 0, length, 0.0008, 0.007, -depth, -0.025);
+        sheet('ducto-intermedio-pared-frontal', 0, length, 0.007, 0.1487, -0.028, -0.025);
+        sheet('ducto-intermedio-pared-posterior', 0, length, 0.007, 0.1487, -depth, -depth + 0.003);
+        sheet('ducto-intermedio-faldon-frontal', 0, length, 0, 0.0982, -0.0385, -0.0235);
+        sheet('ducto-intermedio-riel-inferior', 0.0205, length - 0.0205,
+          0.0015, 0.0465, -0.1272, -0.0723);
+        const coverStart = (length - 0.5) / 2;
+        sheet('ducto-intermedio-tapa-superior', coverStart, coverStart + 0.5,
+          0.194, 0.2008, -0.0328, 0);
+        sheet('ducto-intermedio-tapa-frontal', coverStart, coverStart + 0.5,
+          0.0846, 0.194, -0.006, 0);
+        sheet('ducto-intermedio-tapa-retorno', coverStart, coverStart + 0.5,
+          0.0846, 0.194, -0.0328, -0.027);
+        for (const x of [0.0532, length - 0.0532]) {
+          sheet('ducto-intermedio-soporte', x - 0.01, x + 0.01,
+            0.1023, 0.1768, -0.1195, -0.0335);
+        }
+        for (const x of [0.0465, 0.394, length - 0.394, length - 0.0465]) {
+          sheet('ducto-intermedio-refuerzo-frontal', x - 0.011, x + 0.011,
+            0.0084, 0.0931, -0.0393, -0.0243);
+        }
+      }
+      return root;
+    }
+
+    function createNativeKoncisaSpecialTerminalDuctMesh(part = {}) {
+      const root = new THREE.Group();
+      root.name = part.code || part.name || 'KONCISA_DUCT_SPECIAL_TERMINAL';
+      const { lengthMm, depthMm, heightMm } = resolveKoncisaSpecialTerminalGeometry({
+        realWidthMm: part?.meta?.realWidthMm || part?.dimMm?.widthMm,
+        tipoPuesto: part?.meta?.tipoPuesto,
+        accesoCableado: part?.meta?.accesoCableado,
+      });
+      const length = lengthMm / 1000;
+      const depth = depthMm / 1000;
+      const height = heightMm / 1000;
+      const isDouble = String(part?.meta?.tipoPuesto).toUpperCase() === 'DOBLE';
+      const isPasacable = String(part?.meta?.accesoCableado).toUpperCase() === 'PASACABLE';
+      const side = String(part?.meta?.side || 'LEFT').toUpperCase();
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xfefafc, roughness: 0.72, metalness: 0.12,
+      });
+      const addBlock = (name, width, blockHeight, blockDepth, x, y, z) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, blockHeight, blockDepth), material.clone());
+        mesh.name = name;
+        mesh.position.set(x, y, z);
+        root.add(mesh);
+      };
+      if (!isDouble) {
+        // Contornos medidos en 2KSO348000/368000, con el terminal en X positivo.
+        const addSheet = (name, x0, x1, y0, y1, z0, z1) =>
+          addBlock(name, x1 - x0, y1 - y0, z1 - z0,
+            (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+        const terminalAtRight = side === 'RIGHT';
+        const bodyStart = isPasacable || terminalAtRight ? 0 : 0.022;
+        const bodyEnd = isPasacable || !terminalAtRight ? length : length - 0.022;
+        const capStart = isPasacable
+          ? (terminalAtRight ? length - 0.0565 : 0.0075)
+          : (terminalAtRight ? length - 0.049 : 0);
+        const capEnd = capStart + 0.049;
+        const rear = -depth;
+        const front = -0.025;
+
+        addSheet('ducto-terminal-bandeja', bodyStart, bodyEnd,
+          0.025, 0.031, rear, front);
+        addSheet('ducto-terminal-pared-posterior', bodyStart, bodyEnd,
+          0.025, isPasacable ? 0.083 : 0.149, rear, rear + 0.003);
+        addSheet('ducto-terminal-pared-interior', bodyStart, bodyEnd,
+          0.025, isPasacable ? 0.112 : 0.149, front - 0.003, front);
+        addSheet('ducto-terminal-cierre', capStart, capEnd,
+          isPasacable ? 0.001 : 0, height, rear + 0.003,
+          isPasacable ? -0.024 : -0.028);
+
+        if (isPasacable) {
+          // Canal posterior, pestaña frontal y dos soportes del GLB 2KSO368000.
+          addSheet('ducto-terminal-riel-posterior', 0.0295, length - 0.0295,
+            0.001, 0.083, rear, rear + 0.0145);
+          addSheet('ducto-terminal-pestana-frontal', 0.05975, length - 0.05975,
+            0.0025, 0.0405, -0.0808, -0.0257);
+          const supportXs = terminalAtRight ? [0.0519, 0.0827] :
+            [length - 0.0827, length - 0.0519];
+          supportXs.forEach((x, index) => {
+            addSheet(`ducto-terminal-soporte-${index + 1}`, x - 0.01, x + 0.01,
+              0.083, 0.118, rear + 0.006, -0.03);
+          });
+          for (const x of [0.22, length - 0.22]) {
+            addSheet('ducto-terminal-clip-frontal', x - 0.01, x + 0.01,
+              0.065, height, -0.033, 0);
+          }
+        } else {
+          // La tapa del 2KSO348000 es un perfil abierto, no un bloque macizo.
+          const coverStart = terminalAtRight ? length - 0.59 : 0.09;
+          const coverEnd = coverStart + 0.5;
+          addSheet('ducto-terminal-tapa-superior', coverStart, coverEnd,
+            0.194, height, -0.033, 0);
+          addSheet('ducto-terminal-tapa-frontal', coverStart, coverEnd,
+            0.084, 0.194, -0.006, 0);
+          addSheet('ducto-terminal-tapa-retorno', coverStart, coverEnd,
+            0.084, 0.194, -0.033, -0.027);
+          addSheet('ducto-terminal-faldon-frontal', bodyStart, bodyEnd,
+            0, 0.098, -0.0385, -0.0235);
+          addSheet('ducto-terminal-riel-inferior',
+            terminalAtRight ? 0.03 : 0.052,
+            terminalAtRight ? length - 0.052 : length - 0.03,
+            0.0015, 0.0465, rear + 0.001, -0.072);
+          const supportXs = terminalAtRight ? [0.0224, 0.0512] :
+            [length - 0.0512, length - 0.0224];
+          supportXs.forEach((x, index) => {
+            addSheet(`ducto-terminal-soporte-${index + 1}`, x - 0.01, x + 0.01,
+              0.102, 0.177, rear + 0.008, -0.0335);
+          });
+        }
+        return root;
+      }
+      // Los GLB 2KSO349000/366000 comparten el pivote X=0 y dos canales.
+      // IZQ lleva el cierre a X positivo; DER lo lleva a X negativo.
+      const sheet = (name, x0, x1, y0, y1, z0, z1) =>
+        addBlock(name, x1 - x0, y1 - y0, z1 - z0,
+          (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      const capAtRight = side === 'LEFT';
+      const bodyStart = isPasacable || capAtRight ? 0 : 0.022;
+      const bodyEnd = isPasacable || !capAtRight ? length : length - 0.022;
+      const channelRear = isPasacable ? -0.185 : -0.2308;
+      const channelFront = isPasacable ? -0.025 : -0.0278;
+      const wallTop = isPasacable ? 0.112 : 0.1007;
+      sheet('ducto-terminal-doble-bandeja', bodyStart, bodyEnd,
+        0.001, 0.007, channelRear, channelFront);
+      sheet('ducto-terminal-doble-pared-frontal', bodyStart, bodyEnd,
+        0.007, wallTop, channelFront - 0.003, channelFront);
+      sheet('ducto-terminal-doble-pared-posterior', bodyStart, bodyEnd,
+        0.007, wallTop, channelRear, channelRear + 0.003);
+      const capStart = isPasacable
+        ? (capAtRight ? length - 0.0565 : 0.0075)
+        : (capAtRight ? length - 0.049 : 0);
+      sheet('ducto-terminal-cierre', capStart, capStart + 0.049,
+        isPasacable ? 0.001 : 0, height,
+        isPasacable ? -0.1835 : -0.2295,
+        isPasacable ? -0.0265 : -0.029);
+      if (isPasacable) {
+        for (const z of [-0.1865, -0.0385]) {
+          sheet('ducto-terminal-riel-exterior', 0.0295, length - 0.0295,
+            0.001, 0.083, z, z + 0.015);
+        }
+        sheet('ducto-terminal-riel-central', 0.0597, length - 0.0597,
+          0.0025, 0.0475, -0.1348, -0.0752);
+        const supportXs = capAtRight
+          ? [0.052, 0.0827] : [length - 0.0827, length - 0.052];
+        for (const x of supportXs) {
+          sheet('ducto-terminal-soporte-doble', x - 0.01, x + 0.01,
+            0.0833, 0.1182, -0.165, -0.045);
+        }
+        for (const x of [0.18, length - 0.18]) {
+          for (const [z0, z1] of [[-depth, -depth + 0.0328], [-0.0328, 0]]) {
+            sheet('ducto-terminal-clip-doble', x - 0.01, x + 0.01,
+              0.0652, 0.1356, z0, z1);
+          }
+        }
+        for (const x of [0.076, 0.281, length - 0.281, length - 0.076]) {
+          for (const z of [-0.18, -0.03]) {
+            sheet('ducto-terminal-refuerzo-doble', x - 0.0075, x + 0.0075,
+              0.0055, 0.078, z - 0.0055, z + 0.0055);
+          }
+        }
+      } else {
+        sheet('ducto-terminal-faldon-frontal', bodyStart, bodyEnd,
+          0, 0.0983, -0.0412, -0.0262);
+        const coverStart = capAtRight ? length - 0.611 : 0.061;
+        for (const rearCover of [true, false]) {
+          const z = rearCover ? -depth : -0.0355;
+          sheet('ducto-terminal-tapa-superior', coverStart, coverStart + 0.55,
+            0.194, height, z, z + 0.0355);
+          // En el GLB el labio exterior es más corto que el retorno interior.
+          const outerZ = rearCover ? [z, z + 0.006] : [z + 0.0295, z + 0.0355];
+          const innerZ = rearCover ? [z + 0.0295, z + 0.0355] : [z, z + 0.006];
+          sheet('ducto-terminal-tapa-labio-exterior', coverStart, coverStart + 0.55,
+            0.1, 0.194, outerZ[0], outerZ[1]);
+          sheet('ducto-terminal-tapa-retorno', coverStart, coverStart + 0.55,
+            0.0852, 0.194, innerZ[0], innerZ[1]);
+          sheet('ducto-terminal-tapa-nervio', coverStart + 0.018, coverStart + 0.532,
+            0.1, 0.102, z + 0.012, z + 0.0235);
+        }
+        const supportX = capAtRight ? 0.0532 : length - 0.0532;
+        sheet('ducto-terminal-soporte-doble', supportX - 0.01, supportX + 0.01,
+          0.1023, 0.1768, -0.2157, -0.0428);
+        for (const z of [-0.205, -0.13, -0.055]) {
+          sheet('ducto-terminal-cierre-fijacion', capAtRight ? capStart + 0.005 : capStart + 0.035,
+            capAtRight ? capStart + 0.014 : capStart + 0.044,
+            0.186, 0.198, z - 0.0045, z + 0.0045);
+        }
+        sheet('ducto-terminal-refuerzo-central', 0.025, length - 0.025,
+          0.0015, 0.0465, -depth / 2 - 0.005, -depth / 2 + 0.005);
+      }
+      return root;
+    }
+
     function addNativeKoncisaDuctPart(part) {
       if (readOnly) return null;
 
       const parentGroup = part?.parentGroup || null;
       const obj = createNativeKoncisaDuctMesh(part);
+      if (part?.meta?.isSpecial === true) {
+        obj.traverse((node) => {
+          if (!node.isMesh) return;
+          const materials = Array.isArray(node.material) ? node.material : [node.material];
+          materials.forEach((material) => material?.color?.setRGB(254 / 255, 250 / 255, 252 / 255, THREE.SRGBColorSpace));
+        });
+      }
 
       const nativeOffsetMm = getNativeDuctOffsetMm(part);
 

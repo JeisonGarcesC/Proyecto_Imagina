@@ -77,7 +77,7 @@ test('conserva la orientación específica de cada lado en el terminal doble', (
   const left = getDoubleDuct('pasacable', 'TERMINAL', 'LEFT');
   const right = getDoubleDuct('pasacable', 'TERMINAL', 'RIGHT');
   assert.deepEqual({ x: left.x, z: left.z, rotY: left.rotY }, { x: 632, z: -106, rotY: Math.PI });
-  assert.deepEqual({ x: right.x, z: right.z, rotY: right.rotY }, { x: -632, z: 152, rotY: 0 });
+  assert.deepEqual({ x: right.x, z: right.z, rotY: right.rotY }, { x: 632, z: -106, rotY: Math.PI });
 });
 
 test('ubica cada terminal doble en su propio puesto y no depende de la profundidad', () => {

@@ -1,5 +1,5 @@
 // src/koncisaPlus/parts/ductos.js
-import { resolveKoncisaDucto } from '../rules/koncisaDuctoRules';
+import { resolveKoncisaDucto, resolveKoncisaDuctSideModels } from '../rules/koncisaDuctoRules';
 
 function buildDuctoCode({ tipo, widthMm, heightMm }) {
   return `KPL-DUCT-${String(tipo).toUpperCase()}-${widthMm}x${heightMm}`;
@@ -31,13 +31,14 @@ export function createDucto({
   });
 
   const sideKey = String(side || 'RIGHT').toUpperCase();
+  const sideModels = resolveKoncisaDuctSideModels(resolved, tipoPuesto, tipoModulo);
 
   const isIndividual = String(tipoModulo || '').toUpperCase() === 'INDIVIDUAL';
 
   const modelSrc =
     sideKey === 'LEFT'
-      ? resolved?.modelSrcLeft || resolved?.modelSrc
-      : resolved?.modelSrcRight || resolved?.modelSrc;
+      ? sideModels.modelSrcLeft || resolved?.modelSrc
+      : sideModels.modelSrcRight || resolved?.modelSrc;
 
   const useNativeModel = !isIndividual && !!resolved?.useNativeModel;
   const isSpecial = !isIndividual && !!resolved?.isSpecial;
@@ -92,8 +93,8 @@ export function createDucto({
       descriptionSuffix: isSpecial ? resolved?.descriptionSuffix || '' : '',
 
       side: sideKey,
-      modelSrcLeft: resolved?.modelSrcLeft || null,
-      modelSrcRight: resolved?.modelSrcRight || null,
+      modelSrcLeft: sideModels.modelSrcLeft,
+      modelSrcRight: sideModels.modelSrcRight,
       accesoCableado,
       floorDuctEnabled: floorDuctEnabled === true,
     },

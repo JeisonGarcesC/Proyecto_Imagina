@@ -78,15 +78,20 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const selectedPrivacyPanelFinish = useMemo(() => {
     return getKoncisaPrivacyPanelFinishById(selectedPrivacyPanelFinishId);
   }, [selectedPrivacyPanelFinishId]);
-  const selectedFrontalPrivacyPanelFinish = useMemo(() =>
-    getKoncisaPrivacyPanelFinishById(selectedFrontalPrivacyPanelFinishId),
-  [selectedFrontalPrivacyPanelFinishId]);
-  const selectedLateralPrivacyPanelFinish = useMemo(() =>
-    getKoncisaPrivacyPanelFinishById(selectedLateralPrivacyPanelFinishId),
-  [selectedLateralPrivacyPanelFinishId]);
+  const selectedFrontalPrivacyPanelFinish = useMemo(
+    () => getKoncisaPrivacyPanelFinishById(selectedFrontalPrivacyPanelFinishId),
+    [selectedFrontalPrivacyPanelFinishId]
+  );
+  const selectedLateralPrivacyPanelFinish = useMemo(
+    () => getKoncisaPrivacyPanelFinishById(selectedLateralPrivacyPanelFinishId),
+    [selectedLateralPrivacyPanelFinishId]
+  );
 
   const visiblePrivacyPanelFinishOptions = useMemo(
-    () => KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.filter((option) => option.tipo === (privacyPanelType === 'both' ? 'lateral' : privacyPanelType)),
+    () =>
+      KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.filter(
+        (option) => option.tipo === (privacyPanelType === 'both' ? 'lateral' : privacyPanelType)
+      ),
     [privacyPanelType]
   );
 
@@ -96,8 +101,9 @@ export default function KoncisaPlusPanel({ onCreate }) {
       setSelectedPrivacyPanelFinishId(selectedLateralPrivacyPanelFinishId);
       return;
     }
-    setSelectedPrivacyPanelFinishId(tipo === 'frontal'
-      ? selectedFrontalPrivacyPanelFinishId : selectedLateralPrivacyPanelFinishId);
+    setSelectedPrivacyPanelFinishId(
+      tipo === 'frontal' ? selectedFrontalPrivacyPanelFinishId : selectedLateralPrivacyPanelFinishId
+    );
   };
 
   const largoCobroMm = useMemo(() => {
@@ -166,7 +172,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
         leaderHasGrommetBox,
         leaderMainGrommet: {
-          enabled: leaderMainGrommetEnabled,
+          enabled: leaderMainGrommetEnabled || leaderMainGrommetRequired,
           position: leaderMainGrommetPosition,
           finish: grommetFinish,
         },
@@ -247,19 +253,30 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
         lengthMm: selectedPrivacyPanelFinish.tipo === 'lateral' ? anchoCobroMm : largoCobroMm,
       },
-      privacyPanels: includePrivacyPanel && privacyPanelType === 'both' ? [
-        {
-          enabled: true, tipo: 'lateral', material: selectedLateralPrivacyPanelFinish.material,
-          finishCode: selectedLateralPrivacyPanelFinish.finishCode, finishLabel: selectedLateralPrivacyPanelFinish.label,
-          privacyPanelFinishId: selectedLateralPrivacyPanelFinish.id, heightMm: selectedLateralPrivacyPanelFinish.heightMm,
-          lateralPlacementMode: lateralPanelPlacementMode,
-        },
-        {
-          enabled: true, tipo: 'frontal', material: selectedFrontalPrivacyPanelFinish.material,
-          finishCode: selectedFrontalPrivacyPanelFinish.finishCode, finishLabel: selectedFrontalPrivacyPanelFinish.label,
-          privacyPanelFinishId: selectedFrontalPrivacyPanelFinish.id, heightMm: selectedFrontalPrivacyPanelFinish.heightMm,
-        },
-      ] : undefined,
+      privacyPanels:
+        includePrivacyPanel && privacyPanelType === 'both'
+          ? [
+              {
+                enabled: true,
+                tipo: 'lateral',
+                material: selectedLateralPrivacyPanelFinish.material,
+                finishCode: selectedLateralPrivacyPanelFinish.finishCode,
+                finishLabel: selectedLateralPrivacyPanelFinish.label,
+                privacyPanelFinishId: selectedLateralPrivacyPanelFinish.id,
+                heightMm: selectedLateralPrivacyPanelFinish.heightMm,
+                lateralPlacementMode: lateralPanelPlacementMode,
+              },
+              {
+                enabled: true,
+                tipo: 'frontal',
+                material: selectedFrontalPrivacyPanelFinish.material,
+                finishCode: selectedFrontalPrivacyPanelFinish.finishCode,
+                finishLabel: selectedFrontalPrivacyPanelFinish.label,
+                privacyPanelFinishId: selectedFrontalPrivacyPanelFinish.id,
+                heightMm: selectedFrontalPrivacyPanelFinish.heightMm,
+              },
+            ]
+          : undefined,
     });
 
     // TEMPORAL: prueba de pantalla lateral visible
@@ -292,7 +309,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
   useEffect(() => {
     if (tipoPasoCable !== 'grommet') return;
-    setDuctModes((prev) => prev.map((mode) => mode === 'NONE' ? 'TERMINAL' : mode));
+    setDuctModes((prev) => prev.map((mode) => (mode === 'NONE' ? 'TERMINAL' : mode)));
   }, [tipoPasoCable]);
 
   useEffect(() => {
@@ -389,6 +406,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderMainCostadoForma, setLeaderMainCostadoForma] = useState('RECT');
 
   const [leaderJunctionHasOutletBox, setLeaderJunctionHasOutletBox] = useState(false);
+  const leaderMainGrommetRequired = leaderCredenzaEnabled || leaderJunctionHasOutletBox;
 
   const leaderCostadoOptions = [
     { value: 'RECT', label: 'Rectangular' },
@@ -520,13 +538,19 @@ export default function KoncisaPlusPanel({ onCreate }) {
               {leaderCredenzaEnabled ? 'Credenza' : 'Superficie de retorno'}
             </div>
 
-            <label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={leaderCredenzaEnabled}
                 onChange={(e) => setLeaderCredenzaEnabled(e.target.checked)}
               />{' '}
-              Sustituir retorno por credenza
+              <img
+                src="/assets/imagen/KoncisaPlusImagenes/credenza.png"
+                alt=""
+                aria-hidden="true"
+                style={{ width: 88, height: 58, objectFit: 'contain', flexShrink: 0 }}
+              />
+              <span>Sustituir retorno por credenza</span>
             </label>
 
             <div>
@@ -602,7 +626,8 @@ export default function KoncisaPlusPanel({ onCreate }) {
             <label>
               <input
                 type="checkbox"
-                checked={leaderMainGrommetEnabled}
+                checked={leaderMainGrommetEnabled || leaderMainGrommetRequired}
+                disabled={leaderMainGrommetRequired}
                 onChange={(e) => {
                   const enabled = e.target.checked;
                   setLeaderMainGrommetEnabled(enabled);
@@ -763,13 +788,19 @@ export default function KoncisaPlusPanel({ onCreate }) {
             </label>
 
             {leaderJunctionHasOutletBox && (
-              <label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={leaderCostadoOutletCouplingEnabled}
                   onChange={(e) => setLeaderCostadoOutletCouplingEnabled(e.target.checked)}
                 />{' '}
-                Incluir acople a pared para la caja del costado
+                <img
+                  src="/assets/imagen/KoncisaPlusImagenes/acoplepuestolider.png"
+                  alt=""
+                  aria-hidden="true"
+                  style={{ width: 88, height: 58, objectFit: 'contain', flexShrink: 0 }}
+                />
+                <span>Incluir acople a pared para la caja del costado</span>
               </label>
             )}
           </div>
@@ -866,14 +897,52 @@ export default function KoncisaPlusPanel({ onCreate }) {
           {/* Todo el formulario estándar actual */}
           <div>
             <label>Tipo de puesto</label>
-            <select
-              value={tipoPuesto}
-              onChange={(e) => handleTipoPuestoChange(e.target.value)}
-              style={{ width: '100%' }}
+            <div
+              role="group"
+              aria-label="Tipo de puesto"
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}
             >
-              <option value="sencillo">Sencillo</option>
-              <option value="doble">Doble</option>
-            </select>
+              {[
+                {
+                  value: 'sencillo',
+                  label: 'Sencillo',
+                  image: '/assets/imagen/KoncisaPlusImagenes/rect_surfacekoncisa2.png',
+                },
+                {
+                  value: 'doble',
+                  label: 'Doble',
+                  image: '/assets/imagen/KoncisaPlusImagenes/2KDOBLE.png',
+                },
+              ].map((option) => {
+                const selected = tipoPuesto === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => handleTipoPuestoChange(option.value)}
+                    style={{
+                      display: 'grid',
+                      justifyItems: 'center',
+                      gap: 4,
+                      padding: 6,
+                      border: `1px solid ${selected ? '#286b57' : '#c8c8c8'}`,
+                      borderRadius: 4,
+                      background: selected ? '#edf5f1' : '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <img
+                      src={option.image}
+                      alt=""
+                      aria-hidden="true"
+                      style={{ width: '100%', height: 76, objectFit: 'contain' }}
+                    />
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div>
             <label>Puestos</label>
@@ -959,13 +1028,19 @@ export default function KoncisaPlusPanel({ onCreate }) {
               gap: 8,
             }}
           >
-            <label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={includePrivacyPanel}
                 onChange={(e) => setIncludePrivacyPanel(e.target.checked)}
               />{' '}
-              Incluir pantalla
+              <img
+                src="/assets/imagen/KoncisaPlusImagenes/sideScreen2.png"
+                alt=""
+                aria-hidden="true"
+                style={{ width: 88, height: 58, objectFit: 'contain', flexShrink: 0 }}
+              />
+              <span>Incluir pantalla</span>
             </label>
 
             {includePrivacyPanel && (
@@ -989,21 +1064,27 @@ export default function KoncisaPlusPanel({ onCreate }) {
                     >
                       Frontal
                     </button>
-                    <button type="button" onClick={() => handlePrivacyPanelTypeChange('both')}
+                    <button
+                      type="button"
+                      onClick={() => handlePrivacyPanelTypeChange('both')}
                       aria-pressed={privacyPanelType === 'both'}
-                      style={{ fontWeight: privacyPanelType === 'both' ? 700 : 400 }}>
+                      style={{ fontWeight: privacyPanelType === 'both' ? 700 : 400 }}
+                    >
                       Poner las dos
                     </button>
                   </div>
                 </div>
 
                 <div>
-                  <label>Acabado de pantalla {privacyPanelType === 'both' ? 'lateral' : privacyPanelType}</label>
+                  <label>
+                    Acabado de pantalla {privacyPanelType === 'both' ? 'lateral' : privacyPanelType}
+                  </label>
                   <select
                     value={selectedPrivacyPanelFinishId}
                     onChange={(e) => {
                       setSelectedPrivacyPanelFinishId(e.target.value);
-                      if (privacyPanelType === 'frontal') setSelectedFrontalPrivacyPanelFinishId(e.target.value);
+                      if (privacyPanelType === 'frontal')
+                        setSelectedFrontalPrivacyPanelFinishId(e.target.value);
                       else setSelectedLateralPrivacyPanelFinishId(e.target.value);
                     }}
                     style={{ width: '100%' }}
@@ -1016,14 +1097,24 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   </select>
                 </div>
 
-                {privacyPanelType === 'both' && <div>
-                  <label>Acabado de pantalla frontal</label>
-                  <select value={selectedFrontalPrivacyPanelFinishId}
-                    onChange={(e) => setSelectedFrontalPrivacyPanelFinishId(e.target.value)} style={{ width: '100%' }}>
-                    {KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.filter((option) => option.tipo === 'frontal').map((option) =>
-                      <option key={option.id} value={option.id}>{option.label}</option>)}
-                  </select>
-                </div>}
+                {privacyPanelType === 'both' && (
+                  <div>
+                    <label>Acabado de pantalla frontal</label>
+                    <select
+                      value={selectedFrontalPrivacyPanelFinishId}
+                      onChange={(e) => setSelectedFrontalPrivacyPanelFinishId(e.target.value)}
+                      style={{ width: '100%' }}
+                    >
+                      {KONCISA_PRIVACY_PANEL_FINISH_OPTIONS.filter(
+                        (option) => option.tipo === 'frontal'
+                      ).map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {(privacyPanelType === 'lateral' || privacyPanelType === 'both') && (
                   <div>

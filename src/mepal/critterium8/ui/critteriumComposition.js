@@ -1,19 +1,36 @@
 const unique = (values) => new Set(values.filter(Boolean)).size === values.filter(Boolean).length;
 
-export function buildCritteriumComposition(structure, systemId, selectedPart = null, selectedConnectionId = '') {
+export function buildCritteriumComposition(
+  structure,
+  systemId,
+  selectedPart = null,
+  selectedConnectionId = ''
+) {
   const systems = structure?.systems || [];
   const sequences = structure?.sequences || [];
   const selectedSystemId = selectedPart?.critteriumSystem?.systemId || null;
   const selectedSequenceId = selectedPart?.critterium8Sequence?.sequenceId || null;
   const selectedFrameId = selectedPart?.critterium8?.instanceId || null;
-  const system = systems.find((item) => item.systemId === (selectedSystemId || systemId)) || null;
+  const system =
+    systems.find((item) => item.systemId === selectedSystemId) ||
+    systems.find((item) => item.systemId === systemId) ||
+    null;
+  const missingSequenceIds = (system?.sequenceIds || []).filter(
+    (id) => !sequences.some((item) => item.sequenceId === id)
+  );
   const visibleSequences = system
-    ? (system.sequenceIds || []).map((id) => sequences.find((item) => item.sequenceId === id)).filter(Boolean)
+    ? (system.sequenceIds || [])
+        .map((id) => sequences.find((item) => item.sequenceId === id))
+        .filter(Boolean)
     : selectedSequenceId
       ? sequences.filter((item) => item.sequenceId === selectedSequenceId)
       : sequences.filter((item) => !item.parentSystemId);
-  const sequenceIndex = new Map((system?.sequenceIds || visibleSequences.map((item) => item.sequenceId))
-    .map((id, index) => [id, index + 1]));
+  const sequenceIndex = new Map(
+    (system?.sequenceIds || visibleSequences.map((item) => item.sequenceId)).map((id, index) => [
+      id,
+      index + 1,
+    ])
+  );
   const sequenceItems = visibleSequences.map((sequence) => {
     const slots = (sequence.slots || []).map((slot, index) => ({
       slotId: slot.slotId,
@@ -22,7 +39,10 @@ export function buildCritteriumComposition(structure, systemId, selectedPart = n
       frameInstanceId: slot.frameInstanceId || null,
       number: index + 1,
       widthCm: slot.widthCm,
-      heightCm: slot.frameMode === 'FLOOR_TO_CEILING' ? slot.projectHeightCm || slot.heightCm : slot.heightCm,
+      heightCm:
+        slot.frameMode === 'FLOOR_TO_CEILING'
+          ? slot.projectHeightCm || slot.heightCm
+          : slot.heightCm,
       frameMode: slot.frameMode || 'HALF_HEIGHT',
       status: slot.status === 'MISSING_FRAME' || !slot.frameInstanceId ? 'MISSING_FRAME' : 'READY',
       selected: !!selectedFrameId && selectedFrameId === slot.frameInstanceId,
@@ -44,6 +64,17 @@ export function buildCritteriumComposition(structure, systemId, selectedPart = n
     sourceNumber: sequenceIndex.get(item.sourceSequenceId) || '?',
     targetNumber: sequenceIndex.get(item.targetSequenceId) || '?',
     type: item.type,
+    status: Array.isArray(system?.spatialDiagnostics)
+      ? system.spatialDiagnostics.some(
+          (diagnostic) => diagnostic.connectionId === item.connectionId
+        )
+        ? 'INVALID'
+        : 'VALID'
+      : 'UNKNOWN',
+    diagnostic:
+      system?.spatialDiagnostics?.find(
+        (diagnostic) => diagnostic.connectionId === item.connectionId
+      )?.code || null,
     selected: item.connectionId === selectedConnectionId,
   }));
   const allSlots = sequenceItems.flatMap((item) => item.slots);
@@ -52,10 +83,19 @@ export function buildCritteriumComposition(structure, systemId, selectedPart = n
     systemSelected: !!system && selectedSystemId === system.systemId,
     sequences: sequenceItems,
     connections,
-    counts: { sequences: sequenceItems.length, modules: allSlots.length,
-      frames: allSlots.filter((item) => !!item.frameInstanceId).length, connections: connections.length },
-    idsUnique: unique([system?.systemId, ...sequenceItems.map((item) => item.sequenceId),
+    missingSequenceIds,
+    counts: {
+      sequences: system ? (system.sequenceIds || []).length : sequenceItems.length,
+      modules: allSlots.length,
+      frames: allSlots.filter((item) => !!item.frameInstanceId).length,
+      connections: connections.length,
+      missingFrames: allSlots.filter((item) => !item.frameInstanceId).length,
+    },
+    idsUnique: unique([
+      system?.systemId,
+      ...sequenceItems.map((item) => item.sequenceId),
       ...allSlots.flatMap((item) => [item.slotId, item.moduleId, item.frameId]),
-      ...connections.map((item) => item.connectionId)]),
+      ...connections.map((item) => item.connectionId),
+    ]),
   };
 }
