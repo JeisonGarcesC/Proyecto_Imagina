@@ -1,12 +1,17 @@
-import { LINK_WIDTHS, LINK_LEADER_WIDTHS, LINK_DEPTHS } from '../catalog/linkCatalog.js';
+import { LINK_WIDTHS, LINK_DEPTHS } from '../catalog/linkCatalog.js';
 import { getLinkFinishOptions, LINK_SUPPORT_SHAPES } from '../catalog/linkFinishCatalog.js';
 import { inputStyle, labelStyle, sectionStyle } from '../../../components/properties/shared/PropertyStyles.js';
 import LinkLeaderFields from '../leader/ui/LinkLeaderFields.jsx';
 import { LINK_CREDENZA_EXE_LENGTHS, LINK_CREDENZA_EXE_SIDES, LINK_CREDENZA_EXE_MODELS } from '../rules/linkCredenzaExeRules.js';
 
+// Tipos del selector superior: Link (sencillo/doble), puesto líder (superficie principal + retorno o credenza) y credenza sola.
+const toLeaderConfig = c => ({ ...c, type: 'lider', puestos: 1, surfaceMode: 'principal', modoEspecial: false, widthMm: 1200, depthMm: c.depthMm <= 600 ? 600 : 750,
+  returnLengthMm: 1200, returnDepthMm: 600, finishId: 'FORMICA_30', components: {}, integracionType: 'ninguna', hasPantallaFrontal: false, hasPantallaLateral: false, hasPantallaFalda: false });
+const toStandardConfig = c => ({ ...c, type: 'sencillo', puestos: 1, surfaceMode: 'principal', modoEspecial: false, widthMm: 1200, depthMm: c.depthMm <= 600 ? 600 : 750,
+  finishId: 'FORMICA_30', components: {}, leaderCredenza: false, leaderReturnGrommet: false });
+
 export default function LinkConfigFields({config:c,onChange,disabled=false}) {
-  const leader=c.type==='lider', widths=leader?LINK_LEADER_WIDTHS:LINK_WIDTHS;
-  if (leader) return <LinkLeaderFields config={c} onChange={onChange} disabled={disabled}/>;
+  const leader=c.type==='lider', alone=c.type==='credenza', widths=LINK_WIDTHS;
   const change=(key,value)=>{
     if (key === 'type') {
       const next = { ...c, type: value };
@@ -35,12 +40,18 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
   const dimension=(label,key,options,min,max)=>c.modoEspecial ? select(label,key,specialWidths.map(v=>({value:v,label:v+' mm'})))
     : select(label,key,options.map(v=>({value:v,label:(v/10)+' cm'})));
   return <fieldset disabled={disabled} style={{border:0,padding:0,margin:0,minWidth:0}}>
-    <div style={sectionStyle}><label style={labelStyle}>Tipo de configuración<select style={inputStyle} value={c.type==='credenza'?'CREDENZA':'LINK'}
-      onChange={e=>onChange({...c,type:e.target.value==='CREDENZA'?'credenza':(c.type==='credenza'?'sencillo':c.type)})}>
+    <div style={sectionStyle}><label style={labelStyle}>Tipo de configuración<select style={inputStyle} value={leader?'LEADER':alone?'CREDENZA':'LINK'}
+      onChange={e=>{
+        const value=e.target.value;
+        if(value==='LEADER')onChange(leader?c:toLeaderConfig(c));
+        else if(value==='CREDENZA')onChange(alone?c:{...c,type:'credenza'});
+        else onChange(leader?toStandardConfig(c):alone?{...c,type:'sencillo'}:c);
+      }}>
       <option value="LINK">Link</option>
-      <option value="CREDENZA">Credenza</option>
+      <option value="LEADER">Puesto líder (retorno o credenza)</option>
+      <option value="CREDENZA">Credenza sola</option>
     </select></label></div>
-    {c.type==='credenza'?<div style={sectionStyle}>
+    {leader?<LinkLeaderFields config={c} onChange={onChange} disabled={disabled}/>:alone?<div style={sectionStyle}>
       {select('Modelo','credenzaModel',LINK_CREDENZA_EXE_MODELS.map(m=>({value:m.value,label:m.label})))}
       {select('Lado','side',LINK_CREDENZA_EXE_SIDES)}
       {select('Largo','credenzaLengthMm',LINK_CREDENZA_EXE_LENGTHS.map(v=>({value:v,label:(v/10)+' cm'})))}

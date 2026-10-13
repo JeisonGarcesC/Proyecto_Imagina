@@ -9,11 +9,15 @@ import LinkDimensionsProperties from './LinkDimensionsProperties.jsx';
 import { sectionStyle } from '../shared/PropertyStyles.js';
 
 const isLinkWorkstation = (part) => ['sencillo', 'doble'].includes(part?.config?.type);
+const isLinkLeader = (part) => part?.config?.type === 'lider';
+const isReturnPart = (part) => ['return-surface', 'return-support', 'return-beam', 'pedestal'].includes(part?.componentKey);
+const hasLinkCredenza = (part) => part?.config?.type === 'credenza' || (part?.config?.type === 'lider' && part.config.leaderCredenza);
 
 export default function LinkProperties({ part, api, readOnly = false }) {
   if (part?.kind !== 'LINK_PRODUCT') return null;
-  const credenzaKey = part.config?.type === 'credenza' ? `:${part.config.credenzaModel}:${part.config.side}:${part.config.credenzaLengthMm}` : '';
-  const dimensionsKey = isLinkWorkstation(part) ? `:${part.config.modoEspecial}:${part.config.widthMm}:${part.config.depthMm}` : '';
+  const credenzaKey = hasLinkCredenza(part) ? `:${part.config.credenzaModel}:${part.config.side}:${part.config.credenzaLengthMm}` : '';
+  const dimensionsKey = isLinkWorkstation(part) ? `:${part.config.modoEspecial}:${part.config.widthMm}:${part.config.depthMm}`
+    : isLinkLeader(part) ? `:${part.config.modoEspecial}:${part.config.widthMm}:${part.config.depthMm}:${part.config.returnLengthMm}:${part.config.returnDepthMm}` : '';
   return <LinkComponentProperties key={`${part.instanceId}:${part.componentKey}:${JSON.stringify(part.componentConfig)}${credenzaKey}${dimensionsKey}`} part={part} api={api} readOnly={readOnly} />;
 }
 
@@ -39,9 +43,9 @@ function LinkComponentProperties({ part, api, readOnly }) {
     case 'FLOOR_DUCT': case 'CEILING_DUCT': case 'DUCT_COVER': controls = <LinkBajanteDuctProperties {...props} />; break;
     case 'PANTALLA_FRONTAL_BOARD': case 'PANTALLA_LATERAL_BOARD': case 'PANTALLA_FALDA_BOARD': controls = <LinkPantallaProperties {...props} />; break;
     case 'CREDENZA':
-      controls = part.config?.type === 'credenza' ? <LinkCredenzaProperties {...props} /> : <div style={{ fontSize: 12 }}>Selecciona una pieza para ver sus opciones. Los acabados se editan en el panel de propiedades.</div>;
+      controls = hasLinkCredenza(part) ? <LinkCredenzaProperties {...props} /> : <div style={{ fontSize: 12 }}>Selecciona una pieza para ver sus opciones. Los acabados se editan en el panel de propiedades.</div>;
       break;
     default: controls = <div style={{ fontSize: 12 }}>Selecciona una pieza para ver sus opciones. Los acabados se editan en el panel de propiedades.</div>;
   }
-  return <div style={sectionStyle}>{isLinkWorkstation(part) && <LinkDimensionsProperties {...props} />}{controls}{error && <div role="alert" style={{ color: '#b91c1c', fontSize: 12 }}>{error}</div>}</div>;
+  return <div style={sectionStyle}>{(isLinkWorkstation(part) || (isLinkLeader(part) && part.componentRole !== 'CREDENZA')) && <LinkDimensionsProperties {...props} returnSurface={isLinkLeader(part) && isReturnPart(part)} />}{controls}{error && <div role="alert" style={{ color: '#b91c1c', fontSize: 12 }}>{error}</div>}</div>;
 }

@@ -34,14 +34,19 @@ export default function LinkEditor({ initialConfig, onApply, editing = false, re
     {product && config.type === 'credenza' && <div style={sectionStyle}>
       <div style={{fontSize:12}}>Medida: {product.bounds.widthMm} × {product.bounds.depthMm} × {product.bounds.heightMm} mm</div>
     </div>}
-    {product && config.type !== 'credenza' && <div style={sectionStyle}>
+    {product?.leader && <div style={sectionStyle}>
+      <div style={{fontSize:12}}>Superficie principal: {product.config.widthMm} × {product.config.depthMm} mm</div>
+      <div style={{fontSize:12}}>{product.config.leaderCredenza ? `Credenza ${product.config.credenzaModel}: ${product.config.credenzaLengthMm} mm` : `Retorno: ${product.config.returnLengthMm} × ${product.config.returnDepthMm} mm`}</div>
+      <div style={{fontSize:12}}>Lado: {product.config.side === 'derecha' ? 'Derecho' : 'Izquierdo'}</div>
+    </div>}
+    {product && !product.leader && config.type !== 'credenza' && <div style={sectionStyle}>
       <div style={{fontSize:12}}>Puestos: {product.config.puestos} · Superficies: {product.parts.filter(p=>p.role==='SURFACE').length}</div>
       <div style={{fontSize:12}}>Medida por módulo: {product.config.widthMm} × {product.layout.totalDepthMm} mm</div>
       {product.config.modoEspecial && <div style={{fontSize:11}}>Código nominal de superficie: {product.codes.billingWidthMm} × {product.codes.billingDepthMm} mm. Se fabrica a la medida real indicada.</div>}
     </div>}
     {preview.error && <div role="alert">{preview.error}</div>}
     <button type="button" disabled={readOnly || busy || !!preview.error} onClick={apply} style={btnStyle}>
-      {busy ? 'Aplicando…' : editing ? 'Aplicar cambios' : config.type === 'credenza' ? 'Crear puesto credenza' : 'Crear puesto LINK'}
+      {busy ? 'Aplicando…' : editing ? 'Aplicar cambios' : config.type === 'credenza' ? 'Crear puesto credenza' : config.type === 'lider' ? 'Crear puesto líder' : 'Crear puesto LINK'}
     </button>
     {message && <div role="status" style={{ fontSize: 12 }}>{message}</div>}
   </div>;

@@ -72,7 +72,7 @@ for (const type of ['lider', 'jefatura']) test(type + ' usa costado de retorno y
   assert.equal(object.children.some(n => n.userData.componentRole === 'PEDESTAL'), false);
   assert.ok(object.children.find(n => n.userData.componentKey === 'return-support'));
   const [a,b] = surfaces(object).map(top => new Box3().setFromObject(top));
-  assert.ok(b.min.z < a.min.z);
+  assert.ok(b.max.z > a.max.z, 'el retorno queda detrás de la principal (el grommet está al frente)');
   const patch=createLinkComponentPatch(object,'return-support',{pedestal:true});
   const changed=createLinkInstance({config:{...object.userData.config,...patch}});
   const pedestal=changed.object.children.find(n=>n.userData.componentRole==='PEDESTAL');
@@ -85,7 +85,7 @@ for (const [key, value] of [['pasacable', true], ['ducto', true], ['ductCover', 
 
 test('combinaciones inválidas no generan objetos ni se convierten silenciosamente', () => {
   for (const config of [{ widthMm: 1000 }, { depthMm: 1226 }, { type: 'otro' }, { surfaceMode: 'plena' },
-    { type: 'lider', widthMm: 1200 }, { pedestal: true }, { surfaceColor: 'invalid' }]) {
+    { type: 'lider', widthMm: 1000 }, { pedestal: true }, { surfaceColor: 'invalid' }]) {
     const result = createLinkInstance({ config }); assert.equal(result.success, false); assert.equal(result.object, null);
   }
 });
@@ -502,29 +502,41 @@ test('ducto intermedio expone tapas y bajantes con reglas LINK por componente',(
 test('líder independiente ofrece retorno, credenza LINK y edición de sus piezas',()=>{
   const normal=buildLink({type:'lider',widthMm:1500});
   assert.ok(normal.parts.find(part=>part.key==='return-surface'));
-  const unionPlates=normal.parts.filter(part=>part.role==='UNION_PLATE');
-  assert.equal(unionPlates.length,2);
-  assert.ok(unionPlates.every(part=>part.model?.kind==='glb'));
-  assert.ok(unionPlates.every(part=>part.model.src==='/assets/models/koncisaPlus/MPR050004.glb'));
-  assert.ok(unionPlates.every(part=>part.dimensions[1]===9));
-  assert.ok(unionPlates.every(part=>part.position[1]===705));
-  const credenza=buildLink({type:'lider',widthMm:1500,leaderCredenza:true,leaderCredenzaLengthMm:1200,side:'derecha'});
+  assert.equal(normal.parts.some(part=>part.role==='UNION_PLATE'),false);
+  // Viga de retorno: misma viga Link, por el centro del retorno, del costado del extremo hasta tocar la viga principal.
+  const mainBeam=normal.parts.find(part=>part.key==='beam-0'),returnBeam=normal.parts.find(part=>part.key==='return-beam');
+  const returnSurface=normal.parts.find(part=>part.key==='return-surface'),endSupport=normal.parts.find(part=>part.key==='return-support');
+  assert.equal(returnBeam.rotation.y,Math.PI/2);
+  near(returnBeam.position[0],returnSurface.position[0]);
+  near(returnBeam.position[2]-returnBeam.dimensions[0]/2,mainBeam.dimensions[2]/2);
+  near(returnBeam.position[2]+returnBeam.dimensions[0]/2,endSupport.position.z);
+  // El retorno queda detr\u00e1s (+Z); el grommet y el ducto cableado est\u00e1n al frente (-Z) y no los toca.
+  const main=normal.parts.find(part=>part.key==='surface-0'),duct=normal.parts.find(part=>part.role==='DUCT');
+  assert.ok(returnSurface.position[2]>main.position[2]);
+  assert.ok(main.grommetHole.zMm<0);
+  assert.ok(duct.position[2]<0);
+  assert.equal(duct.model.exactSize,true);
+  assert.equal(returnBeam.dimensions[1],mainBeam.dimensions[1]);
+  assert.match(returnBeam.code,/^\d{11}$/);
+  const credenza=buildLink({type:'lider',widthMm:1500,leaderCredenza:true,credenzaLengthMm:1200,credenzaModel:'LKAL160000',side:'derecha'});
   assert.equal(credenza.parts.some(part=>part.key==='return-surface'),false);
-  assert.equal(credenza.parts.find(part=>part.role==='CREDENZA').code,'22000044144');
+  const credenzaPart=credenza.parts.find(part=>part.role==='CREDENZA');
+  assert.equal(credenzaPart.code,'22000044143');
+  assert.equal(credenzaPart.model.src,'/assets/models/Link/Credenza%20EXE/LKAL160000_DER_120.glb');
+  assert.equal(buildLink({type:'lider',widthMm:1500,leaderCredenza:true,credenzaLengthMm:1500,credenzaModel:'LKAL170000',side:'izquierda'}).parts.find(part=>part.role==='CREDENZA').code,'22000044150');
+  assert.throws(()=>buildLink({type:'lider',widthMm:1500,leaderCredenza:true,credenzaLengthMm:1300}),/credenza/i);
   assert.equal(credenza.parts.find(part=>part.key==='surface-0').code,'22000044163');
   assert.equal(credenza.parts.find(part=>part.key==='beam-0').code,'22000044169');
 });
 
-test('láminas de unión líder cargan el GLB de Koncisa con espesor físico de 9 mm',async()=>{
-  const instance=createLinkInstance({config:{type:'lider',widthMm:1500},loadAsset:loadLinkTestAsset});
-  const results=await instance.visualsReady;
-  const unionResults=results.filter(result=>result.key.startsWith('leader-union-'));
-  assert.equal(unionResults.length,2);
-  assert.ok(unionResults.every(result=>result.status==='READY'));
-  for(const key of ['leader-union-0','leader-union-1']) {
-    const component=instance.object.children.find(child=>child.userData.componentKey===key);
-    assert.equal(component.userData.visualSource,'GLB');
-    const size=new Box3().setFromObject(component).getSize(new Vector3());
-    near(size.x,0.15);near(size.y,0.009);near(size.z,0.085);
-  }
+test('medidas del líder: principal y retorno se editan en sitio con los mismos rangos de Link',()=>{
+  const {object}=createLinkInstance({config:{type:'lider'}});
+  const patch=createLinkComponentPatch(object,'return-surface',{returnLengthMm:1500,returnDepthMm:750});
+  const changed=createLinkInstance({config:{...object.userData.config,...patch}});
+  const part=changed.product.parts.find(p=>p.key==='return-surface');
+  assert.equal(part.dimensions[0],1551);assert.equal(part.dimensions[2],750);
+  assert.deepEqual(createLinkComponentPatch(object,'surface-0',{widthMm:1800,depthMm:750}),{widthMm:1800,depthMm:750});
+  assert.throws(()=>createLinkComponentPatch(object,'surface-0',{finishId:'FORMICA_25',widthMm:1800}),/no corresponde/);
+  const sencillo=createLinkInstance({config:{type:'sencillo'}}).object;
+  assert.throws(()=>createLinkComponentPatch(sencillo,'surface-0',{returnLengthMm:1500}),/no corresponde/);
 });

@@ -31,7 +31,9 @@ function createVisual(source, part, material) {
     // If size.y is ~710, it's in mm, so scale is 1/1000. If ~0.71, scale is 1.
     const scale = size.y > 10 ? 1 / 1000 : 1;
     // Eje largo del GLB del costado = X local (la rotación Y de la pieza lo lleva a la profundidad).
-    visual.scale.set(scale * (part.model.lengthScale || 1), scale, scale);
+    // Escala por eje del GLB local (X, Y, Z), opcional: p. ej. el conector de cableado de la credenza del líder.
+    const [axisX = 1, axisY = 1, axisZ = 1] = part.model.axisScale || [];
+    visual.scale.set(scale * (part.model.lengthScale || 1) * axisX, scale * axisY, scale * axisZ);
   } else {
     visual.scale.set(...dimensions.map((value, index) => value / 1000 / size.getComponent(index)));
   }
