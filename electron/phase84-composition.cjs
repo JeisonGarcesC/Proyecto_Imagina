@@ -173,19 +173,19 @@ app
         `document.querySelector('[role=status]')?.textContent`
       ),
     });
-    assert(connected.text.includes('Conexiones · 1'), 'La conexión no apareció en la composición');
+    assert(connected.text.includes('Conexiones (1)'), 'La conexión no apareció en la composición');
     await win.webContents.executeJavaScript(
-      `(() => { const row=[...document.querySelectorAll('section[aria-label="Composición CRITERIUM"] details')].find(item=>item.querySelector('summary')?.textContent.startsWith('Conexiones')); if (!row) throw new Error('Lista de conexiones ausente'); row.open=true; })()`
+      `(() => { const row=[...document.querySelectorAll('section[aria-label="Composición CRITERIUM"] details')].find(item=>item.querySelector('summary')?.textContent.trim().toUpperCase().startsWith('CONEXIONES')); if (!row) throw new Error('Lista de conexiones ausente'); row.open=true; })()`
     );
     const connectionLabel = await win.webContents.executeJavaScript(
-      `[...document.querySelectorAll('section[aria-label="Composición CRITERIUM"] button')].find(item=>item.textContent.trim().startsWith('Conexión 1'))?.textContent.trim()`
+      `[...document.querySelectorAll('section[aria-label="Composición CRITERIUM"] button')].find(item=>item.textContent.trim().startsWith('🔗 Secuencia'))?.textContent.trim()`
     );
     assert(connectionLabel, 'Tarjeta de conexión ausente');
     await click(win, connectionLabel);
     const selectedConnection = await inspect(win);
     log('CONNECTION_SELECTED', selectedConnection);
     assert(
-      selectedConnection.selected.some((label) => label.startsWith('Conexión 1')),
+      selectedConnection.selected.some((label) => label.startsWith('🔗 Secuencia')),
       'La conexión no quedó seleccionada en el panel'
     );
     const marker = await win.webContents.executeJavaScript(`(() => {
@@ -225,6 +225,24 @@ app
         disconnectedStructure.frames === 7,
       'Desconectar alteró frames/módulos o no eliminó la relación'
     );
+    const historyResult = await win.webContents.executeJavaScript(`(async () => {
+      const heading=[...document.querySelectorAll('h3')].find(el=>el.textContent.trim()==='CRITERIUM 8');
+      let fiber=heading?.[Object.keys(heading).find(key=>key.startsWith('__reactFiber'))];
+      while(fiber&&!fiber.memoizedProps?.threeApiRef)fiber=fiber.return;
+      const api=fiber.memoizedProps.threeApiRef.current;
+      const before=api.getCritteriumStructure().systems[0].connections.length;
+      await api.undoHistory();
+      const restored=api.getCritteriumStructure().systems[0].connections.length;
+      await api.redoHistory();
+      const removed=api.getCritteriumStructure().systems[0].connections.length;
+      return {before,restored,removed};
+    })()`);
+    log('DISCONNECT_UNDO_REDO', historyResult);
+    assert(historyResult.before===0 && historyResult.restored===1 && historyResult.removed===0,
+      'Undo/Redo no restauró la conexión desconectada');
+    await sleep(500);
+    assert((await inspect(win)).text.includes('Conexiones (0)'),
+      'El panel no reflejó Redo de la desconexión');
     win.hide();
     app.exit(0);
   })

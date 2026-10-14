@@ -74,15 +74,18 @@ export function unregisterCritterium8Sequence({
   return { frames, removed: true };
 }
 
+export function restoreCritterium8SequenceChildOrder(parent, sequenceRoot, index) {
+  if (index < 0 || sequenceRoot?.parent !== parent) return;
+  const appendedIndex = parent.children.indexOf(sequenceRoot);
+  parent.children.splice(appendedIndex, 1);
+  parent.children.splice(Math.min(index, parent.children.length), 0, sequenceRoot);
+}
+
 export function replaceCritterium8Sequence({ previousRoot, nextRoot, parent, partsRegistry, pickables } = {}) {
   if (!previousRoot || !nextRoot) throw new Error('CRITTERIUM8_SEQUENCE_REPLACEMENT_REQUIRED');
   const previousIndex = parent?.children?.indexOf(previousRoot) ?? -1;
   unregisterCritterium8Sequence({ sequenceRoot: previousRoot, partsRegistry, pickables, preserveFrames: false, disposeFrames: false });
   const registered = registerCritterium8Sequence({ sequenceRoot: nextRoot, parent, partsRegistry, pickables });
-  if (previousIndex >= 0 && nextRoot.parent === parent) {
-    const appendedIndex = parent.children.indexOf(nextRoot);
-    parent.children.splice(appendedIndex, 1);
-    parent.children.splice(Math.min(previousIndex, parent.children.length), 0, nextRoot);
-  }
+  restoreCritterium8SequenceChildOrder(parent, nextRoot, previousIndex);
   return registered;
 }

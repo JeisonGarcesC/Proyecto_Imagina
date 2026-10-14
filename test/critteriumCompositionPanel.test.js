@@ -63,7 +63,13 @@ test('composición vacía y sistema sin secuencias muestran contadores reales', 
 test('composición deriva orden, módulos, frames y conexiones de las entidades existentes', () => {
   const source = structure();
   const model = buildCritteriumComposition(source, 'system-1');
-  assert.deepEqual(model.counts, { sequences: 2, modules: 5, frames: 5, connections: 1 });
+  assert.deepEqual(model.counts, {
+    sequences: 2,
+    modules: 5,
+    frames: 5,
+    connections: 1,
+    missingFrames: 0,
+  });
   assert.deepEqual(
     model.sequences.map((item) => item.sequenceId),
     ['sequence-a', 'sequence-b']

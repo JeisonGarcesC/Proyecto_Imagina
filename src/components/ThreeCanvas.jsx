@@ -156,7 +156,8 @@ import {
   resolveCritteriumConnectionPoints,
   collectCritteriumSpatialDiagnostics,
   reconcileCritteriumConnectionsAfterSequenceEdit,
-  findCritteriumConnectionsAffectedBySequenceEdit,
+  describeCritteriumBlockedSequenceEdit,
+  describeCritteriumModuleEditVerb,
 } from '../mepal/critterium8/system/layout/CritteriumConnectionResolver.js';
 import {
   alignCritteriumSequences,
@@ -191,6 +192,7 @@ import {
 import {
   registerCritterium8Sequence,
   replaceCritterium8Sequence,
+  restoreCritterium8SequenceChildOrder,
   unregisterCritterium8Sequence,
 } from '../mepal/critterium8/integration/critterium8SequenceRegistration.js';
 import {
@@ -7267,6 +7269,7 @@ function ThreeCanvas({
 
     function applyCritteriumModuleState(sequenceId, state) {
       const current = findCritteriumSequenceById(sequenceId);
+      const previousIndex = state.parent?.children?.indexOf(current) ?? -1;
       const currentFrames =
         current?.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_ASSEMBLY') || [];
       if (current)
@@ -7314,6 +7317,7 @@ function ThreeCanvas({
         partsRegistry: parts,
         pickables,
       });
+      restoreCritterium8SequenceChildOrder(state.parent, prepared.sequenceRoot, previousIndex);
       state.frames.forEach((item) => {
         item.object.position.fromArray(item.position);
         item.object.quaternion.fromArray(item.quaternion);
@@ -7336,6 +7340,8 @@ function ThreeCanvas({
       if (!root) return { success: false, reason: 'CRITTERIUM8_SEQUENCE_ROOT_REQUIRED' };
       const before = captureCritteriumModuleState(root);
       const oldPoints = resolveCritteriumConnectionPoints(root);
+      const priorSpatialDiagnostics = before.system
+        ? collectCritteriumSpatialDiagnostics(before.system) : [];
       const current = before.sequence;
       if (current.slots?.some((slot) => slot.status === 'MISSING_FRAME'))
         return { success: false, reason: 'CRITTERIUM_MODULE_MISSING_FRAME' };
@@ -7356,16 +7362,10 @@ function ThreeCanvas({
           moduleId: creates ? `C8_MODULE_${THREE.MathUtils.generateUUID()}` : null,
           slotIdNew: creates ? `C8_SLOT_${THREE.MathUtils.generateUUID()}` : null,
         });
-        if (
-          before.system &&
-          findCritteriumConnectionsAffectedBySequenceEdit(
-            before.system,
-            sequenceId,
-            oldPoints,
-            next.slots
-          ).length
-        )
-          return { success: false, reason: 'Desconecte primero el extremo afectado.' };
+        const blockedReason = before.system && describeCritteriumBlockedSequenceEdit(
+          before.system, sequenceId, operation, oldPoints, next.slots
+        );
+        if (blockedReason) return { success: false, reason: blockedReason };
         const configs = next.slots.map((slot) => {
           const frame = byFrameId.get(String(slot.frameId)) || sourceFrame;
           return {
@@ -7469,9 +7469,20 @@ function ThreeCanvas({
             operation === 'REMOVE' ? sourceSlot.frameId : null,
             { rejectAffected: true }
           );
-          before.system.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(
-            before.system
+          const diagnostics = collectCritteriumSpatialDiagnostics(before.system);
+          const priorCodes = new Set(priorSpatialDiagnostics.map(
+            (item) => `${item.connectionId}|${item.code}`
+          ));
+          const newInvalid = diagnostics.find(
+            (item) => !priorCodes.has(`${item.connectionId}|${item.code}`)
           );
+          if (newInvalid)
+            throw new Error(
+              `No se puede ${describeCritteriumModuleEditVerb(operation)} el módulo: la conexión ` +
+              `${newInvalid.connectionId} quedaría físicamente inválida (${newInvalid.code}). ` +
+              'Desconecte primero ese extremo.'
+            );
+          before.system.userData.spatialDiagnostics = diagnostics;
         }
         const after = captureCritteriumModuleState(prepared.sequenceRoot);
         historyManager.pushAction({

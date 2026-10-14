@@ -359,8 +359,9 @@ export function buildKoncisaLeader(config = {}) {
   } = config;
 
   const parts = [];
-  const mainGrommetRequired =
-    leaderJunctionHasOutletBox === true || leaderCredenza?.enabled === true;
+  const leaderCredenzaEnabled = leaderCredenza?.enabled === true;
+  const hasLeaderJunctionOutletBox = leaderJunctionHasOutletBox === true && !leaderCredenzaEnabled;
+  const mainGrommetRequired = hasLeaderJunctionOutletBox || leaderCredenzaEnabled;
   const surfaceFallback = fallbackFromConfig(config);
   const mainComponentConfig = getKoncisaSurfaceComponentConfig(config, 'MAIN_SURFACE', {
     ...surfaceFallback,
@@ -384,7 +385,6 @@ export function buildKoncisaLeader(config = {}) {
       .toUpperCase() === 'LEFT'
       ? 'LEFT'
       : 'RIGHT';
-  const leaderCredenzaEnabled = leaderCredenza?.enabled === true;
   const credenzaSide =
     String(leaderCredenza?.side || sideKey)
       .trim()
@@ -431,9 +431,9 @@ export function buildKoncisaLeader(config = {}) {
         depthMm: leaderMainDepthMm,
         centerX: mainSurface.position.x,
         centerZ: mainSurface.position.z,
-        rotationY: mainSurface.rotation.y, //Math.PI / 2 cambiar la rotacion
+        rotationY: mainSurface.rotation.y + Math.PI / 2, //Math.PI / 2 cambiar la rotacion
         positionOffsetMm: {
-          x: 0, // mueve hacia los lados
+          x: 870, // mueve hacia los lados
           y: 0, // sube o baja
           z: 0, // mueve hacia el frente o fondo
         },
@@ -509,7 +509,7 @@ export function buildKoncisaLeader(config = {}) {
     );
   }
 
-  if (leaderMainFloorDuct?.enabled === true) {
+  if (!leaderCredenzaEnabled && leaderMainFloorDuct?.enabled === true) {
     parts.push(
       createLeaderFloorDuct({
         groupId,
@@ -827,7 +827,7 @@ export function buildKoncisaLeader(config = {}) {
   // Se ubica en el extremo donde conecta el retorno.
   // =====================================================
 
-  const outletResolved = leaderJunctionHasOutletBox
+  const outletResolved = hasLeaderJunctionOutletBox
     ? resolveLeaderCostadoWithOutlet({
         forma: leaderMainCostadoForma,
         depthMm: leaderMainDepthMm,
@@ -873,7 +873,7 @@ export function buildKoncisaLeader(config = {}) {
     // En estos costados no se ofrece pedestal.
     pedestalTarget: false,
 
-    hasOutletBox: !!leaderJunctionHasOutletBox,
+    hasOutletBox: hasLeaderJunctionOutletBox,
 
     outletBoxSrc: '/assets/models/koncisaPlus/CAJA_TOMAS_COSTADO.glb',
 
@@ -913,7 +913,7 @@ export function buildKoncisaLeader(config = {}) {
     parts.push(junctionCostado);
 
     // Si está activada y existe la regla, sustituye solo los datos comerciales.
-    if (leaderJunctionHasOutletBox && outletResolved?.exists) {
+    if (hasLeaderJunctionOutletBox && outletResolved?.exists) {
       junctionCostado.code = outletResolved.codigoPT;
 
       junctionCostado.rawCodigoPT = outletResolved.codigoPT;
@@ -927,7 +927,7 @@ export function buildKoncisaLeader(config = {}) {
         : `Costado ${leaderMainCostadoForma} con caja de tomas ${outletResolved.billingDepthMm}`;
     }
 
-    if (leaderJunctionHasOutletBox && leaderCostadoOutletCoupling?.enabled === true) {
+    if (hasLeaderJunctionOutletBox && leaderCostadoOutletCoupling?.enabled === true) {
       parts.push(
         createLeaderOutletWallCoupling({
           groupId,
