@@ -1,13 +1,13 @@
 import { resolveLinkLeaderLayout } from './rules/leaderLayoutRules.js';
 import { createLeaderMainSurface,createLeaderReturnSurface } from './parts/leaderSurfaces.js';
-import { createLeaderMainBeam,createLeaderReturnBeam } from './parts/leaderBeams.js';
+import { createLeaderMainBeam } from './parts/leaderBeams.js';
 import { createLeaderCredenza,createLeaderCredenzaConnector } from './parts/leaderCredenzas.js';
-import { createLeaderSurfaceAccessories,createLeaderPedestal } from './parts/leaderAccessories.js';
+import { createLeaderSurfaceAccessories,createLeaderUnionPlates,createLeaderPedestal } from './parts/leaderAccessories.js';
 import { createCostado } from '../parts/costados.js';
 import { createGrommet } from '../parts/grommets.js';
-import { createDucto,createDuctAccessories } from '../parts/ductos.js';
 import { linkPart } from '../parts/linkParts.js';
 import { resolveLeaderCostadoOutlet } from './rules/leaderCostadoOutletRules.js';
+import { LINK_GROMMET_RULES } from '../rules/linkCableAccessRules.js';
 
 export function buildLinkLeader(config) {
   const layout=resolveLinkLeaderLayout(config),parts=[];
@@ -35,17 +35,15 @@ export function buildLinkLeader(config) {
       position:[layout.returnX,355,layout.returnEndZ],rotationY:layout.returnEndRotation,lengthScale:config.returnDepthMm/600,leaderRole:'RETURN_END'});
     if(support.componentConfig.pedestal)parts.push(createLeaderPedestal(config,layout,support));
     else parts.push(support);
-    parts.push(createLeaderReturnBeam(config,layout));
+    parts.push(...createLeaderUnionPlates(config,layout));
   }
   // Con credenza no hay ducto intermedio: el cableado lo cubre el conector; el grommet (opcional) lleva su caja de tomas como en Koncisa.
   for(const surface of tops){const grommet=createGrommet(surface);if(grommet)parts.push(grommet);parts.push(...createLeaderSurfaceAccessories(config,surface));}
-  if(config.hasDuct&&!config.leaderCredenza) {
-    // Igual que en el puesto Link: el ducto cableado va bajo el grommet, al frente de la superficie.
-    // La principal es un puesto individual Link: el ducto (GLB a tama\u00f1o exacto y escalado) se resuelve como 'sencillo'.
-    const ductConfig={...config,type:'sencillo'};
-    const duct=createDucto({config:ductConfig,x:0,z:-config.depthMm/2+75});
-    if(duct)parts.push(duct,...createDuctAccessories(ductConfig,duct));
-  }
-  return {parts,layout:{surfaceDepthMm:config.depthMm,gapMm:0,totalDepthMm:config.depthMm,centersZMm:[0]},leader:true,
+  // El puesto líder no lleva ducto cableado horizontal (como en Koncisa Plus): el cableado baja por el bajante a piso de cada grommet.
+  // Con credenza el puesto factura el grommet 4 tomas (solo BOM, sin geometría); si ya hay un grommet 3D no se duplica.
+  const bomExtras=[];
+  if(config.leaderCredenza&&!parts.some(p=>p.role==='GROMMET'))
+    bomExtras.push({code:LINK_GROMMET_RULES.standard[config.grommetFinish],description:'LINK grommet '+config.grommetFinish,quantity:1});
+  return {parts,bomExtras,layout:{surfaceDepthMm:config.depthMm,gapMm:0,totalDepthMm:config.depthMm,centersZMm:[0]},leader:true,
     bounds:{widthMm:layout.widthMm,depthMm:config.leaderCredenza?Math.max(config.depthMm,config.credenzaLengthMm):config.depthMm+layout.returnLengthMm}};
 }

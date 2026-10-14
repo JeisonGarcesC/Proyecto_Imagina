@@ -4,7 +4,10 @@ import { hydrateLinkGlbParts } from '../renderers/LinkGlbRenderer.js';
 import { initializeLinkComponent, syncLinkComponentRegistry } from './linkComponentIdentity.js';
 
 function reconcileLinkComponents(object, freshRoot) {
-  const previousByKey = new Map(object.children.map(component => [component.userData?.componentKey, component]));
+  const isLinkComponent = component => component.userData?.componentEntityKind === 'LINK_COMPONENT';
+  // Piezas agregadas fuera del builder (p. ej. puesto de integración): se conservan tal cual al reconstruir.
+  const externalChildren = object.children.filter(component => !isLinkComponent(component));
+  const previousByKey = new Map(object.children.filter(isLinkComponent).map(component => [component.userData?.componentKey, component]));
   const ordered = [];
   for (const fresh of [...freshRoot.children]) {
     const key = fresh.userData?.componentKey;
@@ -36,6 +39,7 @@ function reconcileLinkComponents(object, freshRoot) {
   }
   object.clear();
   ordered.forEach(component => object.add(component));
+  externalChildren.forEach(component => object.add(component));
 }
 
 export function rebuildLinkInstance({ object, patch = {}, applyFinishes, loadAsset, onVisualReady, partsRegistry }) {

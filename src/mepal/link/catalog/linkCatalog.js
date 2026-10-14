@@ -32,5 +32,8 @@ export const LINK_TYPES = Object.freeze([
 ]);
 export const LINK_WIDTHS = Object.freeze([1200, 1500, 1800]);
 export const LINK_LEADER_WIDTHS = Object.freeze([1500, 1650, 1800]);
+// Mismas medidas que el retorno del puesto líder de Koncisa Plus.
+export const LINK_LEADER_RETURN_LENGTHS = Object.freeze([900, 1000]);
+export const LINK_LEADER_RETURN_DEPTHS = Object.freeze([600]);
 export const LINK_DEPTHS = Object.freeze([600, 750]);
 export const LINK_ACCESSORIES = Object.freeze(['grommet', 'ductoIntermedio']);

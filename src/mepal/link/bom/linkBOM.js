@@ -1,3 +1,15 @@
+import { resolveLinkSurface } from '../rules/linkSurfaceRules.js';
+
+// Mesa doble con puesto de integración: sus superficies principales se piden como terminal (no individual).
+// Solo cambia el código; descripción y precio los resuelve el catálogo XML.
+export function applyLinkIntegrationPuestoBOM(rows, config, integrationCount = 0) {
+  if (!integrationCount || config?.type !== 'doble') return rows;
+  const individual = resolveLinkSurface(config, 'individual').code;
+  const terminal = resolveLinkSurface(config, 'terminal').code;
+  if (!individual || !terminal || individual === terminal) return rows;
+  return rows.map(row => row.code === individual ? { ...row, code: terminal } : row);
+}
+
 export function resolveLinkBOM(product) {
   const rows = new Map();
   for (const part of product.parts.filter(part => !part.excludeFromBOM)) {

@@ -1,6 +1,13 @@
 import { LINK_DIMENSIONS as D } from '../definitions/linkDefaults.js';
-import { LINK_FINISH_CODES, LINK_FINISH_OPTIONS, LINK_SURFACE_POSITION_CODES, LINK_INTEGRACION_INDIVIDUAL_CODES, LINK_INTEGRACION_DOBLE_CODES } from './linkSurfaceFinishOptions.js';
+import { LINK_FINISH_CODES, LINK_FINISH_OPTIONS, LINK_SURFACE_POSITION_CODES, LINK_INTEGRACION_INDIVIDUAL_CODES, LINK_INTEGRACION_DOBLE_CODES, LINK_INTEGRACION_TRABAJO_CODES } from './linkSurfaceFinishOptions.js';
 import { nominalCeiling, nominalCeilingClamped } from './linkDimensionRules.js';
+
+// Código de la superficie de integración de trabajo del puesto de integración de una mesa doble (largo 120/150, fondo 60/75).
+export function resolveLinkIntegracionTrabajoCode(widthMm, depthMm) {
+  const depth = nominalCeiling(depthMm, [600, 750]);
+  const width = nominalCeilingClamped(widthMm, [1200, 1500]);
+  return LINK_INTEGRACION_TRABAJO_CODES[depth]?.[width] || null;
+}
 
 // Código de la superficie de integración según tipo ('individual'|'recta'|'redonda'|'curva'), acabado,
 // lado (solo individual) y fondo nominal de la mesa (config.depthMm, no el fondo total de la mesa doble).

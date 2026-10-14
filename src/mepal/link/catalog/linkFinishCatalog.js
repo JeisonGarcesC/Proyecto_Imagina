@@ -91,6 +91,12 @@ export const LINK_INTEGRACION_DOBLE_CODES = {
     TIPO2: { 600: '22000135689', 750: '22000135688' },
   },
 };
+// Superficie de integración de trabajo (puesto de integración agregado desde el costado de una mesa doble), fondo → largo → código.
+// LKSU020040 (fondo 60: 123/153 cm) y LKSU020050 (fondo 75: 120/150 cm). El precio sale del catálogo XML por código.
+export const LINK_INTEGRACION_TRABAJO_CODES = {
+  600: { 1200: '22000103800', 1500: '22000103802' },
+  750: { 1200: '22000103801', 1500: '22000103803' },
+};
 export const LINK_SUPPORT_SHAPES = [
   {value:'Link',label:'Link'}, {value:'Kuo',label:'Kuo'}
 ];
