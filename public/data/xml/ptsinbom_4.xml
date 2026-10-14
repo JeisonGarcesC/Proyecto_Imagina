@@ -5481,7 +5481,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-770-581</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -6894,7 +6894,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES040096</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -7077,7 +7077,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-072-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -7137,7 +7137,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-072-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -7197,7 +7197,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-073-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -8664,7 +8664,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-070-010</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -8757,7 +8757,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES040056</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -9267,7 +9267,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKSO370000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -10257,7 +10257,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO></NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -10443,7 +10443,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-070-020</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -11211,7 +11211,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-066</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -11295,7 +11295,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-096</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -11382,7 +11382,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>NAC-900-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -11937,7 +11937,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-760-353</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -13020,7 +13020,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO></NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -14046,7 +14046,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-069</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -15486,7 +15486,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO></NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -20514,7 +20514,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>PP-100-600</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -51765,7 +51765,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-058</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -51822,7 +51822,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-050</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -51849,7 +51849,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-770-409</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -54363,7 +54363,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>MCES-300-579</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -54420,7 +54420,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO></NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -54510,7 +54510,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-030-334</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -57120,7 +57120,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-083</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -60600,7 +60600,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>KTES-040-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -70665,7 +70665,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-072</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -78207,7 +78207,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO></NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -81813,7 +81813,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-075</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -86748,7 +86748,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKSO370000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -89778,7 +89778,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-070-040</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -89841,7 +89841,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-770-593</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -91020,7 +91020,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-760-381</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -91053,7 +91053,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-070-040</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -92376,7 +92376,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-084-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -92433,7 +92433,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-075-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -92466,7 +92466,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-760-296</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -95337,7 +95337,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-760-309</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -96159,7 +96159,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>MCES-300-583</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -98829,7 +98829,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-760-332</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -101616,7 +101616,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO></NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -101679,7 +101679,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES040056</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -109149,7 +109149,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO></NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -116847,7 +116847,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-048</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -117459,7 +117459,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-053</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -120924,7 +120924,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-078</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -122004,7 +122004,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-075-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -123402,7 +123402,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>BBVA-010-009</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -126762,7 +126762,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-078</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -127128,7 +127128,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-048</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -127185,7 +127185,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-071-000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -131757,7 +131757,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-058</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -133128,7 +133128,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>PP-020-1064</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -137850,7 +137850,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>ALE-770-662</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -137883,7 +137883,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-070-030</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -143427,7 +143427,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-040-048</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -143481,7 +143481,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKSO370000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -148812,7 +148812,7 @@
       <ANGULO>90 GRAD</ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO></NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -157233,7 +157233,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES-070-020</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -161691,7 +161691,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>BBVA-010-022</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -162177,7 +162177,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKSO370000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -164442,7 +164442,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES4107212</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -164469,7 +164469,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>LKES4107212</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -180306,7 +180306,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>2KSO382000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -180333,7 +180333,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>2KSO382000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>
@@ -180360,7 +180360,7 @@
       <ANGULO></ANGULO>
       <RADIO></RADIO>
       <PROVEEDOR>MEPAL</PROVEEDOR>
-      <ACTIVO>TRUE</ACTIVO>
+      <ACTIVO>VERDADERO</ACTIVO>
       <NUMERO_PLANO>2KSO382000</NUMERO_PLANO>
       <RecordsGenericos>
         <Genericos>

@@ -140,6 +140,7 @@ function createLeaderGrommetOutletBox({
   centerZ,
   rotationY = 0,
   placement = null,
+  componentConfig = null,
 }) {
   const resolvedPosition = resolveLeaderSurfaceAccessPosition({
     position,
@@ -193,6 +194,9 @@ function createLeaderGrommetOutletBox({
       layoutType: 'LEADER',
       leaderRole: `${surfaceRole}_GROMMET_OUTLET_BOX`,
       targetSurfaceRole: surfaceRole,
+      targetSurfaceKey: `${surfaceRole}_SURFACE`,
+      componentKey: `${surfaceRole}_SURFACE`,
+      componentConfig,
       position: resolvedPosition.positionKey,
       localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
       modelCode: 'CAJA_TOMAS_COSTADO',
@@ -244,6 +248,8 @@ function createLeaderOutletWallCoupling({ groupId, groupName, targetRole, placem
       layoutType: 'LEADER',
       leaderRole: `${targetRole}_OUTLET_WALL_COUPLING`,
       targetRole,
+      targetSurfaceRole: targetRole,
+      targetSurfaceKey: `${targetRole}_SURFACE`,
       pairedWithOutletBox: true,
       modelCode: '2KAC281000',
     },
@@ -313,6 +319,7 @@ function createLeaderFloorDuct({
       layoutType: 'LEADER',
       leaderRole: `${surfaceRole}_FLOOR_DUCT`,
       targetSurfaceRole: surfaceRole,
+      targetSurfaceKey: `${surfaceRole}_SURFACE`,
       position: resolvedPosition.positionKey,
       localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
       modelCode: '22000104949',
@@ -368,6 +375,8 @@ export function buildKoncisaLeader(config = {}) {
     grommet: leaderMainGrommet?.enabled === true || mainGrommetRequired,
     grommetFinish: leaderMainGrommet?.finish,
     grommetPosition: leaderMainGrommet?.position,
+    floorDuctEnabled: leaderMainFloorDuct?.enabled === true,
+    outletCouplingEnabled: leaderMainOutletCoupling?.enabled === true,
   });
   if (mainGrommetRequired) mainComponentConfig.grommet = true;
   const returnComponentConfig = getKoncisaSurfaceComponentConfig(config, 'RETURN_SURFACE', {
@@ -375,6 +384,8 @@ export function buildKoncisaLeader(config = {}) {
     grommet: leaderReturnGrommet?.enabled === true,
     grommetFinish: leaderReturnGrommet?.finish,
     grommetPosition: leaderReturnGrommet?.position,
+    floorDuctEnabled: leaderReturnFloorDuct?.enabled === true,
+    outletCouplingEnabled: leaderReturnOutletCoupling?.enabled === true,
   });
   const mainFinish = resolveKoncisaSurfaceFinishOption(mainComponentConfig, surfaceFallback);
   const materialTypeFor = (option) => (option.id.startsWith('FORM') ? 'FORMICA' : 'MELAMINA');
@@ -452,6 +463,7 @@ export function buildKoncisaLeader(config = {}) {
           centerX: mainSurface.position.x,
           centerZ: mainSurface.position.z,
           rotationY: mainSurface.rotation.y,
+          componentConfig: mainComponentConfig,
           placement: {
             // Posición manual de la caja de tomas de la superficie principal.
             position: {
@@ -469,7 +481,7 @@ export function buildKoncisaLeader(config = {}) {
       );
     }
 
-    if (leaderMainOutletCoupling?.enabled === true) {
+    if (mainComponentConfig.outletCouplingEnabled) {
       parts.push(
         createLeaderOutletWallCoupling({
           groupId,
@@ -509,7 +521,11 @@ export function buildKoncisaLeader(config = {}) {
     );
   }
 
-  if (!leaderCredenzaEnabled && leaderMainFloorDuct?.enabled === true) {
+  if (
+    !leaderCredenzaEnabled &&
+    mainComponentConfig.grommet &&
+    mainComponentConfig.floorDuctEnabled
+  ) {
     parts.push(
       createLeaderFloorDuct({
         groupId,
@@ -636,6 +652,7 @@ export function buildKoncisaLeader(config = {}) {
           centerX: returnSurface.position.x,
           centerZ: returnSurface.position.z,
           rotationY: returnSurface.rotation.y,
+          componentConfig: returnComponentConfig,
           placement: {
             // Posición manual de la caja de tomas de la superficie de retorno.
             position: {
@@ -652,7 +669,7 @@ export function buildKoncisaLeader(config = {}) {
         })
       );
 
-      if (leaderReturnOutletCoupling?.enabled === true) {
+      if (returnComponentConfig.outletCouplingEnabled) {
         parts.push(
           createLeaderOutletWallCoupling({
             groupId,
@@ -697,7 +714,7 @@ export function buildKoncisaLeader(config = {}) {
       );
     }
 
-    if (leaderReturnFloorDuct?.enabled === true) {
+    if (returnComponentConfig.grommet && returnComponentConfig.floorDuctEnabled) {
       parts.push(
         createLeaderFloorDuct({
           groupId,

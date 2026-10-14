@@ -33,3 +33,7 @@ Clasificación: **PASS instrumental** para los escenarios anteriores. Los preset
 No hubo cambios de producto en Fase 9.1: únicamente se añadió el harness y esta documentación. Los fallos intermitentes de las primeras ejecuciones provinieron del selector `title` del icono CRITERIUM, de devolver un Object3D no serializable desde el harness y de un clic nativo cubierto por la barra lateral. Se corrigieron en el harness y la ejecución final terminó con `PASS INSTRUMENTAL`.
 
 Validación final: pruebas dirigidas CRITERIUM **15/15**; `npm test` **344/375**, con los mismos 31 fallos externos de la línea base; `npm run build` exitoso; lint dirigido exitoso; `git diff --check` exitoso. La fase permanece **PENDING** para selección física 3D, gesto de Smart Snap y revisión visual humana. No se modificaron KONCISA, LINK, LOCKERS, VETRO, XML comerciales ni código de producto durante Fase 9.1.
+
+## Validación Fase 9.2
+
+La prueba en Electron, sus límites y la corrección de ancho del panel están documentados en [CRITERIUM_MODULE_LIBRARY_PHASE9_2.md](CRITERIUM_MODULE_LIBRARY_PHASE9_2.md). Se comprobó un gesto físico de Smart Snap con conexión LINEAR; la ejecución posterior del harness con coordenadas fijas no lo reprodujo. La inspección visual humana y los restantes escenarios interactivos siguen pendientes.

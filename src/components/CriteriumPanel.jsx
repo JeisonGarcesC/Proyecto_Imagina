@@ -332,7 +332,8 @@ export default function CriteriumPanel({
     );
   };
   return (
-    <div style={{ display: 'grid', gap: 12, minWidth: 0 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12,
+      minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
       <h3 style={{ margin: 0 }}>CRITERIUM 8</h3>
       <nav style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
         {['FRAME', 'SEQUENCE', 'SYSTEM'].map((value) => (

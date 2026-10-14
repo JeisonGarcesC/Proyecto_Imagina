@@ -181,21 +181,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
           position: leaderReturnGrommetPosition,
           finish: grommetFinish,
         },
-        leaderMainFloorDuct: {
-          enabled: leaderMainFloorDuctEnabled,
-          position: leaderMainGrommetPosition,
-        },
-        leaderReturnFloorDuct: {
-          enabled: !leaderCredenzaEnabled && leaderReturnFloorDuctEnabled,
-          position: leaderReturnGrommetPosition,
-        },
-        leaderMainOutletCoupling: {
-          enabled: leaderMainGrommetEnabled && leaderMainOutletCouplingEnabled,
-        },
-        leaderReturnOutletCoupling: {
-          enabled:
-            !leaderCredenzaEnabled && leaderHasGrommetBox && leaderReturnOutletCouplingEnabled,
-        },
         leaderCostadoOutletCoupling: {
           enabled:
             leaderJunctionHasOutletBox &&
@@ -366,10 +351,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderMainGrommetEnabled, setLeaderMainGrommetEnabled] = useState(false);
   const [leaderMainGrommetPosition, setLeaderMainGrommetPosition] = useState('CENTER');
   const [leaderReturnGrommetPosition, setLeaderReturnGrommetPosition] = useState('CENTER');
-  const [leaderMainFloorDuctEnabled, setLeaderMainFloorDuctEnabled] = useState(false);
-  const [leaderReturnFloorDuctEnabled, setLeaderReturnFloorDuctEnabled] = useState(false);
-  const [leaderMainOutletCouplingEnabled, setLeaderMainOutletCouplingEnabled] = useState(false);
-  const [leaderReturnOutletCouplingEnabled, setLeaderReturnOutletCouplingEnabled] = useState(false);
   const [leaderCostadoOutletCouplingEnabled, setLeaderCostadoOutletCouplingEnabled] =
     useState(false);
   // Falda puesto líder
@@ -549,7 +530,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   const enabled = e.target.checked;
                   setLeaderCredenzaEnabled(enabled);
                   if (enabled) {
-                    setLeaderMainFloorDuctEnabled(false);
                     setLeaderJunctionHasOutletBox(false);
                     setLeaderCostadoOutletCouplingEnabled(false);
                   }
@@ -644,35 +624,13 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   setLeaderMainGrommetEnabled(enabled);
                   if (enabled) {
                     setLeaderHasGrommetBox(false);
-                    setLeaderReturnOutletCouplingEnabled(false);
                   }
                 }}
               />{' '}
               Incluir en superficie principal
             </label>
 
-            {leaderMainGrommetEnabled && (
-              <label>
-                <input
-                  type="checkbox"
-                  checked={leaderMainOutletCouplingEnabled}
-                  onChange={(e) => setLeaderMainOutletCouplingEnabled(e.target.checked)}
-                />{' '}
-                Incluir acople a pared en superficie principal
-              </label>
-            )}
-
-            <label>
-              <input
-                type="checkbox"
-                checked={leaderMainFloorDuctEnabled && !leaderCredenzaEnabled}
-                disabled={leaderCredenzaEnabled}
-                onChange={(e) => setLeaderMainFloorDuctEnabled(e.target.checked)}
-              />{' '}
-              Incluir ducto bajante bajo superficie principal
-            </label>
-
-            {(leaderMainGrommetEnabled || leaderMainFloorDuctEnabled) && (
+            {(leaderMainGrommetEnabled || leaderMainGrommetRequired) && (
               <div>
                 <label>Posición en superficie principal</label>
                 <select
@@ -698,7 +656,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
                       setLeaderHasGrommetBox(enabled);
                       if (enabled) {
                         setLeaderMainGrommetEnabled(false);
-                        setLeaderMainOutletCouplingEnabled(false);
                       }
                     }}
                   />{' '}
@@ -706,26 +663,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
                 </label>
 
                 {leaderHasGrommetBox && (
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={leaderReturnOutletCouplingEnabled}
-                      onChange={(e) => setLeaderReturnOutletCouplingEnabled(e.target.checked)}
-                    />{' '}
-                    Incluir acople a pared en superficie de retorno
-                  </label>
-                )}
-
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={leaderReturnFloorDuctEnabled}
-                    onChange={(e) => setLeaderReturnFloorDuctEnabled(e.target.checked)}
-                  />{' '}
-                  Incluir ducto bajante bajo superficie de retorno
-                </label>
-
-                {(leaderHasGrommetBox || leaderReturnFloorDuctEnabled) && (
                   <div>
                     <label>Posición en superficie de retorno</label>
                     <select
@@ -890,11 +827,9 @@ export default function KoncisaPlusPanel({ onCreate }) {
             </div>
 
             <div>Grommet principal: {leaderMainGrommetEnabled ? 'Sí' : 'No'}</div>
-            <div>Ducto a piso principal: {leaderMainFloorDuctEnabled ? 'Sí' : 'No'}</div>
             {!leaderCredenzaEnabled && (
               <>
                 <div>Grommet retorno: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
-                <div>Ducto a piso retorno: {leaderReturnFloorDuctEnabled ? 'Sí' : 'No'}</div>
               </>
             )}
           </div>

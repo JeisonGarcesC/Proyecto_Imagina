@@ -4,11 +4,14 @@ import KoncisaPedestalProperties from './KoncisaPedestalProperties';
 import KoncisaBajanteDuctProperties from './KoncisaBajanteDuctProperties';
 import KoncisaPrivacyPanelProperties from './KoncisaPrivacyPanelProperties';
 import KoncisaSurfaceProperties from './KoncisaSurfaceProperties';
+import KoncisaLeaderOutletBoxProperties from './KoncisaLeaderOutletBoxProperties';
 
 function isLateralPrivacyPanel(part) {
   if (part?.kind !== 'PRIVACY_PANEL') return false;
   if (String(part?.subtype || '').toLowerCase() === 'lateral') return true;
-  return String(part?.description || part?.name || '').toUpperCase().includes('PANTALLA LATERAL');
+  return String(part?.description || part?.name || '')
+    .toUpperCase()
+    .includes('PANTALLA LATERAL');
 }
 
 function isLinkPart(part) {
@@ -31,7 +34,12 @@ export default function KoncisaPlusProperties({ part, api, onClose }) {
     part?.meta?.category === 'ductos_a_techo';
 
   const isCostado = part?.kind === 'costado' || part?.meta?.category === 'costados';
-  const isSurface = part?.kind === 'SURFACE' || part?.type === 'superficie' || part?.meta?.category === 'superficies';
+  const isSurface =
+    part?.kind === 'SURFACE' ||
+    part?.type === 'superficie' ||
+    part?.meta?.category === 'superficies';
+  const isLeaderOutletBox =
+    part?.meta?.category === 'cajas-de-tomas' && part?.meta?.layoutType === 'LEADER';
 
   const isPedestal = part?.kind === 'pedestal' || part?.meta?.category === 'pedestales';
 
@@ -40,6 +48,10 @@ export default function KoncisaPlusProperties({ part, api, onClose }) {
 
   if (isPrivacyPanel) {
     return <KoncisaPrivacyPanelProperties part={part} api={api} onClose={onClose} />;
+  }
+
+  if (isLeaderOutletBox) {
+    return <KoncisaLeaderOutletBoxProperties part={part} api={api} />;
   }
 
   if (isSurface)
@@ -91,6 +103,7 @@ export function isKoncisaPlusEditablePart(part) {
     isLateralPrivacyPanel(part) ||
     part?.meta?.category === 'ductos' ||
     part?.meta?.category === 'superficies' ||
+    (part?.meta?.category === 'cajas-de-tomas' && part?.meta?.layoutType === 'LEADER') ||
     part?.meta?.category === 'ductos-a-piso' ||
     part?.meta?.category === 'ductos-a-techo' ||
     part?.meta?.category === 'costados' ||

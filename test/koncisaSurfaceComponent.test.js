@@ -45,15 +45,27 @@ test('acabado, espesor y acceso de cables se guardan únicamente para la superfi
     grommetFinish: 'PAINTED',
     grommetPosition: 'CENTER',
     pasacablePosition: 'RIGHT',
+    floorDuctEnabled: false,
+    outletCouplingEnabled: false,
   });
   assert.equal(config.thickMm, 25);
   assert.equal(config.tipoPasoCable, 'none');
 });
 
 test('normalización rechaza valores arbitrarios y produce estado serializable', () => {
-  const config = getKoncisaSurfaceComponentConfig({ surfaceOverrides: {
-    SURFACE_0: { finishId: 'NO_EXISTE', cableAccessType: 'GROMMET', pasacablePosition: 'INVALID' },
-  } }, 'SURFACE_0', { finishCode: '22008689', thickMm: 25, variant: '' });
+  const config = getKoncisaSurfaceComponentConfig(
+    {
+      surfaceOverrides: {
+        SURFACE_0: {
+          finishId: 'NO_EXISTE',
+          cableAccessType: 'GROMMET',
+          pasacablePosition: 'INVALID',
+        },
+      },
+    },
+    'SURFACE_0',
+    { finishCode: '22008689', thickMm: 25, variant: '' }
+  );
   assert.equal(config.finishId, 'FORMICA_25');
   assert.equal(config.grommetPosition, 'CENTER');
   assert.equal(config.pasacablePosition, 'CENTER');
@@ -62,16 +74,38 @@ test('normalización rechaza valores arbitrarios y produce estado serializable',
 });
 
 test('el grommet siempre queda centrado y solo el pasacable admite posición lateral', () => {
-  const grommet = getKoncisaSurfaceComponentConfig({ surfaceOverrides: {
-    SURFACE_0: { cableAccessType: 'GROMMET', grommetPosition: 'RIGHT' },
-  } }, 'SURFACE_0', baseConfig);
-  const pasacable = getKoncisaSurfaceComponentConfig({ surfaceOverrides: {
-    SURFACE_0: { cableAccessType: 'PASACABLE', pasacablePosition: 'LEFT' },
-  } }, 'SURFACE_0', baseConfig);
+  const grommet = getKoncisaSurfaceComponentConfig(
+    {
+      surfaceOverrides: {
+        SURFACE_0: { cableAccessType: 'GROMMET', grommetPosition: 'RIGHT' },
+      },
+    },
+    'SURFACE_0',
+    baseConfig
+  );
+  const pasacable = getKoncisaSurfaceComponentConfig(
+    {
+      surfaceOverrides: {
+        SURFACE_0: { cableAccessType: 'PASACABLE', pasacablePosition: 'LEFT' },
+      },
+    },
+    'SURFACE_0',
+    baseConfig
+  );
   assert.equal(grommet.grommetPosition, 'CENTER');
   assert.equal(grommet.grommet, true);
   assert.equal(pasacable.pasacablePosition, 'LEFT');
   assert.equal(pasacable.pasacable, true);
+});
+
+test('las propiedades de caja LEADER persisten el ducto y el acople por superficie', () => {
+  const config = createKoncisaSurfaceConfigPatch(baseConfig, 'MAIN_SURFACE', {
+    floorDuctEnabled: true,
+    outletCouplingEnabled: true,
+  });
+
+  assert.equal(config.surfaceOverrides.MAIN_SURFACE.floorDuctEnabled, true);
+  assert.equal(config.surfaceOverrides.MAIN_SURFACE.outletCouplingEnabled, true);
 });
 
 test('la extensión contextual de Koncisa no importa módulos LINK', () => {
