@@ -1,10 +1,21 @@
 import { useId } from 'react';
-import { KUO_AV_TUNABLES } from '../mepal/kuoAV/config/kuoAVTunables.js';
+import {
+  KUO_AV_TUNABLES,
+  formatKuoAVCm,
+  resolveKuoAVDimensionOptions,
+  resolveKuoAVNominalDepth,
+  resolveKuoAVNominalWidth,
+} from '../mepal/kuoAV/config/kuoAVTunables.js';
 import { KUO_AV_DOBLE_RANGOS } from '../mepal/kuoAVDoble/config/kuoAVDobleTunables.js';
+import { KUO_AV_DOBLE_INTERMEDIATE_SUPPORTS } from '../mepal/kuoAVDoble/bom/kuoAVDobleBOMCatalog.js';
 
+// Mapa de producto pág. 19: pantalla doble en vidrio, acústica (tela), fórmica o melamínico.
+// La frontal perimetral (pág. 20, vidrio 4+4) solo aplica al puesto sencillo.
 const SCREEN_TYPES = [
-  ['FMT', 'Formica / Melamina / Tela'],
-  ['VIDRIO', 'Vidrio Laminado'],
+  ['FORMICA', 'Fórmica (KUAC690000)'],
+  ['MELAMINA', 'Melamínico (KUAC700000)'],
+  ['TELA', 'Acústica tapizada (KUAC670000)'],
+  ['VIDRIO', 'Vidrio (KUAC660000)'],
   ['FRONTAL_PERIMETRAL', 'Frontal Perimetral (Vidrio 4+4)'],
 ];
 
@@ -33,11 +44,8 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
   const vertebraLateral = !!config.vertebraLateral;
   const pantalla = !!(config.pantalla || config.pantallaEnabled);
   const pantallaTipo = isDoble ? config.pantallaTipo || 'FORMICA' : 'FRONTAL_PERIMETRAL';
-  const pantallaFamilia = ['FORMICA', 'MELAMINA', 'TELA'].includes(pantallaTipo)
-    ? 'FMT'
-    : pantallaTipo;
   const screenTypes = isDoble
-    ? SCREEN_TYPES
+    ? SCREEN_TYPES.filter(([value]) => value !== 'FRONTAL_PERIMETRAL')
     : SCREEN_TYPES.filter(([value]) => value === 'FRONTAL_PERIMETRAL');
 
   function checkbox(label, checked, change) {
@@ -60,17 +68,19 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
     <div style={{ display: 'grid', gap: 10 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {[
-          ['Ancho', 'anchoMm', KUO_AV_TUNABLES.ANCHOS_MM],
-          ['Profundidad', 'profundidadMm', KUO_AV_TUNABLES.FONDOS_MM],
+          ['Ancho', 'anchoMm', resolveKuoAVDimensionOptions('width', !!config.especial)],
+          ['Profundidad', 'profundidadMm', resolveKuoAVDimensionOptions('depth', !!config.especial)],
         ].map(([label, key, values]) => (
           <label key={key} style={{ fontSize: 12 }}>
             {label}
             <select
-              value={config[key] || values[0]}
+              value={values.reduce((best, value) => (
+                Math.abs(value - Number(config[key])) < Math.abs(best - Number(config[key])) ? value : best
+              ), values[0])}
               onChange={(event) => onChange({ [key]: Number(event.target.value) })}
               style={{ width: '100%', marginTop: 4, minHeight: 34, color: '#1f2937', background: '#fff', border: '1px solid #d1d5db', borderRadius: 7, padding: '4px 8px', colorScheme: 'light' }}
             >
-              {values.map((value) => <option key={value} value={value}>{value} mm</option>)}
+              {values.map((value) => <option key={value} value={value}>{formatKuoAVCm(value)} cm</option>)}
             </select>
           </label>
         ))}
@@ -123,11 +133,33 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
 
         {checkbox('Acabado de Grommet (Anodizado/Pintura)', paintedGrommet,
           (checked) => ({ acabadoGrommet: checked ? 'PAINTED' : 'ALUMINIUM' }))}
-        {checkbox('Especial/Rematable', !!config.especial, (checked) => ({ especial: checked }))}
+        {checkbox('Especial/Rematable', !!config.especial, (checked) => (checked
+          ? { especial: true }
+          : {
+              especial: false,
+              anchoMm: resolveKuoAVNominalWidth(config.anchoMm),
+              profundidadMm: resolveKuoAVNominalDepth(config.profundidadMm),
+            }))}
         {isDoble && checkbox('Baldosa Formica', !!config.baldosaFormica,
           (checked) => ({ baldosaFormica: checked }))}
-        {isDoble && checkbox('Costado Intermedio KUSO820000', !!config.costadoIntermedio,
-          (checked) => ({ costadoIntermedio: checked }))}
+        {isDoble && (
+          <label style={{ display: 'grid', gap: 4, fontWeight: 600 }}>
+            Soporte intermedio (unión entre puestos)
+            <select
+              value={config.soporteIntermedio || 'AUTO'}
+              onChange={(event) => onChange({ soporteIntermedio: event.target.value })}
+              style={{ width: '100%', minHeight: 34, color: '#1f2937', background: '#fff', border: '1px solid #d1d5db', borderRadius: 7, padding: '4px 8px', fontWeight: 400, colorScheme: 'light' }}
+            >
+              {KUO_AV_DOBLE_INTERMEDIATE_SUPPORTS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+            <span style={{ fontWeight: 400, fontSize: 11, color: '#6b7280' }}>
+              Cambia las uniones de todo el lote, incluso desde el primer puesto.
+              Solo aplica con 2 o más puestos dobles unidos y sin Baldosa Formica.
+            </span>
+          </label>
+        )}
         {checkbox('Aumentar Altura', Number(config.alturaMm || minHeight) > minHeight,
           (checked) => ({ alturaMm: checked ? raisedHeight : minHeight,
             ...(isDoble ? { aumentarAltura: checked } : {}) }))}
@@ -158,9 +190,9 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
             <label style={{ fontSize: 12 }}>
               Material de pantalla
               <select
-                value={pantallaFamilia}
+                value={pantallaTipo}
                 onChange={(event) => onChange({
-                  pantallaTipo: event.target.value === 'FMT' ? 'FORMICA' : event.target.value,
+                  pantallaTipo: event.target.value,
                   ...(event.target.value === 'FRONTAL_PERIMETRAL' ? { pantallaPosicion: 'CENTRAL' } : {}),
                 })}
                 style={{ width: '100%', minHeight: 36, padding: '6px 8px', color: '#1f2937', background: '#fff', border: '1px solid #d1d5db', borderRadius: 7, colorScheme: 'light' }}

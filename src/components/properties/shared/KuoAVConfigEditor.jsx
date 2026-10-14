@@ -32,7 +32,7 @@ export default function KuoAVConfigEditor({ part, api, isDoble = false }) {
       if (typeof swap !== 'function' || !instanceId) {
         throw new Error('No se encontró el puesto Kuo AV para actualizar sus opciones.');
       }
-      await swap(instanceId, next);
+      await swap(instanceId, changes);
     } catch (err) {
       console.error('[KuoAVConfigEditor] Error al actualizar el puesto:', err);
       setConfig(previous);

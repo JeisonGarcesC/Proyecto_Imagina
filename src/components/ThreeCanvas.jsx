@@ -46,6 +46,7 @@ import {
 // ✅ También corregí: applyFinishToActivePart (materialDef no estaba definido) y cleanup de listeners.
 
 import { useEffect, useRef } from 'react';
+import { resolveKuoAVDobleSupportUpdates } from '../mepal/kuoAVDoble/config/kuoAVDobleSupportUpdates.js';
 import { useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls, GLTFLoader } from 'three-stdlib';
@@ -76,6 +77,7 @@ import {
   getKoncisaPlusAssembly,
   resolveBomGroupInstanceId,
   resolveKoncisaBomConfigurationKey,
+  resolveKuoAVBomConfigurationKey,
 } from '../utils/bomGrouping.js';
 import { getFootprint2D, invalidateFootprint2D } from '../plan2d/extractFootprint2D';
 import {
@@ -3201,7 +3203,9 @@ function ThreeCanvas({
         groupInstanceId,
         typologyReferenceCode,
         category,
-        commercialVariant = null
+        commercialVariant = null,
+        bomGroupKeyOverride = null,
+        typologyCodeOverride = undefined
       ) {
         if (!code) return;
 
@@ -3215,8 +3219,8 @@ function ThreeCanvas({
             ])
           : '';
         const rowKey =
-          (normalizedGroupId
-            ? `T:${normalizedGroupId}::${normalizedCode}`
+          (bomGroupKeyOverride || normalizedGroupId
+            ? `T:${bomGroupKeyOverride || normalizedGroupId}::${normalizedCode}`
             : `S::${normalizedCode}`) + variantKey;
 
         const item = catalogByCodeRef.current?.get?.(normalizedCode);
@@ -3253,6 +3257,8 @@ function ThreeCanvas({
           section: normalizeText(category) || null,
           groupCount: groupCount || null,
           typologyReferenceCode: normalizeText(typologyReferenceCode) || null,
+          ...(bomGroupKeyOverride ? { bomGroupKey: bomGroupKeyOverride } : {}),
+          ...(typologyCodeOverride !== undefined ? { typologyCode: typologyCodeOverride } : {}),
           ...(commercialVariant
             ? {
                 reference: commercialVariant.reference ?? null,
@@ -3292,6 +3298,8 @@ function ThreeCanvas({
           section: normalizeText(category) || prev.section || null,
           typologyReferenceCode:
             normalizeText(typologyReferenceCode) || prev.typologyReferenceCode || null,
+          ...(bomGroupKeyOverride ? { bomGroupKey: bomGroupKeyOverride } : {}),
+          ...(typologyCodeOverride !== undefined ? { typologyCode: typologyCodeOverride } : {}),
           groupCount:
             Math.max(
               Number(groupCount || 0),
@@ -3617,6 +3625,7 @@ function ThreeCanvas({
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
           const groupId = obj.userData?.groupId || groupInstanceId;
           const groupName = obj.userData?.groupName || 'Puesto Doble Kuo AV';
+          const bomGroupKey = resolveKuoAVBomConfigurationKey(obj);
 
           if (Array.isArray(bomList) && bomList.length) {
             for (const it of bomList) {
@@ -3632,7 +3641,10 @@ function ThreeCanvas({
                 null,
                 groupInstanceId,
                 null,
-                it.category || it.section || it.bomSection || it.type
+                it.category || it.section || it.bomSection || it.type,
+                null,
+                bomGroupKey,
+                ''
               );
             }
           }
@@ -3644,6 +3656,7 @@ function ThreeCanvas({
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
           const groupId = obj.userData?.groupId || groupInstanceId;
           const groupName = obj.userData?.groupName || 'Kuo AV Superficie Perimetral';
+          const bomGroupKey = resolveKuoAVBomConfigurationKey(obj);
 
           for (const item of bomList) {
             const itemCode = String(item.codigo || item.code);
@@ -3658,7 +3671,10 @@ function ThreeCanvas({
               null,
               groupInstanceId,
               null,
-              item.category || item.section || item.bomSection || item.type
+              item.category || item.section || item.bomSection || item.type,
+              null,
+              bomGroupKey,
+              ''
             );
           }
           continue;
@@ -8271,6 +8287,18 @@ function ThreeCanvas({
 
     async function swapKuoAVDobleVariant(instanceId, nextConfig = {}) {
       if (readOnly) return;
+      const updates = resolveKuoAVDobleSupportUpdates(
+        parts.map(({ obj }) => obj), instanceId, nextConfig
+      );
+      for (const update of updates) {
+        await swapSingleKuoAVDobleVariant(
+          update.instanceId, update.changes, update.instanceId === instanceId
+        );
+      }
+    }
+
+    async function swapSingleKuoAVDobleVariant(instanceId, nextConfig = {}, notifyEditor = true) {
+      if (readOnly) return;
       console.log('[KUO DOUBLE PARAM] swapKuoAVDobleVariant START', { instanceId, nextConfig });
       const found = parts.find(
         ({ obj }) =>
@@ -8284,7 +8312,7 @@ function ThreeCanvas({
           '[swapKuoAVDobleVariant] No se encontró el objeto con instanceId:',
           instanceId
         );
-        return;
+        throw new Error('No se encontró el puesto doble Kuo AV para actualizarlo.');
       }
       const oldObj = getRootPartObject(found.obj) || found.obj;
       const savedPos = oldObj.position.clone();
@@ -8313,7 +8341,7 @@ function ThreeCanvas({
       }
       if (!result) {
         console.warn('[swapKuoAVDobleVariant] createKuoAVDobleInstance devolvió null');
-        return;
+        throw new Error('No se pudo reconstruir el puesto doble Kuo AV.');
       }
       const { object: newObj, partRecord } = result;
 
@@ -8379,11 +8407,11 @@ function ThreeCanvas({
           pickables.push(child);
         }
       });
-      setActivePart(newObj);
+      if (notifyEditor) setActivePart(newObj);
       emitBOM();
       refreshFloorAndGrid();
 
-      onFloatingEditorRequest?.({
+      if (notifyEditor) onFloatingEditorRequest?.({
         open: true,
         x: 120,
         y: 120,

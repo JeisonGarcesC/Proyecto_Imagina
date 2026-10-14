@@ -51,6 +51,16 @@ export const KUO_AV_DOBLE_VARIANTS = Object.freeze({
     1200: 'KUSO820000_120.glb',
     1500: 'KUSO820000_150.glb',
   },
+  costadoIntermedio: {
+    KUSO840000: {
+      1200: { glb: 'KUSO840000_120.glb', centerXM: 0.0855, centerZM: -0.360269755125045 },
+      1500: { glb: 'KUSO840000_150.glb', centerXM: 0.0855, centerZM: -0.4352397322654725 },
+    },
+    KUSO850000: {
+      1200: { glb: 'KUSO850000_120.glb', centerXM: 0.0855, centerZM: -0.360233336687088 },
+      1500: { glb: 'KUSO850000_150.glb', centerXM: 0.0855, centerZM: -0.435264319181442 },
+    },
+  },
   grommet: {
     doble: 'LKAC250000_DOBLE.glb',
     simple: 'LKAC250000.glb',

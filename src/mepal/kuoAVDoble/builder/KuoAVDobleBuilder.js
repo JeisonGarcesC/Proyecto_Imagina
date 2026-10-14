@@ -9,13 +9,21 @@ import {
   KUO_AV_DOBLE_VARIANTS,
 } from '../config/kuoAVDobleTunables.js';
 import { KUO_AV_DOBLE_PART_ROLES } from '../parts/kuoAVDobleParts.js';
-import { buildKuoAVDobleBOM } from '../bom/kuoAVDobleBOMCatalog.js';
+import {
+  buildKuoAVDobleBOM,
+  resolveKuoAVDobleIntermediateType,
+} from '../bom/kuoAVDobleBOMCatalog.js';
 import { KUO_AV_PANTALLA_CATALOG } from '../../kuoAV/config/kuoAVPantallaCatalog.js';
 import { resolveKuoAVDobleHeightPlacement } from '../config/kuoAVDobleHeightPlacement.js';
 import {
   KUO_AV_PERIMETRAL_SCREEN_MOUNT,
   resolveKuoAVPerimetralScreenHeight,
 } from '../../kuoAV/config/kuoAVPantallaPlacement.js';
+import {
+  KUO_AV_REMATE,
+  KUO_AV_LATERAL_VERTEBRA_ADJUSTMENT_MM,
+  resolveKuoAVNominalWidth,
+} from '../../kuoAV/config/kuoAVTunables.js';
 
 export function buildKuoAVDoble(config = {}) {
   const widthMm = Number(config.anchoMm || 1200);
@@ -31,6 +39,17 @@ export function buildKuoAVDoble(config = {}) {
   const hasRightFoot = typeof config.pieDerecho === 'boolean' ? config.pieDerecho : true;
   const hasLeftParales = typeof config.paralesIzquierdos === 'boolean' ? config.paralesIzquierdos : true;
   const hasRightParales = typeof config.paralesDerechos === 'boolean' ? config.paralesDerechos : true;
+
+  // Lote de puestos dobles (mapa de producto): extremos con costado terminal y una sola
+  // pieza intermedia por unión. La unión la dibuja el puesto de la derecha (pie izquierdo).
+  const batchSize = Math.max(1, Math.trunc(Number(config.kuoBatchSize) || 1));
+  const batchIndex = Math.max(0, Math.trunc(Number(config.kuoBatchIndex) || 0));
+  const sharesSupports = batchSize > 1 && !config.baldosaFormica;
+  const leftIsIntermediate = sharesSupports && batchIndex > 0;
+  const rightIsShared = sharesSupports && batchIndex < batchSize - 1;
+  const leftIntermediateType = leftIsIntermediate
+    ? resolveKuoAVDobleIntermediateType(batchIndex, config.soporteIntermedio)
+    : null;
 
   // Opciones de acabados y personalización
   const espesorTipo = config.espesorTipo || 'Formica 30';
@@ -54,19 +73,20 @@ export function buildKuoAVDoble(config = {}) {
       ? config.vertebraRightEnabled
       : true;
 
-  // Resolución de variantes de ancho (1200 / 1500 / 1650)
-  let variantKey = 1200;
-  let vigaWidthRealMm = 1196;
-  let ductoWidthRealMm = 1109.1;
-  if (widthMm >= 1650) {
-    variantKey = 1650;
-    vigaWidthRealMm = 1646;
-    ductoWidthRealMm = 1559.1;
-  } else if (widthMm >= 1500) {
-    variantKey = 1500;
-    vigaWidthRealMm = 1496;
-    ductoWidthRealMm = 1409.1;
-  }
+  // Resolución de variantes de ancho (1200 / 1500 / 1650). Remate: código y GLB de la
+  // nominal superior, escalado en X a los largos reales del mapa (viga -0,4 cm, ducto -9,1 cm).
+  const NOMINAL_VIGA_REAL_MM = { 1200: 1196, 1500: 1496, 1650: 1646 };
+  const NOMINAL_DUCTO_REAL_MM = { 1200: 1109.1, 1500: 1409.1, 1650: 1559.1 };
+  const variantKey = resolveKuoAVNominalWidth(widthMm);
+  const isWidthRemate = widthMm !== variantKey;
+  const vigaWidthRealMm = isWidthRemate
+    ? widthMm - KUO_AV_REMATE.vigaRealDeltaMm
+    : NOMINAL_VIGA_REAL_MM[variantKey];
+  const ductoWidthRealMm = isWidthRemate
+    ? widthMm - KUO_AV_REMATE.ductoRealDeltaMm
+    : NOMINAL_DUCTO_REAL_MM[variantKey];
+  const vigaScaleX = vigaWidthRealMm / NOMINAL_VIGA_REAL_MM[variantKey];
+  const ductoScaleX = ductoWidthRealMm / NOMINAL_DUCTO_REAL_MM[variantKey];
 
   // Resolución de variantes de fondo (1200 / 1500)
   let depthVariantKey = 1200;
@@ -79,6 +99,9 @@ export function buildKuoAVDoble(config = {}) {
   const vigaGlb = KUO_AV_DOBLE_VARIANTS.vigaSoporte[variantKey] || 'KUSO420000_120.glb';
   const ductoGlb = KUO_AV_DOBLE_VARIANTS.ductoCentral[variantKey] || 'KUSO830000_120.glb';
   const costadoDobleGlb = KUO_AV_DOBLE_VARIANTS.costadoDoble[depthVariantKey] || 'KUSO820000_120.glb';
+  const intermediateAsset = leftIsIntermediate
+    ? KUO_AV_DOBLE_VARIANTS.costadoIntermedio[leftIntermediateType][depthVariantKey]
+    : null;
 
   const groupId = config.groupId || `KUOAVD_${widthMm}x${depthMm * 2}_H${alturaMm}_T${thickMm}`;
   const groupName = config.groupName || 'Puesto Doble Kuo AV';
@@ -145,26 +168,37 @@ export function buildKuoAVDoble(config = {}) {
   // 3. Pies Dobles KUSO820000
   const costadoHalfZM = (costadoDepthRealMm / 2) / 1000;
 
-  // Pie Izquierdo
+  // Pie Izquierdo (en un lote, desde el segundo puesto es el costado intermedio compartido)
   if (hasLeftFoot) {
     parts.push({
       partId: `${groupId}_FOOT_LEFT`,
       groupId,
-      codigo: `KUSO820000_${depthVariantKey}_IZQ`,
-      lookupTag: 'KUSO820000',
-      role: KUO_AV_DOBLE_PART_ROLES.SUPPORT_LEFT,
-      name: `Pie Doble Izquierdo ${depthVariantKey}`,
+      codigo: leftIsIntermediate
+        ? `${leftIntermediateType}_${depthVariantKey}`
+        : `KUSO820000_${depthVariantKey}_IZQ`,
+      lookupTag: leftIsIntermediate ? leftIntermediateType : 'KUSO820000',
+      role: leftIsIntermediate
+        ? KUO_AV_DOBLE_PART_ROLES.SUPPORT_INTERMEDIATE
+        : KUO_AV_DOBLE_PART_ROLES.SUPPORT_LEFT,
+      name: leftIsIntermediate
+        ? `Costado Intermedio Doble ${leftIntermediateType} ${depthVariantKey}`
+        : `Pie Doble Izquierdo ${depthVariantKey}`,
       modelKind: 'glb',
-      glb: `/assets/models/Kuo AV/Puesto Doble/${costadoDobleGlb}`,
+      glb: `/assets/models/Kuo AV/Puesto Doble/${intermediateAsset?.glb || costadoDobleGlb}`,
       colorVariante: acabadoEstructura,
-      position: [-halfWidthM, 0, costadoHalfZM],
+      // Los intermedios se centran en la unión usando el origen medido del GLB, sin rematarlos.
+      position: [
+        -halfWidthM - (intermediateAsset?.centerXM || 0),
+        0,
+        intermediateAsset ? -intermediateAsset.centerZM : costadoHalfZM,
+      ],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
     });
   }
 
-  // Pie Derecho
-  if (hasRightFoot) {
+  // Pie Derecho (omitido si la unión la ocupa el costado intermedio del puesto siguiente)
+  if (hasRightFoot && !rightIsShared) {
     parts.push({
       partId: `${groupId}_FOOT_RIGHT`,
       groupId,
@@ -272,7 +306,7 @@ export function buildKuoAVDoble(config = {}) {
     colorVariante: acabadoEstructura,
     position: [-vigaHalfXM, vigaYM, vigaZM],
     rotation: [0, 0, 0],
-    scale: [1, 1, 1],
+    scale: [vigaScaleX, 1, 1],
   });
 
   parts.push({
@@ -287,7 +321,7 @@ export function buildKuoAVDoble(config = {}) {
     colorVariante: acabadoEstructura,
     position: [vigaHalfXM, vigaYM, -vigaZM],
     rotation: [0, Math.PI, 0],
-    scale: [1, 1, 1],
+    scale: [vigaScaleX, 1, 1],
   });
 
   // 7. Ducto Central Inferior KUSO830000
@@ -306,7 +340,7 @@ export function buildKuoAVDoble(config = {}) {
     colorVariante: acabadoEstructura,
     position: [-ductoHalfXM, ductoYM, 0.1225],
     rotation: [0, 0, 0],
-    scale: [1, 1, 1],
+    scale: [ductoScaleX, 1, 1],
   });
 
   // 8. Grommet Doble Abatible LKAC250000_DOBLE
@@ -358,6 +392,8 @@ export function buildKuoAVDoble(config = {}) {
   });
 
   // 11. Vértebras Pasacables KUAC650000
+  const lateralAdjustmentX = KUO_AV_LATERAL_VERTEBRA_ADJUSTMENT_MM.x / 1000;
+  const lateralY = 0.425 + KUO_AV_LATERAL_VERTEBRA_ADJUSTMENT_MM.y / 1000;
   if (vertebraLeftEnabled) {
     parts.push({
       partId: `${groupId}_VERTEBRA_FRONT`,
@@ -372,7 +408,7 @@ export function buildKuoAVDoble(config = {}) {
         ? `/assets/models/Kuo AV/Puesto Perimetral/KUAC650000_${heightPlacement.useRaisedAsset ? 'ALT_LAT' : 'LAT'} 1.glb`
         : `/assets/models/Kuo AV/Puesto Perimetral/${heightPlacement.useRaisedAsset ? 'KUAC650000_ALT.glb' : 'KUAC650000.glb'}`,
       colorVariante: acabadoEstructura,
-      position: vertebraLateral ? [halfWidthM - 0.315, 0.425, -0.023]
+      position: vertebraLateral ? [halfWidthM - 0.315 + lateralAdjustmentX, lateralY, -0.023]
         : [0.04, heightPlacement.useRaisedAsset ? 0.205 : 0.025, 0.047],
       rotation: [0, vertebraLateral ? 0 : Math.PI, 0],
       scale: [1, 1, 1],
@@ -393,7 +429,7 @@ export function buildKuoAVDoble(config = {}) {
         ? `/assets/models/Kuo AV/Puesto Perimetral/KUAC650000_${heightPlacement.useRaisedAsset ? 'ALT_LAT' : 'LAT'} 1.glb`
         : `/assets/models/Kuo AV/Puesto Perimetral/${heightPlacement.useRaisedAsset ? 'KUAC650000_ALT.glb' : 'KUAC650000.glb'}`,
       colorVariante: acabadoEstructura,
-      position: vertebraLateral ? [halfWidthM - 0.320, 0.425, 0.095]
+      position: vertebraLateral ? [halfWidthM - 0.320 + lateralAdjustmentX, lateralY, 0.095]
         : [-0.04, heightPlacement.useRaisedAsset ? 0.205 : 0.025, -0.043],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
@@ -467,65 +503,52 @@ export function buildKuoAVDoble(config = {}) {
   const pantallaAcabado = config.pantallaAcabado || (isPantallaVidrioDoble ? '#a5f3fc' : '#dedede');
 
   if (hasPantalla) {
-    let panDimStr = '120';
-    let panWidthM = 1.125;
-    if (widthMm === 1500) {
-      panDimStr = '150';
-      panWidthM = 1.425;
-    } else if (widthMm >= 1650) {
-      panDimStr = '165';
-      panWidthM = 1.575;
-    }
-
-    let codigoPT = '22000116713';
-    let lookupTag = `KUOPRIVACYPANEL_30_${panDimStr}-22008689`;
-    let planoCode = 'KUAC690000';
-    let materialName = 'FORMICA';
+    const panNominalMm = resolveKuoAVNominalWidth(widthMm);
+    const panDimStr = String(panNominalMm / 10);
+    const panNominalWidthM = (panNominalMm - 75) / 1000;
+    const panWidthM = (Math.min(widthMm, panNominalMm) - 75) / 1000;
+    const catalogKey =
+      pantallaTipo === 'FRONTAL_PERIMETRAL'
+        ? 'FRONTAL_PERIMETRAL'
+        : isPantallaVidrioDoble
+        ? 'VIDRIO'
+        : pantallaTipo === 'MELAMINA'
+        ? 'MELAMINA'
+        : pantallaTipo === 'TELA'
+        ? 'TELA'
+        : 'FORMICA';
+    const screen =
+      KUO_AV_PANTALLA_CATALOG[catalogKey]?.[panNominalMm] ||
+      KUO_AV_PANTALLA_CATALOG.FORMICA[panNominalMm];
+    const codigoPT = screen.codigoPT;
+    const lookupTag = screen.lookupTag;
+    const planoCode = {
+      FRONTAL_PERIMETRAL: 'KUAC710000',
+      VIDRIO: 'KUAC660000',
+      MELAMINA: 'KUAC700000',
+      TELA: 'KUAC670000',
+      FORMICA: 'KUAC690000',
+    }[catalogKey];
+    const materialName = {
+      FRONTAL_PERIMETRAL: 'VIDRIO LAMINADO 4+4',
+      VIDRIO: 'VIDRIO LAMINADO',
+      MELAMINA: 'MELAMINICO',
+      TELA: 'ACUSTICA',
+      FORMICA: 'FORMICA',
+    }[catalogKey];
 
     let glbPath = `/assets/models/Kuo AV/Pantalla FMT/KUAC690000_${panDimStr}.glb`;
-
-    if (pantallaTipo === 'FRONTAL_PERIMETRAL') {
-      const widthKey = widthMm >= 1650 ? 1650 : widthMm >= 1500 ? 1500 : 1200;
-      const screen = KUO_AV_PANTALLA_CATALOG.FRONTAL_PERIMETRAL[widthKey];
-      codigoPT = screen.codigoPT;
-      lookupTag = screen.lookupTag;
-      planoCode = 'KUAC710000';
-      materialName = 'VIDRIO LAMINADO 4+4';
-      const glbWidth = widthKey === 1500 ? '120' : panDimStr;
+    if (catalogKey === 'FRONTAL_PERIMETRAL') {
+      const glbWidth = panNominalMm === 1500 ? '120' : panDimStr;
       glbPath = `/assets/models/Kuo AV/Frontal Perimetral/KUAC710000_${glbWidth}.glb`;
-    } else if (pantallaTipo === 'VIDRIO' || pantallaTipo === 'VIDRIO LAMINADO') {
-      planoCode = 'KUAC660000';
-      materialName = 'VIDRIO LAMINADO';
-      if (widthMm === 1200) codigoPT = '22000116695';
-      else if (widthMm === 1500) codigoPT = '22000116337';
-      else codigoPT = '22000116696';
-      lookupTag = `KUOPRIVACYPANELGLASS_30_${panDimStr}-22006318`;
+    } else if (catalogKey === 'VIDRIO') {
       glbPath = `/assets/models/Kuo AV/Pantalla Vidrio/KUAC660000_120.glb`;
-    } else if (pantallaTipo === 'MELAMINA') {
-      planoCode = 'KUAC700000';
-      materialName = 'MELAMINICO';
-      if (widthMm === 1200) codigoPT = '22000116716';
-      else if (widthMm === 1500) codigoPT = '22000116821';
-      else codigoPT = '22000116822';
-      lookupTag = `KUOPRIVACYPANEL_30_${panDimStr}-22015138`;
-    } else if (pantallaTipo === 'TELA') {
-      planoCode = 'KUAC670000';
-      materialName = 'ACUSTICA';
-      if (widthMm === 1200) codigoPT = '22000116710';
-      else if (widthMm === 1500) codigoPT = '22000116711';
-      else codigoPT = '22000116712';
-      lookupTag = `KUOPRIVACYPANEL_30_${panDimStr}-22021827`;
-    } else {
-      // FORMICA
-      if (widthMm === 1200) codigoPT = '22000116713';
-      else if (widthMm === 1500) codigoPT = '22000116714';
-      else codigoPT = '22000116715';
     }
 
     const isPerimetral = pantallaTipo === 'FRONTAL_PERIMETRAL';
-    const scaleX = (isPantallaVidrioDoble && widthMm !== 1200) || (isPerimetral && widthMm === 1500)
-      ? panWidthM / 1.125
-      : 1;
+    const glbWidthM = glbPath.endsWith('_120.glb') ? 1.125 : panNominalWidthM;
+    const rawScaleX = panWidthM / glbWidthM;
+    const scaleX = Math.abs(rawScaleX - 1) > 1e-6 ? rawScaleX : 1;
 
     parts.push({
       partId: `${groupId}_PANTALLA`,

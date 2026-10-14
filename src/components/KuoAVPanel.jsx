@@ -14,12 +14,14 @@ export default function KuoAVPanel({ threeApiRef }) {
     espesorTipo: 'Formica 30',
     kitFuente: true,
     kitFuenteColor: 'Blanco',
+    botoneraCode: '22024327',
     elevarKitFIzquierdo: false,
     acabadoGrommet: 'ALUMINIUM',
     especial: false,
     vertebraLateral: false,
     baldosaFormica: false,
     costadoIntermedio: false,
+    soporteIntermedio: 'AUTO',
     pantalla: false,
     pantallaEnabled: false,
     pantallaTipo: 'FRONTAL_PERIMETRAL',
@@ -56,6 +58,8 @@ export default function KuoAVPanel({ threeApiRef }) {
         const result = await add({
           ...config,
           kitFuente: true,
+          kuoBatchIndex: i,
+          kuoBatchSize: numPuestos,
           ...(isDoble ? {
             vertebraLeftEnabled: true,
             vertebraRightEnabled: true,
@@ -125,6 +129,7 @@ export default function KuoAVPanel({ threeApiRef }) {
         <div>Altura: {config.alturaMm} mm</div>
         <div>Puestos a crear: {numPuestos} (unidos borde a borde)</div>
         <div>Esta configuración se inserta separada de las anteriores.</div>
+        <div>Este panel configura puestos nuevos. Para cambiar los ya insertados, usa sus propiedades.</div>
         <div>Kit fuente: {config.kitFuenteColor}</div>
         <div>Pantalla: {config.pantalla ? config.pantallaTipo : 'No incluida'}</div>
       </div>

@@ -5,8 +5,15 @@
 // ruta de GLB real o generador procedural, y metadata de ensamble.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { KUO_AV_SAP_CODES, KUO_AV_TUNABLES } from '../config/kuoAVTunables.js';
+import {
+  KUO_AV_SAP_CODES,
+  KUO_AV_TUNABLES,
+  resolveKuoAVNominalWidth,
+} from '../config/kuoAVTunables.js';
 import { KUO_AV_PANTALLA_CATALOG } from '../factory/createKuoAVPantallaInstance.js';
+
+// Ancho visual de la pantalla calibrado en el visor: ancho del puesto - 7,5 cm.
+const KUO_AV_PANTALLA_VISUAL_DELTA_MM = 75;
 
 /**
  * Roles estructurales y funcionales de las piezas de KUO AV.
@@ -589,9 +596,11 @@ export function createKuoAVPantallaPart({
     ? 'TELA'
     : 'FORMICA';
 
-  const anchoMm = widthMm === 1500 ? 1500 : widthMm >= 1650 ? 1650 : 1200;
+  const requestedWidthMm = Number(widthMm) || 1200;
+  const anchoMm = resolveKuoAVNominalWidth(requestedWidthMm);
   const dimStr = anchoMm === 1500 ? '150' : anchoMm === 1650 ? '165' : '120';
-  const widthM = anchoMm === 1500 ? 1.425 : anchoMm === 1650 ? 1.575 : 1.125;
+  const nominalWidthM = (anchoMm - KUO_AV_PANTALLA_VISUAL_DELTA_MM) / 1000;
+  const widthM = (Math.min(requestedWidthMm, anchoMm) - KUO_AV_PANTALLA_VISUAL_DELTA_MM) / 1000;
 
   const matMap = KUO_AV_PANTALLA_CATALOG[materialKey] || KUO_AV_PANTALLA_CATALOG.FORMICA;
   const itemData = matMap[anchoMm] || matMap[1200];
@@ -636,7 +645,11 @@ export function createKuoAVPantallaPart({
     position: { x, y, z },
     rotation: { x: 0, y: 0, z: 0 },
     scale: {
-      x: glbFile.endsWith('_120.glb') && anchoMm !== 1200 ? widthM / 1.125 : 1,
+      x: (() => {
+        const glbWidthM = glbFile.endsWith('_120.glb') ? 1.125 : nominalWidthM;
+        const scaleX = widthM / glbWidthM;
+        return Math.abs(scaleX - 1) > 1e-6 ? scaleX : 1;
+      })(),
       y: 1,
       z: 1,
     },
