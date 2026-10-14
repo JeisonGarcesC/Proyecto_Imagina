@@ -72,7 +72,7 @@ for (const type of ['lider', 'jefatura']) test(type + ' usa costado de retorno y
   assert.equal(object.children.some(n => n.userData.componentRole === 'PEDESTAL'), false);
   assert.ok(object.children.find(n => n.userData.componentKey === 'return-support'));
   const [a,b] = surfaces(object).map(top => new Box3().setFromObject(top));
-  assert.ok(b.max.z > a.max.z, 'el retorno queda detrás de la principal (el grommet está al frente)');
+  assert.ok(b.min.z < a.min.z, 'el retorno sale al frente de la principal, como en Koncisa Plus');
   const patch=createLinkComponentPatch(object,'return-support',{pedestal:true});
   const changed=createLinkInstance({config:{...object.userData.config,...patch}});
   const pedestal=changed.object.children.find(n=>n.userData.componentRole==='PEDESTAL');
@@ -376,8 +376,8 @@ test('ductos especiales/líder conservan medidas reales y SKU LINK nominal super
   assert.equal(special.codes.duct,'22000021977');
   assert.equal(special.parts.find(p=>p.role==='DUCT').dimensions[0],1350);
   const leader=buildLink({type:'lider',widthMm:1650,hasDuct:true});
-  assert.equal(leader.codes.duct,'22000021981');
-  assert.equal(leader.parts.filter(p=>p.role==='DUCT').length,1);
+  assert.equal(leader.codes.duct,null);
+  assert.equal(leader.parts.filter(p=>p.role==='DUCT').length,0);
   const {object}=createLinkInstance({config:special.config});
   assert.deepEqual(restoreLinkEntity(serializeLinkEntity(object)).object.userData.bom,object.userData.bom);
   assert.equal(createLinkInstance({config:{hasDuct:'true'}}).success,false);
@@ -502,22 +502,42 @@ test('ducto intermedio expone tapas y bajantes con reglas LINK por componente',(
 test('líder independiente ofrece retorno, credenza LINK y edición de sus piezas',()=>{
   const normal=buildLink({type:'lider',widthMm:1500});
   assert.ok(normal.parts.find(part=>part.key==='return-surface'));
-  assert.equal(normal.parts.some(part=>part.role==='UNION_PLATE'),false);
-  // Viga de retorno: misma viga Link, por el centro del retorno, del costado del extremo hasta tocar la viga principal.
-  const mainBeam=normal.parts.find(part=>part.key==='beam-0'),returnBeam=normal.parts.find(part=>part.key==='return-beam');
+  // Como en Koncisa Plus: sin viga de retorno; dos l\u00e1minas de uni\u00f3n entre principal y retorno y costado en el extremo libre del retorno.
+  assert.equal(normal.parts.some(part=>part.key==='return-beam'),false);
   const returnSurface=normal.parts.find(part=>part.key==='return-surface'),endSupport=normal.parts.find(part=>part.key==='return-support');
-  assert.equal(returnBeam.rotation.y,Math.PI/2);
-  near(returnBeam.position[0],returnSurface.position[0]);
-  near(returnBeam.position[2]-returnBeam.dimensions[0]/2,mainBeam.dimensions[2]/2);
-  near(returnBeam.position[2]+returnBeam.dimensions[0]/2,endSupport.position.z);
-  // El retorno queda detr\u00e1s (+Z); el grommet y el ducto cableado est\u00e1n al frente (-Z) y no los toca.
-  const main=normal.parts.find(part=>part.key==='surface-0'),duct=normal.parts.find(part=>part.role==='DUCT');
-  assert.ok(returnSurface.position[2]>main.position[2]);
-  assert.ok(main.grommetHole.zMm<0);
-  assert.ok(duct.position[2]<0);
-  assert.equal(duct.model.exactSize,true);
-  assert.equal(returnBeam.dimensions[1],mainBeam.dimensions[1]);
-  assert.match(returnBeam.code,/^\d{11}$/);
+  const plates=normal.parts.filter(part=>part.role==='UNION_PLATE');
+  assert.equal(plates.length,2);
+  assert.ok(plates.every(plate=>plate.code==='22000109449'));
+  near(plates[1].position[0]-plates[0].position[0],190);
+  near((plates[0].position[0]+plates[1].position[0])/2,returnSurface.position[0]);
+  // El retorno sale del borde frontal (-Z) de la principal, adyacente a ella, y su costado cierra el extremo libre.
+  const main=normal.parts.find(part=>part.key==='surface-0');
+  near(returnSurface.position[2],-(main.dimensions[2]/2+returnSurface.dimensions[0]/2));
+  near(plates[0].position[2],-main.dimensions[2]/2-5);
+  assert.ok(endSupport.position.z<returnSurface.position[2]);
+  near(endSupport.position.x,returnSurface.position[0]);
+  // Grommet de la principal como el del líder con credenza: al final del lado largo (extremo de la entrega), a 134.5 mm del borde, centrado a lo ancho,
+  // girado 90°, con su caja de tomas Koncisa (446 × 152 × 153 mm) pegada bajo la superficie.
+  near(main.grommetHole.xMm,main.dimensions[0]/2-134.5);near(main.grommetHole.zMm,0);near(main.grommetHole.rotationY,Math.PI/2);
+  assert.equal(normal.parts.find(part=>part.key==='grommet-0').code,'22000126724');
+  const mainOutlet=normal.parts.find(part=>part.key==='surface-0-outlet');
+  assert.equal(mainOutlet.code,'22000135010');near(mainOutlet.dimensions[1],151.9);near(mainOutlet.position[1]+mainOutlet.dimensions[1]/2,710);
+  // Sin ducto cableado horizontal: el cableado baja por el bajante a piso de cada grommet.
+  assert.equal(normal.parts.some(part=>part.role==='DUCT'),false);
+  // Grommet del retorno donde lo pone Koncisa Plus (158 mm hacia la principal desde el centro y a 120 mm del borde exterior),
+  // con su caja de tomas y un bajante a piso Koncisa (22000104949, 106 × 75 mm) que sube hasta la cara inferior de la caja.
+  const withReturnGrommet=createLinkInstance({config:{type:'lider',widthMm:1500,leaderReturnGrommet:true,side:'derecha',
+    components:{'return-surface':{floorDuct:true}}}}).product.parts;
+  const returnPart=withReturnGrommet.find(part=>part.key==='return-surface'),returnHole=returnPart.grommetHole;
+  near(returnHole.xMm,-158);near(returnHole.zMm,180);
+  const grommet=withReturnGrommet.find(part=>part.key==='return-grommet');
+  assert.equal(grommet.code,'22000023626');
+  near(grommet.position[0]-returnPart.position[0],180);near(grommet.position[2]-returnPart.position[2],158);
+  const outlet=withReturnGrommet.find(part=>part.key==='return-surface-outlet'),floor=withReturnGrommet.find(part=>part.key==='return-surface-floor');
+  assert.equal(outlet.code,'22000135010');
+  assert.equal(floor.code,'22000104949');
+  near(floor.position[0],grommet.position[0]);near(floor.position[2],grommet.position[2]);
+  near(floor.dimensions[1],outlet.position[1]-outlet.dimensions[1]/2);
   const credenza=buildLink({type:'lider',widthMm:1500,leaderCredenza:true,credenzaLengthMm:1200,credenzaModel:'LKAL160000',side:'derecha'});
   assert.equal(credenza.parts.some(part=>part.key==='return-surface'),false);
   const credenzaPart=credenza.parts.find(part=>part.role==='CREDENZA');
@@ -529,12 +549,20 @@ test('líder independiente ofrece retorno, credenza LINK y edición de sus pieza
   assert.equal(credenza.parts.find(part=>part.key==='beam-0').code,'22000044169');
 });
 
-test('medidas del líder: principal y retorno se editan en sitio con los mismos rangos de Link',()=>{
-  const {object}=createLinkInstance({config:{type:'lider'}});
-  const patch=createLinkComponentPatch(object,'return-surface',{returnLengthMm:1500,returnDepthMm:750});
+test('medidas del líder: principal y retorno usan las mismas medidas y códigos que Koncisa Plus',()=>{
+  const {object,product}=createLinkInstance({config:{type:'lider',widthMm:1500}});
+  const parts=product.parts;
+  const mainPart=parts.find(p=>p.key==='surface-0'),returnPart=parts.find(p=>p.key==='return-surface');
+  // Medidas reales sin sobrante: 1500 × 600 la principal y 900 × 600 el retorno (derecha), con los códigos de superficie líder.
+  assert.deepEqual(mainPart.dimensions.filter((_,i)=>i!==1),[1500,600]);
+  assert.equal(mainPart.code,'22000135011');
+  assert.deepEqual(returnPart.dimensions.filter((_,i)=>i!==1),[900,600]);
+  assert.equal(returnPart.code,'22000135017');
+  const patch=createLinkComponentPatch(object,'return-surface',{returnLengthMm:1000});
   const changed=createLinkInstance({config:{...object.userData.config,...patch}});
-  const part=changed.product.parts.find(p=>p.key==='return-surface');
-  assert.equal(part.dimensions[0],1551);assert.equal(part.dimensions[2],750);
+  assert.equal(changed.product.parts.find(p=>p.key==='return-surface').code,'22000135018');
+  assert.equal(createLinkInstance({config:{type:'lider',widthMm:1500,returnLengthMm:1200}}).success,false);
+  assert.equal(createLinkInstance({config:{type:'lider',widthMm:1200}}).success,false);
   assert.deepEqual(createLinkComponentPatch(object,'surface-0',{widthMm:1800,depthMm:750}),{widthMm:1800,depthMm:750});
   assert.throws(()=>createLinkComponentPatch(object,'surface-0',{finishId:'FORMICA_25',widthMm:1800}),/no corresponde/);
   const sencillo=createLinkInstance({config:{type:'sencillo'}}).object;

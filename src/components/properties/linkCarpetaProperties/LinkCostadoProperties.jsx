@@ -7,7 +7,7 @@ export default function LinkCostadoProperties({ part, config: c, onChange, disab
   
   const isTerminal = part.meta?.terminal === true;
   const isIntegrationLeg = part?.meta?.isIntegrationLeg === true || part?.meta?.replacesCostado === true || Boolean(part?.meta?.integrationSetId);
-  const canUseIntegration = isTerminal && !isIntegrationLeg;
+  const canUseIntegration = isTerminal && !isIntegrationLeg && part.config?.type === 'doble';
 
   const [integrationWidthMm, setIntegrationWidthMm] = useState(1200);
   const [integrationDepthMm, setIntegrationDepthMm] = useState(() => {
@@ -49,7 +49,7 @@ export default function LinkCostadoProperties({ part, config: c, onChange, disab
 
         {!isIntegrationLeg && !canUseIntegration ? (
           <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.65, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
-            Disponible solo para costados terminales.
+            Disponible solo para costados terminales de mesas Link dobles.
           </div>
         ) : !isIntegrationLeg && (
           <>

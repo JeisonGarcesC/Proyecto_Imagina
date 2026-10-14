@@ -5,6 +5,8 @@ import {
 } from '../mepal/link/integration/linkFinishes.js';
 import { getLockerSelectionInfo } from '../mepal/lockers/integration/lockerFinishSelection.js';
 import { createLinkInstance } from '../mepal/link/factories/createLinkInstance.js';
+import { applyLinkIntegrationPuestoBOM } from '../mepal/link/bom/linkBOM.js';
+import { resolveLinkIntegracionTrabajoCode } from '../mepal/link/rules/linkSurfaceRules.js';
 import { registerLinkInstance, getLinkRoot } from '../mepal/link/integration/linkRegistration.js';
 import { rebuildLinkInstance } from '../mepal/link/integration/rebuildLinkInstance.js';
 import { restoreLinkEntity } from '../mepal/link/integration/linkPersistence.js';
@@ -3522,7 +3524,19 @@ function ThreeCanvas({
         }
 
         if (obj.userData?.kind === 'LINK_PRODUCT') {
-          for (const item of obj.userData.bom || []) {
+          // Mesa doble con puesto(s) de integración: las superficies principales pasan a código terminal.
+          const linkIntegrationSetIds = new Set();
+          obj.traverse((node) => {
+            if (node.userData?.meta?.isIntegrationSurface) {
+              linkIntegrationSetIds.add(node.userData.meta.integrationSetId);
+            }
+          });
+          const linkBomRows = applyLinkIntegrationPuestoBOM(
+            obj.userData.bom || [],
+            obj.userData.config,
+            linkIntegrationSetIds.size
+          );
+          for (const item of linkBomRows) {
             addRow(
               item.code,
               item.quantity,
@@ -3535,6 +3549,31 @@ function ThreeCanvas({
               obj.userData.instanceId
             );
           }
+          // Piezas del puesto de integración (hijas de la mesa Link, fuera del BOM base):
+          // costados unitarios, ducto, grommet y superficie. Precio y descripción salen del catálogo.
+          // Solo piezas raíz hijas directas que no son componentes Link (esos ya están en el BOM base).
+          obj.children.forEach((node) => {
+            if (
+              node.userData?.kind === 'LINK_COMPONENT' ||
+              node.userData?.componentEntityKind === 'LINK_COMPONENT' ||
+              node.userData?.isPartRoot !== true
+            )
+              return;
+            if (!node.userData?.meta?.integrationSetId || node.userData?.excludeFromBOM) return;
+            const integrationCode = node.userData.codigoPT || node.userData.code;
+            if (!integrationCode) return;
+            addRow(
+              integrationCode,
+              1,
+              resolveCatalogDescription(integrationCode, node.userData.description),
+              null,
+              obj.userData.groupId,
+              obj.userData.groupName,
+              undefined,
+              null,
+              obj.userData.instanceId
+            );
+          });
           continue;
         }
 
@@ -6219,6 +6258,65 @@ function ThreeCanvas({
       return applyMultipleConfiguration(root, { components, composition });
     }
 
+    // Mesa Link con puesto de integración: en ese extremo el ducto cableado de la mesa se une al ducto
+    // de integración, así que los bajantes a piso y a techo salen en el extremo de ese ducto
+    // (mismo esquema que en el ducto de la mesa, girado 90°) y no dentro de la integración.
+    function adjustLinkBajantesForIntegration(linkRoot) {
+      if (linkRoot?.userData?.kind !== 'LINK_PRODUCT') return;
+      const BAJANTE_GAP_FROM_DUCT_END_MM = 20;
+      linkRoot.updateMatrixWorld(true);
+
+      const integrationDucts = linkRoot.children.filter(
+        (child) =>
+          child.userData?.isPartRoot === true &&
+          child.userData?.componentEntityKind !== 'LINK_COMPONENT' &&
+          child.userData?.kind === 'ducto' &&
+          child.userData?.meta?.integrationSetId &&
+          child.userData?.meta?.tipoModulo === 'individual'
+      );
+      if (!integrationDucts.length) return;
+
+      // Caja del ducto de integración en coordenadas locales de la mesa.
+      const localBox = (obj) => {
+        obj.updateMatrixWorld(true);
+        const world = new THREE.Box3().setFromObject(obj);
+        if (world.isEmpty()) return null;
+        const box = new THREE.Box3();
+        for (const x of [world.min.x, world.max.x])
+          for (const y of [world.min.y, world.max.y])
+            for (const z of [world.min.z, world.max.z])
+              box.expandByPoint(linkRoot.worldToLocal(new THREE.Vector3(x, y, z)));
+        return box;
+      };
+
+      for (const component of linkRoot.children) {
+        const role = component.userData?.componentRole;
+        if (component.userData?.componentEntityKind !== 'LINK_COMPONENT') continue;
+        if (role !== 'FLOOR_DUCT' && role !== 'CEILING_DUCT') continue;
+
+        const config = component.userData?.componentConfig || {};
+        const side = String(role === 'CEILING_DUCT' ? config.ceilingSide : config.floorSide || '')
+          .trim()
+          .toUpperCase();
+        const integrationDuct = integrationDucts.find(
+          (duct) => String(duct.userData?.meta?.replaceZone || '').toUpperCase() === side
+        );
+        if (!integrationDuct) continue;
+
+        const box = localBox(integrationDuct);
+        const dim = component.userData?.dim;
+        if (!box || !dim) continue;
+
+        const halfDepth = (Number(dim.depthMm) || 0) / 2000;
+        component.position.x = (box.min.x + box.max.x) / 2;
+        component.position.z =
+          role === 'CEILING_DUCT'
+            ? box.max.z + BAJANTE_GAP_FROM_DUCT_END_MM / 1000 + halfDepth
+            : box.max.z - halfDepth;
+        component.updateMatrixWorld(true);
+      }
+    }
+
     function applyLinkConfiguration(object, config, recordHistory = true) {
       if (object?.userData?.kind !== 'LINK_PRODUCT')
         return { success: false, reason: 'LINK_PRODUCT_REQUIRED' };
@@ -6233,6 +6331,7 @@ function ThreeCanvas({
         partsRegistry: parts,
       });
       if (!result.success) return result;
+      adjustLinkBajantesForIntegration(object);
       if (recordHistory && JSON.stringify(before) !== JSON.stringify(object.userData.config)) {
         historyManager.pushAction({
           type: HISTORY_ACTION_TYPES.LINK_CONFIG_CHANGE,
@@ -14410,6 +14509,10 @@ function ThreeCanvas({
         costadoObj.userData?.line === 'LINK' || parentGroup?.userData?.family === 'LINK';
 
       if (isLinkComponent) {
+        if (parentGroup?.userData?.config?.type !== 'doble') {
+          alert('El puesto de integración solo está disponible para mesas Link dobles.');
+          return false;
+        }
         baseRot.y = replaceZone === 'LEFT' ? 0 : Math.PI;
 
         const config = parentGroup?.userData?.config || {};
@@ -14676,7 +14779,7 @@ function ThreeCanvas({
       // 2. Superficie sencilla de integración
       // Reutiliza reglas normales de superficie sencilla.
       // =====================================================
-      const resolvedSurface = resolveKoncisaSurfaceCodigoPT({
+      const koncisaSurface = resolveKoncisaSurfaceCodigoPT({
         billingWidthMm: normalizedWidthMm,
         billingDepthMm: normalizedDepthMm,
         shape: 'RECT',
@@ -14684,6 +14787,13 @@ function ThreeCanvas({
         finishCode: finalFinishCode,
         variant,
       });
+      // Link: la superficie de integración de trabajo tiene su propio código Link (LKSU020040 / LKSU020050).
+      const linkWorkSurfaceCode = isLinkComponent
+        ? resolveLinkIntegracionTrabajoCode(normalizedWidthMm, normalizedDepthMm)
+        : null;
+      const resolvedSurface = linkWorkSurfaceCode
+        ? { ...koncisaSurface, codigoPT: linkWorkSurfaceCode }
+        : koncisaSurface;
 
       // The selected terminal side is the center of the removed costado.
       // The integration surface connects by its inner corner, so its center
@@ -14870,7 +14980,15 @@ function ThreeCanvas({
       // =====================================================
       // 4. Ducto individual de integración
       // =====================================================
-      const individualDuct = pkg.individualDuct;
+      // Link: el ducto de integración es el LKSO090000 (22000009100); Koncisa conserva el suyo.
+      const individualDuct = isLinkComponent
+        ? {
+            codigoPT: '22000009100',
+            logicalCode: 'LKSO090000',
+            modelSrc: '/assets/models/Link/LKSO090000_1.glb',
+            name: 'DUCTO DE CABLEADO DE INTEGRACION 10X50X10CM LINK LKSO090000',
+          }
+        : pkg.individualDuct;
       let referenceDoubleDuct = null;
       parentGroup?.traverse((node) => {
         if (referenceDoubleDuct || node.userData?.isPartRoot !== true) return;
@@ -14886,7 +15004,7 @@ function ThreeCanvas({
         : 510;
       const ductPosition = localToWorldMm(placement.duct.x, placement.duct.z);
 
-      await addExternalGlbPart({
+      const integrationDuctObj = await addExternalGlbPart({
         type: 'ducto',
         line: 'KONCISA.PLUS',
         code: individualDuct.codigoPT,
@@ -14905,7 +15023,7 @@ function ThreeCanvas({
 
         rotation: {
           x: baseRot.x,
-          y: baseRot.y + placement.duct.rotY,
+          y: baseRot.y + placement.duct.rotY + (isLinkComponent ? Math.PI : 0),
           z: baseRot.z,
         },
 
@@ -14934,7 +15052,8 @@ function ThreeCanvas({
 
       const couplePosition = localToWorldMm(placement.couple.x, placement.couple.z);
 
-      await addExternalGlbPart({
+      // Link: el ducto LKSO090000 va solo, sin acople.
+      if (!isLinkComponent) await addExternalGlbPart({
         type: 'acopleDucto',
         line: 'KONCISA.PLUS',
         code: couple.codigoPT,
@@ -14976,6 +15095,7 @@ function ThreeCanvas({
       // 6. Grommet o pasacable
       // =====================================================
       const cableAccess = pkg.cableAccess;
+      let integrationGrommetObj = null;
 
       if (cableAccess && cableAccess.exists !== false && cableAccess.type !== 'ninguno') {
         const cableAccessCenter = localToWorldMm(placement.cableAccess.x, placement.cableAccess.z);
@@ -15022,6 +15142,8 @@ function ThreeCanvas({
             },
           });
 
+          integrationGrommetObj = grommetObj || null;
+
           if (grommetObj && isLinkComponent) {
             grommetObj.traverse((node) => {
               if (node.isMesh && node.material) {
@@ -15041,6 +15163,102 @@ function ThreeCanvas({
             },
           });
         }
+      }
+
+      // Link: el grommet queda al ras del borde de la mesa y el ducto LKSO090000 justo bajo él.
+      if (isLinkComponent) {
+        const tableSideSign = Math.cos(baseRot.y) >= 0 ? 1 : -1;
+        const worldBox = (obj) => {
+          obj.updateMatrixWorld(true);
+          return new THREE.Box3().setFromObject(obj);
+        };
+        parentGroup?.updateMatrixWorld(true);
+
+        // Pieza Link de la mesa (por rol) más cercana al puesto de integración.
+        const nearestTableBox = (role) => {
+          let best = null;
+          parentGroup?.traverse((node) => {
+            if (node.userData?.componentRole !== role) return;
+            const box = worldBox(node);
+            if (box.isEmpty()) return;
+            const dist = tableSideSign > 0 ? box.min.x : -box.max.x;
+            if (!best || dist < best.dist) best = { box, dist };
+          });
+          return best?.box || null;
+        };
+
+        // Borde de la mesa: donde termina la superficie de integración o empieza la superficie de la mesa.
+        const edgeCandidates = [localToWorldMm(0, 0).x / 1000];
+        if (integrationSurfaceObj) {
+          const box = worldBox(integrationSurfaceObj);
+          if (!box.isEmpty()) edgeCandidates.push(tableSideSign > 0 ? box.max.x : box.min.x);
+        }
+        const tableSurfaceBox = nearestTableBox('SURFACE');
+        if (tableSurfaceBox) edgeCandidates.push(tableSideSign > 0 ? tableSurfaceBox.min.x : tableSurfaceBox.max.x);
+        const tableEdgeX =
+          tableSideSign > 0 ? Math.min(...edgeCandidates) : Math.max(...edgeCandidates);
+
+        if (integrationGrommetObj) {
+          const grommetBox = worldBox(integrationGrommetObj);
+          integrationGrommetObj.position.x +=
+            tableSideSign > 0 ? tableEdgeX - grommetBox.max.x : tableEdgeX - grommetBox.min.x;
+          integrationGrommetObj.updateMatrixWorld(true);
+        }
+
+        if (integrationDuctObj) {
+          // Boca contra la boca del ducto cableado de la mesa (extremo donde se ubica el ducto a techo),
+          // a su misma altura y bajo el grommet. El ducto de la mesa se mide por sus datos de diseño.
+          let tableDuctBox = null;
+          let tableDuctDist = Infinity;
+          parentGroup?.children.forEach((node) => {
+            const dim = node.userData?.dim;
+            if (node.userData?.componentRole !== 'DUCT' || !dim) return;
+            const half = new THREE.Vector3(dim.widthMm, dim.heightMm, dim.depthMm).multiplyScalar(0.0005);
+            const box = new THREE.Box3(
+              node.position.clone().sub(half),
+              node.position.clone().add(half)
+            ).applyMatrix4(parentGroup.matrixWorld);
+            const dist = tableSideSign > 0 ? box.min.x : -box.max.x;
+            if (dist < tableDuctDist) {
+              tableDuctDist = dist;
+              tableDuctBox = box;
+            }
+          });
+
+          const ductBox = worldBox(integrationDuctObj);
+          const ductCenter = ductBox.getCenter(new THREE.Vector3());
+          const grommetBox = integrationGrommetObj ? worldBox(integrationGrommetObj) : null;
+          const surfaceBox = integrationSurfaceObj ? worldBox(integrationSurfaceObj) : null;
+          const accessMm = localToWorldMm(placement.cableAccess.x, placement.cableAccess.z);
+
+          const targetZ = grommetBox
+            ? grommetBox.getCenter(new THREE.Vector3()).z
+            : accessMm.z / 1000;
+          const grommetEdgeX = grommetBox
+            ? tableSideSign > 0
+              ? grommetBox.max.x
+              : grommetBox.min.x
+            : tableEdgeX;
+          // Extremo real del ducto de la mesa: el dibujado si ya cargó, si no el de diseño.
+          const tableDuctVisualBox = nearestTableBox('DUCT');
+          const tableDuctEndBox = tableDuctVisualBox || tableDuctBox;
+          const INTEGRATION_DUCT_MOUTH_OVERLAP_MM = 50;
+          const mouthX = tableDuctEndBox
+            ? (tableSideSign > 0 ? tableDuctEndBox.min.x : tableDuctEndBox.max.x) +
+              (tableSideSign * INTEGRATION_DUCT_MOUTH_OVERLAP_MM) / 1000
+            : grommetEdgeX;
+          const targetCenterY = tableDuctBox
+            ? tableDuctBox.getCenter(new THREE.Vector3()).y
+            : (surfaceBox && !surfaceBox.isEmpty() ? surfaceBox.min.y : 0.71) -
+              (ductBox.max.y - ductBox.min.y) / 2;
+
+          integrationDuctObj.position.x +=
+            tableSideSign > 0 ? mouthX - ductBox.max.x : mouthX - ductBox.min.x;
+          integrationDuctObj.position.y += targetCenterY - ductCenter.y;
+          integrationDuctObj.position.z += targetZ - ductCenter.z;
+          integrationDuctObj.updateMatrixWorld(true);
+        }
+        adjustLinkBajantesForIntegration(parentGroup);
       }
 
       // =====================================================
@@ -15097,7 +15315,10 @@ function ThreeCanvas({
         },
       };
 
-      if (reinforcement.usesStandardModel && reinforcement.modelSrc) {
+      // Link no lleva el refuerzo (perfiles bajo la superficie) en el puesto de integración.
+      if (isLinkComponent) {
+        // sin refuerzo
+      } else if (reinforcement.usesStandardModel && reinforcement.modelSrc) {
         await addExternalGlbPart({
           ...reinforcementPart,
           model: {
@@ -15293,6 +15514,9 @@ function ThreeCanvas({
       if (restoredObj) {
         setActivePart(restoredObj);
       }
+
+      // Mesa Link: sin integración, los bajantes vuelven a su lugar normal.
+      if (isLinkProduct) applyLinkConfiguration(parentGroup, {}, false);
 
       emitBOM();
       refreshFloorAndGrid();
@@ -21959,13 +22183,31 @@ function ThreeCanvas({
       if (!activePart) return;
 
       const linkRoot = getLinkRoot(activePart);
-      if (linkRoot)
+      // Pieza del puesto de integración (hija directa de la mesa, sin componentKey Link):
+      // se pinta ella sola, sin pasar por la configuración de la mesa.
+      const findLinkIntegrationPart = (start) => {
+        for (let node = start; node; node = node.parent) {
+          if (node.userData?.kind === 'LINK_PRODUCT') return null;
+          if (
+            node.parent?.userData?.kind === 'LINK_PRODUCT' &&
+            node.userData?.isPartRoot === true &&
+            node.userData?.componentEntityKind !== 'LINK_COMPONENT' &&
+            node.userData?.meta?.integrationSetId
+          )
+            return node;
+        }
+        return null;
+      };
+      const linkIntegrationPart = linkRoot
+        ? findLinkIntegrationPart(activeSubMesh) || findLinkIntegrationPart(activePart)
+        : null;
+      if (linkRoot && !linkIntegrationPart)
         return applyLinkConfiguration(
           linkRoot,
           createLinkFinishPatch(linkRoot, activeSubMesh, materialCode, scope)
         );
 
-      const editablePart = getActiveEditablePartObject() || activePart;
+      const editablePart = linkIntegrationPart || getActiveEditablePartObject() || activePart;
 
       const code = materialCode || null;
       const def = materialDef || null;

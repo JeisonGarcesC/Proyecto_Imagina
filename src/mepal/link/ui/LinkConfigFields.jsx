@@ -5,10 +5,10 @@ import LinkLeaderFields from '../leader/ui/LinkLeaderFields.jsx';
 import { LINK_CREDENZA_EXE_LENGTHS, LINK_CREDENZA_EXE_SIDES, LINK_CREDENZA_EXE_MODELS } from '../rules/linkCredenzaExeRules.js';
 
 // Tipos del selector superior: Link (sencillo/doble), puesto líder (superficie principal + retorno o credenza) y credenza sola.
-const toLeaderConfig = c => ({ ...c, type: 'lider', puestos: 1, surfaceMode: 'principal', modoEspecial: false, widthMm: 1200, depthMm: c.depthMm <= 600 ? 600 : 750,
-  returnLengthMm: 1200, returnDepthMm: 600, finishId: 'FORMICA_30', components: {}, integracionType: 'ninguna', hasPantallaFrontal: false, hasPantallaLateral: false, hasPantallaFalda: false });
+const toLeaderConfig = c => ({ ...c, type: 'lider', puestos: 1, surfaceMode: 'principal', modoEspecial: false, widthMm: 1500, depthMm: c.depthMm <= 600 ? 600 : 750,
+  returnLengthMm: 900, returnDepthMm: 600, finishId: 'FORMICA_30', components: {}, cableAccess: 'grommet', integracionType: 'ninguna', hasPantallaFrontal: false, hasPantallaLateral: false, hasPantallaFalda: false });
 const toStandardConfig = c => ({ ...c, type: 'sencillo', puestos: 1, surfaceMode: 'principal', modoEspecial: false, widthMm: 1200, depthMm: c.depthMm <= 600 ? 600 : 750,
-  finishId: 'FORMICA_30', components: {}, leaderCredenza: false, leaderReturnGrommet: false });
+  finishId: 'FORMICA_30', components: {}, cableAccess: 'grommet', leaderCredenza: false, leaderReturnGrommet: false });
 
 export default function LinkConfigFields({config:c,onChange,disabled=false}) {
   const leader=c.type==='lider', alone=c.type==='credenza', widths=LINK_WIDTHS;
@@ -89,11 +89,12 @@ export default function LinkConfigFields({config:c,onChange,disabled=false}) {
     </div>
     <div style={sectionStyle}>
       <label style={labelStyle}>Acceso para cableado
-        <select style={inputStyle} disabled value="grommet">
+        <select style={inputStyle} disabled={disabled} value={c.cableAccess} onChange={e=>change('cableAccess',e.target.value)}>
           <option value="grommet">Grommet de aluminio</option>
+          <option value="none">Sin grommet</option>
         </select>
       </label>
-      {select('Acabado del grommet','grommetFinish',[{value:'ALUMINIUM',label:'Aluminio anodizado'},{value:'PAINTED',label:'Pintado'}])}
+      {c.cableAccess==='grommet'&&select('Acabado del grommet','grommetFinish',[{value:'ALUMINIUM',label:'Aluminio anodizado'},{value:'PAINTED',label:'Pintado'}])}
       <div style={{fontSize:11}}>{leader?'Un grommet en la superficie principal.':'Un grommet por superficie.'}</div>
       <label style={labelStyle}><input type="checkbox" checked={c.hasDuct} onChange={e=>change('hasDuct',e.target.checked)}/> Incluir ducto intermedio</label>
       {c.hasDuct&&<div style={{fontSize:11}}>Un ducto por módulo. Acabado editable desde las propiedades.</div>}

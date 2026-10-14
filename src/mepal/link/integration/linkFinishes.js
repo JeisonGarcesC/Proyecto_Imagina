@@ -19,6 +19,8 @@ export function createLinkFinishPatch(object, selectedNode, code, scope='PART') 
 export function reapplyLinkFinishes(object, materialsByCode, applyMaterial) {
   for(const child of object.children) {
     const code=resolveLinkFinishCode(object.userData.config,child);
+    // Piezas externas (puesto de integración) sin acabado global: conservan su propio material.
+    if(!child.userData.componentKey && !code)continue;
     child.userData.materialCode=code;
     child.traverse(node=>{node.userData.materialCode=code;});
     if(code)applyMaterial(child,code,materialsByCode?.get?.(code) || {});

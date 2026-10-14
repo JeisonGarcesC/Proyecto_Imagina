@@ -1,9 +1,10 @@
 import { getLinkFinishOptions } from '../../rules/linkSurfaceFinishOptions.js';
 import { LINK_CREDENZA_EXE_LENGTHS,LINK_CREDENZA_EXE_MODELS } from '../../rules/linkCredenzaExeRules.js';
 import { inputStyle,labelStyle,sectionStyle } from '../../../../components/properties/shared/PropertyStyles.js';
-// Puesto líder: la superficie principal usa las mismas medidas que el puesto Link (120/150/180 cm y puesto especial).
+import { LINK_LEADER_WIDTHS,LINK_LEADER_RETURN_LENGTHS,LINK_LEADER_RETURN_DEPTHS } from '../../catalog/linkCatalog.js';
+// Puesto líder con las mismas medidas que Koncisa Plus: principal 150/165/180 cm × 60/75 cm y retorno 90/100 cm × 60 cm.
 // Costados, grommets y ductos toman los valores por defecto de Link y se ajustan desde las propiedades de cada pieza.
-const SPECIAL_WIDTHS=Array.from({length:17},(_,i)=>1051+i*50);
+const SPECIAL_MAIN_WIDTHS=[1500,1550,1600,1650,1700,1750,1800],SPECIAL_RETURN_LENGTHS=[900,950,1000],SPECIAL_RETURN_DEPTHS=[600,650,700,750];
 export default function LinkLeaderFields({config:c,onChange,disabled=false}){
   const change=(key,value)=>onChange({...c,[key]:value});
   const component=(key,patch)=>onChange({...c,components:{...c.components,[key]:{...c.components?.[key],...patch}}});
@@ -15,12 +16,13 @@ export default function LinkLeaderFields({config:c,onChange,disabled=false}){
     <div style={sectionStyle}><b>Superficie principal</b>
       <label style={labelStyle}><input type="checkbox" checked={c.modoEspecial} onChange={e=>{
         const mode=e.target.checked;
-        onChange({...c,modoEspecial:mode,...(!mode?{widthMm:[1200,1500,1800].find(n=>n>=c.widthMm)||1200,depthMm:c.depthMm<=600?600:750,
-          returnLengthMm:[1200,1500,1800].find(n=>n>=c.returnLengthMm)||1200,returnDepthMm:c.returnDepthMm<=600?600:750}:{widthMm:1051,returnLengthMm:1051})});
+        onChange({...c,modoEspecial:mode,...(!mode?{widthMm:LINK_LEADER_WIDTHS.find(n=>n>=c.widthMm)||LINK_LEADER_WIDTHS.at(-1),depthMm:c.depthMm<=600?600:750,
+          returnLengthMm:c.returnLengthMm<=900?900:1000,returnDepthMm:600}:{})});
       }}/> Puesto especial</label>
-      {select('Largo real','widthMm',c.modoEspecial?mm(SPECIAL_WIDTHS):cm([1200,1500,1800]))}
+      {select('Largo real','widthMm',c.modoEspecial?mm(SPECIAL_MAIN_WIDTHS):cm(LINK_LEADER_WIDTHS))}
       {select('Ancho','depthMm',cm([600,750]))}
       {!c.leaderCredenza&&select('Acabado / tipo de superficie','finishId',getLinkFinishOptions().map(f=>({value:f.id,label:f.label})))}
+      {!c.leaderCredenza&&<label style={labelStyle}><input type="checkbox" checked={c.cableAccess==='grommet'} onChange={e=>change('cableAccess',e.target.checked?'grommet':'none')}/> Grommet en superficie principal</label>}
     </div>
     <div style={sectionStyle}><b>{c.leaderCredenza?'Credenza':'Superficie de retorno'}</b>
       <label style={labelStyle}><input type="checkbox" checked={c.leaderCredenza} onChange={e=>onChange({...c,leaderCredenza:e.target.checked,finishId:'FORMICA_30',...(e.target.checked?{cableAccess:'none',leaderReturnGrommet:false}:{cableAccess:'grommet'})})}/> Sustituir retorno por credenza</label>
@@ -28,8 +30,8 @@ export default function LinkLeaderFields({config:c,onChange,disabled=false}){
       {c.leaderCredenza?<>{select('Modelo','credenzaModel',LINK_CREDENZA_EXE_MODELS.map(m=>({value:m.value,label:m.label})))}
         {select('Largo de credenza','credenzaLengthMm',cm(LINK_CREDENZA_EXE_LENGTHS))}
         <div style={{fontSize:11}}>Referencia {c.credenzaModel}. Superficie principal de fórmica 30 mm con cableado a credenza.</div></>:
-        <>{select('Largo real','returnLengthMm',c.modoEspecial?mm(SPECIAL_WIDTHS):cm([1200,1500,1800]))}
-          {select('Ancho','returnDepthMm',cm([600,750]))}
+        <>{select('Largo real','returnLengthMm',c.modoEspecial?mm(SPECIAL_RETURN_LENGTHS):cm(LINK_LEADER_RETURN_LENGTHS))}
+          {select('Ancho','returnDepthMm',c.modoEspecial?mm(SPECIAL_RETURN_DEPTHS):cm(LINK_LEADER_RETURN_DEPTHS))}
           <label style={labelStyle}><input type="checkbox" checked={!!c.components?.['return-support']?.pedestal} onChange={e=>component('return-support',{pedestal:e.target.checked})}/> Pedestal en el extremo del retorno</label></>}
     </div>
   </fieldset>;

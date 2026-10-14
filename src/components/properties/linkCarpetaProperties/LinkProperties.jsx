@@ -10,7 +10,7 @@ import { sectionStyle } from '../shared/PropertyStyles.js';
 
 const isLinkWorkstation = (part) => ['sencillo', 'doble'].includes(part?.config?.type);
 const isLinkLeader = (part) => part?.config?.type === 'lider';
-const isReturnPart = (part) => ['return-surface', 'return-support', 'return-beam', 'pedestal'].includes(part?.componentKey);
+const isReturnPart = (part) => ['return-surface', 'return-support', 'pedestal'].includes(part?.configTargetKey || part?.componentKey);
 const hasLinkCredenza = (part) => part?.config?.type === 'credenza' || (part?.config?.type === 'lider' && part.config.leaderCredenza);
 
 export default function LinkProperties({ part, api, readOnly = false }) {

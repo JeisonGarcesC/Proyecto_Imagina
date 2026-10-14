@@ -2,7 +2,7 @@ export const LINK_DEFAULT_CONFIG = Object.freeze({
   puestos: 1, modoEspecial: false, finishId: 'FORMICA_30', tipoCostado: 'Link',
   hasDuct: true, supportFinish: 'PINTADO', cableAccess: 'grommet', grommetFinish: 'ALUMINIUM', finishAssignments: {}, components: {}, componentTransforms: {},
   type: 'sencillo', widthMm: 1200, depthMm: 600, surfaceMode: 'principal',
-  returnLengthMm: 1200, returnDepthMm: 600, side: 'derecha', leaderReturnGrommet: false,
+  returnLengthMm: 900, returnDepthMm: 600, side: 'derecha', leaderReturnGrommet: false,
   leaderCredenza: false, credenzaLengthMm: 1200, credenzaModel: 'LKAL160000',
   surfaceColor: '#d8c4a5', structureColor: '#444b52', pedestalColor: '#d8c4a5',
   hasPantallaFrontal: false, pantallaFrontalMaterial: 'formica',
