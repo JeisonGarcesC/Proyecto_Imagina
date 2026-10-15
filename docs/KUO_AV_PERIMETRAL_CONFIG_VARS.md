@@ -13,7 +13,8 @@ mantiene ancho y profundidad, ademas de las opciones de la referencia original:
 
 El doble agrega Baldosa Formica y un selector de soporte intermedio
 KUSO840000/KUSO850000 para las uniones de lotes. El modo AUTO conserva la
-alternancia existente; el mapa no prescribe esa alternancia. Su unico control
+intermedio con ducto KUSO840000 en todas las uniones; KUSO850000 queda
+disponible para edicion explicita de cada union. Su unico control
 Colocar Vertebra Lateral cambia la ubicacion de ambas vertebras (central/lateral),
 sin eliminarlas ni cambiar su cantidad en el BOM;
 las configuraciones antiguas con controles independientes siguen siendo compatibles.
@@ -97,11 +98,13 @@ En lotes con varios puestos dobles, el BOM conserva dos costados terminales
 exteriores y agrega un costado intermedio por cada union entre puestos,
 segun la seleccion de soporte intermedio, salvo lotes separados por Baldosa Formica.
 Los GLB nativos KUSO840000 y KUSO850000 reemplazan los sustitutos visuales:
-Al editar Soporte intermedio, se reconstruyen las uniones de todo el mismo
-lote (`kuoBatchId`), incluso si se selecciona el primer puesto, que solo tiene
-un terminal. No se propagan medidas, altura ni acabados a los otros puestos;
-los lotes independientes no cambian. El editor envia solo las opciones
-modificadas a la API, evitando propagar el soporte al editar otra propiedad.
+Al editar Soporte intermedio, se reconstruye solo el puesto seleccionado:
+su union con el puesto anterior le pertenece (pie izquierdo). El primer
+puesto solo tiene un terminal y no tiene union intermedia propia.
+No se propagan soporte, medidas, altura ni acabados a los otros puestos,
+aunque compartan `kuoBatchId`. La creacion mantiene AUTO por defecto:
+en tres puestos, las uniones de indices 1 y 2 usan ambas KUSO840000.
+El editor envia solo las opciones modificadas a la API.
 El panel de creacion configura solo nuevas inserciones; no modifica mesas
 existentes. Para estas se utiliza el selector del editor de propiedades.
 no se estira el terminal ni se genera un portico de bloques. Se centran en
@@ -141,6 +144,11 @@ Cada pulsacion de Crear inicia una configuracion independiente, separada por
 0.50 m de los limites reales de los ensambles KUO AV existentes, incluidos
 puestos movidos o rotados. Los puestos del mismo lote siguen unidos borde a
 borde y conservan su identificador de lote para las operaciones existentes.
+Al transformar un ensamble completo, todos los ensambles del mismo lote son
+objetivos de movimiento 3D/2D y rotacion, aun con alcance individual. Los
+componentes conservan su seleccion individual y edicion local de propiedades.
+El arrastre de un ensamble del lote no elimina sus relaciones de union;
+el historial captura todas las raices transformadas para Undo/Redo.
 La separacion se calcula despues de cargar el primer ensamble, sin alterar
 las posiciones de configuraciones anteriores ni posiciones explicitas.
 

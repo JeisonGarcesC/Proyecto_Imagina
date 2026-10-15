@@ -155,7 +155,8 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
               ))}
             </select>
             <span style={{ fontWeight: 400, fontSize: 11, color: '#6b7280' }}>
-              Cambia las uniones de todo el lote, incluso desde el primer puesto.
+              Cambia solo la unión del puesto seleccionado con el anterior.
+              El primer puesto no tiene unión intermedia propia.
               Solo aplica con 2 o más puestos dobles unidos y sin Baldosa Formica.
             </span>
           </label>
