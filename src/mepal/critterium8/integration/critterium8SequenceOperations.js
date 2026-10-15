@@ -22,9 +22,9 @@ export function describeCritterium8FrameAssembly(assembly) {
     rotationY: rotation.y,
     widthCm: Number(definition.widthCm ?? config.widthCm),
     depthCm: Number(assembly.userData.layout?.depthCm ?? definition.thicknessCm ?? 8),
-    heightCm: Number(definition.heightCm ?? config.heightCm),
+    heightCm: Number(assembly.userData.composition?.heightCm ?? definition.heightCm ?? config.heightCm),
     frameMode: String(definition.frameMode || config.frameMode || 'HALF_HEIGHT'),
-    projectHeightCm: Number(config.projectHeightCm ?? definition.heightCm),
+    projectHeightCm: Number(config.projectHeightCm ?? assembly.userData.composition?.heightCm ?? definition.heightCm),
   };
 }
 

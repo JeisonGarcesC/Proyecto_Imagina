@@ -51,7 +51,13 @@ export default function KoncisaPlusProperties({ part, api, onClose }) {
   }
 
   if (isLeaderOutletBox) {
-    return <KoncisaLeaderOutletBoxProperties part={part} api={api} />;
+    return (
+      <KoncisaLeaderOutletBoxProperties
+        key={`${part?.parentAssemblyId || ''}:${part?.meta?.componentKey || ''}:${part?.instanceId || part?.code || ''}:${JSON.stringify(part?.meta?.componentConfig || {})}`}
+        part={part}
+        api={api}
+      />
+    );
   }
 
   if (isSurface)

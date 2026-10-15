@@ -24,6 +24,8 @@ import {
 } from '../mepal/critterium8/commercial/critteriumQuotation.js';
 import { describeCritteriumDiagnostic } from '../mepal/critterium8/ui/critteriumDiagnostics.js';
 import CritteriumCompositionPanel from '../mepal/critterium8/ui/CritteriumCompositionPanel.jsx';
+import { getCritterium8GrowthOptions } from '../mepal/critterium8/rules/frameCompositionRules.js';
+import { resolveCritterium8ConfigPatch } from '../mepal/critterium8/integration/critterium8Config.js';
 
 const field = {
   width: '100%',
@@ -127,6 +129,18 @@ function SequenceDraft({ value, onChange, title }) {
               <option value="FULL_TILE">Panel completo</option>
             </select>
           </label>
+          <label>
+            Módulos de crecimiento (38 cm cada uno)
+            <select
+              style={field}
+              value={frame.growthModules?.length || 0}
+              onChange={(event) => updateFrame(index, { growthModules: Array.from({ length: Number(event.target.value) }, (_, moduleIndex) => ({ index: moduleIndex })) })}
+            >
+              {getCritterium8GrowthOptions(frame).map((count) => (
+                <option key={count} value={count}>{count === 0 ? 'Sin módulo de crecimiento' : `${count} módulo${count > 1 ? 's' : ''} · altura final ${frame.heightCm + count * 38} cm`}</option>
+              ))}
+            </select>
+          </label>
         </details>
       ))}
       <div style={{ fontSize: 12, color: check.success ? '#166534' : '#b91c1c' }}>
@@ -160,6 +174,7 @@ export default function CriteriumPanel({
   const [libraryChoice, setLibraryChoice] = useState('SEQUENCE_2');
   const [frameWidth, setFrameWidth] = useState(90);
   const [frameHeight, setFrameHeight] = useState(128);
+  const [frameGrowthCount, setFrameGrowthCount] = useState(0);
   const [draft, setDraft] = useState(defaultCritteriumSequenceDraft);
   const [systemDrafts, setSystemDrafts] = useState([defaultCritteriumSequenceDraft()]);
   const [newSequenceDraft, setNewSequenceDraft] = useState(defaultCritteriumSequenceDraft);
@@ -447,7 +462,7 @@ export default function CriteriumPanel({
             <select
               style={field}
               value={frameWidth}
-              onChange={(event) => setFrameWidth(Number(event.target.value))}
+              onChange={(event) => { setFrameWidth(Number(event.target.value)); setFrameGrowthCount(0); }}
             >
               {CRITTERIUM8_CODED_FRAME_WIDTHS_CM.map((value) => (
                 <option key={value}>{value}</option>
@@ -459,10 +474,18 @@ export default function CriteriumPanel({
             <select
               style={field}
               value={frameHeight}
-              onChange={(event) => setFrameHeight(Number(event.target.value))}
+              onChange={(event) => { setFrameHeight(Number(event.target.value)); setFrameGrowthCount(0); }}
             >
               {CRITTERIUM8_HALF_HEIGHTS_CM.map((value) => (
                 <option key={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Módulos de crecimiento (38 cm cada uno)
+            <select style={field} value={frameGrowthCount} onChange={(event) => setFrameGrowthCount(Number(event.target.value))}>
+              {getCritterium8GrowthOptions({ widthCm: frameWidth, heightCm: frameHeight }).map((count) => (
+                <option key={count} value={count}>{count === 0 ? 'Sin módulo de crecimiento' : `${count} módulo${count > 1 ? 's' : ''} · altura final ${frameHeight + count * 38} cm`}</option>
               ))}
             </select>
           </label>
@@ -471,15 +494,18 @@ export default function CriteriumPanel({
             style={button}
             disabled={readOnly || busy}
             onClick={() =>
-              run(async () => ({
-                success: Boolean(
-                  await onCreateFrame?.({
+              run(async () => {
+                const config = resolveCritterium8ConfigPatch({ config: {
                     widthCm: frameWidth,
                     heightCm: frameHeight,
+                    frameMode: 'HALF_HEIGHT',
                     compositionMode: 'MODULAR',
-                  })
-                ),
-              }))
+                    growthModules: Array.from({ length: frameGrowthCount }, (_, index) => ({ index })),
+                    tiles: [],
+                  }, frameId: 'PREVIEW_FRAME' });
+                if (!config.success) return config;
+                return { success: Boolean(await onCreateFrame?.(config.config)) };
+              })
             }
           >
             Crear frame

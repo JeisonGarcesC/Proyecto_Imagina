@@ -114,6 +114,13 @@ export function resolveComponentKey(object) {
   const type = normalizeToken(userData.type || userData.kind);
   const subtype = normalizeToken(userData.subtype);
   const leaderRole = normalizeToken(meta.leaderRole || userData.leaderRole);
+  if (
+    normalizeToken(meta.category) === 'CAJAS_DE_TOMAS' &&
+    normalizeToken(meta.layoutType) === 'LEADER' &&
+    LEADER_ROLE_KEYS[leaderRole]
+  ) {
+    return LEADER_ROLE_KEYS[leaderRole];
+  }
   if (meta.componentKey) return String(meta.componentKey);
 
   if (type === 'LEADERCREDENZABEAMDECORATION' || type === 'LEADER_CREDENZA_BEAM_DECORATION') {
@@ -330,7 +337,9 @@ export function serializeKoncisaPlusRecipe({ assembly, physicalParts = [] } = {}
     };
     if (/PEDESTAL|INTEGRATION/.test(normalizeToken(component.type)) || signals.replaceKey) {
       replacements.push(record);
-    } else if (/ACCESSOR|GROMMET|COUPLING|SUPPORT/.test(`${category}_${normalizeToken(component.type)}`)) {
+    } else if (
+      /ACCESSOR|GROMMET|COUPLING|SUPPORT/.test(`${category}_${normalizeToken(component.type)}`)
+    ) {
       accessories.push(record);
     } else if (Object.keys(signals).length) {
       overrides.push(record);
@@ -339,7 +348,9 @@ export function serializeKoncisaPlusRecipe({ assembly, physicalParts = [] } = {}
 
   const warnings = [];
   if (missingComponentKeys.length) {
-    warnings.push(`${missingComponentKeys.length} componente(s) no tienen una clave lógica estable.`);
+    warnings.push(
+      `${missingComponentKeys.length} componente(s) no tienen una clave lógica estable.`
+    );
   }
   if (duplicatedComponentKeys.length) {
     warnings.push(`Hay claves lógicas duplicadas: ${duplicatedComponentKeys.join(', ')}.`);

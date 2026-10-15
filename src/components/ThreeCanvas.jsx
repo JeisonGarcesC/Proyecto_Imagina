@@ -6006,6 +6006,11 @@ function ThreeCanvas({
         return null;
       }
 
+      if (config.growthModules?.length && instance.diagnostics?.some((item) => item.level === 'ERROR')) {
+        disposeCritterium8FrameAssembly3D(instance.assembly);
+        return null;
+      }
+
       const { assembly } = registerCritterium8Instance({
         instance,
         parent: options?.parentGroup || scene,
@@ -7820,7 +7825,10 @@ function ThreeCanvas({
             (child) => child.userData?.sequenceId === sequenceId
           );
           if (!sequence) throw new Error('CRITERIUM_SYSTEM_SEQUENCE_NOT_FOUND');
-          return rotateCritteriumSequence90(sequence, clockwise);
+          const rotated = rotateCritteriumSequence90(sequence, clockwise);
+          const invalid = collectCritteriumSpatialDiagnostics(system);
+          if (invalid.length) throw new Error(invalid[0].code || 'CRITERIUM_LAYOUT_INVALID_CONNECTION');
+          return rotated;
         }
       );
     }
@@ -7916,13 +7924,40 @@ function ThreeCanvas({
       );
     }
 
-    function updateSelectedCritterium8(patch = {}) {
-      const assembly = getSelectedCritterium8Assembly();
+    function getCritterium8AssemblyForEdit(instanceId = null) {
+      if (!instanceId) return getSelectedCritterium8Assembly();
+      return parts.find(({ obj }) => obj?.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' &&
+        String(obj.userData.instanceId) === String(instanceId))?.obj || null;
+    }
+
+    async function updateSelectedCritterium8(patch = {}, instanceId = null) {
+      const assembly = getCritterium8AssemblyForEdit(instanceId);
+      if (!assembly) return { success: false, reason: 'CRITTERIUM8_ASSEMBLY_REQUIRED' };
+      const sequence = getCritterium8SequenceRoot(assembly);
+      if (sequence) {
+        const slot = sequence.userData.sequence?.slots?.find(
+          (item) => String(item.frameId) === String(assembly.userData.frameId)
+        );
+        if (!slot) return { success: false, reason: 'CRITTERIUM_MODULE_SLOT_NOT_FOUND' };
+        const result = await editCritteriumSequenceSlot(sequence.userData.sequenceId, 'CONFIGURE', {
+          slotId: slot.slotId,
+          configPatch: patch,
+        });
+        if (result.success) {
+          const next = parts.find(({ obj }) => obj?.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' &&
+            obj.userData.instanceId === assembly.userData.instanceId)?.obj;
+          if (next) {
+            syncSelectedIds3D([next.userData.instanceId]);
+            setActivePart(next, { targetIds: [next.userData.instanceId] });
+          }
+        }
+        return result;
+      }
       return rebuildCritterium8Assembly(assembly, patch);
     }
 
-    function updateSelectedCritterium8Tile(slotId, patch = {}) {
-      const assembly = getSelectedCritterium8Assembly();
+    function updateSelectedCritterium8Tile(slotId, patch = {}, instanceId = null) {
+      const assembly = getCritterium8AssemblyForEdit(instanceId);
       if (!assembly)
         return Promise.resolve({
           success: false,
@@ -7936,11 +7971,9 @@ function ThreeCanvas({
         patch,
       });
       if (!resolved.success) return Promise.resolve(resolved);
-      return rebuildCritterium8Assembly(
-        assembly,
-        { tiles: resolved.config.tiles },
-        { preferredSlotId: slotId }
-      );
+      if (getCritterium8SequenceRoot(assembly))
+        return updateSelectedCritterium8({ tiles: resolved.config.tiles }, assembly.userData.instanceId);
+      return rebuildCritterium8Assembly(assembly, { tiles: resolved.config.tiles }, { preferredSlotId: slotId });
     }
 
     function rebuildSelectedCritterium8() {
@@ -13894,6 +13927,13 @@ function ThreeCanvas({
     function endRotation() {
       if (!rotationSession) return false;
       const targets = rotationSession.targets || [];
+      const critteriumSystems = new Set(
+        targets.map(({ obj }) => getCritteriumSystemRoot(obj)).filter(Boolean)
+      );
+      if ([...critteriumSystems].some((system) => collectCritteriumSpatialDiagnostics(system).length)) {
+        cancelRotation();
+        return false;
+      }
       const before = rotationSession.historyBefore;
       const after = captureRotationState(rotationSession.targets);
       persistLinkComponentTransforms(targets.map(({ obj }) => obj));
@@ -13939,7 +13979,7 @@ function ThreeCanvas({
       const radians = THREE.MathUtils.degToRad(Number(degrees));
       if (!Number.isFinite(radians) || !beginRotation({ sourceId })) return false;
       applyRotationDelta(radians);
-      endRotation();
+      if (!endRotation()) return false;
       if (activePart?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY') {
         checkAndApplyKuoAVLUnion(activePart);
       }

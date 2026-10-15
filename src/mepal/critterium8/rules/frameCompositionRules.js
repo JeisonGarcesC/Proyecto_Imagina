@@ -1,4 +1,5 @@
 import { CRITTERIUM8_FORMICA_FULL_TILE_HEIGHTS_CM } from '../catalog/tileCatalog.js';
+import { getCritterium8GrowthModule } from '../catalog/frameCatalog.js';
 import { isTileCombinationAllowed } from './tileRules.js';
 
 export const CRITTERIUM8_COMPOSITION_MODES = Object.freeze(['MODULAR', 'FULL_TILE']);
@@ -55,4 +56,13 @@ export function validateCritterium8GrowthTransition({ baseHeightCm, moduleCount 
   if (targetHeightCm > 204) errors.push('GROWTH_EXCEEDS_204');
   if (![128, 166, 204].includes(targetHeightCm)) errors.push('GROWTH_TARGET_NOT_DOCUMENTED');
   return { valid: errors.length === 0, errors, targetHeightCm };
+}
+
+export function getCritterium8GrowthOptions({ widthCm, heightCm, frameMode = 'HALF_HEIGHT', compositionMode = 'MODULAR' } = {}) {
+  const options = [0];
+  if (frameMode !== 'HALF_HEIGHT' || compositionMode !== 'MODULAR' || !getCritterium8GrowthModule(widthCm)) return options;
+  for (let count = 1; count <= 3; count += 1) {
+    if (validateCritterium8GrowthTransition({ baseHeightCm: heightCm, moduleCount: count }).valid) options.push(count);
+  }
+  return options;
 }

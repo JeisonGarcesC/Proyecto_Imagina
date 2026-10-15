@@ -61,7 +61,9 @@ function placementForPart(part, context) {
 export function buildCritterium8FrameAssemblyLayout({ frame = {}, composition = {}, parts = [] } = {}) {
   const frameId = String(frame.id || composition.frameId || 'UNIDENTIFIED');
   const widthCm = Number(frame.widthCm ?? composition.widthCm);
-  const projectHeightCm = Number(frame.heightCm ?? composition.projectHeightCm ?? composition.heightCm);
+  const projectHeightCm = String(frame.frameMode || '').toUpperCase() === 'FLOOR_TO_CEILING'
+    ? Number(frame.heightCm)
+    : Number(composition.heightCm ?? frame.heightCm);
   const baseFrameHeightCm = Number(composition.baseFrameHeightCm ?? composition.heightCm);
   const depthCm = Number(frame.thicknessCm ?? 8);
   const diagnostics = [];

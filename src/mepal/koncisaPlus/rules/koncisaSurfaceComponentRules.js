@@ -81,18 +81,30 @@ export function getKoncisaSurfaceComponentConfig(config, key, fallback = {}) {
 
 export function createKoncisaSurfaceConfigPatch(config, key, patch) {
   if (!key) throw new Error('La superficie Koncisa no tiene una clave estable.');
-  const current = getKoncisaSurfaceComponentConfig(config, key, fallbackFromConfig(config));
+  const current = getKoncisaSurfaceComponentConfig(config, key, fallbackFromConfig(config, key));
   const next = normalizeKoncisaSurfaceOverride({ ...current, ...patch }, current);
   return { ...config, surfaceOverrides: { ...(config?.surfaceOverrides || {}), [key]: next } };
 }
 
-export function fallbackFromConfig(config = {}) {
+export function fallbackFromConfig(config = {}, componentKey = null) {
   const cableAccessType =
     String(config.tipoPasoCable || '').toLowerCase() === 'pasacable'
       ? 'PASACABLE'
       : String(config.tipoPasoCable || '').toLowerCase() === 'grommet'
         ? 'GROMMET'
         : 'NONE';
+  const legacySurfaceConfig =
+    componentKey === 'MAIN_SURFACE'
+      ? {
+          floorDuctEnabled: config.leaderMainFloorDuct?.enabled === true,
+          outletCouplingEnabled: config.leaderMainOutletCoupling?.enabled === true,
+        }
+      : componentKey === 'RETURN_SURFACE'
+        ? {
+            floorDuctEnabled: config.leaderReturnFloorDuct?.enabled === true,
+            outletCouplingEnabled: config.leaderReturnOutletCoupling?.enabled === true,
+          }
+        : {};
   return {
     finishCode: config.finishCode,
     thickMm: config.thickMm,
@@ -103,5 +115,6 @@ export function fallbackFromConfig(config = {}) {
     grommetFinish: config.grommetFinish,
     grommetPosition: 'CENTER',
     pasacablePosition: config.pasacablePosition || 'CENTER',
+    ...legacySurfaceConfig,
   };
 }

@@ -1,5 +1,5 @@
 import { createCritterium8FrameDefinition } from '../definitions/frameDefinition.js';
-import { buildCritterium8FrameComposition } from '../composition/frameComposition.js';
+import { applyGrowthModuleToComposition, buildCritterium8FrameComposition } from '../composition/frameComposition.js';
 import { isTileCombinationAllowed } from '../rules/tileRules.js';
 import { getCritterium8FullTileHeight } from '../rules/frameCompositionRules.js';
 
@@ -16,7 +16,21 @@ function buildComposition(config, frameId) {
     compositionMode: config.compositionMode,
     tiles: config.tiles || [],
   });
-  return { frame, composition: buildCritterium8FrameComposition(frame) };
+  let composition = buildCritterium8FrameComposition(frame);
+  const count = config.growthModules?.length || 0;
+  if (count) {
+    const errors = [];
+    if (config.frameMode !== 'HALF_HEIGHT') errors.push('GROWTH_REQUIRES_HALF_HEIGHT_FRAME');
+    if (config.compositionMode !== 'MODULAR') errors.push('GROWTH_REQUIRES_MODULAR_COMPOSITION');
+    if (!Array.isArray(config.growthModules)) errors.push('INVALID_GROWTH_MODULE_COUNT');
+    if (errors.length) composition.diagnostics.push(...errors.map((code) => ({ code, level: 'ERROR' })));
+    else {
+      const result = applyGrowthModuleToComposition(frame, composition, { moduleCount: count });
+      if (result.valid) composition = result.composition;
+      else composition.diagnostics.push(...result.errors.map((code) => ({ code, level: 'ERROR' })));
+    }
+  }
+  return { frame, composition };
 }
 
 export function resolveCritterium8ConfigPatch({ config = {}, patch = {}, frameId } = {}) {
@@ -37,6 +51,9 @@ export function resolveCritterium8ConfigPatch({ config = {}, patch = {}, frameId
     tiles: [],
   };
   const diagnostics = [];
+  if (!Array.isArray(next.growthModules)) {
+    return { success: false, reason: 'INVALID_GROWTH_MODULE_COUNT', diagnostics, config: clone(config) };
+  }
   if (next.compositionMode === 'FULL_TILE' && !getCritterium8FullTileHeight(next.heightCm)) {
     return { success: false, reason: 'FULL_TILE_NOT_DOCUMENTED_FOR_FRAME', diagnostics, config: clone(config) };
   }
@@ -68,6 +85,7 @@ export function resolveCritterium8ConfigPatch({ config = {}, patch = {}, frameId
   const effective = buildComposition(next, frameId);
   const errors = (effective.composition.diagnostics || []).filter((item) => item.level === 'ERROR');
   if (errors.length) return { success: false, reason: errors[0].code, diagnostics: [...diagnostics, ...errors], config: clone(config) };
+  if (next.frameMode === 'HALF_HEIGHT') next.projectHeightCm = effective.composition.heightCm;
   return { success: true, config: clone(next), frame: effective.frame, composition: effective.composition, diagnostics };
 }
 

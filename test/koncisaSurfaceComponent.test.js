@@ -6,6 +6,7 @@ import {
   getKoncisaSurfaceComponentConfig,
   getKoncisaSurfaceKey,
 } from '../src/mepal/koncisaPlus/rules/koncisaSurfaceComponentRules.js';
+import { resolveComponentKey } from '../src/mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe.js';
 
 const baseConfig = {
   puestos: 2,
@@ -106,6 +107,51 @@ test('las propiedades de caja LEADER persisten el ducto y el acople por superfic
 
   assert.equal(config.surfaceOverrides.MAIN_SURFACE.floorDuctEnabled, true);
   assert.equal(config.surfaceOverrides.MAIN_SURFACE.outletCouplingEnabled, true);
+});
+
+test('editar una caja LEADER preserva los flags legacy independientes de MAIN y RETURN', () => {
+  const legacyConfig = {
+    ...baseConfig,
+    leaderMainFloorDuct: { enabled: true },
+    leaderMainOutletCoupling: { enabled: false },
+    leaderReturnFloorDuct: { enabled: false },
+    leaderReturnOutletCoupling: { enabled: true },
+  };
+  const mainConfig = createKoncisaSurfaceConfigPatch(legacyConfig, 'MAIN_SURFACE', {
+    outletCouplingEnabled: true,
+  });
+  const returnConfig = createKoncisaSurfaceConfigPatch(mainConfig, 'RETURN_SURFACE', {
+    floorDuctEnabled: true,
+  });
+
+  assert.equal(mainConfig.surfaceOverrides.MAIN_SURFACE.floorDuctEnabled, true);
+  assert.equal(mainConfig.surfaceOverrides.MAIN_SURFACE.outletCouplingEnabled, true);
+  assert.equal(returnConfig.surfaceOverrides.RETURN_SURFACE.floorDuctEnabled, true);
+  assert.equal(returnConfig.surfaceOverrides.RETURN_SURFACE.outletCouplingEnabled, true);
+  assert.equal(returnConfig.surfaceOverrides.MAIN_SURFACE.floorDuctEnabled, true);
+  assert.equal(returnConfig.surfaceOverrides.MAIN_SURFACE.outletCouplingEnabled, true);
+});
+
+test('la caja LEADER tiene una clave serializada distinta de su superficie objetivo', () => {
+  const surfaceKey = resolveComponentKey({
+    userData: { type: 'SURFACE', meta: { componentKey: 'MAIN_SURFACE', leaderRole: 'MAIN' } },
+  });
+  const outletBoxKey = resolveComponentKey({
+    userData: {
+      type: 'GLB_PART',
+      meta: {
+        category: 'cajas-de-tomas',
+        layoutType: 'LEADER',
+        leaderRole: 'MAIN_GROMMET_OUTLET_BOX',
+        componentKey: 'MAIN_SURFACE',
+        targetSurfaceKey: 'MAIN_SURFACE',
+      },
+    },
+  });
+
+  assert.equal(surfaceKey, 'MAIN_SURFACE');
+  assert.equal(outletBoxKey, 'MAIN_GROMMET_OUTLET_BOX');
+  assert.notEqual(outletBoxKey, surfaceKey);
 });
 
 test('la extensión contextual de Koncisa no importa módulos LINK', () => {

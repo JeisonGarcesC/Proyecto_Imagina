@@ -62,7 +62,7 @@ export default function Critterium8Properties({ part, api, readOnly = false }) {
         <Critterium8FrameProperties
           config={config}
           disabled={readOnly || busy}
-          onChange={(patch) => run(() => api?.updateSelectedCritterium8?.(patch))}
+          onChange={(patch) => run(() => api?.updateSelectedCritterium8?.(patch, context.instanceId))}
         />
       </div>
 
@@ -77,7 +77,7 @@ export default function Critterium8Properties({ part, api, readOnly = false }) {
                 style={selectStyle}
                 value={slot.tile?.tileType || ''}
                 disabled={readOnly || busy}
-                onChange={(event) => run(() => api?.updateSelectedCritterium8Tile?.(slot.id, { tileType: event.target.value }))}
+                onChange={(event) => run(() => api?.updateSelectedCritterium8Tile?.(slot.id, { tileType: event.target.value }, context.instanceId))}
               >
                 <option value="">Ninguno</option>
                 {(slot.allowedTileTypes || []).map((type) => <option key={type} value={type}>{CRITTERIUM8_TILE_CATALOG[type]?.displayName || type}</option>)}
