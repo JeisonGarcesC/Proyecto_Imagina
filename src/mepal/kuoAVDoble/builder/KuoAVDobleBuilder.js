@@ -18,6 +18,7 @@ import { resolveKuoAVDobleHeightPlacement } from '../config/kuoAVDobleHeightPlac
 import {
   KUO_AV_PERIMETRAL_SCREEN_MOUNT,
   resolveKuoAVPerimetralScreenHeight,
+  resolveKuoAVCentralScreenOffset,
 } from '../../kuoAV/config/kuoAVPantallaPlacement.js';
 import {
   KUO_AV_REMATE,
@@ -55,7 +56,7 @@ export function buildKuoAVDoble(config = {}) {
   const espesorTipo = config.espesorTipo || 'Formica 30';
   const acabadoSuperficieF = config.acabadoSuperficieF || config.acabadoSuperficie || '#dedede';
   const acabadoSuperficieP = config.acabadoSuperficieP || config.acabadoSuperficie || '#dedede';
-  const acabadoParales = config.acabadoParales || config.kitFuenteColor || 'Blanco';
+  const acabadoParales = config.kitFuenteColor || config.acabadoParales || 'Blanco';
   const acabadoEstructura = config.acabadoEstructura || 'Blanco';
   const kitFuenteColor = config.kitFuenteColor || 'Blanco';
   const kitFuente = typeof config.kitFuente === 'boolean' ? config.kitFuente : true;
@@ -563,8 +564,10 @@ export function buildKuoAVDoble(config = {}) {
       colorVariante: pantallaAcabado,
       position: [
         -panWidthM / 2,
-        isPerimetral ? resolveKuoAVPerimetralScreenHeight(heightPlacement.surfaceTopMm, thickMm) : surfaceCenterY - 0.268,
-        isPerimetral ? KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM : 0,
+        isPerimetral ? resolveKuoAVPerimetralScreenHeight(heightPlacement.surfaceTopMm, thickMm) : surfaceCenterY - 0.360,
+        isPerimetral
+          ? KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM
+          : resolveKuoAVCentralScreenOffset(pantallaTipo),
       ],
       rotation: [0, 0, 0],
       scale: [scaleX, 1, 1],
@@ -600,6 +603,7 @@ export function buildKuoAVDoble(config = {}) {
     espesorTipo,
     acabadoSuperficieF,
     acabadoSuperficieP,
+    surfaceFinishes: config.surfaceFinishes || {},
     acabadoParales,
     acabadoEstructura,
     kitFuenteColor,

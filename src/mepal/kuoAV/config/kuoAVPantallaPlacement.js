@@ -8,6 +8,13 @@ export const KUO_AV_PERIMETRAL_SCREEN_MOUNT = Object.freeze({
   glassFaceOffsetM: 0.203,
 });
 
+// Centros del panel medidos en los GLB KUAC690000 y KUAC660000, no del soporte.
+export function resolveKuoAVCentralScreenOffset(tipo = 'FORMICA') {
+  return ['VIDRIO', 'VIDRIO LAMINADO', 'KUAC660000'].includes(String(tipo).toUpperCase())
+    ? 0.012
+    : 0.016;
+}
+
 export function resolveKuoAVPerimetralScreenHeight(alturaMm = 730, thickMm = 30) {
   return (Number(alturaMm) - Number(thickMm)) / 1000
     - KUO_AV_PERIMETRAL_SCREEN_MOUNT.plateTopM;

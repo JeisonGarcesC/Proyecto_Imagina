@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { getThreeMaterialFromDef } from './materialRegistry';
+import { getThreeMaterialFromDef } from './materialRegistry.js';
 
 const textureLoader = new THREE.TextureLoader();
 const textureCache = new Map();

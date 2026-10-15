@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { KUO_AV_PANTALLA_CATALOG } from '../config/kuoAVPantallaCatalog.js';
-import { KUO_AV_PERIMETRAL_SCREEN_MOUNT } from '../config/kuoAVPantallaPlacement.js';
+import { KUO_AV_PERIMETRAL_SCREEN_MOUNT, resolveKuoAVCentralScreenOffset } from '../config/kuoAVPantallaPlacement.js';
 import { resolveKuoAVNominalWidth } from '../config/kuoAVTunables.js';
 
 export { KUO_AV_PANTALLA_CATALOG } from '../config/kuoAVPantallaCatalog.js';
@@ -105,7 +105,7 @@ export async function createKuoAVPantallaInstance({
     // Centrar la pantalla sobre su origen X y centrar el panel en Z=0
     const centerOffsetZ = isFrontalPerimetral
       ? KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM
-      : isVidrioDoble ? 0.012 : 0.016;
+      : resolveKuoAVCentralScreenOffset(tipo);
     loadedScene.position.set(-widthM / 2, 0, centerOffsetZ);
 
     // Configuración de materiales (vidrio translúcido o acabado sólido)

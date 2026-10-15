@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { buildKuoAVDoble } from '../builder/KuoAVDobleBuilder.js';
 import { createSurfaceMesh } from '../../../factories/surfaceFactory.js';
-import { applyKuoAVMaterialFinish } from '../../kuoAV/materials/kuoAVFinish.js';
+import { applyKuoAVMaterialFinish, restoreKuoAVSurfaceFinish } from '../../kuoAV/materials/kuoAVFinish.js';
 import { applyKuoAVUpperSegmentTravel } from '../../kuoAV/transform/kuoAVAssetTransforms.js';
 
 function cloneAsset(source) {
@@ -243,6 +243,7 @@ export async function createKuoAVDobleInstance({
         };
       });
 
+      if (part.type === 'superficie') restoreKuoAVSurfaceFinish(partObj, effectiveConfig);
       assemblyGroup.add(partObj);
 
       console.log(`[KUO DOBLE COMPONENT] Añadido GLB real: ${part.name} (${part.role}) en pos:`, part.position);

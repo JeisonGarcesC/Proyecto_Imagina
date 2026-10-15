@@ -1,7 +1,7 @@
 // materialRegistry.js
 import * as THREE from 'three';
 import { getTexture } from './textureRegistry.js';
-import { parseRgbValue } from './colorUtils';
+import { parseRgbValue } from './colorUtils.js';
 
 const materialCache = new Map();
 
