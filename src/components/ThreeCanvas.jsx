@@ -47,6 +47,7 @@ import {
 
 import { useEffect, useRef } from 'react';
 import { resolveKuoAVDobleSupportUpdates } from '../mepal/kuoAVDoble/config/kuoAVDobleSupportUpdates.js';
+import { expandKuoAVBatchTargets, isKuoAVBatchRoot } from '../mepal/kuoAV/config/kuoAVBatchTargets.js';
 import { useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls, GLTFLoader } from 'three-stdlib';
@@ -4663,7 +4664,7 @@ function ThreeCanvas({
         members = Array.from(new Set([...members, ...groupMembers]));
       }
 
-      const resolvedIds = members
+      const resolvedIds = expandKuoAVBatchTargets(members, physicalObjects)
         .map((candidate) => candidate.userData?.instanceId || candidate.uuid)
         .filter(Boolean);
 
@@ -13108,23 +13109,12 @@ function ThreeCanvas({
         ? getAssemblyObject(target) || target
         : getIndividualMovementRoot(target) || target;
 
-      const batchId = effectiveTarget?.userData?.kuoBatchId;
-      const targets = batchId
-        ? Array.from(
-            new Set(
-              parts
-                .map(({ obj }) => obj)
-                .filter(
-                  (obj) =>
-                    obj?.userData?.kuoBatchId === batchId &&
-                    (obj.userData?.kind === 'KUO_AV_ASSEMBLY' ||
-                      obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY')
-                )
-            )
-          )
-        : moveAsGroupRef.current && effectiveTarget?.userData?.groupId
+      const targets = expandKuoAVBatchTargets(
+        moveAsGroupRef.current && effectiveTarget?.userData?.groupId
           ? getGroupedObjects(effectiveTarget)
-          : [effectiveTarget];
+          : [effectiveTarget],
+        parts.map(({ obj }) => obj)
+      );
 
       targets.forEach((obj) => {
         obj.position.x += dx;
@@ -13450,7 +13440,9 @@ function ThreeCanvas({
         });
       });
 
-      const uniqueTargets = Array.from(targetsById.values());
+      const uniqueTargets = expandKuoAVBatchTargets(
+        Array.from(targetsById.values()), parts.map(({ obj }) => obj)
+      );
       const targetSet = new Set(uniqueTargets);
       return uniqueTargets.filter((obj) => {
         let ancestor = obj.parent;
@@ -13533,7 +13525,9 @@ function ThreeCanvas({
         !individualTargets && sourceTargets.length === 1 && moveAsGroupRef.current
           ? getGroupedObjects(sourceTargets[0])
           : sourceTargets;
-      const targets = dedupeMovementTargets(actualTargets);
+      const targets = dedupeMovementTargets(expandKuoAVBatchTargets(
+        actualTargets, parts.map(({ obj }) => obj)
+      ));
       if (!targets.length) return false;
 
       targets.forEach((obj) => {
@@ -18100,7 +18094,7 @@ function ThreeCanvas({
         // Si se mueve en modo individual, separar de las conexiones magnéticas del banco
         dragTargets.forEach((targetObj) => {
           const targetAssembly = targetObj.userData?.kind?.includes('ASSEMBLY') ? targetObj : null;
-          if (targetAssembly) {
+          if (targetAssembly && !isKuoAVBatchRoot(targetAssembly)) {
             targetAssembly.userData.attachment = null;
             if (targetAssembly.userData.attachedNeighbors) {
               targetAssembly.userData.attachedNeighbors.clear();
@@ -18112,6 +18106,9 @@ function ThreeCanvas({
       if (!dragTargets.length) {
         dragTargets = [targetToDrag];
       }
+      dragTargets = dedupeMovementTargets(expandKuoAVBatchTargets(
+        dragTargets, parts.map(({ obj }) => obj)
+      ));
       if (
         selectedCritteriumSystem ||
         movementRoot.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY'

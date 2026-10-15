@@ -8,25 +8,23 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createKuoAVInstance } from '../src/mepal/kuoAV/factory/createKuoAVInstance.js';
 import { createKuoAVDobleInstance } from '../src/mepal/kuoAVDoble/factory/createKuoAVDobleInstance.js';
 import { resolveKuoAVDobleSupportUpdates } from '../src/mepal/kuoAVDoble/config/kuoAVDobleSupportUpdates.js';
+import { expandKuoAVBatchTargets } from '../src/mepal/kuoAV/config/kuoAVBatchTargets.js';
 
 const publicRoot = fileURLToPath(new URL('../public/', import.meta.url));
 const assetRoot = join(publicRoot, 'assets', 'models', 'Kuo AV');
 const cache = new Map();
-test('editing support on first or last table updates only its batch and preserves other settings', () => {
+test('editing support updates only the selected table, including within the same batch', () => {
   const roots = [
     { userData: { kind: 'KUO_AV_DOBLE_ASSEMBLY', instanceId: 'first', config: { kuoBatchId: 'a' } } },
     { userData: { kind: 'KUO_AV_DOBLE_ASSEMBLY', instanceId: 'second', kuoBatchId: 'a' } },
+    { userData: { kind: 'KUO_AV_DOBLE_ASSEMBLY', instanceId: 'third', kuoBatchId: 'a' } },
     { userData: { kind: 'KUO_AV_DOBLE_ASSEMBLY', instanceId: 'other', kuoBatchId: 'b' } },
     { userData: { kind: 'columna', instanceId: 'child', kuoBatchId: 'a' } },
   ];
-  for (const id of ['first', 'second']) {
+  for (const id of ['first', 'second', 'third']) {
     const changes = { soporteIntermedio: 'KUSO850000', alturaMm: 1200 };
     const updates = resolveKuoAVDobleSupportUpdates([...roots, roots[0]], id, changes);
-    assert.equal(updates.length, 2);
-    assert.deepEqual(updates[0].changes, { soporteIntermedio: 'KUSO850000' });
-    assert.equal(updates[1].instanceId, id);
-    assert.equal(updates[1].changes, changes);
-    assert.ok(!updates.some((update) => ['other', 'child'].includes(update.instanceId)));
+    assert.deepEqual(updates, [{ instanceId: id, changes }]);
   }
   assert.deepEqual(resolveKuoAVDobleSupportUpdates(roots, 'first', { alturaMm: 1200 }),
     [{ instanceId: 'first', changes: { alturaMm: 1200 } }]);
@@ -64,6 +62,97 @@ function files(dir) {
     return entry.isDirectory() ? files(path) : entry.name.endsWith('.glb') ? [path] : [];
   });
 }
+
+test('complete Kuo batches stay rigid while component selection and other batches stay independent', () => {
+  const scene = new THREE.Scene();
+  const roots = [];
+  for (let index = 0; index < 3; index += 1) {
+    const root = new THREE.Group();
+    root.userData = {
+      kind: index === 0 ? 'KUO_AV_ASSEMBLY' : 'KUO_AV_DOBLE_ASSEMBLY',
+      ...(index === 2 ? { config: { kuoBatchId: 'rigid' } } : { kuoBatchId: 'rigid' }),
+    };
+    root.position.x = index * 1.2;
+    scene.add(root);
+    roots.push(root);
+  }
+  const other = new THREE.Group();
+  other.userData = { kind: 'KUO_AV_DOBLE_ASSEMBLY', kuoBatchId: 'other' };
+  scene.add(other);
+  const component = new THREE.Group();
+  component.userData = { kind: 'ducto', kuoBatchId: 'rigid', isPartRoot: true };
+  roots[1].add(component);
+  const candidates = [...roots, other, component, roots[1]];
+  const targets = expandKuoAVBatchTargets([roots[1]], candidates);
+  assert.equal(targets.length, 3);
+  assert.ok(roots.every((root) => targets.includes(root)));
+  assert.deepEqual(expandKuoAVBatchTargets([component], candidates), [component]);
+  assert.deepEqual(expandKuoAVBatchTargets([other], candidates), [other]);
+  const before = roots.map((root) => root.position.clone());
+  const delta = new THREE.Vector3(0.2, 0, -0.3);
+  targets.forEach((target) => target.position.add(delta));
+  roots.forEach((root, index) => assert.deepEqual(root.position.toArray(),
+    before[index].clone().add(delta).toArray()));
+  const pivot = roots[1].position.clone();
+  const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+  targets.forEach((target) => {
+    target.position.sub(pivot).applyQuaternion(rotation).add(pivot);
+    target.quaternion.premultiply(rotation);
+  });
+  close(roots[0].position.distanceTo(roots[1].position), 1.2, 1e-10);
+  close(roots[1].position.distanceTo(roots[2].position), 1.2, 1e-10);
+  assert.deepEqual(other.position.toArray(), [0, 0, 0]);
+  assert.deepEqual(component.position.toArray(), [0, 0, 0]);
+  assert.ok(roots.every((root) => root.quaternion.equals(rotation)));
+  roots.forEach((root, index) => {
+    root.position.copy(before[index]);
+    root.quaternion.identity();
+  });
+  close(roots[0].position.distanceTo(roots[2].position), 2.4, 1e-10);
+});
+
+test('three doubles default to AUTO and editing the middle union preserves the other tables and BOM', async () => {
+  const tables = [];
+  for (let kuoBatchIndex = 0; kuoBatchIndex < 3; kuoBatchIndex += 1) {
+    const { object } = await createKuoAVDobleInstance({
+      config: {
+        instanceId: `local-support-${kuoBatchIndex}`,
+        kuoBatchId: 'local-support-batch',
+        kuoBatchSize: 3,
+        kuoBatchIndex,
+        anchoMm: 1200,
+        profundidadMm: 600,
+        kitFuente: true,
+      },
+      loadGlb,
+    });
+    tables.push(object);
+  }
+  const intermediate = (object) => object.children.find(
+    (part) => part.userData.role === 'SUPPORT_INTERMEDIATE'
+  );
+  assert.equal(intermediate(tables[0]), undefined);
+  assert.equal(intermediate(tables[1]).userData.lookupTag, 'KUSO840000');
+  assert.equal(intermediate(tables[2]).userData.lookupTag, 'KUSO840000');
+  const previous = tables.slice();
+  const previousBOM = tables.map((object) => JSON.stringify(object.userData.bom));
+  const updates = resolveKuoAVDobleSupportUpdates(tables, tables[1].userData.instanceId,
+    { soporteIntermedio: 'KUSO850000' });
+  for (const update of updates) {
+    const index = tables.findIndex((object) => object.userData.instanceId === update.instanceId);
+    const { object } = await createKuoAVDobleInstance({
+      config: { ...tables[index].userData.config, ...update.changes }, loadGlb,
+    });
+    tables[index] = object;
+  }
+  assert.equal(updates.length, 1);
+  assert.equal(intermediate(tables[1]).userData.lookupTag, 'KUSO850000');
+  assert.equal(tables[0], previous[0]);
+  assert.equal(tables[2], previous[2]);
+  assert.equal(JSON.stringify(tables[0].userData.bom), previousBOM[0]);
+  assert.equal(JSON.stringify(tables[2].userData.bom), previousBOM[2]);
+  assert.notEqual(JSON.stringify(tables[1].userData.bom), previousBOM[1]);
+});
 
 test('all uploaded Kuo GLBs parse with finite, nonempty native geometry', async () => {
   for (const path of files(assetRoot)) {

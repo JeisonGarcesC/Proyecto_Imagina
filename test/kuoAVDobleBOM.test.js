@@ -323,21 +323,18 @@ function supportCount(builts) {
   return Object.fromEntries(counts);
 }
 
-test('lote de 3 dobles: 2 terminales y uniones KUSO840000 + KUSO850000 (mapa)', () => {
+test('lote de 3 dobles: 2 terminales y todas las uniones AUTO con ducto KUSO840000', () => {
   const batch = buildBatch(3);
   assert.deepEqual(supportCount(batch), {
     '22000134918': 2,
-    '22000134920': 1,
-    '22000134922': 1,
+    '22000134920': 2,
   });
-  const ductSupport = batch[2].bom.find((row) => row.code === '22000134922');
-  assert.equal(ductSupport.unitPrice, 970200);
-  assert.match(ductSupport.description, /SOPORTE DUCTO DOBLE .*KUSO850000/);
+  assert.ok(batch.every((built) => !built.bom.some((row) => row.code === '22000134922')));
 
   const feet = batch.flatMap((built) => built.parts.filter((part) => part.partId.includes('_FOOT_')));
   assert.equal(feet.length, 4);
   assert.deepEqual(feet.map((part) => part.lookupTag), [
-    'KUSO820000', 'KUSO840000', 'KUSO850000', 'KUSO820000',
+    'KUSO820000', 'KUSO840000', 'KUSO840000', 'KUSO820000',
   ]);
 });
 
@@ -352,12 +349,11 @@ test('soporte intermedio seleccionado manualmente se aplica en todas las uniones
   });
 });
 
-test('lote de 4 dobles de 75 cm alterna intermedios 150 y conserva 2 terminales', () => {
+test('lote de 4 dobles de 75 cm usa intermedios con ducto 150 y conserva 2 terminales', () => {
   const batch = buildBatch(4, { profundidadMm: 750 });
   assert.deepEqual(supportCount(batch), {
     '22000134919': 2,
-    '22000134921': 2,
-    '22000134923': 1,
+    '22000134921': 3,
   });
   assert.equal(
     batch.flatMap((built) => built.parts.filter((part) => part.partId.includes('_FOOT_'))).length,

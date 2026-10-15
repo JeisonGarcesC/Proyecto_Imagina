@@ -70,19 +70,19 @@ const DEPTH_BOM = Object.freeze({
 
 /**
  * Soporte en la unión `batchIndex` de un lote de puestos dobles (mapa de producto):
- * los extremos llevan costado terminal KUSO820000 y las uniones alternan
- * KUSO840000 (con ducto, acceso de cableado desde piso) y KUSO850000 (soporte ducto).
- * `selection` permite elegir explícitamente el soporte; 'AUTO' (o vacío) alterna.
+ * los extremos llevan costado terminal KUSO820000 y las uniones usan por defecto
+ * KUSO840000 (con ducto, acceso de cableado desde piso).
+ * `selection` permite elegir KUSO850000 (soporte ducto) en una union.
  */
 export const KUO_AV_DOBLE_INTERMEDIATE_SUPPORTS = Object.freeze([
-  Object.freeze({ value: 'AUTO', label: 'Automático (alterna KUSO840000 / KUSO850000)' }),
+  Object.freeze({ value: 'AUTO', label: 'Automático (intermedio con ducto KUSO840000)' }),
   Object.freeze({ value: 'KUSO840000', label: 'Intermedio con ducto · cableado desde piso (KUSO840000)' }),
   Object.freeze({ value: 'KUSO850000', label: 'Soporte intermedio ducto (KUSO850000)' }),
 ]);
 
 export function resolveKuoAVDobleIntermediateType(batchIndex, selection = 'AUTO') {
   if (selection === 'KUSO840000' || selection === 'KUSO850000') return selection;
-  return Math.trunc(Number(batchIndex) || 0) % 2 === 1 ? 'KUSO840000' : 'KUSO850000';
+  return 'KUSO840000';
 }
 
 function normalizeUpper(value) {
