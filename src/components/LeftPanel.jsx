@@ -344,6 +344,8 @@ export default function LeftPanel({
   onClearOpenings,
   shapeTool2D,
   setShapeTool2D,
+  elevationDirection2D,
+  setElevationDirection2D,
   selectedShape2D,
   onShape2DChange,
   onDeleteShape2D,
@@ -1767,17 +1769,24 @@ export default function LeftPanel({
               ].map(([tool, label]) => <button key={tool} type="button" style={btnMini(shapeTool2D === tool)} onClick={() => { setTextTool2D(false); setShapeTool2D(shapeTool2D === tool ? null : tool); }}>{label}</button>)}
             </div>
             <div style={{ fontSize: 12, opacity: 0.7 }}>{shapeTool2D ? 'Haz clic en el plano para colocar el elemento.' : 'Selecciona una herramienta o una figura existente.'}</div>
+            <strong>ÁREAS / MARCADOS</strong>
+            <button type="button" style={btnMini(shapeTool2D === 'areaRectangle')} onClick={() => { setTextTool2D(false); setShapeTool2D(shapeTool2D === 'areaRectangle' ? null : 'areaRectangle'); }}>Área rectangular</button>
+            <strong>VISTAS / ALZADOS</strong>
+            <button type="button" style={btnMini(shapeTool2D === 'elevation')} onClick={() => { setTextTool2D(false); setShapeTool2D(shapeTool2D === 'elevation' ? null : 'elevation'); }}>Alzado / Elevación</button>
+            {shapeTool2D === 'elevation' && <label style={lab}>Dirección<select value={elevationDirection2D} onChange={(event) => setElevationDirection2D(event.target.value)} style={inp}><option value="front">Frente</option><option value="back">Atrás</option><option value="left">Izquierda</option><option value="right">Derecha</option></select></label>}
             {selectedShape2D && (
               <div style={{ display: 'grid', gap: 7, marginTop: 8, paddingTop: 10, borderTop: '1px solid #ddd' }}>
                 <strong>Propiedades</strong>
+                {selectedShape2D.semanticType === 'area' && <><strong>Área / Marcado</strong><label style={lab}>Patrón<select value={selectedShape2D.hatch?.type || 'default'} onChange={(event) => onShape2DChange({ hatch: { type: event.target.value } })} style={inp}><option value="default">Default</option><option value="solid">Solid</option><option value="lined">Lined</option><option value="dashed">Dashed</option><option value="crossed">Crossed</option></select></label></>}
+                {selectedShape2D.type === 'elevation' && <><strong>Alzado / Elevación</strong><label style={lab}>Dirección<select value={selectedShape2D.viewDirection} onChange={(event) => onShape2DChange({ viewDirection: event.target.value })} style={inp}><option value="front">Frente</option><option value="back">Atrás</option><option value="left">Izquierda</option><option value="right">Derecha</option></select></label><label style={lab}>Etiqueta<input key={`${selectedShape2D.id}:${selectedShape2D.label}`} defaultValue={selectedShape2D.label} onBlur={(event) => onShape2DChange({ label: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} style={inp} /></label><label style={{ fontSize: 12 }}><input type="checkbox" checked={selectedShape2D.visible} onChange={(event) => onShape2DChange({ visible: event.target.checked })} /> Visible</label></>}
                 <label style={lab}>Tipo<input value={selectedShape2D.type} disabled style={inp} /></label>
                 {'x' in selectedShape2D.geometry && <label style={lab}>X (m)<input type="number" step="0.05" value={selectedShape2D.geometry.x} onChange={(e) => onShape2DChange({ geometry: { x: Number(e.target.value) } })} style={inp} /></label>}
                 {'y' in selectedShape2D.geometry && <label style={lab}>Y (m)<input type="number" step="0.05" value={selectedShape2D.geometry.y} onChange={(e) => onShape2DChange({ geometry: { y: Number(e.target.value) } })} style={inp} /></label>}
-                {'width' in selectedShape2D.geometry && <label style={lab}>Ancho (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.width} onChange={(e) => onShape2DChange({ geometry: { width: Number(e.target.value) } })} style={inp} /></label>}
-                {'height' in selectedShape2D.geometry && <label style={lab}>Alto (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.height} onChange={(e) => onShape2DChange({ geometry: { height: Number(e.target.value) } })} style={inp} /></label>}
+                {selectedShape2D.type !== 'elevation' && 'width' in selectedShape2D.geometry && <label style={lab}>Ancho (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.width} onChange={(e) => onShape2DChange({ geometry: { width: Number(e.target.value) } })} style={inp} /></label>}
+                {selectedShape2D.type !== 'elevation' && 'height' in selectedShape2D.geometry && <label style={lab}>Alto (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.height} onChange={(e) => onShape2DChange({ geometry: { height: Number(e.target.value) } })} style={inp} /></label>}
                 {'size' in selectedShape2D.geometry && <label style={lab}>Tamaño (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.size} onChange={(e) => onShape2DChange({ geometry: { size: Number(e.target.value) } })} style={inp} /></label>}
                 {'radius' in selectedShape2D.geometry && <label style={lab}>Radio (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.radius} onChange={(e) => onShape2DChange({ geometry: { radius: Number(e.target.value) } })} style={inp} /></label>}
-                {'rotation' in selectedShape2D.geometry && <label style={lab}>Rotación (°)<input type="number" step="1" value={Math.round(selectedShape2D.geometry.rotation * 1800 / Math.PI) / 10} onChange={(e) => onShape2DChange({ geometry: { rotation: Number(e.target.value) * Math.PI / 180 } })} style={inp} /></label>}
+                {selectedShape2D.type !== 'elevation' && 'rotation' in selectedShape2D.geometry && <label style={lab}>Rotación (°)<input type="number" step="1" value={Math.round(selectedShape2D.geometry.rotation * 1800 / Math.PI) / 10} onChange={(e) => onShape2DChange({ geometry: { rotation: Number(e.target.value) * Math.PI / 180 } })} style={inp} /></label>}
                 <label style={lab}>Contorno<input type="color" value={selectedShape2D.style.stroke} onChange={(e) => onShape2DChange({ style: { stroke: e.target.value } })} style={inp} /></label>
                 <label style={lab}>Relleno<input type="color" value={selectedShape2D.style.fillColor} onChange={(e) => onShape2DChange({ style: { fillColor: e.target.value } })} style={inp} /></label>
                 <label style={{ fontSize: 12 }}><input type="checkbox" checked={selectedShape2D.style.fill} onChange={(e) => onShape2DChange({ style: { fill: e.target.checked } })} /> Activar relleno</label>

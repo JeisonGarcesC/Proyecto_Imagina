@@ -49,5 +49,6 @@ export function transformShapeToCanvas(
     width: geometry.width * normalizedScale,
     height: geometry.height * normalizedScale,
     rotation: geometry.rotation * rotationSign,
+    ...(shape.type === SHAPE_2D_TYPES.ELEVATION ? { components: geometry.components } : {}),
   };
 }

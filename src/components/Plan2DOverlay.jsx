@@ -300,10 +300,12 @@ export default function Plan2DOverlay({
   getRotationState2D,
   shapes2D = [],
   shapeTool2D = null,
+  onCreateElevation2D,
   selectedShape2DId = null,
   onAddShape2D,
   onSelectShape2D,
   onReplaceShape2D,
+  onCommitShape2DDrag,
   onDeleteSelectedShape2D,
   texts2D = [],
   textTool2D = false,
@@ -1172,6 +1174,7 @@ export default function Plan2DOverlay({
           );
         }
         shapeDrag.hasMoved = true;
+        shapeDrag.lastShape = nextShape;
         onReplaceShape2D?.(nextShape);
         e.preventDefault();
         return;
@@ -1498,6 +1501,7 @@ export default function Plan2DOverlay({
 
       if (shapeDrag?.pointerId === e.pointerId) {
         shapeDragRef.current = null;
+        if (shapeDrag.hasMoved) onCommitShape2DDrag?.(shapeDrag.initialShape, shapeDrag.lastShape);
         suppressNextClickRef.current = true;
         if (canvas?.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
         e.preventDefault();
@@ -1602,6 +1606,7 @@ export default function Plan2DOverlay({
       onEndMove2D,
       recordDimensionHistoryAction,
       cancelVariantHandleDrag,
+      onCommitShape2DDrag,
     ]
   );
 
@@ -1701,6 +1706,11 @@ export default function Plan2DOverlay({
       }
 
       if (shapeTool2D && shapeWorld) {
+        if (shapeTool2D === 'elevation') {
+          if (onCreateElevation2D?.({ x: shapeWorld.x, y: shapeWorld.z })) onPickIds?.([]);
+          e.preventDefault();
+          return;
+        }
         onAddShape2D?.(createShapeFromTool(shapeTool2D, { x: shapeWorld.x, y: shapeWorld.z }));
         onPickIds?.([]);
         e.preventDefault();
@@ -2047,6 +2057,7 @@ export default function Plan2DOverlay({
       getRuntimePlan,
       shapes2D,
       shapeTool2D,
+      onCreateElevation2D,
       texts2D,
       textTool2D,
       selectedText2DId,

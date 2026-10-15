@@ -976,6 +976,12 @@ function ThreeCanvas({
     let rotationSession = null;
     let moveSession2D = null;
     let dimensionHistoryReplayHandler = null;
+    let shape2DHistoryReplayHandler = null;
+    const shape2DHistoryActionTypes = new Set([
+      HISTORY_ACTION_TYPES.CREATE_SHAPE_2D,
+      HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D,
+      HISTORY_ACTION_TYPES.DELETE_SHAPE_2D,
+    ]);
     const dimensionHistoryActionTypes = new Set([
       HISTORY_ACTION_TYPES.CREATE_DIMENSION,
       HISTORY_ACTION_TYPES.UPDATE_DIMENSION,
@@ -12694,6 +12700,30 @@ function ThreeCanvas({
       removePartById,
       applyFinishToActivePart,
       getPartsSnapshot2D,
+      getElevationSource2D: (ids) => {
+        const sourceIds = Array.from(new Set(Array.isArray(ids) ? ids : selectedIds3D));
+        const boxes = [];
+        const visited = new Set();
+        sourceIds.forEach((id) => {
+          const root = findPartById(id);
+          if (!root) return;
+          root.updateWorldMatrix(true, true);
+          root.traverse((node) => {
+            if (!node.isMesh || !node.geometry || visited.has(node.uuid)) return;
+            let visible = true;
+            for (let parent = node; parent; parent = parent.parent) {
+              if (parent.visible === false) { visible = false; break; }
+              if (parent === root) break;
+            }
+            if (!visible) return;
+            const box = new THREE.Box3().setFromObject(node);
+            if (box.isEmpty() || ![box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].every(Number.isFinite)) return;
+            visited.add(node.uuid);
+            boxes.push({ min: { x: box.min.x, y: box.min.y, z: box.min.z }, max: { x: box.max.x, y: box.max.y, z: box.max.z } });
+          });
+        });
+        return boxes.length ? { sourceSelection: sourceIds, sourceBoxes: boxes } : null;
+      },
       resolveSelectionTargetIds,
       setSelectedIds3D: syncSelectedIds3D,
       selectPartById,
@@ -13032,6 +13062,14 @@ function ThreeCanvas({
       },
       setDimensionHistoryReplayHandler: (handler) => {
         dimensionHistoryReplayHandler = typeof handler === 'function' ? handler : null;
+        return true;
+      },
+      recordShape2DHistoryAction: (action) => {
+        if (!shape2DHistoryActionTypes.has(action?.type)) return null;
+        return historyManager.pushAction(action);
+      },
+      setShape2DHistoryReplayHandler: (handler) => {
+        shape2DHistoryReplayHandler = typeof handler === 'function' ? handler : null;
         return true;
       },
       selectFloor,
@@ -14006,6 +14044,11 @@ function ThreeCanvas({
           throw new Error('Dimension2D history replay handler is not registered.');
         }
         return dimensionHistoryReplayHandler(action, direction);
+      } else if (shape2DHistoryActionTypes.has(action.type)) {
+        if (typeof shape2DHistoryReplayHandler !== 'function') {
+          throw new Error('Shape2D history replay handler is not registered.');
+        }
+        return shape2DHistoryReplayHandler(action, direction);
       }
       if (
         action.type.startsWith('CRITERIUM_') ||
@@ -23036,6 +23079,7 @@ function ThreeCanvas({
     // ====== Cleanup ======
     return () => {
       dimensionHistoryReplayHandler = null;
+      shape2DHistoryReplayHandler = null;
       historyManager.clearHistory();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);

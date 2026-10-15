@@ -24,7 +24,9 @@ import {
 
 //2d
 import Plan2DOverlay from './components/Plan2DOverlay';
-import { deleteShape2D, translateShape2D, updateShape2D } from './plan2d/geometry2D/shapeEditor2D';
+import { createShape2DId, deleteShape2D, translateShape2D, updateShape2D } from './plan2d/geometry2D/shapeEditor2D';
+import { createShape } from './plan2d/geometry2D/shapes2D';
+import { HISTORY_ACTION_TYPES } from './history/historyManager';
 import { deleteText2D, updateText2D } from './plan2d/text2D/textEditor2D';
 import BOMWindow from './components/BOMWindow';
 import BOMView from './components/BOMView';
@@ -358,17 +360,43 @@ export default function App() {
 
   const [shapes2D, setShapes2D] = useState([]);
   const [shapeTool2D, setShapeTool2D] = useState(null);
+  const [elevationDirection2D, setElevationDirection2D] = useState('front');
   const [selectedShape2DId, setSelectedShape2DId] = useState(null);
   const selectedShape2D = useMemo(
     () => shapes2D.find((shape) => shape.id === selectedShape2DId) || null,
     [shapes2D, selectedShape2DId]
   );
+  useEffect(() => {
+    if (!threeApi?.setShape2DHistoryReplayHandler) return undefined;
+    threeApi.setShape2DHistoryReplayHandler((action, direction) => {
+      const shape = (direction === 'undo' ? action.before : action.after)?.shape || null;
+      setShapes2D((current) => {
+        const without = current.filter((item) => item.id !== action.shapeId);
+        return shape ? [...without, createShape(shape)] : without;
+      });
+      setSelectedShape2DId(shape?.id || null);
+      return true;
+    });
+    return () => threeApi.setShape2DHistoryReplayHandler(null);
+  }, [threeApi]);
+  const recordAreaHistory = (type, before, after) => {
+    if (!['area', 'elevation'].includes((before || after)?.semanticType)) return;
+    if (JSON.stringify(before) === JSON.stringify(after)) return;
+    threeApiRef.current?.recordShape2DHistoryAction?.({
+      type, shapeId: (before || after).id,
+      before: before ? { shape: before } : null,
+      after: after ? { shape: after } : null,
+    });
+  };
   const handleShape2DChange = (patch) => {
     if (!selectedShape2DId) return;
+    const after = updateShape2D(shapes2D, selectedShape2DId, patch).find((shape) => shape.id === selectedShape2DId);
+    recordAreaHistory(HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D, selectedShape2D, after);
     setShapes2D((current) => updateShape2D(current, selectedShape2DId, patch));
   };
   const handleDeleteShape2D = () => {
     if (!selectedShape2DId) return;
+    recordAreaHistory(HISTORY_ACTION_TYPES.DELETE_SHAPE_2D, selectedShape2D, null);
     setShapes2D((current) => deleteShape2D(current, selectedShape2DId));
     setSelectedShape2DId(null);
   };
@@ -757,6 +785,7 @@ export default function App() {
 
     return {
       ...project,
+      shapes2D,
       plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
       architecture: {
         ...(project.architecture || {}),
@@ -853,6 +882,10 @@ export default function App() {
   };
 
   const loadProjectData = async (project) => {
+    setShapes2D(Array.isArray(project?.shapes2D) ? project.shapes2D.flatMap((shape) => {
+      try { return [createShape(shape)]; } catch { return []; }
+    }) : []);
+    setSelectedShape2DId(null);
     setDetailed2DIds(new Set());
     setSelectedWallId(null);
     setWalls(deserializeWalls(project));
@@ -1180,6 +1213,8 @@ export default function App() {
         onMoveAsGroupChange={handleMoveAsGroupChange}
         onLogout={logout}
         onNewProject={() => {
+          setShapes2D([]);
+          setSelectedShape2DId(null);
           setDetailed2DIds(new Set());
           setSelectedWallId(null);
           setWalls([]);
@@ -1438,11 +1473,15 @@ export default function App() {
               }}
               shapeTool2D={shapeTool2D}
               setShapeTool2D={setShapeTool2D}
+              elevationDirection2D={elevationDirection2D}
+              setElevationDirection2D={setElevationDirection2D}
               selectedShape2D={selectedShape2D}
               onShape2DChange={handleShape2DChange}
               onDeleteShape2D={handleDeleteShape2D}
               onTranslateShape2D={(delta) => {
                 if (!selectedShape2DId) return;
+                const after = translateShape2D(shapes2D, selectedShape2DId, delta).find((shape) => shape.id === selectedShape2DId);
+                recordAreaHistory(HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D, selectedShape2D, after);
                 setShapes2D((current) => translateShape2D(current, selectedShape2DId, delta));
               }}
               textTool2D={textTool2D}
@@ -1616,14 +1655,34 @@ export default function App() {
             }
             shapes2D={shapes2D}
             shapeTool2D={shapeTool2D}
+            onCreateElevation2D={(point) => {
+              const source = threeApiRef.current?.getElevationSource2D?.(selectedIds);
+              if (!source) { window.alert('Selecciona una o más piezas 3D antes de crear el alzado.'); return false; }
+              const labels = shapes2D.filter((shape) => shape.type === 'elevation').map((shape) => shape.label);
+              let labelIndex = 0;
+              while (labels.includes(String.fromCharCode(65 + labelIndex))) labelIndex += 1;
+              const shape = createShape({
+                id: createShape2DId(), type: 'elevation', semanticType: 'elevation',
+                viewDirection: elevationDirection2D, label: String.fromCharCode(65 + labelIndex),
+                sourceSelection: source.sourceSelection, sourceBoxes: source.sourceBoxes,
+                geometry: { x: point.x, y: point.y }, style: { stroke: '#111827', strokeWidth: 1 },
+              });
+              recordAreaHistory(HISTORY_ACTION_TYPES.CREATE_SHAPE_2D, null, shape);
+              setShapes2D((current) => [...current, shape]);
+              setSelectedShape2DId(shape.id);
+              setShapeTool2D(null);
+              return true;
+            }}
             selectedShape2DId={selectedShape2DId}
             onAddShape2D={(shape) => {
+              recordAreaHistory(HISTORY_ACTION_TYPES.CREATE_SHAPE_2D, null, shape);
               setShapes2D((current) => [...current, shape]);
               setSelectedShape2DId(shape.id);
               setShapeTool2D(null);
             }}
             onSelectShape2D={setSelectedShape2DId}
             onReplaceShape2D={handleReplaceShape2D}
+            onCommitShape2DDrag={(before, after) => recordAreaHistory(HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D, before, after)}
             onDeleteSelectedShape2D={handleDeleteShape2D}
             texts2D={texts2D}
             textTool2D={textTool2D}

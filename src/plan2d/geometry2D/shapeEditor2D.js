@@ -10,6 +10,7 @@ export const SHAPE_TOOL_DEFINITIONS = Object.freeze({
   triangle: { type: 'triangle', semanticType: 'shape', geometry: { width: 0.8, height: 0.7 } },
   line: { type: 'line', semanticType: 'shape', geometry: { length: 1 } },
   polygon: { type: 'polygon', semanticType: 'shape', geometry: { radius: 0.5 } },
+  areaRectangle: { type: 'rectangle', semanticType: 'area', geometry: { width: 1, height: 0.6 } },
 });
 
 const DEFAULT_STYLE = Object.freeze({
@@ -19,6 +20,7 @@ const DEFAULT_STYLE = Object.freeze({
 function nextId() {
   return `SHAPE_2D_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 }
+export const createShape2DId = nextId;
 
 export function createShapeFromTool(tool, point, { id = nextId() } = {}) {
   const definition = SHAPE_TOOL_DEFINITIONS[tool];
@@ -40,7 +42,7 @@ export function createShapeFromTool(tool, point, { id = nextId() } = {}) {
   } else {
     geometry = { x, y, ...definition.geometry, rotation: 0 };
   }
-  return createShape({ id, type: definition.type, semanticType: definition.semanticType, geometry, style: DEFAULT_STYLE });
+  return createShape({ id, type: definition.type, semanticType: definition.semanticType, geometry, style: definition.semanticType === 'area' ? { ...DEFAULT_STYLE, fill: true } : DEFAULT_STYLE });
 }
 
 export function updateShape2D(shapes, id, patch = {}) {

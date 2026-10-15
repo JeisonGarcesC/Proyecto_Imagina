@@ -48,6 +48,7 @@ export function rotateShape2D(shape, rotation) {
 
 export function getShapeHandles2D(shape, rotationOffset = 0.35) {
   if (!shape || shape.semanticType === 'cimbra') return [];
+  if (shape.type === 'elevation') return [];
   const g = shape.geometry;
   if (shape.type === 'line') {
     return [

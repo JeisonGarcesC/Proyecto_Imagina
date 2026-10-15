@@ -1,4 +1,5 @@
 import { normalizeShapeStyle } from './shapeStyles.js';
+import { ELEVATION_DIRECTIONS, projectElevationBounds } from './elevation2D.js';
 
 export const SHAPE_2D_TYPES = Object.freeze({
   RECTANGLE: 'rectangle',
@@ -7,9 +8,11 @@ export const SHAPE_2D_TYPES = Object.freeze({
   TRIANGLE: 'triangle',
   LINE: 'line',
   POLYGON: 'polygon',
+  ELEVATION: 'elevation',
 });
 
 const VALID_TYPES = new Set(Object.values(SHAPE_2D_TYPES));
+export const AREA_HATCH_TYPES = Object.freeze(['default', 'solid', 'lined', 'dashed', 'crossed']);
 
 function finite(value, label) {
   const number = Number(value);
@@ -31,6 +34,18 @@ function centerGeometry(geometry) {
 }
 
 function normalizeGeometry(type, geometry = {}) {
+  if (type === SHAPE_2D_TYPES.ELEVATION) {
+    return {
+      ...centerGeometry(geometry),
+      width: positive(geometry.width, 'geometry.width'),
+      height: positive(geometry.height, 'geometry.height'),
+      rotation: finite(geometry.rotation ?? 0, 'geometry.rotation'),
+      components: Array.isArray(geometry.components) ? geometry.components.map((component) => ({
+        x: finite(component.x, 'component.x'), y: finite(component.y, 'component.y'),
+        width: positive(component.width, 'component.width'), height: positive(component.height, 'component.height'),
+      })) : [],
+    };
+  }
   if (type === SHAPE_2D_TYPES.RECTANGLE || type === SHAPE_2D_TYPES.TRIANGLE) {
     return {
       ...centerGeometry(geometry),
@@ -72,8 +87,25 @@ function normalizeGeometry(type, geometry = {}) {
   throw new TypeError(`Tipo de figura 2D no soportado: ${type}`);
 }
 
-export function createShape({ id = null, type, geometry, style, visible = true, semanticType } = {}) {
+export function createShape({ id = null, type, geometry, style, visible = true, semanticType, hatch, viewDirection, label, sourceSelection, sourceBoxes } = {}) {
   if (!VALID_TYPES.has(type)) throw new TypeError(`Tipo de figura 2D no soportado: ${type}`);
+  if (type === SHAPE_2D_TYPES.ELEVATION) {
+    if (!ELEVATION_DIRECTIONS.includes(viewDirection)) throw new TypeError('Dirección de alzado inválida.');
+    if (!Array.isArray(sourceBoxes) || !sourceBoxes.length) throw new TypeError('El alzado requiere geometría de origen.');
+    const boxes = sourceBoxes.map((box) => ({
+      min: { x: finite(box.min?.x, 'min.x'), y: finite(box.min?.y, 'min.y'), z: finite(box.min?.z, 'min.z') },
+      max: { x: finite(box.max?.x, 'max.x'), y: finite(box.max?.y, 'max.y'), z: finite(box.max?.z, 'max.z') },
+    }));
+    const projection = projectElevationBounds(boxes, viewDirection);
+    return {
+      id, type, semanticType: 'elevation', viewDirection,
+      label: String(label ?? ''),
+      sourceSelection: Array.isArray(sourceSelection) ? sourceSelection.map(String) : [],
+      sourceBoxes: boxes,
+      geometry: normalizeGeometry(type, { ...geometry, ...projection }),
+      style: normalizeShapeStyle(style), visible: visible !== false,
+    };
+  }
   return {
     id,
     type,
@@ -81,5 +113,6 @@ export function createShape({ id = null, type, geometry, style, visible = true, 
     style: normalizeShapeStyle(style),
     visible: visible !== false,
     ...(semanticType ? { semanticType } : {}),
+    ...(semanticType === 'area' ? { hatch: { type: AREA_HATCH_TYPES.includes(hatch?.type) ? hatch.type : 'default' } } : {}),
   };
 }
