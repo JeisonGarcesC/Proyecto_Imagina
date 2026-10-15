@@ -5,6 +5,7 @@ import {
   resolveKuoAVDimensionOptions,
   resolveKuoAVNominalDepth,
   resolveKuoAVNominalWidth,
+  resolveKuoAVSpecialSize,
 } from '../mepal/kuoAV/config/kuoAVTunables.js';
 import { KUO_AV_DOBLE_RANGOS } from '../mepal/kuoAVDoble/config/kuoAVDobleTunables.js';
 import { KUO_AV_DOBLE_INTERMEDIATE_SUPPORTS } from '../mepal/kuoAVDoble/bom/kuoAVDobleBOMCatalog.js';
@@ -74,12 +75,15 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
           <label key={key} style={{ fontSize: 12 }}>
             {label}
             <select
-              value={values.reduce((best, value) => (
-                Math.abs(value - Number(config[key])) < Math.abs(best - Number(config[key])) ? value : best
-              ), values[0])}
+              value={config[key] ?? values[0]}
               onChange={(event) => onChange({ [key]: Number(event.target.value) })}
               style={{ width: '100%', marginTop: 4, minHeight: 34, color: '#1f2937', background: '#fff', border: '1px solid #d1d5db', borderRadius: 7, padding: '4px 8px', colorScheme: 'light' }}
             >
+              {config[key] != null && !values.includes(Number(config[key])) && (
+                <option value={config[key]} disabled>
+                  {formatKuoAVCm(config[key])} cm (medida anterior; selecciona una disponible)
+                </option>
+              )}
               {values.map((value) => <option key={value} value={value}>{formatKuoAVCm(value)} cm</option>)}
             </select>
           </label>
@@ -134,7 +138,11 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
         {checkbox('Acabado de Grommet (Anodizado/Pintura)', paintedGrommet,
           (checked) => ({ acabadoGrommet: checked ? 'PAINTED' : 'ALUMINIUM' }))}
         {checkbox('Especial/Rematable', !!config.especial, (checked) => (checked
-          ? { especial: true }
+          ? {
+              especial: true,
+              anchoMm: resolveKuoAVSpecialSize('width', config.anchoMm),
+              profundidadMm: resolveKuoAVSpecialSize('depth', config.profundidadMm),
+            }
           : {
               especial: false,
               anchoMm: resolveKuoAVNominalWidth(config.anchoMm),
