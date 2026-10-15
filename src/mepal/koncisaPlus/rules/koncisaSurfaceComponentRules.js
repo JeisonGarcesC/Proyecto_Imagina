@@ -53,6 +53,9 @@ export function normalizeKoncisaSurfaceOverride(value = {}, fallback = {}) {
   const position = String(
     value.pasacablePosition || value.grommetPosition || fallback.pasacablePosition || 'CENTER'
   ).toUpperCase();
+  const grommetPosition = String(
+    value.grommetPosition || fallback.grommetPosition || 'CENTER'
+  ).toUpperCase();
   return {
     finishId: finish.id,
     cableAccessType,
@@ -63,7 +66,10 @@ export function normalizeKoncisaSurfaceOverride(value = {}, fallback = {}) {
       'PAINTED'
         ? 'PAINTED'
         : 'ALUMINIUM',
-    grommetPosition: 'CENTER',
+    grommetPosition:
+      fallback.allowGrommetSidePosition && POSITIONS.has(grommetPosition)
+        ? grommetPosition
+        : 'CENTER',
     pasacablePosition: POSITIONS.has(position) ? position : 'CENTER',
     floorDuctEnabled:
       value.floorDuctEnabled === true ||
@@ -76,17 +82,33 @@ export function normalizeKoncisaSurfaceOverride(value = {}, fallback = {}) {
 
 export function getKoncisaSurfaceComponentConfig(config, key, fallback = {}) {
   const stored = config?.surfaceOverrides?.[key];
-  return normalizeKoncisaSurfaceOverride(stored || {}, fallback);
+  return normalizeKoncisaSurfaceOverride(stored || {}, {
+    ...fallback,
+    allowGrommetSidePosition: key === 'MAIN_SURFACE' || key === 'RETURN_SURFACE',
+  });
 }
 
 export function createKoncisaSurfaceConfigPatch(config, key, patch) {
   if (!key) throw new Error('La superficie Koncisa no tiene una clave estable.');
-  const current = getKoncisaSurfaceComponentConfig(config, key, fallbackFromConfig(config, key));
-  const next = normalizeKoncisaSurfaceOverride({ ...current, ...patch }, current);
+  if (key === 'MAIN_SURFACE' && Object.hasOwn(patch || {}, 'grommetPosition')) {
+    throw new Error('La posición del grommet MAIN no es editable.');
+  }
+  const fallback = fallbackFromConfig(config, key);
+  const current = getKoncisaSurfaceComponentConfig(config, key, fallback);
+  const next = normalizeKoncisaSurfaceOverride({ ...current, ...patch }, {
+    ...fallback,
+    ...current,
+    allowGrommetSidePosition: key === 'MAIN_SURFACE' || key === 'RETURN_SURFACE',
+  });
   return { ...config, surfaceOverrides: { ...(config?.surfaceOverrides || {}), [key]: next } };
 }
 
 export function fallbackFromConfig(config = {}, componentKey = null) {
+  if (componentKey === 'SIMPLE_RETURN_SURFACE') return {
+    finishCode: '22008689', thickMm: 30, variant: '', finishId: 'FORMICA_30',
+    cableAccessType: 'NONE', grommet: false, pasacable: false,
+    grommetFinish: 'ALUMINIUM', pasacablePosition: 'CENTER',
+  };
   const cableAccessType =
     String(config.tipoPasoCable || '').toLowerCase() === 'pasacable'
       ? 'PASACABLE'

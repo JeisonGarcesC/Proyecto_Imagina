@@ -58,6 +58,8 @@ import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/create
 import { buildKoncisaPlus } from '../mepal/koncisaPlus/builders/KoncisaPlusBuilder.js';
 import { resolveComponentKey } from '../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe';
 import { createKoncisaSurfaceConfigPatch } from '../mepal/koncisaPlus/rules/koncisaSurfaceComponentRules.js';
+import { SIMPLE_RETURN_SURFACE_KEY } from '../mepal/koncisaPlus/simpleReturn/KoncisaSimpleReturnSurface.js';
+import { resolveKoncisaCableAccessCodigoPT } from '../mepal/koncisaPlus/rules/koncisaCableAccessRules.js';
 import { loadPersistedEntity } from '../core/persistence/entityLoaders';
 import {
   buildVersionedProject,
@@ -4329,6 +4331,17 @@ function ThreeCanvas({
         }
 
         const code = obj.userData?.codigoPT || obj.userData?.code || p.code;
+        const isLeaderGrommet =
+          obj.userData?.kind === 'grommet' &&
+          obj.userData?.meta?.category === 'grommets' &&
+          obj.userData?.meta?.layoutType === 'LEADER';
+        const bomCode = isLeaderGrommet
+          ? resolveKoncisaCableAccessCodigoPT({
+              tipo: 'grommet',
+              layoutType: 'LEADER',
+              finish: obj.userData?.meta?.finish || null,
+            }).codigoPT
+          : code;
 
         const koncisaAssembly = getKoncisaPlusAssembly(obj);
         const koncisaConfigurationKey = resolveKoncisaBomConfigurationKey(koncisaAssembly);
@@ -4352,12 +4365,14 @@ function ThreeCanvas({
           null;
 
         addRow(
-          String(code),
+          String(bomCode),
           1,
-          obj.userData?.kind === 'PRIVACY_PANEL'
-            ? resolveCatalogDescription(code, obj.userData?.description || '')
-            : obj.userData?.description || null,
-          obj.userData?.unitPrice || 0,
+          isLeaderGrommet
+            ? resolveCatalogDescription(bomCode, obj.userData?.description || '')
+            : obj.userData?.kind === 'PRIVACY_PANEL'
+              ? resolveCatalogDescription(code, obj.userData?.description || '')
+              : obj.userData?.description || null,
+          isLeaderGrommet ? null : obj.userData?.unitPrice || 0,
           groupId,
           groupName,
           obj.userData?.prices || undefined,
@@ -6022,7 +6037,10 @@ function ThreeCanvas({
         return null;
       }
 
-      if (config.growthModules?.length && instance.diagnostics?.some((item) => item.level === 'ERROR')) {
+      if (
+        config.growthModules?.length &&
+        instance.diagnostics?.some((item) => item.level === 'ERROR')
+      ) {
         disposeCritterium8FrameAssembly3D(instance.assembly);
         return null;
       }
@@ -6410,13 +6428,17 @@ function ThreeCanvas({
       assembly,
       nextConfig,
       preferredComponentKey,
-      recordHistory = true
+      recordHistory = true,
+      preferredPropertiesCategory = null
     ) {
+      if (preferredComponentKey === SIMPLE_RETURN_SURFACE_KEY)
+        return rebuildKoncisaSimpleReturnConfiguration(assembly, nextConfig, recordHistory);
       if (assembly?.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY')
         return { success: false, reason: 'KONCISA_PLUS_ASSEMBLY_REQUIRED' };
       const before = JSON.parse(JSON.stringify(assembly.userData.config || {}));
       const stagedObjects = [];
       let previousSurface = null;
+      let previousPropertiesTarget = null;
       try {
         const built = buildKoncisaPlus(nextConfig);
         const descriptor = built.parts.find(
@@ -6441,6 +6463,12 @@ function ThreeCanvas({
             )
           );
         });
+        if (preferredPropertiesCategory) {
+          previousPropertiesTarget =
+            previousAccessories.find(
+              (child) => child.userData?.meta?.category === preferredPropertiesCategory
+            ) || null;
+        }
         const newSurface = addSurface(
           {
             line: descriptor.line,
@@ -6497,6 +6525,11 @@ function ThreeCanvas({
             object.userData?.meta?.category === 'cajas-de-tomas' &&
             object.userData?.meta?.targetSurfaceKey === preferredComponentKey
         );
+        const updatedGrommet = stagedObjects.find(
+          (object) =>
+            object.userData?.meta?.category === 'grommets' &&
+            object.userData?.meta?.targetSurfaceKey === preferredComponentKey
+        );
         removePartObject(previousSurface, { exactTarget: true, emitBom: false });
         if (previousChildIndex >= 0) {
           const currentIndex = assembly.children.indexOf(newSurface);
@@ -6515,7 +6548,10 @@ function ThreeCanvas({
         assembly.userData.config = nextConfig;
         syncSelectedIds3D([assembly.userData.instanceId]);
         setActivePart(assembly, {
-          propertiesTarget: updatedOutletBox || newSurface,
+          propertiesTarget:
+            (preferredPropertiesCategory === 'grommets' && updatedGrommet) ||
+            updatedOutletBox ||
+            newSurface,
           targetIds: [assembly.userData.instanceId],
         });
         if (recordHistory && JSON.stringify(before) !== JSON.stringify(nextConfig)) {
@@ -6523,6 +6559,7 @@ function ThreeCanvas({
             type: HISTORY_ACTION_TYPES.KONCISA_SURFACE_CONFIG_CHANGE,
             instanceId: assembly.userData.instanceId,
             componentKey: preferredComponentKey,
+            propertiesCategory: preferredPropertiesCategory,
             before,
             after: JSON.parse(JSON.stringify(nextConfig)),
           });
@@ -6537,7 +6574,7 @@ function ThreeCanvas({
         if (previousSurface?.parent === assembly) {
           syncSelectedIds3D([assembly.userData.instanceId]);
           setActivePart(assembly, {
-            propertiesTarget: previousSurface,
+            propertiesTarget: previousPropertiesTarget || previousSurface,
             targetIds: [assembly.userData.instanceId],
           });
           emitBOM();
@@ -6545,6 +6582,104 @@ function ThreeCanvas({
         }
         return { success: false, reason: error?.message || 'No se pudo actualizar la superficie.' };
       }
+    }
+
+    async function rebuildKoncisaSimpleReturnConfiguration(assembly, nextConfig, recordHistory = true) {
+      if (assembly?.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY')
+        return { success: false, reason: 'KONCISA_PLUS_ASSEMBLY_REQUIRED' };
+      const before = JSON.parse(JSON.stringify(assembly.userData.config || {}));
+      const staged = [];
+      try {
+        const desired = buildKoncisaPlus(nextConfig).parts.filter((part) =>
+          part.meta?.targetSurfaceKey === SIMPLE_RETURN_SURFACE_KEY);
+        const groupId = assembly.userData.groupId;
+        const groupName = assembly.userData.groupName;
+        for (const descriptor of desired) {
+          if (!descriptor.code)
+            throw new Error(`No existe código comercial para ${descriptor.name || 'el retorno'}.`);
+          let object = null;
+          const payload = { ...descriptor, groupId, groupName, parentGroup: assembly };
+          if (descriptor.type === 'superficie') {
+            object = addSurface({ line: descriptor.line, codigoPT: descriptor.code,
+              widthM: descriptor.dimMm.widthMm / 1000,
+              depthM: descriptor.dimMm.depthMm / 1000,
+              thicknessM: descriptor.dimMm.thickMm / 1000,
+              dim: descriptor.dimMm,
+              position: { x: descriptor.position.x / 1000,
+                y: descriptor.position.y / 1000, z: descriptor.position.z / 1000 },
+              rotation: descriptor.rotation, groupId, groupName,
+              logicalCode: descriptor.logicalCode, parentGroup: assembly,
+              edgeFinish: descriptor.meta?.canto }, descriptor);
+          } else if (descriptor.type === 'costado' &&
+              descriptor.model?.kind === 'koncisa-costado-assembly') {
+            object = await addKoncisaCostadoAssemblyPart(payload);
+          } else if (descriptor.type === 'leaderUnionSupport') {
+            object = addNativeBlockPart(payload);
+          } else if (descriptor.type === 'ducto' &&
+              descriptor.model?.kind === 'native-koncisa-duct') {
+            object = addNativeKoncisaDuctPart(payload);
+          } else {
+            object = await addExternalGlbPart(payload);
+          }
+          if (!object) throw new Error(`No se pudo crear ${descriptor.name || 'el retorno'}.`);
+          staged.push(object);
+        }
+        const old = assembly.children.filter((child) =>
+          child.userData?.meta?.targetSurfaceKey === SIMPLE_RETURN_SURFACE_KEY &&
+          !staged.includes(child));
+        old.forEach((object) => removePartObject(object, { exactTarget: true, emitBom: false }));
+        assembly.userData.config = nextConfig;
+        if (recordHistory && JSON.stringify(before) !== JSON.stringify(nextConfig)) {
+          historyManager.pushAction({ type: HISTORY_ACTION_TYPES.KONCISA_SURFACE_CONFIG_CHANGE,
+            instanceId: assembly.userData.instanceId, componentKey: SIMPLE_RETURN_SURFACE_KEY,
+            before, after: JSON.parse(JSON.stringify(nextConfig)) });
+        }
+        syncSelectedIds3D([assembly.userData.instanceId]);
+        setActivePart(assembly, { propertiesTarget: staged[0] ||
+          assembly.children.find((child) => child.userData?.meta?.componentKey === 'SURFACE_0'),
+          targetIds: [assembly.userData.instanceId] });
+        emitBOM();
+        refreshFloorAndGrid();
+        return { success: true, assembly, surface: staged[0] || null };
+      } catch (error) {
+        staged.forEach((object) => {
+          if (object?.parent) removePartObject(object, { exactTarget: true, emitBom: false });
+        });
+        emitBOM();
+        return { success: false, reason: error?.message || 'No se pudo actualizar el retorno.' };
+      }
+    }
+
+    function getSelectedKoncisaSimpleReturnConfig(instanceId = null) {
+      const assembly = getKoncisaAssemblyObject(getActiveEditablePartObject() || activePart);
+      if (!assembly || (instanceId &&
+          ![assembly.userData.instanceId, assembly.userData.groupId].includes(instanceId)))
+        return null;
+      return { ...(assembly.userData.config?.returnSurface || { enabled: false, widthMm: 1000,
+        side: 'RIGHT', targetModuleIndex: Number(assembly.userData.config?.puestos || 1) - 1,
+        ductEnabled: false }), puestos: Number(assembly.userData.config?.puestos || 1),
+        tipoPuesto: assembly.userData.config?.tipoPuesto,
+        componentConfig: assembly.userData.config?.surfaceOverrides?.[SIMPLE_RETURN_SURFACE_KEY]
+          || { finishId: 'FORMICA_30', cableAccessType: 'NONE',
+            grommetFinish: 'ALUMINIUM', pasacablePosition: 'CENTER' } };
+    }
+
+    function updateSelectedKoncisaSimpleReturn(patch, instanceId = null) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const assembly = getKoncisaAssemblyObject(getActiveEditablePartObject() || activePart);
+      if (!assembly || (instanceId &&
+          ![assembly.userData.instanceId, assembly.userData.groupId].includes(instanceId)))
+        return { success: false, reason: 'Selecciona nuevamente el puesto Koncisa Plus.' };
+      const config = assembly.userData.config || {};
+      const side = patch.side || config.returnSurface?.side || 'RIGHT';
+      const puestos = Number(config.puestos || 1);
+      const nextConfig = { ...config, returnSurface: {
+        enabled: false, widthMm: 1000, ductEnabled: false,
+        ...config.returnSurface, ...patch, side,
+        targetModuleIndex: patch.side ? (side === 'LEFT' ? 0 : puestos - 1) :
+          (patch.targetModuleIndex ?? config.returnSurface?.targetModuleIndex ?? puestos - 1),
+      } };
+      return rebuildKoncisaSimpleReturnConfiguration(assembly, nextConfig);
     }
 
     function updateSelectedKoncisaSurface(componentKey, patch, instanceId = null) {
@@ -6558,12 +6693,22 @@ function ThreeCanvas({
       )
         return { success: false, reason: 'Selecciona nuevamente la superficie Koncisa Plus.' };
       try {
+        const selectedEditablePart = getActiveEditablePartObject();
+        const preserveGrommetProperties =
+          selectedEditablePart?.userData?.meta?.category === 'grommets' &&
+          selectedEditablePart?.userData?.meta?.targetSurfaceKey === componentKey;
         const nextConfig = createKoncisaSurfaceConfigPatch(
           assembly.userData.config || {},
           componentKey,
           patch
         );
-        return rebuildKoncisaSurfaceConfiguration(assembly, nextConfig, componentKey);
+        return rebuildKoncisaSurfaceConfiguration(
+          assembly,
+          nextConfig,
+          componentKey,
+          true,
+          preserveGrommetProperties ? 'grommets' : null
+        );
       } catch (error) {
         return {
           success: false,
@@ -7843,7 +7988,8 @@ function ThreeCanvas({
           if (!sequence) throw new Error('CRITERIUM_SYSTEM_SEQUENCE_NOT_FOUND');
           const rotated = rotateCritteriumSequence90(sequence, clockwise);
           const invalid = collectCritteriumSpatialDiagnostics(system);
-          if (invalid.length) throw new Error(invalid[0].code || 'CRITERIUM_LAYOUT_INVALID_CONNECTION');
+          if (invalid.length)
+            throw new Error(invalid[0].code || 'CRITERIUM_LAYOUT_INVALID_CONNECTION');
           return rotated;
         }
       );
@@ -7942,8 +8088,13 @@ function ThreeCanvas({
 
     function getCritterium8AssemblyForEdit(instanceId = null) {
       if (!instanceId) return getSelectedCritterium8Assembly();
-      return parts.find(({ obj }) => obj?.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' &&
-        String(obj.userData.instanceId) === String(instanceId))?.obj || null;
+      return (
+        parts.find(
+          ({ obj }) =>
+            obj?.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' &&
+            String(obj.userData.instanceId) === String(instanceId)
+        )?.obj || null
+      );
     }
 
     async function updateSelectedCritterium8(patch = {}, instanceId = null) {
@@ -7960,8 +8111,11 @@ function ThreeCanvas({
           configPatch: patch,
         });
         if (result.success) {
-          const next = parts.find(({ obj }) => obj?.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' &&
-            obj.userData.instanceId === assembly.userData.instanceId)?.obj;
+          const next = parts.find(
+            ({ obj }) =>
+              obj?.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' &&
+              obj.userData.instanceId === assembly.userData.instanceId
+          )?.obj;
           if (next) {
             syncSelectedIds3D([next.userData.instanceId]);
             setActivePart(next, { targetIds: [next.userData.instanceId] });
@@ -7988,8 +8142,15 @@ function ThreeCanvas({
       });
       if (!resolved.success) return Promise.resolve(resolved);
       if (getCritterium8SequenceRoot(assembly))
-        return updateSelectedCritterium8({ tiles: resolved.config.tiles }, assembly.userData.instanceId);
-      return rebuildCritterium8Assembly(assembly, { tiles: resolved.config.tiles }, { preferredSlotId: slotId });
+        return updateSelectedCritterium8(
+          { tiles: resolved.config.tiles },
+          assembly.userData.instanceId
+        );
+      return rebuildCritterium8Assembly(
+        assembly,
+        { tiles: resolved.config.tiles },
+        { preferredSlotId: slotId }
+      );
     }
 
     function rebuildSelectedCritterium8() {
@@ -8321,11 +8482,15 @@ function ThreeCanvas({
     async function swapKuoAVDobleVariant(instanceId, nextConfig = {}) {
       if (readOnly) return;
       const updates = resolveKuoAVDobleSupportUpdates(
-        parts.map(({ obj }) => obj), instanceId, nextConfig
+        parts.map(({ obj }) => obj),
+        instanceId,
+        nextConfig
       );
       for (const update of updates) {
         await swapSingleKuoAVDobleVariant(
-          update.instanceId, update.changes, update.instanceId === instanceId
+          update.instanceId,
+          update.changes,
+          update.instanceId === instanceId
         );
       }
     }
@@ -8444,24 +8609,25 @@ function ThreeCanvas({
       emitBOM();
       refreshFloorAndGrid();
 
-      if (notifyEditor) onFloatingEditorRequest?.({
-        open: true,
-        x: 120,
-        y: 120,
-        part: {
-          code: newObj.userData?.codigoPT || newObj.userData?.code || null,
-          kind: newObj.userData?.kind || 'KUO_AV_DOBLE_ASSEMBLY',
-          meta: newObj.userData?.meta || null,
-          groupId: newObj.userData?.groupId || null,
-          groupName: newObj.userData?.groupName || null,
-          logicalCode: newObj.userData?.logicalCode || null,
-          instanceId: newObj.userData?.instanceId || instanceId,
-          description: newObj.userData?.description || null,
-          config: newObj.userData?.config || targetConfig,
-          userData: newObj.userData || null,
-          parentAssemblyId: newObj.userData?.parentAssemblyId || null,
-        },
-      });
+      if (notifyEditor)
+        onFloatingEditorRequest?.({
+          open: true,
+          x: 120,
+          y: 120,
+          part: {
+            code: newObj.userData?.codigoPT || newObj.userData?.code || null,
+            kind: newObj.userData?.kind || 'KUO_AV_DOBLE_ASSEMBLY',
+            meta: newObj.userData?.meta || null,
+            groupId: newObj.userData?.groupId || null,
+            groupName: newObj.userData?.groupName || null,
+            logicalCode: newObj.userData?.logicalCode || null,
+            instanceId: newObj.userData?.instanceId || instanceId,
+            description: newObj.userData?.description || null,
+            config: newObj.userData?.config || targetConfig,
+            userData: newObj.userData || null,
+            parentAssemblyId: newObj.userData?.parentAssemblyId || null,
+          },
+        });
     }
 
     async function addKuoAVPantalla(config = {}) {
@@ -12544,6 +12710,8 @@ function ThreeCanvas({
       updateSelectedMultipleComponent,
       updateSelectedLinkComponent,
       updateSelectedKoncisaSurface,
+      getSelectedKoncisaSimpleReturnConfig,
+      updateSelectedKoncisaSimpleReturn,
       addLocker,
       updateSelectedLocker,
       updateSelectedVetro,
@@ -13757,7 +13925,8 @@ function ThreeCanvas({
           findPartById(action.instanceId),
           state,
           action.componentKey,
-          false
+          false,
+          action.propertiesCategory || null
         ).then((result) => {
           if (!result?.success)
             throw new Error(result?.reason || 'KONCISA_SURFACE_HISTORY_REBUILD_FAILED');
@@ -13958,7 +14127,9 @@ function ThreeCanvas({
       const critteriumSystems = new Set(
         targets.map(({ obj }) => getCritteriumSystemRoot(obj)).filter(Boolean)
       );
-      if ([...critteriumSystems].some((system) => collectCritteriumSpatialDiagnostics(system).length)) {
+      if (
+        [...critteriumSystems].some((system) => collectCritteriumSpatialDiagnostics(system).length)
+      ) {
         cancelRotation();
         return false;
       }
@@ -15156,43 +15327,44 @@ function ThreeCanvas({
       const couplePosition = localToWorldMm(placement.couple.x, placement.couple.z);
 
       // Link: el ducto LKSO090000 va solo, sin acople.
-      if (!isLinkComponent) await addExternalGlbPart({
-        type: 'acopleDucto',
-        line: 'KONCISA.PLUS',
-        code: couple.codigoPT,
-        logicalCode: couple.logicalCode,
-        name: couple.name,
+      if (!isLinkComponent)
+        await addExternalGlbPart({
+          type: 'acopleDucto',
+          line: 'KONCISA.PLUS',
+          code: couple.codigoPT,
+          logicalCode: couple.logicalCode,
+          name: couple.name,
 
-        groupId,
-        groupName,
-        parentGroup,
+          groupId,
+          groupName,
+          parentGroup,
 
-        position: {
-          x: couplePosition.x,
-          y: referenceDuctHeightMm + 100,
-          z: couplePosition.z,
-        },
+          position: {
+            x: couplePosition.x,
+            y: referenceDuctHeightMm + 100,
+            z: couplePosition.z,
+          },
 
-        rotation: {
-          x: baseRot.x,
-          y: baseRot.y + placement.couple.rotY,
-          z: baseRot.z + placement.couple.rotZ,
-        },
+          rotation: {
+            x: baseRot.x,
+            y: baseRot.y + placement.couple.rotY,
+            z: baseRot.z + placement.couple.rotZ,
+          },
 
-        model: {
-          kind: 'glb',
-          src: couple.modelSrc,
-        },
+          model: {
+            kind: 'glb',
+            src: couple.modelSrc,
+          },
 
-        meta: {
-          category: 'acoples-ducto',
-          integrationSetId,
-          moduleIndex,
-          replaceZone,
-          tipoPuesto: 'integracion',
-          coupleType: 'duct',
-        },
-      });
+          meta: {
+            category: 'acoples-ducto',
+            integrationSetId,
+            moduleIndex,
+            replaceZone,
+            tipoPuesto: 'integracion',
+            coupleType: 'duct',
+          },
+        });
 
       // =====================================================
       // 6. Grommet o pasacable
@@ -15297,7 +15469,8 @@ function ThreeCanvas({
           if (!box.isEmpty()) edgeCandidates.push(tableSideSign > 0 ? box.max.x : box.min.x);
         }
         const tableSurfaceBox = nearestTableBox('SURFACE');
-        if (tableSurfaceBox) edgeCandidates.push(tableSideSign > 0 ? tableSurfaceBox.min.x : tableSurfaceBox.max.x);
+        if (tableSurfaceBox)
+          edgeCandidates.push(tableSideSign > 0 ? tableSurfaceBox.min.x : tableSurfaceBox.max.x);
         const tableEdgeX =
           tableSideSign > 0 ? Math.min(...edgeCandidates) : Math.max(...edgeCandidates);
 
@@ -15316,7 +15489,9 @@ function ThreeCanvas({
           parentGroup?.children.forEach((node) => {
             const dim = node.userData?.dim;
             if (node.userData?.componentRole !== 'DUCT' || !dim) return;
-            const half = new THREE.Vector3(dim.widthMm, dim.heightMm, dim.depthMm).multiplyScalar(0.0005);
+            const half = new THREE.Vector3(dim.widthMm, dim.heightMm, dim.depthMm).multiplyScalar(
+              0.0005
+            );
             const box = new THREE.Box3(
               node.position.clone().sub(half),
               node.position.clone().add(half)
@@ -17504,8 +17679,16 @@ function ThreeCanvas({
       const root = getMultipleRoot(hitObj) || getRootPartObject(hitObj);
       if (!root) return;
       if (root.userData?.isFloor) return;
+      const selectedCritteriumSystem =
+        activePart?.userData?.kind === 'CRITERIUM_SYSTEM' &&
+        getCritteriumSystemRoot(hitObj) === activePart
+          ? activePart
+          : null;
+      const critteriumSequence = getCritterium8SequenceRoot(hitObj);
       const propertiesTarget =
-        root.userData?.kind === 'MULTIPLE_PRODUCT'
+        selectedCritteriumSystem ||
+        (moveAsGroupRef.current && critteriumSequence) ||
+        (root.userData?.kind === 'MULTIPLE_PRODUCT'
           ? root
           : isKoncisaAssemblyRoot(root)
             ? getEditableKoncisaPartObject(hitObj) || root
@@ -17513,17 +17696,12 @@ function ThreeCanvas({
               ? getCritterium8EditableTarget(hitObj) || root
               : isCritterium8AssemblyRoot(root)
                 ? getCritterium8EditablePart(hitObj) || root
-                : root;
-      const selectedCritteriumSystem =
-        activePart?.userData?.kind === 'CRITERIUM_SYSTEM' &&
-        getCritteriumSystemRoot(hitObj) === activePart
-          ? activePart
-          : null;
+                : root);
       const movementRoot =
         selectedCritteriumSystem ||
         multipleSystemProduct ||
         (moveAsGroupRef.current
-          ? root
+          ? critteriumSequence || root
           : getIndividualMovementRoot(hitObj) || propertiesTarget || root);
 
       const rootId = movementRoot.userData?.instanceId || movementRoot.uuid;

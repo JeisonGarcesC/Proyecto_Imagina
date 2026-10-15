@@ -5,6 +5,7 @@ export function createGrommet({
   groupId = null,
   groupName = null,
   finish = 'ALUMINIUM',
+  layoutType = null,
   diameterMm = 80,
   x = 0,
   y = 740, //altura grommet
@@ -14,7 +15,9 @@ export function createGrommet({
   const resolved = resolveKoncisaCableAccessCodigoPT({
     tipo: 'grommet',
     finish,
+    layoutType,
   });
+  const isLeader = String(layoutType || '').toUpperCase() === 'LEADER';
 
   return {
     type: 'grommet',
@@ -24,12 +27,12 @@ export function createGrommet({
     groupId,
     groupName,
 
-    code: resolved.codigoPT,
+    code: isLeader ? 'LKAC670000' : resolved.codigoPT,
     logicalCode: resolved.logicalCode,
     existsInCatalog: resolved.exists,
     rawCodigoPT: resolved.rawCodigoPT,
 
-    name: `Grommet ${finish}`,
+    name: isLeader ? 'GROMMET LKAC670000' : `Grommet ${finish}`,
     dimMm: {
       diameterMm,
       widthMm: diameterMm,
@@ -40,11 +43,20 @@ export function createGrommet({
     rotation: { x: 0, y: rotY, z: 0 },
     model: {
       kind: 'glb',
-      src: '/assets/models/koncisaPlus/LKAC250000.glb',
+      src: isLeader
+        ? '/assets/models/koncisaPlus/LKAC670000.glb'
+        : '/assets/models/koncisaPlus/LKAC250000.glb',
     },
     meta: {
       category: 'grommets',
       finish,
+      ...(isLeader
+        ? {
+            layoutType: 'LEADER',
+            baseCode: 'LKAC670000',
+            commercialCode: resolved.codigoPT,
+          }
+        : {}),
     },
   };
 }

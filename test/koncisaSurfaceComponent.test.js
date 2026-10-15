@@ -109,6 +109,29 @@ test('las propiedades de caja LEADER persisten el ducto y el acople por superfic
   assert.equal(config.surfaceOverrides.MAIN_SURFACE.outletCouplingEnabled, true);
 });
 
+test('MAIN rechaza una nueva posición y conserva el valor legacy al editar otra propiedad', () => {
+  const legacy = {
+    ...baseConfig,
+    surfaceOverrides: {
+      MAIN_SURFACE: { cableAccessType: 'GROMMET', grommetPosition: 'LEFT' },
+    },
+  };
+  assert.throws(
+    () => createKoncisaSurfaceConfigPatch(legacy, 'MAIN_SURFACE', { grommetPosition: 'RIGHT' }),
+    /no es editable/
+  );
+  const edited = createKoncisaSurfaceConfigPatch(legacy, 'MAIN_SURFACE', {
+    grommetFinish: 'PAINTED',
+  });
+  assert.equal(edited.surfaceOverrides.MAIN_SURFACE.grommetPosition, 'LEFT');
+  assert.equal(legacy.surfaceOverrides.MAIN_SURFACE.grommetPosition, 'LEFT');
+  const returnEdited = createKoncisaSurfaceConfigPatch(edited, 'RETURN_SURFACE', {
+    grommetPosition: 'RIGHT',
+  });
+  assert.equal(returnEdited.surfaceOverrides.RETURN_SURFACE.grommetPosition, 'RIGHT');
+  assert.equal(returnEdited.surfaceOverrides.MAIN_SURFACE.grommetPosition, 'LEFT');
+});
+
 test('editar una caja LEADER preserva los flags legacy independientes de MAIN y RETURN', () => {
   const legacyConfig = {
     ...baseConfig,

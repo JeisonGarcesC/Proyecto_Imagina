@@ -24,6 +24,10 @@ import {
 
 import { buildKoncisaLeader } from '../leader/KoncisaLeaderBuilder';
 import {
+  buildKoncisaSimpleReturnSurface,
+  resolveKoncisaSimpleReturnConfig,
+} from '../simpleReturn/KoncisaSimpleReturnSurface.js';
+import {
   fallbackFromConfig,
   getKoncisaSurfaceComponentConfig,
   getKoncisaSurfaceKey,
@@ -316,8 +320,9 @@ export function buildKoncisaPlus(config = {}) {
   // ========================
   // GROMMETS / PASACABLES
   // ========================
-  const hasSurfaceGrommetOverride = Object.values(config.surfaceOverrides || {}).some(
-    (override) => override?.cableAccessType === 'GROMMET' || override?.grommet === true
+  const hasSurfaceGrommetOverride = Object.entries(config.surfaceOverrides || {}).some(
+    ([key, override]) => key.startsWith('SURFACE_') &&
+      (override?.cableAccessType === 'GROMMET' || override?.grommet === true)
   );
   if (tipoPasoCable === 'grommet' || hasSurfaceGrommetOverride) {
     const grommets = getGrommetsConfig({
@@ -355,8 +360,9 @@ export function buildKoncisaPlus(config = {}) {
     });
   }
 
-  const hasSurfacePasacableOverride = Object.values(config.surfaceOverrides || {}).some(
-    (override) => override?.cableAccessType === 'PASACABLE' || override?.pasacable === true
+  const hasSurfacePasacableOverride = Object.entries(config.surfaceOverrides || {}).some(
+    ([key, override]) => key.startsWith('SURFACE_') &&
+      (override?.cableAccessType === 'PASACABLE' || override?.pasacable === true)
   );
   if (tipoPasoCable === 'pasacable' || hasSurfacePasacableOverride) {
     for (let moduleIndex = 0; moduleIndex < puestos; moduleIndex++) {
@@ -570,6 +576,12 @@ export function buildKoncisaPlus(config = {}) {
     // El bajante es un accesorio de un ducto horizontal. Sin una referencia
     // terminal o intermedia no se debe crear como pieza flotante.
     if (!referenceDuct) {
+      const simpleReturn = resolveKoncisaSimpleReturnConfig(config);
+      if (simpleReturn) {
+        const mainSurface = parts.find((part) => part.type === 'superficie' &&
+          part.meta?.moduleIndex === simpleReturn.targetModuleIndex);
+        parts.push(...buildKoncisaSimpleReturnSurface({ config, groupId, groupName, mainSurface }));
+      }
       return {
         groupId,
         groupName,
@@ -617,6 +629,15 @@ export function buildKoncisaPlus(config = {}) {
         onePerIsland: true,
       },
     });
+  }
+
+  // El retorno se agrega al final para que la elección del ducto principal
+  // para bajantes de piso/techo conserve sus índices y referencias anteriores.
+  const simpleReturn = resolveKoncisaSimpleReturnConfig(config);
+  if (simpleReturn) {
+    const mainSurface = parts.find((part) => part.type === 'superficie' &&
+      part.meta?.moduleIndex === simpleReturn.targetModuleIndex);
+    parts.push(...buildKoncisaSimpleReturnSurface({ config, groupId, groupName, mainSurface }));
   }
 
   return {

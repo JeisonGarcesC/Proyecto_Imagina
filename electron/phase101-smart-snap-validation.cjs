@@ -10,7 +10,9 @@ const secondGrowth = scenario[1] === 'G';
 const residualMm = Number(process.env.PHASE101_RESIDUAL_MM || 0);
 const saveReopen = process.env.PHASE101_SAVE_REOPEN === '1';
 const verifyRotation = process.env.PHASE101_ROTATION === '1';
+const verifySelection = process.env.PHASE101_SELECTION === '1';
 const zoomMode = process.env.PHASE101_ZOOM || 'MEDIUM';
+const subpixel = process.env.PHASE101_SUBPIXEL === '1';
 assert(['NEAR','MEDIUM','FAR'].includes(zoomMode),'Zoom desconocido');
 assert(Number.isFinite(residualMm) && residualMm >= 0 && residualMm <= 450,'Distancia residual inválida');
 
@@ -18,8 +20,8 @@ async function drag(win, start, end) {
   win.webContents.sendInputEvent({type:'mouseMove',x:start.x,y:start.y});
   win.webContents.sendInputEvent({type:'mouseDown',x:start.x,y:start.y,button:'left',clickCount:1});
   for(let index=1;index<=12;index+=1){
-    win.webContents.sendInputEvent({type:'mouseMove',x:Math.round(start.x+(end.x-start.x)*index/12),
-      y:Math.round(start.y+(end.y-start.y)*index/12),button:'left'});
+    win.webContents.sendInputEvent({type:'mouseMove',x:subpixel?start.x+(end.x-start.x)*index/12:Math.round(start.x+(end.x-start.x)*index/12),
+      y:subpixel?start.y+(end.y-start.y)*index/12:Math.round(start.y+(end.y-start.y)*index/12),button:'left'});
     await pause(180);
   }
   await pause(500);
@@ -135,6 +137,40 @@ async function verifyFreeRotations(win, systemId, sequenceId) {
   }
 }
 
+async function inspectSelection(win) {
+  return evaluate(win,`(() => {const api=${apiExpr};return {rotationSource:api.getRotationState()?.sourceId,
+    pressed:[...document.querySelectorAll('button[aria-pressed="true"]')].map((button)=>button.textContent.trim()),
+    properties:[...document.querySelectorAll('.pp-shell')].map((node)=>node.textContent.slice(0,280))};})()`);
+}
+
+async function verifySelections(win, structure) {
+  await click(win,'Seleccionar sistema');
+  const systemSelection=await inspectSelection(win);
+  assert(systemSelection.rotationSource===structure.systems[0].systemId,'Panel seleccionó otro sistema');
+  console.log('SELECT_SYSTEM_PANEL',JSON.stringify(systemSelection));
+  await clickPoint(win,await point(win,`[...document.querySelectorAll('summary')].find((node)=>node.textContent.trim().startsWith('Secuencia 1 ·'))`));
+  await clickPoint(win,await point(win,`[...document.querySelectorAll('summary')].find((node)=>node.textContent.trim().startsWith('Secuencia 1 ·'))?.parentElement?.querySelector('button')`));
+  const sequenceSelection=await inspectSelection(win);
+  assert(sequenceSelection.rotationSource===structure.sequences[0].sequenceId,'Panel seleccionó otra secuencia');
+  console.log('SELECT_SEQUENCE_PANEL',JSON.stringify(sequenceSelection));
+  const slotButton=`[...[...document.querySelectorAll('summary')].find((node)=>node.textContent.trim().startsWith('Secuencia 1 ·'))?.parentElement?.querySelectorAll('button') || []].find((node)=>node.textContent.trim()==='Seleccionar')`;
+  await clickPoint(win,await point(win,slotButton));
+  const slotSelection=await inspectSelection(win);
+  assert(slotSelection.rotationSource===structure.sequences[0].slots[0].frameInstanceId,'Panel seleccionó otro frame para el slot');
+  console.log('SELECT_SLOT_PANEL',JSON.stringify(slotSelection));
+  const frame=structure.sequences[0].slots[0];
+  const projected=await frameScreenPoint(win,frame.frameInstanceId);
+  await clickPoint(win,projected);
+  const partSelection=await inspectSelection(win);
+  assert(partSelection.rotationSource===frame.frameInstanceId && partSelection.properties.some((value)=>value.includes('Configuración del Frame')),'Clic 3D no seleccionó el frame físico esperado');
+  console.log('SELECT_PART_3D',JSON.stringify({projected,selection:partSelection,slot:frame}));
+  const empty=await evaluate(win,`(() => {const rect=window.__phase101Renderer.domElement.getBoundingClientRect();return {x:Math.round(rect.right-35),y:Math.round(rect.top+35)};})()`);
+  await clickPoint(win,empty);
+  console.log('SELECT_EMPTY_3D',JSON.stringify(await inspectSelection(win)));
+  await clickPoint(win,projected);
+  console.log('SELECT_DIRECT_3D',JSON.stringify(await inspectSelection(win)));
+}
+
 app.whenReady().then(async()=>{
   const win=new BrowserWindow({width:1680,height:1000,show:false});
   await win.loadURL('http://127.0.0.1:5174/');
@@ -188,7 +224,7 @@ app.whenReady().then(async()=>{
     const planePoint=raycaster.ray.at(-raycaster.ray.origin.y/raycaster.ray.direction.y,new window.__phase101Three.Vector3());
     const world=planePoint.clone().add(new window.__phase101Three.Vector3(...delta));
     const projected=world.project(camera),rect=renderer.domElement.getBoundingClientRect();
-    const x=Math.round(rect.left+(projected.x+1)*rect.width/2),y=Math.round(rect.top+(1-projected.y)*rect.height/2);
+    const x=${subpixel?'':'Math.round('}rect.left+(projected.x+1)*rect.width/2${subpixel?'':')'},y=${subpixel?'':'Math.round('}rect.top+(1-projected.y)*rect.height/2${subpixel?'':')'};
     const inverse=new window.__phase101Three.Raycaster();inverse.setFromCamera(new window.__phase101Three.Vector2((x-rect.left)/rect.width*2-1,1-(y-rect.top)/rect.height*2),camera);
     const endPlane=inverse.ray.at(-inverse.ray.origin.y/inverse.ray.direction.y,new window.__phase101Three.Vector3());
     return {x,y,delta,origin,destination,inverseDelta:endPlane.sub(planePoint).toArray()};})()`);
@@ -210,6 +246,7 @@ app.whenReady().then(async()=>{
   if(saveReopen) await verifySaveReopen(win,after);
   else {
     if(verifyRotation) await verifyRotations(win,after);
+    if(verifySelection) await verifySelections(win,after);
     win.destroy();
   }
   app.exit(0);

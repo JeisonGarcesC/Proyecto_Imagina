@@ -5,6 +5,7 @@ import KoncisaBajanteDuctProperties from './KoncisaBajanteDuctProperties';
 import KoncisaPrivacyPanelProperties from './KoncisaPrivacyPanelProperties';
 import KoncisaSurfaceProperties from './KoncisaSurfaceProperties';
 import KoncisaLeaderOutletBoxProperties from './KoncisaLeaderOutletBoxProperties';
+import KoncisaLeaderGrommetProperties from './KoncisaLeaderGrommetProperties';
 
 function isLateralPrivacyPanel(part) {
   if (part?.kind !== 'PRIVACY_PANEL') return false;
@@ -40,6 +41,10 @@ export default function KoncisaPlusProperties({ part, api, onClose }) {
     part?.meta?.category === 'superficies';
   const isLeaderOutletBox =
     part?.meta?.category === 'cajas-de-tomas' && part?.meta?.layoutType === 'LEADER';
+  const isLeaderGrommet =
+    part?.kind === 'grommet' &&
+    part?.meta?.category === 'grommets' &&
+    part?.meta?.layoutType === 'LEADER';
 
   const isPedestal = part?.kind === 'pedestal' || part?.meta?.category === 'pedestales';
 
@@ -58,6 +63,24 @@ export default function KoncisaPlusProperties({ part, api, onClose }) {
         api={api}
       />
     );
+  }
+
+  if (isLeaderGrommet) {
+    return (
+      <KoncisaLeaderGrommetProperties
+        key={`${part?.parentAssemblyId || ''}:${part?.meta?.targetSurfaceKey || ''}:${part?.instanceId || part?.code || ''}:${part?.meta?.finish || ''}`}
+        part={part}
+        api={api}
+      />
+    );
+  }
+
+  if (part?.meta?.targetSurfaceKey === 'SIMPLE_RETURN_SURFACE' && !isSurface) {
+    const returnConfig = api?.getSelectedKoncisaSimpleReturnConfig?.(part?.parentAssemblyId);
+    return <KoncisaSurfaceProperties
+      key={`${part?.parentAssemblyId || ''}:SIMPLE_RETURN_SURFACE:${JSON.stringify(returnConfig || {})}`}
+      part={{ ...part, meta: { ...part.meta, componentKey: 'SIMPLE_RETURN_SURFACE',
+        componentConfig: returnConfig?.componentConfig || {} } }} api={api} />;
   }
 
   if (isSurface)
@@ -109,10 +132,14 @@ export function isKoncisaPlusEditablePart(part) {
     isLateralPrivacyPanel(part) ||
     part?.meta?.category === 'ductos' ||
     part?.meta?.category === 'superficies' ||
+    (part?.kind === 'grommet' &&
+      part?.meta?.category === 'grommets' &&
+      part?.meta?.layoutType === 'LEADER') ||
     (part?.meta?.category === 'cajas-de-tomas' && part?.meta?.layoutType === 'LEADER') ||
     part?.meta?.category === 'ductos-a-piso' ||
     part?.meta?.category === 'ductos-a-techo' ||
     part?.meta?.category === 'costados' ||
     part?.meta?.category === 'pedestales'
+    || part?.meta?.targetSurfaceKey === 'SIMPLE_RETURN_SURFACE'
   );
 }

@@ -151,3 +151,57 @@ La regresión ejecutada nuevamente dio `npm test`: 382 pruebas, 351 PASS y 31 FA
 La ejecución actual de `npm test` sigue en **351/382** (31 fallos). Las pruebas CRITERIUM, incluidas las seis nuevas, pasaron. El conteo coincide con la línea base de Fase 10.1; no se conservó un listado anterior de nombres de los 31 fallos para afirmar igualdad caso por caso. `npm run build` pasó (897 módulos; avisos de Node 20.17 y tamaño de chunks), `npm run lint` terminó con 117 errores y 8 advertencias globales, y `git diff --check` pasó.
 
 **FASE 10.1 = PENDING.** Siguen sin ejecutarse rotaciones, límites de Snap, zoom, guardar/cerrar/reabrir y comparaciones completas de BOM y cotización.
+
+## Validación 10.1.2
+
+Las pruebas de esta sección son **instrumentales**: Electron recibió mouse, rueda y teclado; las APIs se usaron para leer el resultado. Las distancias de Snap son las **medidas entre terminales en mundo**, antes de soltar. Los valores pedidos al guion son solo una calibración de la posición del cursor.
+
+| Escenario | Resultado | Evidencia | Observaciones |
+|---|---|---|---|
+| Smart Snap 50 mm | PASS | Arrastre Electron | 50,428 mm reales, verde, una conexión. |
+| Smart Snap 100 mm | PASS | Arrastre Electron | 100,163 mm reales, verde, una conexión. |
+| Smart Snap 200 mm | PASS | Arrastre Electron | 200,075 mm reales, verde, una conexión. |
+| Smart Snap 250 mm | PASS | Arrastre Electron | 250,076 mm reales, verde, una conexión. |
+| Smart Snap 299 mm | PASS | Arrastre Electron | 299,086 mm reales, verde, una conexión. |
+| Smart Snap 300 mm | PASS | Arrastre Electron | 299,999 mm reales, verde, una conexión; otra prueba a 300,086 mm reales mostró amarillo y cero conexiones. |
+| Smart Snap 301 mm | PASS | Arrastre Electron | 301,087 mm reales, amarillo, cero conexiones. |
+| Smart Snap zoom cercano | PASS | Rueda y arrastre Electron | La cámara se acercó; el arrastre calculado dinámicamente conectó. |
+| Smart Snap zoom medio | PASS | Arrastre Electron | Escenario base conectó. |
+| Smart Snap zoom lejano | PASS | Rueda y arrastre Electron | La cámara se alejó; el arrastre calculado dinámicamente conectó. |
+| Rotación 0° | PASS | Botón +90° Electron | Cuarto giro libre devolvió dirección del terminal inicial. |
+| Rotación 90° | PASS | Botón +90° Electron | Terminal giró 90°; IDs, BOM y cotización estables. |
+| Rotación 180° | PASS | Botón +90° Electron | Terminal opuesto; IDs, BOM y cotización estables. |
+| Rotación 270° | PASS | Botón +90° Electron | Terminal giró 270°; IDs, BOM y cotización estables. |
+| Selección 3D→Panel | PARTIAL | Clic físico Electron | La parte crecida seleccionó el frame y abrió sus Properties. Falta seleccionar sistema y secuencia directamente desde geometría 3D. |
+| Panel→3D | PASS | Botones Electron | Sistema, secuencia y botón Seleccionar del slot resolvieron sus IDs físicos correctos; Properties y estado visual de botón actualizaron. |
+| Properties | PASS | Mouse/teclado Electron | Frame aislado: 38→normal→38; altura 166→128→166, mismo `frameInstanceId`/`frameId` y código de crecimiento entra/sale del BOM. |
+| Guardar | PASS | Archivo → Guardar Electron | Descarga JSON de 7 entidades en sistema de dos secuencias crecidas conectadas. |
+| Cerrar/Reabrir | PASS parcial | Ventana Electron nueva y selector de archivo | Conservó 1 sistema, 2 secuencias, 4 slots, 1 conexión, IDs y transformaciones. La carga utilizó el input de Archivo Abrir vía protocolo de navegador. Escenario mixto dentro de cada secuencia: `NOT_SUPPORTED`. |
+| BOM post-reapertura | PASS parcial | Comparación JSON integral | Mismo resumen antes/después; 14 filas en escenario crecido conectado. Falta escenario mixto no soportado. |
+| Cotización post-reapertura | PASS parcial | Comparación JSON integral | Mismo JSON comercial antes/después; total COP 4.147.500 en ese escenario. Falta escenario mixto no soportado. |
+| Undo/Redo | PASS parcial | Ctrl+Z/Ctrl+Y Electron | Una transición de Properties: 166→128→166 con mismo ID y BOM correcto. Falta ciclo completo con conexión. |
+| Caso inválido | PASS parcial | Properties Electron | `HEIGHT_TRANSITION_REQUIRED` mantuvo ambos slots crecidos. Falta comparar cotización de esa operación en UI. |
+
+**Corrección de rotación.** Se reprodujo un bug: el botón +90° giraba una secuencia conectada sin quitar ni validar su conexión; los terminales podían quedar separados aproximadamente 1,27 m. La operación del botón pasa por `endRotation()`, no por la API especializada de rotación espacial. Ahora se valida el sistema CRITERIUM antes de confirmar cualquier giro genérico que lo afecte; si la conexión queda inválida, `cancelRotation()` restaura la transformación y no agrega historial. La API especializada también valida sus conexiones y usa su rollback existente. En la repetición, cuatro giros libres pasaron y el giro conectado incompatible conservó exactamente posiciones, slots, conexión, BOM y cotización. El cambio solo afecta a objetivos que pertenecen a `CRITERIUM_SYSTEM`.
+
+**Calibración importante.** Un intento anterior solicitado como 301 mm terminó a **267,030 mm reales** y conectó correctamente; no prueba el límite de 301 mm. Un arrastre a **319,596 mm reales** mostró amarillo y no conectó. Después se utilizaron posiciones subpíxel en Electron para obtener las medidas cercanas al umbral de la tabla, sin cambiar la tolerancia de 0,3 m.
+
+**Escenario mixto solicitado: NOT_SUPPORTED.** `validateCritteriumSequenceDraft` rechaza actualmente una secuencia que combine frames normales y crecidos con `HEIGHT_TRANSITION_REQUIRED` porque requiere un kit de transición no validado. La configuración de dos secuencias con un normal y un crecido dentro de cada una no puede construirse mediante UI sin cambiar reglas comerciales, fuera del alcance de esta fase. El recorrido de guardado y reapertura se ejecutó con dos secuencias homogéneas crecidas y conectadas.
+
+**FASE 10.1 = PENDING.** Falta cerrar selección directa 3D→sistema/secuencia y el escenario mixto permanece no soportado por la regla comercial vigente. Los resultados instrumentales anteriores no se presentan como inspección visual humana.
+
+**Regresión final 10.1.2.** `npm test`: 386 pruebas, 355 PASS y 31 FAIL. Los 31 nombres fallidos se extrajeron del registro: 1 archivo `koncisaDoubleDuctPlacement.test.js`, 28 casos LINK y 2 casos LOCKERS; **ninguna prueba CRITERIUM falló**. El total creció en cuatro pruebas frente al registro anterior de 382/351, con el mismo número de fallos; no se dispone del listado anterior completo para afirmar identidad caso por caso. `npm run build`: PASS, 898 módulos transformados, con avisos existentes de Node 20.17 y tamaño de chunks. `npm run lint`: 117 errores y 8 advertencias globales. `git diff --check`: PASS. La regresión interactiva de rotación está en `electron/phase101-smart-snap-validation.cjs` con `PHASE101_ROTATION=1`; selección y persistencia se ejecutan con `PHASE101_SELECTION=1` y `PHASE101_SAVE_REOPEN=1`. `electron/phase101-properties-validation.cjs` comprueba el ciclo de Properties y Ctrl+Z/Ctrl+Y.
+## Fase 10.1.2 — Selección y cierre técnico
+
+| Comprobación | Estado | Evidencia y límite |
+|---|---|---|
+| Panel → sistema, secuencia y frame | PASS | Recorrido Electron previo con botones reales: los IDs seleccionados coincidieron con las entidades físicas. |
+| Clic 3D → frame | PASS | Recorrido Electron previo: clic sobre pieza crecida resolvió su frame y abrió Properties. |
+| Clic 3D → secuencia en modo grupo | PENDING | Se corrigió la resolución: usa el `sequenceId` de la raíz física y muestra Properties de secuencia. Falta repetir el clic en Electron tras este cambio. |
+| Sistema seleccionado desde panel y clic en un miembro 3D | PENDING | Se conserva el sistema como destino de Properties; falta repetir el recorrido Electron tras este cambio. |
+| Clic 3D directo en zona exclusiva de sistema | PENDING | `CRITERIUM_SYSTEM` es un Group sin geometría propia seleccionable. Un mesh de un frame pertenece también a secuencia y sistema; no hay zona física inequívoca para un clic directo de sistema. Sigue disponible el botón de selección del panel. |
+| Persistencia de IDs, transformaciones, crecimiento y conexión | PASS | Recorrido Electron previo de Archivo → Guardar, ventana nueva y Archivo → Abrir: un sistema, dos secuencias, cuatro slots y una conexión conservaron IDs y transformaciones; BOM de 14 filas y cotización COP 4.147.500 iguales antes y después. |
+| Normal y crecido en una misma secuencia | NOT_SUPPORTED | La validación devuelve `HEIGHT_TRANSITION_REQUIRED`; no existe transición física/comercial compatible en el contrato actual. |
+| Pruebas dirigidas | PASS | `node --test test/critteriumCommercialGrowthPhase10_1.test.js`: 6/6. `git diff --check`: PASS. |
+
+**Bug corregido en código:** el clic de un miembro de CRITERIUM en modo grupo podía tomar el frame como raíz, y un sistema previamente seleccionado podía mostrar Properties de una pieza hija. `ThreeCanvas.jsx` usa ahora la raíz de secuencia en modo grupo y conserva el sistema como destino de Properties cuando ya estaba seleccionado. No se crearon IDs ni se modificaron BOM, cotización, historial, catálogos o geometría comercial. El cierre interactivo de selección 3D directa de sistema y la repetición de los clics afectados permanecen **PENDING**.
