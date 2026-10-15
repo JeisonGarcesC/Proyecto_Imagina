@@ -28,7 +28,7 @@ const BOM_CATEGORY_LABELS = {
   control: 'Botonera',
   botonera: 'Botonera',
   ducto: 'Ducto',
-  ductos: 'Ducto',
+  ductos: 'Ductos',
   vertebra: 'Vértebra',
   grommet: 'Grommet',
   kit: 'Kit',
@@ -40,16 +40,36 @@ const BOM_CATEGORY_LABELS = {
   costados: 'Costados',
   columna: 'Columnas',
   superficie: 'Superficie',
-  vigas: 'Viga',
-  viga: 'Viga',
+  vigas: 'Vigas',
+  viga: 'Vigas',
   pantalla: 'Pantalla',
   pantallas: 'Pantalla',
 };
+
+const BOM_CATEGORY_ORDER = [
+  'Botonera',
+  'Ducto',
+  'Ductos',
+  'Grommet',
+  'Kit',
+  'Soporte',
+  'Superficie',
+  'Vigas',
+];
 
 function resolveBomCategoryLabel(value) {
   const normalized = safeStr(value).trim().toLocaleLowerCase('es');
   if (!normalized || normalized === '-') return 'Componentes';
   return BOM_CATEGORY_LABELS[normalized] || normalized.charAt(0).toLocaleUpperCase('es') + normalized.slice(1);
+}
+
+function compareBomCategories(a, b) {
+  const aIndex = BOM_CATEGORY_ORDER.indexOf(safeStr(a));
+  const bIndex = BOM_CATEGORY_ORDER.indexOf(safeStr(b));
+  const resolvedA = aIndex === -1 ? BOM_CATEGORY_ORDER.length : aIndex;
+  const resolvedB = bIndex === -1 ? BOM_CATEGORY_ORDER.length : bIndex;
+  if (resolvedA !== resolvedB) return resolvedA - resolvedB;
+  return safeStr(a).localeCompare(safeStr(b), 'es', { sensitivity: 'base' });
 }
 
 function safeFilenameSegment(value, fallback) {
@@ -127,11 +147,13 @@ export default function BOMView({
       const gname = safeStr(gnameRaw).trim();
 
       const isGrouped = !!gid && gid.toLowerCase() !== 'null' && gid.toLowerCase() !== 'undefined';
+      const bomGroupKey = safeStr(it.bomGroupKey).trim();
 
       return {
         // para agrupar: tipologías como "T:<codigo>", sueltos como "S:SUELTOS"
-        groupKey: isGrouped ? `T:${gid}` : 'S:SUELTOS',
+        groupKey: isGrouped ? `T:${bomGroupKey || gid}` : 'S:SUELTOS',
         groupLabel: isGrouped ? gname || `Tipología ${gid}` : 'SUELTOS',
+        typologyCode: it.typologyCode !== undefined ? safeStr(it.typologyCode) : gid,
 
         code: safeStr(it.code),
         description: it.category === 'CRITTERIUM_8'
@@ -227,7 +249,7 @@ export default function BOMView({
       groupArr = Array.from(map.entries()).map(([key, value]) => ({
         key,
         label: value.label,
-        items: value.items,
+        items: consolidateRows(value.items),
         subtotal: 0,
       }));
       groupArr.sort((a, b) => {
@@ -242,11 +264,7 @@ export default function BOMView({
       for (const g of groupArr) {
       g.items.sort((a, b) => {
         if (groupMode === 'typology') {
-          const categoryOrder = safeStr(a.category).localeCompare(
-            safeStr(b.category),
-            'es',
-            { sensitivity: 'base' }
-          );
+          const categoryOrder = compareBomCategories(a.category, b.category);
           if (categoryOrder) return categoryOrder;
         }
         const va = a[sortKey];
@@ -409,12 +427,12 @@ export default function BOMView({
     });
 
     for (const g of groupsToExport) {
-      const typologyCode = g.key?.startsWith('T:') ? g.key.slice(2).trim() : '';
+      const typologyCode = g.items.find((item) => item.typologyCode)?.typologyCode || '';
       const typologyReferenceCode =
         g.items.find((item) => item.typologyReferenceCode)?.typologyReferenceCode || '';
       const exportTypologyCode = typologyReferenceCode || typologyCode;
       const typologyTitle = exportTypologyCode ? `${exportTypologyCode} - ${g.label}` : g.label;
-      const isTypologyGroup = !!typologyCode;
+      const isTypologyGroup = g.key?.startsWith('T:') || false;
       const typologyCount = isTypologyGroup
         ? Math.max(
             1,
@@ -850,9 +868,9 @@ export default function BOMView({
 
               <tbody>
                 {groups.map((g) => {
-                  const typologyCode = g.key?.startsWith('T:') ? g.key.slice(2) : '';
-                  const typologyTitle = typologyCode
-                    ? `Tipología - ${typologyCode}`
+                  const typologyCode = g.items.find((item) => item.typologyCode)?.typologyCode || '';
+                  const typologyTitle = g.key?.startsWith('T:')
+                    ? typologyCode ? `Tipología - ${typologyCode}` : 'Tipología'
                     : g.key === 'C:TIPOLOGIAS' || g.key === 'C:SUELTOS'
                       ? 'Clasificación'
                       : g.key?.startsWith('S:')

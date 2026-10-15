@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   resolveBomGroupInstanceId,
   resolveKoncisaBomConfigurationKey,
+  resolveKuoAVBomConfigurationKey,
 } from '../src/utils/bomGrouping.js';
 
 function createObject({ kind = null, instanceId = null, uuid, parent = null }) {
@@ -88,5 +89,62 @@ test('mantiene separadas configuraciones Koncisa comercialmente diferentes', () 
   assert.notEqual(
     resolveKoncisaBomConfigurationKey(rect),
     resolveKoncisaBomConfigurationKey(curved)
+  );
+});
+
+test('agrupa puestos Kuo AV iguales aunque cada instancia tenga IDs distintos', () => {
+  const config = {
+    anchoMm: 1200,
+    profundidadMm: 600,
+    alturaMm: 730,
+    kitFuenteColor: 'Blanco',
+    acabadoGrommet: 'ALUMINIUM',
+  };
+  const first = createObject({
+    kind: 'KUO_AV_DOBLE_ASSEMBLY',
+    instanceId: 'KUOAVD_first',
+    uuid: 'first',
+  });
+  const second = createObject({
+    kind: 'KUO_AV_DOBLE_ASSEMBLY',
+    instanceId: 'KUOAVD_second',
+    uuid: 'second',
+  });
+  first.userData.groupName = 'Puesto Doble Kuo AV';
+  second.userData.groupName = 'Puesto Doble Kuo AV';
+  first.userData.config = {
+    ...config,
+    instanceId: 'KUOAVD_first',
+    groupId: 'first',
+    position: [0, 0, 0],
+    costadoIntermedio: false,
+    kuoBatchIndex: 0,
+    kuoBatchSize: 2,
+  };
+  second.userData.config = {
+    ...config,
+    instanceId: 'KUOAVD_second',
+    groupId: 'second',
+    position: [3, 0, 0],
+    costadoIntermedio: false,
+    kuoBatchIndex: 1,
+    kuoBatchSize: 2,
+  };
+
+  assert.equal(resolveKuoAVBomConfigurationKey(first), resolveKuoAVBomConfigurationKey(second));
+});
+
+test('mantiene separados puestos Kuo AV con opciones comerciales diferentes', () => {
+  const first = createObject({ kind: 'KUO_AV_DOBLE_ASSEMBLY', uuid: 'first' });
+  const second = createObject({ kind: 'KUO_AV_DOBLE_ASSEMBLY', uuid: 'second' });
+  first.userData.config = { anchoMm: 1200, acabadoGrommet: 'ALUMINIUM' };
+  second.userData.config = { anchoMm: 1200, acabadoGrommet: 'PAINTED' };
+
+  assert.notEqual(resolveKuoAVBomConfigurationKey(first), resolveKuoAVBomConfigurationKey(second));
+  assert.notEqual(
+    resolveKuoAVBomConfigurationKey(first),
+    resolveKuoAVBomConfigurationKey({
+      userData: { ...first.userData, kind: 'KUO_AV_ASSEMBLY' },
+    })
   );
 });

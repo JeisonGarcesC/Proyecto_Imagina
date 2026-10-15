@@ -4,11 +4,11 @@ import assert from 'node:assert/strict';
 import { generateKuoAVBOM, buildKuoAVBOM } from '../src/mepal/kuoAV/bom/kuoAVBOMCatalog.js';
 import { buildKuoAV } from '../src/mepal/kuoAV/builder/KuoAVBuilder.js';
 
-test('perimetral Melamina especial pintado reproduce las diez partidas oficiales por color', () => {
+test('perimetral Melamina especial pintado usa la superficie melamina del mapa de producto por color', () => {
   for (const [kitFuenteColor, code, lookupTag, price, total, supportTotal] of [
-    ['Negro', '22000126681', 'KITFUENTEKUAC1050000', 4552800, 7396200, 5871600],
-    ['Gris', '22000128023', 'KITFUENTEKUAC1070000', 7096950, 9940350, 8415750],
-    ['Blanco', '22000126680', 'KITFUENTEKUAC1040000', 4552800, 7396200, 5871600],
+    ['Negro', '22000126681', 'KITFUENTEKUAC1050000', 4552800, 7746900, 5871600],
+    ['Gris', '22000128023', 'KITFUENTEKUAC1070000', 7096950, 10291050, 8415750],
+    ['Blanco', '22000126680', 'KITFUENTEKUAC1040000', 4552800, 7746900, 5871600],
   ]) {
     const bom = generateKuoAVBOM({
       anchoMm: 1200, profundidadMm: 600, thickMm: 30,
@@ -28,11 +28,11 @@ test('perimetral Melamina especial pintado reproduce las diez partidas oficiales
     assert.equal(bom.find((row) => row.type === 'vertebra').category, 'DUCTO');
     assert.equal(bom.find((row) => row.type === 'soporte_tomas').category, 'KIT');
     const surface = bom.find((row) => row.type === 'superficie');
-    assert.equal(surface.code, 'KUO120060RECT2');
-    assert.equal(surface.lookupTag, 'KUO120060RECT2-22008689');
-    assert.equal(surface.description, '');
-    assert.equal(surface.category, '-');
-    assert.equal(surface.unitPrice, 0);
+    assert.equal(surface.code, '22000114423');
+    assert.equal(surface.lookupTag, '22000114423-22015138');
+    assert.match(surface.description, /^SPECIAL: SUPERFICIE PRINCIPAL INTERMEDIA MELAMINA 120X60X3CM LINK LKSU010010/);
+    assert.equal(surface.category, 'SUPERFICIE');
+    assert.equal(surface.unitPrice, 350700);
     assert.equal(bom.find((row) => row.type === 'ducto').lookupTag, '22000134911');
     assert.match(bom.find((row) => row.type === 'ducto').description, /^SPECIAL:/);
     for (const row of bom.filter((row) => row.type === 'columna')) {
@@ -205,4 +205,62 @@ test('Puesto perimetral solo factura la pantalla frontal perimetral del catálog
   assert.equal(screen?.lookupTag, 'KUOPRIVACYPERIMETRALGLASS_30_120-22006318');
   assert.equal(screen?.unitPrice, 1321950);
   assert.equal(bom.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0), 9200100);
+});
+
+test('remate perimetral usa c?digos de la nominal superior y medidas reales', () => {
+  const bom = generateKuoAVBOM({
+    anchoMm: 1400,
+    profundidadMm: 700,
+    kitFuente: true,
+    vertebraLateral: true,
+    acabadoGrommet: 'ALUMINIUM',
+    especial: true,
+  });
+  const byCode = new Map(bom.map((row) => [row.code, row]));
+
+  assert.match(byCode.get('22000008993').description,
+    /^SPECIAL: .*150X75X3CM LINK LKSU010020 {2}- Profundidad: 70 cm - Largo: 140 cm/);
+  assert.match(byCode.get('22000134910').description, /Largo: 140 cm$/);
+  assert.equal(byCode.get('22000116336').unitPrice, 327600);
+  assert.match(byCode.get('22000128083').description, / 60CM CON BASE/);
+});
+
+test('remate escala viga y ducto al largo real del mapa', async () => {
+  const built = buildKuoAV({ anchoMm: 1400, profundidadMm: 600, especial: true });
+  const viga = built.parts.find((part) => part.type === 'viga');
+  const ducto = built.parts.find((part) => part.type === 'ducto');
+
+  assert.ok(Math.abs(viga.scale.x - 1396 / 1496) < 1e-9);
+  assert.ok(Math.abs(ducto.scale.x - 1309 / 1409.1) < 1e-4);
+});
+
+test('lote de 3 sencillos: terminales solo en extremos y 2 intermedios KUSO810000 (mapa pág. 8)', () => {
+  const rows = [0, 1, 2].flatMap((kuoBatchIndex) => generateKuoAVBOM({
+    anchoMm: 1200, profundidadMm: 600, kuoBatchIndex, kuoBatchSize: 3,
+  }));
+  const qty = (code) => rows.filter((row) => row.code === code).reduce((sum, row) => sum + row.qty, 0);
+  assert.equal(qty('22000128083'), 1);
+  assert.equal(qty('22000128084'), 1);
+  assert.equal(qty('22000128085'), 2);
+  const intermediate = rows.find((row) => row.code === '22000128085');
+  assert.equal(intermediate.unitPrice, 868350);
+  assert.equal(intermediate.category, 'SOPORTE');
+});
+
+test('puesto sencillo suelto conserva ambos costados terminales', () => {
+  const codes = generateKuoAVBOM({ anchoMm: 1200, profundidadMm: 600 }).map((row) => row.code);
+  assert.ok(codes.includes('22000128083'));
+  assert.ok(codes.includes('22000128084'));
+  assert.equal(codes.includes('22000128085'), false);
+});
+
+test('botonera única según mapa de producto: DPBK06 22024327', () => {
+  const byDefault = generateKuoAVBOM({ anchoMm: 1200, profundidadMm: 600 })
+    .find((row) => row.type === 'control');
+  assert.equal(byDefault.code, '22024327');
+  const legacy = generateKuoAVBOM({ anchoMm: 1200, profundidadMm: 600, botoneraCode: '22021302' })
+    .find((row) => row.type === 'control');
+  assert.equal(legacy.code, '22024327');
+  assert.equal(legacy.unitPrice, 77700);
+  assert.equal(legacy.category, 'BOTONERA');
 });
