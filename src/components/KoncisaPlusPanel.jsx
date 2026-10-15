@@ -54,8 +54,13 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [returnEnabled, setReturnEnabled] = useState(false);
   const [returnWidthMm, setReturnWidthMm] = useState(1000);
   const [returnSide, setReturnSide] = useState('RIGHT');
+  const [returnOrientation, setReturnOrientation] = useState('FRONT');
+  const [returnModuleIndex, setReturnModuleIndex] = useState(0);
   const [returnAccess, setReturnAccess] = useState('NONE');
   const [returnDuct, setReturnDuct] = useState(false);
+  const [returnDuctType, setReturnDuctType] = useState('TERMINAL');
+  const [returnPedestal, setReturnPedestal] = useState(false);
+  const [returnPedestalSide, setReturnPedestalSide] = useState('RIGHT');
 
   const [includePrivacyPanel, setIncludePrivacyPanel] = useState(false);
   const [privacyPanelType, setPrivacyPanelType] = useState('lateral');
@@ -215,8 +220,10 @@ export default function KoncisaPlusPanel({ onCreate }) {
       hasDuct: true,
       ...(tipoPuesto === 'sencillo' ? {
         returnSurface: { enabled: returnEnabled, widthMm: returnWidthMm,
-          targetModuleIndex: returnSide === 'LEFT' ? 0 : puestos - 1,
-          side: returnSide, ductEnabled: returnDuct },
+          targetModuleIndex: returnModuleIndex === 0 ? 0 : puestos - 1,
+          side: returnSide, returnOrientation, ductEnabled: returnDuct,
+          ductType: returnDuctType,
+          pedestal: { enabled: returnPedestal, placementSide: returnPedestalSide } },
         surfaceOverrides: { SIMPLE_RETURN_SURFACE: { finishId: 'FORMICA_30',
           cableAccessType: returnAccess, pasacablePosition: 'CENTER' } },
       } : {}),
@@ -819,19 +826,46 @@ export default function KoncisaPlusPanel({ onCreate }) {
                 <option value={900}>900 mm — ESPECIAL</option>
                 <option value={1000}>1000 mm</option>
               </select></label>
-              <label>Extremo <select value={returnSide}
+              {puestos > 1 && <label>Puesto propietario <select
+                value={returnModuleIndex === 0 ? 0 : puestos - 1}
+                onChange={(event) => setReturnModuleIndex(Number(event.target.value))}>
+                <option value={0}>Inicial — puesto 0</option>
+                <option value={puestos - 1}>Final — puesto {puestos - 1}</option>
+              </select></label>}
+              <label>Lado <select value={returnSide}
                 onChange={(event) => setReturnSide(event.target.value)}>
-                <option value="LEFT">Inicial — LEFT</option>
-                <option value="RIGHT">Final — RIGHT</option>
+                <option value="LEFT">LEFT</option>
+                <option value="RIGHT">RIGHT</option>
+              </select></label>
+              <label>Ubicación del retorno <select value={returnOrientation}
+                onChange={(event) => setReturnOrientation(event.target.value)}>
+                <option value="FRONT">Frente</option>
+                <option value="BACK">Atrás</option>
               </select></label>
               <label>Acceso <select value={returnAccess}
-                onChange={(event) => setReturnAccess(event.target.value)}>
+                onChange={(event) => {
+                  setReturnAccess(event.target.value);
+                  if (event.target.value === 'PASACABLE' && returnDuctType === 'INDIVIDUAL')
+                    setReturnDuctType('TERMINAL');
+                }}>
                 <option value="NONE">Ninguno</option>
                 <option value="GROMMET">Grommet</option>
                 <option value="PASACABLE">Pasacable central</option>
               </select></label>
               <label><input type="checkbox" checked={returnDuct}
                 onChange={(event) => setReturnDuct(event.target.checked)} /> Ducto compatible con la medida</label>
+              {returnDuct && <label>Tipo de ducto <select value={returnDuctType}
+                onChange={(event) => setReturnDuctType(event.target.value)}>
+                <option value="TERMINAL">Terminal</option>
+                <option value="INTERMEDIO">Intermedio</option>
+                {returnAccess !== 'PASACABLE' && <option value="INDIVIDUAL">Individual</option>}
+              </select></label>}
+              <label><input type="checkbox" checked={returnPedestal}
+                onChange={(event) => setReturnPedestal(event.target.checked)} /> Sustituir costado por pedestal</label>
+              {returnPedestal && <label>Posición del pedestal <select value={returnPedestalSide}
+                onChange={(event) => setReturnPedestalSide(event.target.value)}>
+                <option value="LEFT">Izquierda</option><option value="RIGHT">Derecha</option>
+              </select></label>}
             </>}
           </fieldset>}
           <div>

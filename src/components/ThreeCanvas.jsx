@@ -58,7 +58,8 @@ import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/create
 import { buildKoncisaPlus } from '../mepal/koncisaPlus/builders/KoncisaPlusBuilder.js';
 import { resolveComponentKey } from '../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe';
 import { createKoncisaSurfaceConfigPatch } from '../mepal/koncisaPlus/rules/koncisaSurfaceComponentRules.js';
-import { SIMPLE_RETURN_SURFACE_KEY } from '../mepal/koncisaPlus/simpleReturn/KoncisaSimpleReturnSurface.js';
+import { SIMPLE_RETURN_SURFACE_KEY, SIMPLE_RETURN_ORIENTATION_FRONT,
+  SIMPLE_RETURN_ORIENTATION_BACK } from '../mepal/koncisaPlus/simpleReturn/KoncisaSimpleReturnSurface.js';
 import { resolveKoncisaCableAccessCodigoPT } from '../mepal/koncisaPlus/rules/koncisaCableAccessRules.js';
 import { loadPersistedEntity } from '../core/persistence/entityLoaders';
 import {
@@ -6655,9 +6656,13 @@ function ThreeCanvas({
       if (!assembly || (instanceId &&
           ![assembly.userData.instanceId, assembly.userData.groupId].includes(instanceId)))
         return null;
-      return { ...(assembly.userData.config?.returnSurface || { enabled: false, widthMm: 1000,
+      const savedReturn = assembly.userData.config?.returnSurface;
+      return { ...(savedReturn || { enabled: false, widthMm: 1000,
         side: 'RIGHT', targetModuleIndex: Number(assembly.userData.config?.puestos || 1) - 1,
-        ductEnabled: false }), puestos: Number(assembly.userData.config?.puestos || 1),
+        ductEnabled: false }),
+        returnOrientation: savedReturn?.returnOrientation ||
+          (savedReturn ? SIMPLE_RETURN_ORIENTATION_BACK : SIMPLE_RETURN_ORIENTATION_FRONT),
+        puestos: Number(assembly.userData.config?.puestos || 1),
         tipoPuesto: assembly.userData.config?.tipoPuesto,
         componentConfig: assembly.userData.config?.surfaceOverrides?.[SIMPLE_RETURN_SURFACE_KEY]
           || { finishId: 'FORMICA_30', cableAccessType: 'NONE',
@@ -6672,12 +6677,15 @@ function ThreeCanvas({
         return { success: false, reason: 'Selecciona nuevamente el puesto Koncisa Plus.' };
       const config = assembly.userData.config || {};
       const side = patch.side || config.returnSurface?.side || 'RIGHT';
+      const returnOrientation = patch.returnOrientation ||
+        config.returnSurface?.returnOrientation ||
+        (config.returnSurface ? SIMPLE_RETURN_ORIENTATION_BACK : SIMPLE_RETURN_ORIENTATION_FRONT);
       const puestos = Number(config.puestos || 1);
       const nextConfig = { ...config, returnSurface: {
         enabled: false, widthMm: 1000, ductEnabled: false,
-        ...config.returnSurface, ...patch, side,
-        targetModuleIndex: patch.side ? (side === 'LEFT' ? 0 : puestos - 1) :
-          (patch.targetModuleIndex ?? config.returnSurface?.targetModuleIndex ?? puestos - 1),
+        ...config.returnSurface, ...patch, side, returnOrientation,
+        targetModuleIndex:
+          patch.targetModuleIndex ?? config.returnSurface?.targetModuleIndex ?? puestos - 1,
       } };
       return rebuildKoncisaSimpleReturnConfiguration(assembly, nextConfig);
     }

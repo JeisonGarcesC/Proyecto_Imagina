@@ -25,3 +25,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Perfil y artefactos temporales de la validación con Electron
+.tmp-koncisa-electron-profile/
+.tmp-koncisa-return-electron.cmd
+.tmp-koncisa-return-electron.mjs
+.tmp-koncisa-return-electron.png
+.tmp-koncisa-return-log.txt

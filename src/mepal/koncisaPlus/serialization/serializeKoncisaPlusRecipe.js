@@ -122,6 +122,18 @@ export function resolveComponentKey(object) {
     return LEADER_ROLE_KEYS[leaderRole];
   }
   if (meta.componentKey) return String(meta.componentKey);
+  if (meta.targetSurfaceKey === 'SIMPLE_RETURN_SURFACE') {
+    const category = normalizeToken(meta.category);
+    if (category === 'COSTADOS') return 'SIMPLE_RETURN_COSTADO';
+    if (category === 'PEDESTALES') return 'SIMPLE_RETURN_PEDESTAL';
+    if (category === 'RETURN_UNION_SUPPORTS') {
+      const index = Number(meta.unionPlateIndex);
+      return Number.isInteger(index) && index >= 0 ? `SIMPLE_RETURN_UNION_${index + 1}` : null;
+    }
+    if (category === 'GROMMETS') return 'SIMPLE_RETURN_GROMMET';
+    if (category === 'PASACABLES') return 'SIMPLE_RETURN_PASACABLE';
+    if (category === 'DUCTOS') return 'SIMPLE_RETURN_DUCT';
+  }
 
   if (type === 'LEADERCREDENZABEAMDECORATION' || type === 'LEADER_CREDENZA_BEAM_DECORATION') {
     return 'CREDENZA_BEAM_DECORATION';

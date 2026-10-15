@@ -25,9 +25,7 @@ export default function KoncisaSurfaceProperties({ part, api }) {
     try {
       const result = await api?.updateSelectedKoncisaSimpleReturn?.(patch, part?.parentAssemblyId);
       if (!result?.success) throw new Error(result?.reason || 'No se pudo actualizar el retorno.');
-      setReturnState((current) => ({ ...current, ...patch,
-        targetModuleIndex: patch.side ? (patch.side === 'LEFT' ? 0 : current.puestos - 1) :
-          current.targetModuleIndex }));
+      setReturnState((current) => ({ ...current, ...patch }));
     } catch (cause) {
       setError(cause?.message || 'No se pudo actualizar el retorno.');
     } finally { setBusy(false); }
@@ -54,7 +52,8 @@ export default function KoncisaSurfaceProperties({ part, api }) {
     {canConfigureReturn && <fieldset style={{ border: '1px solid #ddd' }}>
       <legend>Retorno SENCILLO</legend>
       {isSimpleReturn && <div>Puesto {Number(returnState?.targetModuleIndex || 0) + 1} ·
-        {returnState?.widthMm} mm · {returnState?.side}</div>}
+        {returnState?.widthMm} mm{Number(returnState?.widthMm) === 900 ? ' — ESPECIAL' : ''}
+        {' · '}{returnState?.side}</div>}
       <label style={labelStyle}><input type="checkbox" checked={returnState?.enabled === true}
         onChange={(event) => updateReturn({ enabled: event.target.checked })} /> Activar retorno</label>
       {returnState?.enabled && <>
@@ -64,14 +63,46 @@ export default function KoncisaSurfaceProperties({ part, api }) {
             <option value={900}>900 mm — ESPECIAL</option><option value={1000}>1000 mm</option>
           </select>
         </label>
-        <label style={labelStyle}>Extremo
+        {returnState.puestos > 1 && <label style={labelStyle}>Puesto propietario
+          <select style={inputStyle} value={returnState.targetModuleIndex}
+            onChange={(event) => updateReturn({ targetModuleIndex: Number(event.target.value) })}>
+            <option value={0}>Inicial — puesto 0</option>
+            <option value={returnState.puestos - 1}>Final — puesto {returnState.puestos - 1}</option>
+          </select>
+        </label>}
+        <label style={labelStyle}>Lado
           <select style={inputStyle} value={returnState.side || 'RIGHT'}
             onChange={(event) => updateReturn({ side: event.target.value })}>
-            <option value="LEFT">Inicial — LEFT</option><option value="RIGHT">Final — RIGHT</option>
+            <option value="LEFT">LEFT</option><option value="RIGHT">RIGHT</option>
           </select>
         </label>
+        {isSimpleReturn && <label style={labelStyle}>Ubicación del retorno
+          <select style={inputStyle} value={returnState.returnOrientation || 'BACK'}
+            onChange={(event) => updateReturn({ returnOrientation: event.target.value })}>
+            <option value="FRONT">Frente</option><option value="BACK">Atrás</option>
+          </select>
+        </label>}
         <label style={labelStyle}><input type="checkbox" checked={returnState.ductEnabled === true}
           onChange={(event) => updateReturn({ ductEnabled: event.target.checked })} /> Ducto compatible con la medida</label>
+        {returnState.ductEnabled && <label style={labelStyle}>Tipo de ducto
+          <select style={inputStyle} value={returnState.ductType || 'TERMINAL'}
+            onChange={(event) => updateReturn({ ductType: event.target.value })}>
+            <option value="TERMINAL">Terminal</option>
+            <option value="INTERMEDIO">Intermedio</option>
+            {config.cableAccessType !== 'PASACABLE' && <option value="INDIVIDUAL">Individual</option>}
+          </select>
+        </label>}
+        <label style={labelStyle}><input type="checkbox"
+          checked={returnState.pedestal?.enabled === true}
+          onChange={(event) => updateReturn({ pedestal: { ...returnState.pedestal,
+            enabled: event.target.checked, placementSide: returnState.pedestal?.placementSide || 'RIGHT' } })} /> Sustituir costado por pedestal</label>
+        {returnState.pedestal?.enabled && <label style={labelStyle}>Posición del pedestal
+          <select style={inputStyle} value={returnState.pedestal?.placementSide || 'RIGHT'}
+            onChange={(event) => updateReturn({ pedestal: { ...returnState.pedestal,
+              placementSide: event.target.value } })}>
+            <option value="LEFT">Izquierda</option><option value="RIGHT">Derecha</option>
+          </select>
+        </label>}
       </>}
     </fieldset>}
     {canChangeFinish && <label style={labelStyle}>Acabado / espesor

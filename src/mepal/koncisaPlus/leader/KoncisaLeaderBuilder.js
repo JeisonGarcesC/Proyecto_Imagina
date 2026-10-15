@@ -483,8 +483,7 @@ export function buildKoncisaLeader(config = {}) {
         groupId,
         groupName,
         surfaceRole: 'MAIN',
-        position:
-          leaderMainFloorDuct.position ?? 'CENTER',
+        position: leaderMainFloorDuct?.position ?? mainComponentConfig.grommetPosition,
         widthMm: leaderMainWidthMm,
         depthMm: leaderMainDepthMm,
         centerX: mainSurface.position.x,
@@ -665,8 +664,7 @@ export function buildKoncisaLeader(config = {}) {
           groupId,
           groupName,
           surfaceRole: 'RETURN',
-          position:
-            leaderReturnFloorDuct.position ?? 'CENTER',
+          position: leaderReturnFloorDuct?.position ?? returnComponentConfig.grommetPosition,
           widthMm: leaderReturnLengthMm,
           depthMm: leaderReturnDepthMm,
           centerX: returnSurface.position.x,
