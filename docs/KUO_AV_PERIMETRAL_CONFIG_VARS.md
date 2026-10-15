@@ -11,6 +11,14 @@ mantiene ancho y profundidad, ademas de las opciones de la referencia original:
 - Especial/Rematable, Aumentar Altura, Elevar kit F izquierdo y Colocar Vertebra Lateral.
 - Incluir pantalla y su material siguen disponibles.
 
+La oferta comercial Especial/Rematable, tanto al crear como al editar sencillo
+perimetral y doble, permite largos 120/130/140/150/160 cm y profundidades
+60/65/70/75 cm. Al activar especial se ajustan ambas medidas a la opcion
+permitida mas cercana (en empates, la menor); 165 cm pasa a 160 cm.
+Las nominales estandar siguen siendo 120/150/165 cm y fondos 60/75 cm.
+Esta restriccion de venta no altera automaticamente las recetas antiguas al
+cargarlas ni cambia la referencia nominal superior utilizada para facturar.
+
 El doble agrega Baldosa Formica y un selector de soporte intermedio
 KUSO840000/KUSO850000 para las uniones de lotes. El modo AUTO conserva la
 intermedio con ducto KUSO840000 en todas las uniones; KUSO850000 queda

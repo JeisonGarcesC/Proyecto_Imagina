@@ -116,22 +116,18 @@ export const KUO_AV_VARIANT_METRICS = Object.freeze({
  * superficies, vigas, ductos y pantallas son rematables en largo de 120 a 165 cm;
  * la superficie también en ancho (profundidad) de 60 a 75 cm.
  * Un remate se pide con el código de la nominal inmediatamente superior.
- * El remate se ofrece en centímetros enteros (caso práctico del mapa: 140 x 70 cm).
+ * La oferta comercial limita el largo especial a 120-160 cm cada 10 cm
+ * y la profundidad a 60-75 cm cada 5 cm, sin modificar nominales ni recetas antiguas.
  */
 export const KUO_AV_REMATE = Object.freeze({
-  stepMm: 10,
+  specialWidthsMm: Object.freeze([1200, 1300, 1400, 1500, 1600]),
+  specialDepthsMm: Object.freeze([600, 650, 700, 750]),
   nominalWidthsMm: Object.freeze([1200, 1500, 1650]),
   nominalDepthsMm: Object.freeze([600, 750]),
   vigaRealDeltaMm: 4,
   ductoRealDeltaMm: 91,
   pantallaRealDeltaMm: 80,
 });
-
-function buildMmRange(minMm, maxMm, stepMm) {
-  const values = [];
-  for (let value = minMm; value <= maxMm; value += stepMm) values.push(value);
-  return values;
-}
 
 export function resolveKuoAVNominalSize(valueMm, nominalsMm) {
   const value = Number(valueMm);
@@ -152,13 +148,21 @@ export function isKuoAVRemate(widthMm, depthMm) {
     Number(depthMm) !== resolveKuoAVNominalDepth(depthMm);
 }
 
-/** Opciones de los combos Ancho/Profundidad: nominales o remate cada 1 cm. */
+/** Oferta comercial compartida por creacion y edicion de sencillos y dobles. */
 export function resolveKuoAVDimensionOptions(dimension, especial = false) {
   const nominals = dimension === 'depth'
     ? KUO_AV_REMATE.nominalDepthsMm
     : KUO_AV_REMATE.nominalWidthsMm;
   if (!especial) return [...nominals];
-  return buildMmRange(nominals[0], nominals[nominals.length - 1], KUO_AV_REMATE.stepMm);
+  return [...(dimension === 'depth' ? KUO_AV_REMATE.specialDepthsMm : KUO_AV_REMATE.specialWidthsMm)];
+}
+
+export function resolveKuoAVSpecialSize(dimension, valueMm) {
+  const values = resolveKuoAVDimensionOptions(dimension, true);
+  const value = Number(valueMm);
+  if (!Number.isFinite(value)) throw new Error('La medida especial Kuo AV debe ser numerica.');
+  return values.reduce((best, candidate) =>
+    Math.abs(candidate - value) < Math.abs(best - value) ? candidate : best, values[0]);
 }
 
 export function formatKuoAVCm(mm) {
