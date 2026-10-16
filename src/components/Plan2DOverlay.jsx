@@ -427,6 +427,13 @@ export default function Plan2DOverlay({
   const suppressNextClickRef = useRef(false);
   const rotationDragRef = useRef(null);
   const shapeDragRef = useRef(null);
+  const cancelShapeDrag = useCallback((pointerId) => {
+    const session = shapeDragRef.current;
+    if (!session || (pointerId != null && session.pointerId !== pointerId)) return false;
+    shapeDragRef.current = null;
+    if (session.hasMoved) onReplaceShape2D?.(session.initialShape);
+    return true;
+  }, [onReplaceShape2D]);
   const textDragRef = useRef(null);
   const [isRotatingPiece, setIsRotatingPiece] = useState(false);
 
@@ -1622,7 +1629,7 @@ export default function Plan2DOverlay({
   const handlePointerCancel = useCallback(
     (e) => {
       cancelVariantHandleDrag(e.pointerId);
-      shapeDragRef.current = null;
+      cancelShapeDrag(e.pointerId);
       textDragRef.current = null;
       cancelSelectionDrag(e.pointerId);
       cancelDimensionTextDrag(e.pointerId);
@@ -1635,6 +1642,7 @@ export default function Plan2DOverlay({
       cancelPieceDrag,
       handlePointerUp,
       cancelVariantHandleDrag,
+      cancelShapeDrag,
     ]
   );
 
@@ -2098,7 +2106,7 @@ export default function Plan2DOverlay({
   useEffect(() => {
     const onEscape = (e) => {
       if (e.key !== 'Escape') return;
-      shapeDragRef.current = null;
+      cancelShapeDrag();
       textDragRef.current = null;
       if (rotationDragRef.current) {
         rotationDragRef.current = null;
@@ -2118,11 +2126,12 @@ export default function Plan2DOverlay({
     cancelDimensionTextDrag,
     cancelPieceDrag,
     cancelVariantHandleDrag,
+    cancelShapeDrag,
   ]);
 
   useEffect(() => {
     const cancelActiveDrag = () => {
-      shapeDragRef.current = null;
+      cancelShapeDrag();
       textDragRef.current = null;
       cancelVariantHandleDrag();
       cancelSelectionDrag();
@@ -2131,7 +2140,7 @@ export default function Plan2DOverlay({
     };
     window.addEventListener('blur', cancelActiveDrag);
     return () => window.removeEventListener('blur', cancelActiveDrag);
-  }, [cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag, cancelVariantHandleDrag]);
+  }, [cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag, cancelVariantHandleDrag, cancelShapeDrag]);
 
   useEffect(() => {
     if (transformTool === 'rotate' || !rotationDragRef.current) return;
@@ -2428,11 +2437,6 @@ export default function Plan2DOverlay({
         return;
       }
 
-      if ((ev.key === 'Delete' || ev.key === 'Backspace') && measureMode && !measureStart) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        setDimensions((prev) => prev.slice(0, -1));
-      }
     };
 
     window.addEventListener('keydown', onKey, true);
@@ -3794,7 +3798,7 @@ export default function Plan2DOverlay({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onLostPointerCapture={(event) => {
-          if (shapeDragRef.current?.pointerId === event.pointerId) shapeDragRef.current = null;
+          cancelShapeDrag(event.pointerId);
           if (textDragRef.current?.pointerId === event.pointerId) textDragRef.current = null;
           if (planDragRef.current?.pointerId === event.pointerId) {
             planDragRef.current = null;

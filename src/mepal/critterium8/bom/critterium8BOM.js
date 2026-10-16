@@ -1,7 +1,7 @@
-import { resolveCritterium8FrameCommercialCode } from '../parts/partCatalog.js';
+import { resolveCritterium8FrameCommercialCode, resolveCritterium8TileCommercial } from '../parts/partCatalog.js';
 import { resolveCritterium8JunctionParts } from '../junctions/junctionPartResolver.js';
 
-const codedTypes = new Set(['TILE', 'GROWTH_MODULE', 'CEILING_POST', 'CEILING_U']);
+const codedTypes = new Set(['GROWTH_MODULE', 'CEILING_POST', 'CEILING_U']);
 
 function commercialRow(part, sourceId) {
   return {
@@ -42,6 +42,39 @@ export function resolveCritterium8BOM(partsRegistry = []) {
         category: 'CRITTERIUM_8', sourceId: frameId });
     } else {
       diagnostics.push({ code: 'MISSING_DOCUMENTED_FRAME_CODE', frameId });
+    }
+
+    const commercialTiles = Array.isArray(data.commercialTiles) ? data.commercialTiles : [];
+    for (const slot of composition.tileSlots || []) {
+      if (!slot.tile) continue;
+      const commercial = commercialTiles.find((item) => item.slotId === slot.id)
+        || resolveCritterium8TileCommercial({
+          tileType: slot.tile.tileType || slot.tile.type,
+          widthCm: composition.widthCm ?? data.config?.widthCm,
+          heightCm: slot.heightCm,
+          commercialOptions: slot.tile.commercialOptions,
+        });
+      const physicalParts = (data.partsDefinition || []).filter((part) =>
+        part.type === 'TILE' && part.slotId === slot.id
+      );
+      const quantity = physicalParts.length;
+      if (!quantity) continue;
+      if (commercial.status !== 'RESOLVED' || !commercial.code) {
+        diagnostics.push(...(commercial.diagnostics || []).map((item) => ({
+          ...item, frameId, slotId: slot.id, status: commercial.status,
+        })));
+        rows.push({ code: null, reference: null,
+          description: `Baldosa ${slot.tile.tileType || slot.tile.type} — Información comercial insuficiente`,
+          qty: quantity, materialCode: slot.tile.materialCode ?? null,
+          finishCode: slot.tile.finishCode ?? null, category: 'CRITTERIUM_8',
+          sourceId: slot.id });
+        continue;
+      }
+      rows.push({ code: commercial.code, reference: null,
+        description: commercial.description, qty: quantity,
+        materialCode: slot.tile.materialCode ?? null,
+        finishCode: slot.tile.finishCode ?? null,
+        category: 'CRITTERIUM_8', sourceId: slot.id });
     }
 
     for (const part of data.partsDefinition || []) {

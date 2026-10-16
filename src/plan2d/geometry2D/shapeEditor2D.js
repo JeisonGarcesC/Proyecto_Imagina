@@ -71,7 +71,7 @@ export function translateShape2D(shapes, id, delta = {}) {
     if (shape.type === 'line') {
       geometry = { x1: shape.geometry.x1 + dx, y1: shape.geometry.y1 + dy, x2: shape.geometry.x2 + dx, y2: shape.geometry.y2 + dy };
     } else if (shape.type === 'polygon') {
-      geometry = { points: shape.geometry.points.map((point) => ({ x: point.x + dx, y: point.y + dy })) };
+      geometry = { ...shape.geometry, points: shape.geometry.points.map((point) => ({ x: point.x + dx, y: point.y + dy })) };
     } else {
       geometry = { ...shape.geometry, x: shape.geometry.x + dx, y: shape.geometry.y + dy };
     }

@@ -8041,7 +8041,9 @@ function ThreeCanvas({
       }
       const beforeConfig = JSON.parse(JSON.stringify(assembly.userData.config || {}));
       const preferredSlotId =
-        options.preferredSlotId ?? activeEditablePart?.userData?.slotId ?? null;
+        options.preferredSlotId !== undefined
+          ? options.preferredSlotId
+          : activeEditablePart?.userData?.slotId ?? null;
       const parent = assembly.parent || scene;
       const previousIndex = parent.children.indexOf(assembly);
       const prepared = await rebuildCritterium8Instance({ assembly, patch });
@@ -13982,9 +13984,13 @@ function ThreeCanvas({
         return result;
       } else if (action.type === HISTORY_ACTION_TYPES.CRITTERIUM_8_CONFIG_CHANGE) {
         const assembly = findPartById(action.instanceId);
+        const focusedPart = getActiveEditablePartObject();
+        const preferredSlotId = getCritterium8AssemblyRoot(focusedPart) === assembly
+          ? focusedPart?.userData?.slotId || null
+          : null;
         return rebuildCritterium8Assembly(assembly, state || {}, {
           recordHistory: false,
-          preferredSlotId: null,
+          preferredSlotId,
         }).then((result) => {
           if (!result?.success)
             throw new Error(result?.reason || 'CRITTERIUM8_HISTORY_REBUILD_FAILED');

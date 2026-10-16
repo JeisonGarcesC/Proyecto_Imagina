@@ -84,7 +84,7 @@ export function getKoncisaSurfaceComponentConfig(config, key, fallback = {}) {
   const stored = config?.surfaceOverrides?.[key];
   return normalizeKoncisaSurfaceOverride(stored || {}, {
     ...fallback,
-    allowGrommetSidePosition: key === 'MAIN_SURFACE' || key === 'RETURN_SURFACE',
+    allowGrommetSidePosition: key === 'RETURN_SURFACE',
   });
 }
 
@@ -98,7 +98,7 @@ export function createKoncisaSurfaceConfigPatch(config, key, patch) {
   const next = normalizeKoncisaSurfaceOverride({ ...current, ...patch }, {
     ...fallback,
     ...current,
-    allowGrommetSidePosition: key === 'MAIN_SURFACE' || key === 'RETURN_SURFACE',
+    allowGrommetSidePosition: key === 'RETURN_SURFACE',
   });
   return { ...config, surfaceOverrides: { ...(config?.surfaceOverrides || {}), [key]: next } };
 }

@@ -29,7 +29,7 @@ function resolveLeaderSurfaceAccessPosition({
     .trim()
     .toUpperCase();
   const localX = positionKey === 'LEFT' ? -widthMm / 4 : positionKey === 'RIGHT' ? widthMm / 4 : 0;
-  const localZ = depthMm <= 600 ? -190 : -255;
+  const localZ = depthMm <= 600 ? -224 : -255;
   const cos = Math.cos(rotationY);
   const sin = Math.sin(rotationY);
   const x = centerX + localX * cos + localZ * sin;
@@ -342,16 +342,20 @@ export function buildKoncisaLeader(config = {}) {
     surfaceFallback.cableAccessType = 'NONE';
     surfaceFallback.grommet = false;
   }
-  const mainComponentConfig = suppressLeaderPasacable(getKoncisaSurfaceComponentConfig(config, 'MAIN_SURFACE', {
-    ...surfaceFallback,
-    floorDuctEnabled: leaderMainFloorDuct?.enabled === true,
-    outletCouplingEnabled: leaderMainOutletCoupling?.enabled === true,
-  }));
-  const returnComponentConfig = suppressLeaderPasacable(getKoncisaSurfaceComponentConfig(config, 'RETURN_SURFACE', {
-    ...surfaceFallback,
-    floorDuctEnabled: leaderReturnFloorDuct?.enabled === true,
-    outletCouplingEnabled: leaderReturnOutletCoupling?.enabled === true,
-  }));
+  const mainComponentConfig = suppressLeaderPasacable(
+    getKoncisaSurfaceComponentConfig(config, 'MAIN_SURFACE', {
+      ...surfaceFallback,
+      floorDuctEnabled: leaderMainFloorDuct?.enabled === true,
+      outletCouplingEnabled: leaderMainOutletCoupling?.enabled === true,
+    })
+  );
+  const returnComponentConfig = suppressLeaderPasacable(
+    getKoncisaSurfaceComponentConfig(config, 'RETURN_SURFACE', {
+      ...surfaceFallback,
+      floorDuctEnabled: leaderReturnFloorDuct?.enabled === true,
+      outletCouplingEnabled: leaderReturnOutletCoupling?.enabled === true,
+    })
+  );
   const mainFinish = resolveKoncisaSurfaceFinishOption(mainComponentConfig, surfaceFallback);
   const materialTypeFor = (option) => (option.id.startsWith('FORM') ? 'FORMICA' : 'MELAMINA');
 
@@ -435,13 +439,13 @@ export function buildKoncisaLeader(config = {}) {
           placement: {
             // Posición manual de la caja de tomas de la superficie principal.
             position: {
-              x: 0,
-              y: 0,
-              z: 0,
+              x: 738 - 184,
+              y: 558,
+              z: -223,
             },
             rotation: {
               x: 0,
-              y: 0,
+              y: -Math.PI / 2,
               z: 0,
             },
           },

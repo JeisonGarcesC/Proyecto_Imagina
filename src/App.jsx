@@ -30,6 +30,7 @@ import { rotateShape2D } from './plan2d/geometry2D/shapeInteraction2D';
 import { createDimension2D } from './plan2d/dimension2D';
 import { HISTORY_ACTION_TYPES } from './history/historyManager';
 import { deleteText2D, updateText2D } from './plan2d/text2D/textEditor2D';
+import { createText2D } from './plan2d/text2D/text2D';
 import BOMWindow from './components/BOMWindow';
 import BOMView from './components/BOMView';
 import { catalogByCodigoPT } from './catalog/catalogData';
@@ -383,7 +384,7 @@ export default function App() {
     return () => threeApi.setShape2DHistoryReplayHandler(null);
   }, [threeApi]);
   const recordAreaHistory = (type, before, after) => {
-    if (!['area', 'elevation'].includes((before || after)?.semanticType)) return;
+    if (!(before || after)) return;
     if (JSON.stringify(before) === JSON.stringify(after)) return;
     threeApiRef.current?.recordShape2DHistoryAction?.({
       type, shapeId: (before || after).id,
@@ -789,6 +790,7 @@ export default function App() {
     return {
       ...project,
       shapes2D,
+      texts2D,
       dimensions,
       plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
       architecture: {
@@ -892,7 +894,11 @@ export default function App() {
     setShapes2D(Array.isArray(project?.shapes2D) ? project.shapes2D.flatMap((shape) => {
       try { return [createShape(shape)]; } catch { return []; }
     }) : []);
+    setTexts2D(Array.isArray(project?.texts2D) ? project.texts2D.flatMap((item) => {
+      try { return [createText2D(item)]; } catch { return []; }
+    }) : []);
     setSelectedShape2DId(null);
+    setSelectedText2DId(null);
     setDetailed2DIds(new Set());
     setSelectedWallId(null);
     setWalls(deserializeWalls(project));
@@ -1222,7 +1228,9 @@ export default function App() {
         onNewProject={() => {
           setDimensions([]);
           setShapes2D([]);
+          setTexts2D([]);
           setSelectedShape2DId(null);
+          setSelectedText2DId(null);
           setDetailed2DIds(new Set());
           setSelectedWallId(null);
           setWalls([]);
