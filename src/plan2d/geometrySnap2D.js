@@ -218,14 +218,14 @@ export function resolveSnapPoint({
         segment.endpointType || SNAP_TYPES.ENDPOINT,
         segment.a,
         segment.sourceId,
-        { kind: SNAP_TYPES.ENDPOINT, edgeIndex, endpointIndex: 0 },
+        { ...(segment.feature || {}), kind: SNAP_TYPES.ENDPOINT, edgeIndex, endpointIndex: 0 },
         segment
       );
       consider(
         segment.endpointType || SNAP_TYPES.ENDPOINT,
         segment.b,
         segment.sourceId,
-        { kind: SNAP_TYPES.ENDPOINT, edgeIndex, endpointIndex: 1 },
+        { ...(segment.feature || {}), kind: SNAP_TYPES.ENDPOINT, edgeIndex, endpointIndex: 1 },
         segment
       );
     }

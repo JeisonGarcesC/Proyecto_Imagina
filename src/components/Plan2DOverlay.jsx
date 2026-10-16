@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { buildSnapGeometry, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
+import { buildElevationSnapGeometry } from '../plan2d/geometry2D/elevation2D';
 import {
   createDimension2D,
   dimensionHitDistance,
@@ -224,6 +225,7 @@ function createDimensionSnapReference(resolved) {
   if (!resolved?.snapped) return null;
   return {
     type: resolved.type,
+    sourceType: resolved.sourceType || null,
     sourceId: resolved.sourceId,
     ...(resolved.feature ? { feature: { ...resolved.feature } } : {}),
   };
@@ -299,6 +301,8 @@ export default function Plan2DOverlay({
   onCancelRotation2D,
   getRotationState2D,
   shapes2D = [],
+  dimensions,
+  setDimensions,
   shapeTool2D = null,
   onCreateElevation2D,
   selectedShape2DId = null,
@@ -319,10 +323,22 @@ export default function Plan2DOverlay({
   const [measureStart, setMeasureStart] = useState(null);
   const [measureHover, setMeasureHover] = useState(null);
   const [measureSnap, setMeasureSnap] = useState(null);
-  const [dimensions, setDimensions] = useState([]);
+  const getDimensionSnapGeometry = useCallback(() => {
+    const plant = buildSnapGeometry(getSnapshot?.() || []);
+    const elevations = buildElevationSnapGeometry(shapes2D, { invertZ });
+    return {
+      points: [...plant.points.map((candidate) => ({ ...candidate, sourceType: candidate.sourceType || 'plant' })), ...elevations.points],
+      segments: [...plant.segments.map((candidate) => ({ ...candidate, sourceType: candidate.sourceType || 'plant' })), ...elevations.segments],
+    };
+  }, [getSnapshot, shapes2D, invertZ]);
   const [selectedDimensionId, setSelectedDimensionId] = useState(null);
   const selectedDimension =
     dimensions.find((dimension) => dimension.id === selectedDimensionId) || null;
+  useEffect(() => {
+    if (selectedDimensionId && !dimensions.some((dimension) => dimension.id === selectedDimensionId)) {
+      setSelectedDimensionId(null);
+    }
+  }, [dimensions, selectedDimensionId]);
 
   const recordDimensionHistoryAction = useCallback(
     (action) => historyApi?.recordDimensionHistoryAction?.(action) || null,
@@ -766,18 +782,18 @@ export default function Plan2DOverlay({
         worldPoint,
         screenPoint: { x: mx, y: my },
         scale: viewRef.current.s,
-        geometry: buildSnapGeometry(getSnapshot?.() || []),
+        geometry: getDimensionSnapGeometry(),
         tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
       });
     },
-    [canvasToWorld, getSnapshot]
+    [canvasToWorld, getDimensionSnapGeometry]
   );
 
   const pickDimensionAtCanvasPoint = useCallback(
     (mx, my) => {
       const mouseWorldPoint = canvasToWorld(mx, my);
       if (!mouseWorldPoint) return null;
-      const snapGeometry = buildSnapGeometry(getSnapshot?.() || []);
+      const snapGeometry = getDimensionSnapGeometry();
       let closest = null;
       let closestDistance = Infinity;
       dimensions.forEach((dimension) => {
@@ -796,7 +812,7 @@ export default function Plan2DOverlay({
       });
       return closest;
     },
-    [canvasToWorld, dimensions, getSnapshot, toCanvas]
+    [canvasToWorld, dimensions, getDimensionSnapGeometry, toCanvas]
   );
 
   const commitWall = useCallback(() => {
@@ -1293,20 +1309,13 @@ export default function Plan2DOverlay({
         const movedPx = Math.hypot(deltaX, deltaY);
         if (!dimensionTextDrag.hasMoved && movedPx < 2) return;
 
-        const textOffset = {
-          alongPx:
-            dimensionTextDrag.initialTextOffset.alongPx +
-            deltaX * dimensionTextDrag.along.x +
-            deltaY * dimensionTextDrag.along.y,
-          normalPx:
-            dimensionTextDrag.initialTextOffset.normalPx +
-            deltaX * dimensionTextDrag.normal.x +
-            deltaY * dimensionTextDrag.normal.y,
-        };
-        const nextDimension = createDimension2D({
-          ...dimensionTextDrag.before,
-          textOffset,
-        });
+        const changes = dimensionTextDrag.mode === 'offset'
+          ? { offset: dimensionTextDrag.initialOffset + deltaX * dimensionTextDrag.normal.x + deltaY * dimensionTextDrag.normal.y }
+          : { textOffset: {
+              alongPx: dimensionTextDrag.initialTextOffset.alongPx + deltaX * dimensionTextDrag.along.x + deltaY * dimensionTextDrag.along.y,
+              normalPx: dimensionTextDrag.initialTextOffset.normalPx + deltaX * dimensionTextDrag.normal.x + deltaY * dimensionTextDrag.normal.y,
+            } };
+        const nextDimension = createDimension2D({ ...dimensionTextDrag.before, ...changes });
         if (!nextDimension) return;
 
         dimensionTextDrag.hasMoved = true;
@@ -1697,6 +1706,9 @@ export default function Plan2DOverlay({
       // drag de pieza con botón izquierdo
       if (e.button !== 0) return;
 
+      // La cota se inicia y termina en handleClick; no capturar sus clics como arrastres 2D.
+      if (measureMode) return;
+
       const shapeWorld = canvasToWorld(mx, my);
       if (textTool2D && shapeWorld) {
         onAddText2D?.(createTextAtPoint2D({ x: shapeWorld.x, y: shapeWorld.z }));
@@ -1707,11 +1719,15 @@ export default function Plan2DOverlay({
 
       if (shapeTool2D && shapeWorld) {
         if (shapeTool2D === 'elevation') {
-          if (onCreateElevation2D?.({ x: shapeWorld.x, y: shapeWorld.z })) onPickIds?.([]);
+          if (onCreateElevation2D?.({ x: shapeWorld.x, y: shapeWorld.z })) {
+            setSelectedDimensionId(null);
+            onPickIds?.([]);
+          }
           e.preventDefault();
           return;
         }
         onAddShape2D?.(createShapeFromTool(shapeTool2D, { x: shapeWorld.x, y: shapeWorld.z }));
+        setSelectedDimensionId(null);
         onPickIds?.([]);
         e.preventDefault();
         return;
@@ -1773,6 +1789,7 @@ export default function Plan2DOverlay({
 
         if (pickedShape) {
           onSelectShape2D?.(pickedShape.id);
+          setSelectedDimensionId(null);
           onSelectText2D?.(null);
           onPickIds?.([]);
           const center = getShapeCenter2D(pickedShape);
@@ -1908,20 +1925,28 @@ export default function Plan2DOverlay({
         if (pickedDimension) {
           const { dimension, resolvedDimension } = pickedDimension;
           setSelectedDimensionId(dimension.id);
+          onSelectShape2D?.(null);
           const textDistance = dimensionTextHitDistance({
             screenPoint: { x: mx, y: my },
             dimension: resolvedDimension,
             view: { toCanvas },
           });
-          if (dimension.id === selectedDimensionId && textDistance <= 4) {
+          if (dimension.id === selectedDimensionId) {
             const textPosition = resolveDimensionTextPosition(resolvedDimension, toCanvas);
+            const movingText = textDistance <= 4;
+            const normal = movingText ? textPosition.normal
+              : dimension.type === DIMENSION_TYPES.LINEAR_HORIZONTAL ? { x: 0, y: -1 }
+                : dimension.type === DIMENSION_TYPES.LINEAR_VERTICAL ? { x: 1, y: 0 }
+                  : textPosition.normal;
             dimensionTextDragRef.current = {
+              mode: movingText ? 'text' : 'offset',
               pointerId: e.pointerId,
               startClientX: e.clientX,
               startClientY: e.clientY,
               initialTextOffset: dimension.textOffset || { alongPx: 0, normalPx: 0 },
+              initialOffset: dimension.offset,
               along: textPosition.along,
-              normal: textPosition.normal,
+              normal,
               before: dimension,
               after: dimension,
               hasMoved: false,
@@ -2203,6 +2228,7 @@ export default function Plan2DOverlay({
           if (dimension) {
             setDimensions((prev) => [...prev, dimension]);
             setSelectedDimensionId(dimension.id);
+            onSelectShape2D?.(null);
             recordDimensionHistoryAction({
               type: HISTORY_ACTION_TYPES.CREATE_DIMENSION,
               dimensionId: dimension.id,
@@ -2221,6 +2247,7 @@ export default function Plan2DOverlay({
         const pickedDimension = pickDimensionAtCanvasPoint(mx, my);
         if (pickedDimension) {
           setSelectedDimensionId(pickedDimension.dimension.id);
+          onSelectShape2D?.(null);
           return;
         }
         setSelectedDimensionId(null);
@@ -2479,7 +2506,7 @@ export default function Plan2DOverlay({
       if (prunedCimbraPostIds.size !== cimbraVisiblePostIds.size) {
         setCimbraVisiblePostIds(prunedCimbraPostIds);
       }
-      const snapGeometry = buildSnapGeometry(snap);
+      const snapGeometry = getDimensionSnapGeometry();
       const { s, cx, cz } = viewRef.current;
 
       const sign = invertZ ? -1 : 1;
@@ -3163,6 +3190,7 @@ export default function Plan2DOverlay({
     showFinishes2D,
     shapes2D,
     selectedShape2DId,
+    getDimensionSnapGeometry,
     texts2D,
     selectedText2DId,
   ]);
@@ -3638,13 +3666,15 @@ export default function Plan2DOverlay({
           <input
             id="dimension-label"
             type="text"
-            value={selectedDimension.label || ''}
+            key={`${selectedDimension.id}:${selectedDimension.label || ''}`}
+            defaultValue={selectedDimension.label || ''}
             placeholder="Valor automático"
-            onChange={(event) =>
+            onBlur={(event) =>
               applyDimensionUpdate(selectedDimension.id, {
                 label: event.target.value || null,
               })
             }
+            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
           />
 
           <label htmlFor="dimension-offset">Offset</label>
@@ -3652,21 +3682,24 @@ export default function Plan2DOverlay({
             id="dimension-offset"
             type="number"
             step="1"
-            value={selectedDimension.offset}
-            onChange={(event) => {
+            key={`${selectedDimension.id}:offset:${selectedDimension.offset}`}
+            defaultValue={selectedDimension.offset}
+            onBlur={(event) => {
               const offset = Number(event.target.value);
               if (Number.isFinite(offset)) {
                 applyDimensionUpdate(selectedDimension.id, { offset });
               }
             }}
+            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
           />
 
           <label htmlFor="dimension-color">Color</label>
           <input
             id="dimension-color"
             type="color"
-            value={selectedDimension.style?.color || '#000000'}
-            onChange={(event) =>
+            key={`${selectedDimension.id}:color:${selectedDimension.style?.color || '#000000'}`}
+            defaultValue={selectedDimension.style?.color || '#000000'}
+            onBlur={(event) =>
               applyDimensionUpdate(selectedDimension.id, {
                 style: {
                   ...(selectedDimension.style || {}),
@@ -3682,8 +3715,9 @@ export default function Plan2DOverlay({
             type="number"
             min="0.1"
             step="0.1"
-            value={selectedDimension.style?.lineWidth ?? 1}
-            onChange={(event) => {
+            key={`${selectedDimension.id}:lineWidth:${selectedDimension.style?.lineWidth ?? 1}`}
+            defaultValue={selectedDimension.style?.lineWidth ?? 1}
+            onBlur={(event) => {
               const lineWidth = Number(event.target.value);
               if (Number.isFinite(lineWidth) && lineWidth > 0) {
                 applyDimensionUpdate(selectedDimension.id, {
@@ -3694,6 +3728,7 @@ export default function Plan2DOverlay({
                 });
               }
             }}
+            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
           />
 
           <label htmlFor="dimension-text-size">Tamaño de texto</label>
@@ -3702,8 +3737,9 @@ export default function Plan2DOverlay({
             type="number"
             min="1"
             step="1"
-            value={selectedDimension.style?.text?.size ?? 14}
-            onChange={(event) => {
+            key={`${selectedDimension.id}:textSize:${selectedDimension.style?.text?.size ?? 14}`}
+            defaultValue={selectedDimension.style?.text?.size ?? 14}
+            onBlur={(event) => {
               const size = Number(event.target.value);
               if (Number.isFinite(size) && size > 0) {
                 applyDimensionUpdate(selectedDimension.id, {
@@ -3717,6 +3753,7 @@ export default function Plan2DOverlay({
                 });
               }
             }}
+            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
           />
         </section>
       )}

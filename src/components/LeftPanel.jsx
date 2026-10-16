@@ -269,6 +269,26 @@ function MoreaCardImage({ codigo, title }) {
   );
 }
 
+function ShapeRotationInput({ shape, onApply, inputStyle, labelStyle }) {
+  const angle = shape.geometry.rotation || 0;
+  const [draft, setDraft] = useState(String(Math.round(angle * 1800 / Math.PI) / 10));
+  useEffect(() => {
+    setDraft(String(Math.round(angle * 1800 / Math.PI) / 10));
+  }, [angle]);
+
+  const apply = (event) => {
+    event.preventDefault();
+    if (draft.trim() === '') return;
+    const degrees = Number(draft);
+    if (Number.isFinite(degrees)) onApply?.(degrees);
+  };
+
+  return <form onSubmit={apply} style={{ display: 'flex', alignItems: 'end', gap: 4 }}>
+    <label style={{ ...labelStyle, flex: 1 }}>Rotación (°)<input type="number" step="any" value={draft} onChange={(event) => setDraft(event.target.value)} style={inputStyle} /></label>
+    <button type="submit">Aplicar</button>
+  </form>;
+}
+
 export default function LeftPanel({
   section,
   threeApiRef,
@@ -348,6 +368,7 @@ export default function LeftPanel({
   setElevationDirection2D,
   selectedShape2D,
   onShape2DChange,
+  onRotateShape2D,
   onDeleteShape2D,
   onTranslateShape2D,
   textTool2D,
@@ -1786,7 +1807,7 @@ export default function LeftPanel({
                 {selectedShape2D.type !== 'elevation' && 'height' in selectedShape2D.geometry && <label style={lab}>Alto (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.height} onChange={(e) => onShape2DChange({ geometry: { height: Number(e.target.value) } })} style={inp} /></label>}
                 {'size' in selectedShape2D.geometry && <label style={lab}>Tamaño (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.size} onChange={(e) => onShape2DChange({ geometry: { size: Number(e.target.value) } })} style={inp} /></label>}
                 {'radius' in selectedShape2D.geometry && <label style={lab}>Radio (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.radius} onChange={(e) => onShape2DChange({ geometry: { radius: Number(e.target.value) } })} style={inp} /></label>}
-                {selectedShape2D.type !== 'elevation' && 'rotation' in selectedShape2D.geometry && <label style={lab}>Rotación (°)<input type="number" step="1" value={Math.round(selectedShape2D.geometry.rotation * 1800 / Math.PI) / 10} onChange={(e) => onShape2DChange({ geometry: { rotation: Number(e.target.value) * Math.PI / 180 } })} style={inp} /></label>}
+                {['rectangle', 'square', 'triangle', 'polygon'].includes(selectedShape2D.type) && <ShapeRotationInput key={selectedShape2D.id} shape={selectedShape2D} onApply={onRotateShape2D} inputStyle={inp} labelStyle={lab} />}
                 <label style={lab}>Contorno<input type="color" value={selectedShape2D.style.stroke} onChange={(e) => onShape2DChange({ style: { stroke: e.target.value } })} style={inp} /></label>
                 <label style={lab}>Relleno<input type="color" value={selectedShape2D.style.fillColor} onChange={(e) => onShape2DChange({ style: { fillColor: e.target.value } })} style={inp} /></label>
                 <label style={{ fontSize: 12 }}><input type="checkbox" checked={selectedShape2D.style.fill} onChange={(e) => onShape2DChange({ style: { fill: e.target.checked } })} /> Activar relleno</label>

@@ -26,6 +26,8 @@ import {
 import Plan2DOverlay from './components/Plan2DOverlay';
 import { createShape2DId, deleteShape2D, translateShape2D, updateShape2D } from './plan2d/geometry2D/shapeEditor2D';
 import { createShape } from './plan2d/geometry2D/shapes2D';
+import { rotateShape2D } from './plan2d/geometry2D/shapeInteraction2D';
+import { createDimension2D } from './plan2d/dimension2D';
 import { HISTORY_ACTION_TYPES } from './history/historyManager';
 import { deleteText2D, updateText2D } from './plan2d/text2D/textEditor2D';
 import BOMWindow from './components/BOMWindow';
@@ -359,6 +361,7 @@ export default function App() {
   };
 
   const [shapes2D, setShapes2D] = useState([]);
+  const [dimensions, setDimensions] = useState([]);
   const [shapeTool2D, setShapeTool2D] = useState(null);
   const [elevationDirection2D, setElevationDirection2D] = useState('front');
   const [selectedShape2DId, setSelectedShape2DId] = useState(null);
@@ -786,6 +789,7 @@ export default function App() {
     return {
       ...project,
       shapes2D,
+      dimensions,
       plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
       architecture: {
         ...(project.architecture || {}),
@@ -882,6 +886,9 @@ export default function App() {
   };
 
   const loadProjectData = async (project) => {
+    setDimensions(Array.isArray(project?.dimensions) ? project.dimensions.flatMap((dimension) => {
+      try { const restored = createDimension2D(dimension); return restored ? [restored] : []; } catch { return []; }
+    }) : []);
     setShapes2D(Array.isArray(project?.shapes2D) ? project.shapes2D.flatMap((shape) => {
       try { return [createShape(shape)]; } catch { return []; }
     }) : []);
@@ -1213,6 +1220,7 @@ export default function App() {
         onMoveAsGroupChange={handleMoveAsGroupChange}
         onLogout={logout}
         onNewProject={() => {
+          setDimensions([]);
           setShapes2D([]);
           setSelectedShape2DId(null);
           setDetailed2DIds(new Set());
@@ -1477,6 +1485,20 @@ export default function App() {
               setElevationDirection2D={setElevationDirection2D}
               selectedShape2D={selectedShape2D}
               onShape2DChange={handleShape2DChange}
+              onRotateShape2D={(degrees) => {
+                if (!selectedShape2D || !Number.isFinite(degrees)) return;
+                const radians = ((degrees % 360) + 360) % 360 * Math.PI / 180;
+                const after = rotateShape2D(selectedShape2D, radians);
+                if (after === selectedShape2D) return;
+                if (JSON.stringify(selectedShape2D) === JSON.stringify(after)) return;
+                threeApiRef.current?.recordShape2DHistoryAction?.({
+                  type: HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D,
+                  shapeId: selectedShape2D.id,
+                  before: { shape: selectedShape2D },
+                  after: { shape: after },
+                });
+                handleReplaceShape2D(after);
+              }}
               onDeleteShape2D={handleDeleteShape2D}
               onTranslateShape2D={(delta) => {
                 if (!selectedShape2DId) return;
@@ -1654,6 +1676,8 @@ export default function App() {
               threeApiRef.current?.getRotationState?.({ sourceId: id }) || null
             }
             shapes2D={shapes2D}
+            dimensions={dimensions}
+            setDimensions={setDimensions}
             shapeTool2D={shapeTool2D}
             onCreateElevation2D={(point) => {
               const source = threeApiRef.current?.getElevationSource2D?.(selectedIds);

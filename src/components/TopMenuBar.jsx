@@ -41,6 +41,7 @@ export default function TopMenuBar({
   const [open, setOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [deleteMode, setDeleteMode] = useState('group');
+  const [rotationDegrees, setRotationDegrees] = useState('');
   const fileRef = useRef(null);
   const barRef = useRef(null);
 
@@ -200,71 +201,72 @@ export default function TopMenuBar({
     <header ref={barRef} className="topbar-shell">
       <div className="topbar-left">
         <div className="topbar-menu-wrap">
-        <button
-          type="button"
-          onClick={() => {
-            setOpen((v) => !v);
-            setExportOpen(false);
-          }}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen((v) => !v);
+              setExportOpen(false);
+            }}
             className={`topbar-file-btn ${open ? 'is-open' : ''}`}
-        >
-          Archivo
-        </button>
+          >
+            Archivo
+          </button>
 
-        {open && (
-          <div className="topbar-menu-panel">
-            <MenuItem label="Nuevo" disabled={!canLoadSave} onClick={doNew} />
-            <MenuItem label="Abrir..." disabled={!canLoadSave} onClick={doOpen} />
-            <MenuItem label="Guardar" disabled={!canLoadSave} onClick={doSave} />
+          {open && (
+            <div className="topbar-menu-panel">
+              <MenuItem label="Nuevo" disabled={!canLoadSave} onClick={doNew} />
+              <MenuItem label="Abrir..." disabled={!canLoadSave} onClick={doOpen} />
+              <MenuItem label="Guardar" disabled={!canLoadSave} onClick={doSave} />
 
-            <div className="topbar-submenu-wrap">
-              <button
-                type="button"
-                onClick={() => setExportOpen((v) => !v)}
-                className={`topbar-menu-item ${exportOpen ? 'is-open' : ''}`}
-                onMouseDown={(e) => e.preventDefault()}
-              >
-                Exportar
-                <span className="topbar-submenu-caret">›</span>
-              </button>
+              <div className="topbar-submenu-wrap">
+                <button
+                  type="button"
+                  onClick={() => setExportOpen((v) => !v)}
+                  className={`topbar-menu-item ${exportOpen ? 'is-open' : ''}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  Exportar
+                  <span className="topbar-submenu-caret">›</span>
+                </button>
 
-              {exportOpen && (
-                <div className="topbar-submenu-panel">
-                  <MenuItem label="Exportar GLB" onClick={doExportGlb} />
-                  <MenuItem label="Exportar DXF" onClick={doExportDxf} />
+                {exportOpen && (
+                  <div className="topbar-submenu-panel">
+                    <MenuItem label="Exportar GLB" onClick={doExportGlb} />
+                    <MenuItem label="Exportar DXF" onClick={doExportDxf} />
 
-                  <div className="topbar-divider" />
+                    <div className="topbar-divider" />
 
-                  <MenuItem label="Exportar SVG" onClick={doExportSvg} />
-                  <MenuItem label="Exportar PNG" onClick={doExportPng} />
-                  <MenuItem label="Exportar PDF" onClick={doExportPdf} />
+                    <MenuItem label="Exportar SVG" onClick={doExportSvg} />
+                    <MenuItem label="Exportar PNG" onClick={doExportPng} />
+                    <MenuItem label="Exportar PDF" onClick={doExportPdf} />
 
-                  <div className="topbar-menu-help">
-                    PDF abre la ventana de impresión. GLB exporta el modelo 3D limpio del proyecto.
+                    <div className="topbar-menu-help">
+                      PDF abre la ventana de impresión. GLB exporta el modelo 3D limpio del
+                      proyecto.
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+
+              <div className="topbar-divider" />
+              <MenuItem label="Salir" onClick={doExit} />
             </div>
+          )}
 
-            <div className="topbar-divider" />
-            <MenuItem label="Salir" onClick={doExit} />
-          </div>
-        )}
-
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json"
-          style={{ display: 'none' }}
-          onChange={onPickFile}
-          disabled={!canLoadSave}
-        />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json"
+            style={{ display: 'none' }}
+            onChange={onPickFile}
+            disabled={!canLoadSave}
+          />
         </div>
 
         <select
           value={country}
           onChange={(e) => setCountry(e.target.value)}
-            className="topbar-country"
+          className="topbar-country"
         >
           {catalogCountries.map((c) => (
             <option key={c} value={c}>
@@ -292,13 +294,40 @@ export default function TopMenuBar({
             >
               Rotar
             </button>
-            <button type="button" className="topbar-segment" onClick={() => threeApiRef.current?.rotateByDegrees?.({ degrees: -90 })}>
+            <button
+              type="button"
+              className="topbar-segment"
+              onClick={() => threeApiRef.current?.rotateByDegrees?.({ degrees: -90 })}
+            >
               −90°
             </button>
-            <button type="button" className="topbar-segment" onClick={() => threeApiRef.current?.rotateByDegrees?.({ degrees: 90 })}>
+            <button
+              type="button"
+              className="topbar-segment"
+              onClick={() => threeApiRef.current?.rotateByDegrees?.({ degrees: 90 })}
+            >
               +90°
             </button>
           </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (rotationDegrees.trim() === '') return;
+              const degrees = Number(rotationDegrees);
+              if (Number.isFinite(degrees)) threeApiRef.current?.rotateToDegrees?.({ degrees });
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <input
+              id="rotation-degrees-3d"
+              type="number"
+              step="any"
+              value={rotationDegrees}
+              onChange={(event) => setRotationDegrees(event.target.value)}
+              style={{ width: 40 }}
+            />
+            <button type="submit">🔄</button>
+          </form>
         </div>
 
         <div className="topbar-control-group">
@@ -358,11 +387,7 @@ export default function TopMenuBar({
 
       <div className="topbar-right">
         <span className="topbar-user">{labelUser}</span>
-        <button
-          type="button"
-          onClick={bomOpen ? onCloseBom : onOpenBom}
-          className="topbar-bom-btn"
-        >
+        <button type="button" onClick={bomOpen ? onCloseBom : onOpenBom} className="topbar-bom-btn">
           <span>{bomShowText}</span>
           <span className="topbar-bom-sep" />
           <strong>{moneyCOP(bomTotal)}</strong>

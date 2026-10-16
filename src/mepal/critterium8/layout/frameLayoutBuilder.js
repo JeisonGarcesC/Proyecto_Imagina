@@ -30,7 +30,8 @@ function placementForPart(part, context) {
     const slot = composition.tileSlots.find((candidate) => candidate.id === part.slotId);
     if (!slot) return { diagnostic: { code: 'MISSING_SLOT', level: 'ERROR', partId: part.id, slotId: part.slotId } };
     const tileDepthCm = CRITTERIUM8_TILE_PROJECTION_MM / 10;
-    position = { x: 0, y: (Number(slot.startCm) + Number(slot.endCm)) / 2, z: halfDepth + tileDepthCm / 2 };
+    const back = metadata.face === 'BACK';
+    position = { x: 0, y: (Number(slot.startCm) + Number(slot.endCm)) / 2, z: (back ? -1 : 1) * (halfDepth + tileDepthCm / 2) };
     anchorId = createCritterium8SlotAnchorId(slot.id);
     bounds = createCritterium8PlacementBounds({ position, widthCm: part.widthCm, heightCm: part.heightCm, depthCm: tileDepthCm });
     metadata.tileProjectionCm = tileDepthCm;
@@ -55,7 +56,7 @@ function placementForPart(part, context) {
   }
 
   if (SYMBOLIC_TYPES.has(part.type) || !bounds) diagnostics.push({ code: 'MISSING_PHYSICAL_DIMENSIONS', level: 'WARNING', partId: part.id, partType: part.type });
-  return { placement: createCritterium8PartPlacement({ partId: part.id, partType: part.type, position, anchorId, bounds, metadata }) };
+  return { placement: createCritterium8PartPlacement({ partId: part.id, partType: part.type, position, rotation: { y: metadata.face === 'BACK' ? Math.PI : 0 }, anchorId, bounds, metadata }) };
 }
 
 export function buildCritterium8FrameAssemblyLayout({ frame = {}, composition = {}, parts = [] } = {}) {

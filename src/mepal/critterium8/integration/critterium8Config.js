@@ -1,6 +1,7 @@
 import { createCritterium8FrameDefinition } from '../definitions/frameDefinition.js';
 import { applyGrowthModuleToComposition, buildCritterium8FrameComposition } from '../composition/frameComposition.js';
 import { isTileCombinationAllowed } from '../rules/tileRules.js';
+import { retainCritterium8TileCommercialOptions } from '../catalog/tileCatalog.js';
 import { getCritterium8FullTileHeight } from '../rules/frameCompositionRules.js';
 
 function clone(value) {
@@ -74,12 +75,19 @@ export function resolveCritterium8ConfigPatch({ config = {}, patch = {}, frameId
       diagnostics.push({ code: 'TILE_ASSIGNMENT_DISCARDED', level: 'WARNING', tileType: tileType || null, previousSlotId: tile.slotId || null });
       return;
     }
-    next.tiles.push({
+    const nextTile = {
       ...clone(tile),
       slotId: targetSlot.id,
       tileType,
       heightCm: targetSlot.heightCm,
-    });
+    };
+    if (Object.hasOwn(nextTile, 'commercialOptions')) {
+      nextTile.commercialOptions = retainCritterium8TileCommercialOptions({
+        tileType, widthCm: next.widthCm, heightCm: targetSlot.heightCm,
+        commercialOptions: nextTile.commercialOptions,
+      }) || {};
+    }
+    next.tiles.push(nextTile);
   });
 
   const effective = buildComposition(next, frameId);
@@ -98,7 +106,15 @@ export function patchCritterium8TileConfig({ config, frameId, slotId, patch = {}
       if (candidate.id !== slotId) return candidate.tile;
       const tileType = String(patch.tileType ?? candidate.tile?.tileType ?? '').trim().toUpperCase();
       if (!tileType) return null;
-      return { ...(candidate.tile || {}), ...clone(patch), slotId, tileType, heightCm: candidate.heightCm };
+      const commercialOptions = Object.hasOwn(patch, 'commercialOptions')
+        ? patch.commercialOptions == null
+          ? {}
+          : { ...patch.commercialOptions, ...(candidate.tile?.commercialOptions || {}), ...patch.commercialOptions }
+        : candidate.tile?.commercialOptions;
+      return {
+        ...(candidate.tile || {}), ...clone(patch), slotId, tileType, heightCm: candidate.heightCm,
+        ...(commercialOptions === undefined ? {} : { commercialOptions }),
+      };
     })
     .filter(Boolean);
   return resolveCritterium8ConfigPatch({ config, patch: { tiles }, frameId });

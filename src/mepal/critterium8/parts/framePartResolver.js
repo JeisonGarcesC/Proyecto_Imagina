@@ -7,6 +7,7 @@ import {
   resolveCritterium8FrameCommercialCode,
   resolveCritterium8GrowthPartCode,
   resolveCritterium8TilePartCode,
+  resolveCritterium8TileCommercial,
 } from './partCatalog.js';
 import { validateResolvedParts } from './partRules.js';
 
@@ -50,6 +51,7 @@ export function resolveCritterium8FrameParts(input = {}, options = {}) {
   const depthCm = Number(frame.thicknessCm ?? 8);
   const frameCode = resolveCritterium8FrameCommercialCode({ widthCm, heightCm: baseFrameHeightCm });
   const parts = [];
+  const commercialTiles = [];
   const diagnostics = [...(composition.diagnostics || [])];
   const sharedMetadata = { frameId, parentFrameCatalogCode: frameCode, source: 'FICHA_TECNICA' };
 
@@ -63,11 +65,24 @@ export function resolveCritterium8FrameParts(input = {}, options = {}) {
     if (!slot.tile) continue;
     const tileType = slot.tile.tileType || slot.tile.type;
     const tileCode = resolveCritterium8TilePartCode({ tileType, widthCm, heightCm: slot.heightCm });
-    addPart(parts, diagnostics, {
-      frameId, type: 'TILE', slotId: slot.id, code: tileCode,
-      description: `Baldosa ${String(tileType || '').toUpperCase()}`,
-      widthCm, heightCm: slot.heightCm, depthCm: 1.5,
-      metadata: { ...slot.tile.metadata, tileType, materialCode: slot.tile.materialCode ?? null, finishCode: slot.tile.finishCode ?? null, source: 'MAPA_PRODUCTO' },
+    const physicalPartIds = [];
+    for (const face of ['FRONT', 'BACK']) {
+      const physicalPart = addPart(parts, diagnostics, {
+        frameId, type: 'TILE', slotId: slot.id, code: tileCode,
+        description: `Baldosa ${String(tileType || '').toUpperCase()}`,
+        widthCm, heightCm: slot.heightCm, depthCm: 1.5,
+        metadata: { ...slot.tile.metadata, tileType, materialCode: slot.tile.materialCode ?? null, finishCode: slot.tile.finishCode ?? null, source: 'MAPA_PRODUCTO', face },
+      });
+      if (physicalPart) physicalPartIds.push(physicalPart.id);
+    }
+    const commercial = resolveCritterium8TileCommercial({
+      tileType, widthCm, heightCm: slot.heightCm,
+      commercialOptions: slot.tile.commercialOptions,
+    });
+    commercialTiles.push({
+      slotId: slot.id, ...commercial,
+      options: { ...(slot.tile.commercialOptions || {}) },
+      physicalPartIds,
     });
   }
 
@@ -83,7 +98,7 @@ export function resolveCritterium8FrameParts(input = {}, options = {}) {
 
   const validation = validateResolvedParts(parts, { composition, frame });
   diagnostics.push(...validation.errors.map((code) => ({ code, level: 'ERROR' })));
-  return { frameId, parts, diagnostics, valid: validation.valid };
+  return { frameId, parts, commercialTiles, diagnostics, valid: validation.valid };
 }
 
 export function resolveJunctionParts() {

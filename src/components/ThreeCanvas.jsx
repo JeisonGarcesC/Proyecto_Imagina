@@ -8160,7 +8160,17 @@ function ThreeCanvas({
         return updateSelectedCritterium8(
           { tiles: resolved.config.tiles },
           assembly.userData.instanceId
-        );
+        ).then((result) => {
+          if (result?.success) {
+            const next = getCritterium8AssemblyForEdit(assembly.userData.instanceId);
+            const nextEditablePart = next?.children.find((child) => child.userData?.slotId === slotId);
+            if (next && nextEditablePart) setActivePart(next, {
+              propertiesTarget: nextEditablePart,
+              targetIds: [next.userData.instanceId],
+            });
+          }
+          return result;
+        });
       return rebuildCritterium8Assembly(
         assembly,
         { tiles: resolved.config.tiles },
@@ -13051,6 +13061,7 @@ function ThreeCanvas({
       endRotation,
       cancelRotation,
       rotateByDegrees: ({ sourceId, degrees } = {}) => rotateByDegrees({ sourceId, degrees }),
+      rotateToDegrees: ({ sourceId, degrees } = {}) => rotateToDegrees({ sourceId, degrees }),
       getRotationState: ({ sourceId } = {}) => getRotationState({ sourceId }),
       undoHistory: () => historyManager.undo(),
       redoHistory: () => historyManager.redo(),
@@ -14228,6 +14239,18 @@ function ThreeCanvas({
         checkAndApplyKuoAVLUnion(activePart);
       }
       return true;
+    }
+
+    function rotateToDegrees({ sourceId, degrees } = {}) {
+      if (degrees === '' || degrees == null || !Number.isFinite(Number(degrees))) return false;
+      const state = getRotationState({ sourceId });
+      if (!state) return false;
+      const fullTurn = Math.PI * 2;
+      const target = THREE.MathUtils.euclideanModulo(THREE.MathUtils.degToRad(Number(degrees)), fullTurn);
+      const current = THREE.MathUtils.euclideanModulo(state.angle, fullTurn);
+      const delta = THREE.MathUtils.euclideanModulo(target - current + Math.PI, fullTurn) - Math.PI;
+      if (Math.abs(delta) < 1e-10) return true;
+      return rotateByDegrees({ sourceId, degrees: THREE.MathUtils.radToDeg(delta) });
     }
 
     function getRotationState({ sourceId } = {}) {
