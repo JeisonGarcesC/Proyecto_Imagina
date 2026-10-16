@@ -48,6 +48,7 @@ import {
 import { useEffect, useRef } from 'react';
 import { resolveKuoAVDobleSupportUpdates } from '../mepal/kuoAVDoble/config/kuoAVDobleSupportUpdates.js';
 import { expandKuoAVBatchTargets, isKuoAVBatchRoot } from '../mepal/kuoAV/config/kuoAVBatchTargets.js';
+import { usesKuoAVPropertyFinishes, getKuoAVSurfaceTargets } from '../mepal/kuoAV/materials/kuoAVFinish.js';
 import { useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls, GLTFLoader } from 'three-stdlib';
@@ -2865,35 +2866,27 @@ function ThreeCanvas({
             obj.userData?.kind === 'KUO_AV_ASSEMBLY' ||
             obj.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY'
           ) {
-            const box = new THREE.Box3().setFromObject(obj);
-            const size = new THREE.Vector3();
-            const center = new THREE.Vector3();
-            box.getSize(size);
-            box.getCenter(center);
-            const w = obj.userData?.dimMm?.width
-              ? obj.userData.dimMm.width / 1000
-              : obj.userData?.dimMm?.widthMm
-                ? obj.userData.dimMm.widthMm / 1000
-                : size.x;
-            const d = obj.userData?.dimMm?.depth
-              ? obj.userData.dimMm.depth / 1000
-              : obj.userData?.dimMm?.depthMm
-                ? obj.userData.dimMm.depthMm / 1000
-                : size.z;
-            return {
+            const localBounds = computeBounds2D(obj);
+            if (!localBounds) return null;
+            const center = localBounds.localCenter.clone().applyMatrix4(obj.matrixWorld);
+            const worldScale = obj.getWorldScale(new THREE.Vector3());
+            const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
+            return attachDetailed({
               ...snapshotPartMetadata,
               id: obj.userData?.instanceId || obj.uuid,
+              instanceId: obj.userData?.instanceId || obj.uuid,
               groupId: obj.userData?.groupId || obj.userData?.instanceId,
               codigoPT:
                 obj.userData?.codigoPT || obj.userData?.code || obj.userData?.kind || 'KUO_AV',
               x: center.x,
               z: center.z,
-              w: Math.max(0.001, w),
-              d: Math.max(0.001, d),
-              rotY: obj.rotation.y || 0,
+              w: Math.max(0.001, localBounds.sizeLocal.x * Math.abs(worldScale.x)),
+              d: Math.max(0.001, localBounds.sizeLocal.z * Math.abs(worldScale.z)),
+              rotY: new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y,
               kind: obj.userData.kind,
               type: obj.userData.kind,
-            };
+              footprint: getFootprint2D(obj, { fallbackBounds: localBounds }),
+            });
           }
 
           const objectType = String(obj.userData?.type || obj.userData?.kind || '')
@@ -22777,6 +22770,29 @@ function ThreeCanvas({
     function applyFinishToActivePart(materialCode, materialDef = null, scope = 'PART') {
       if (readOnly) return;
       if (!activePart) return;
+      if (usesKuoAVPropertyFinishes(activePart)) {
+        const targets = getKuoAVSurfaceTargets(activePart, activeSubMesh, scope);
+        if (!targets.length) {
+          console.warn('[KuoAV] Los acabados de catalogo solo se aplican a las superficies.');
+          return;
+        }
+        const definition = materialDef || materialsByCodeRef.current?.get?.(materialCode) || null;
+        for (const surface of targets) {
+          const assembly = surface.parent;
+          const config = assembly.userData.config;
+          config.surfaceFinishes = { ...config.surfaceFinishes,
+            [surface.userData.role]: { materialCode, materialDef: definition } };
+          applyMaterialToObject3D(surface, materialCode, definition);
+        }
+        onSelectionChange?.({
+          ...activePart.userData,
+          materialCode: materialCode || null,
+          subMaterialCode: materialCode || null,
+          materialBase: 'Madera',
+        });
+        emitBOM?.();
+        return;
+      }
 
       const linkRoot = getLinkRoot(activePart);
       // Pieza del puesto de integración (hija directa de la mesa, sin componentKey Link):

@@ -463,6 +463,7 @@ export function buildKuoAV(config = {}) {
 
   // 13. Retorno de estructura completa serializable
   const normalizedConfig = {
+    surfaceFinishes: config.surfaceFinishes || {},
     anchoMm: widthMm,
     profundidadMm: depthMm,
     alturaMm: baseRules.alturaMm,

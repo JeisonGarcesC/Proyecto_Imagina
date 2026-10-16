@@ -9,10 +9,46 @@ import { createKuoAVInstance } from '../src/mepal/kuoAV/factory/createKuoAVInsta
 import { createKuoAVDobleInstance } from '../src/mepal/kuoAVDoble/factory/createKuoAVDobleInstance.js';
 import { resolveKuoAVDobleSupportUpdates } from '../src/mepal/kuoAVDoble/config/kuoAVDobleSupportUpdates.js';
 import { expandKuoAVBatchTargets } from '../src/mepal/kuoAV/config/kuoAVBatchTargets.js';
+import { extractDetailedFootprint2D } from '../src/plan2d/extractDetailedFootprint2D.js';
+import { createRectangleFootprint } from '../src/plan2d/footprint2D.js';
+import { get2DDetailKey } from '../src/plan2d/detailSelection2D.js';
+import { generatePlanSvg } from '../src/utils/planExport.js';
+import { generatePlanDxf } from '../src/utils/exportDXF.js';
 
 const publicRoot = fileURLToPath(new URL('../public/', import.meta.url));
 const assetRoot = join(publicRoot, 'assets', 'models', 'Kuo AV');
 const cache = new Map();
+test('Kuo perimetral and double provide detailed 2D contours from their real assets', async () => {
+  for (const create of [createKuoAVInstance, createKuoAVDobleInstance]) {
+    for (const raised of [false, true]) {
+    const { object } = await create({
+      config: { anchoMm: raised ? 1600 : 1200, profundidadMm: raised ? 750 : 600,
+        especial: raised, alturaMm: raised ? 1200 : 730, vertebraLateral: raised,
+        kitFuente: true, pantalla: true, pantallaTipo: 'FORMICA' }, loadGlb,
+    });
+    const detail = extractDetailedFootprint2D(object);
+    assert.ok(detail, `Missing detail for ${object.userData.kind}`);
+    assert.ok(detail.detailedShapes.length > 1);
+    const box = bounds(object);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const footprint = createRectangleFootprint({
+      localCenter: center.toArray(), sizeLocal: size.toArray(),
+    });
+    const part = {
+      id: object.userData.instanceId, groupId: object.userData.groupId,
+      x: center.x + 3, z: center.z - 2, w: size.x, d: size.z, rotY: Math.PI / 2,
+      footprint, detailedFootprint: detail,
+    };
+    const ids = [get2DDetailKey(part)];
+    const svg = generatePlanSvg({ parts: [part], detailed2DIds: ids });
+    const dxf = generatePlanDxf({ partsSnapshot: [part], detailed2DIds: ids });
+    assert.equal((svg.match(/<polygon /g) || []).length, detail.detailedShapes.length);
+    assert.equal((dxf.match(/\nLWPOLYLINE\n/g) || []).length, detail.detailedShapes.length);
+    assert.strictEqual(extractDetailedFootprint2D(object), detail);
+    }
+  }
+});
 test('editing support updates only the selected table, including within the same batch', () => {
   const roots = [
     { userData: { kind: 'KUO_AV_DOBLE_ASSEMBLY', instanceId: 'first', config: { kuoBatchId: 'a' } } },

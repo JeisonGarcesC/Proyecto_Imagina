@@ -46,8 +46,14 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
   const pantalla = !!(config.pantalla || config.pantallaEnabled);
   const pantallaTipo = isDoble ? config.pantallaTipo || 'FORMICA' : 'FRONTAL_PERIMETRAL';
   const screenTypes = isDoble
-    ? SCREEN_TYPES.filter(([value]) => value !== 'FRONTAL_PERIMETRAL')
+    ? [
+        ['SOLID', 'Pantalla Formica/Melamina/Tela'],
+        ['VIDRIO', 'Pantalla Vidrio'],
+      ]
     : SCREEN_TYPES.filter(([value]) => value === 'FRONTAL_PERIMETRAL');
+  const solidScreenTypes = SCREEN_TYPES.filter(([value]) =>
+    ['FORMICA', 'MELAMINA', 'TELA'].includes(value));
+  const isGlassScreen = ['VIDRIO', 'VIDRIO LAMINADO'].includes(pantallaTipo);
 
   function checkbox(label, checked, change) {
     return (
@@ -197,11 +203,11 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
         {pantalla && (
           <>
             <label style={{ fontSize: 12 }}>
-              Material de pantalla
+              {isDoble ? 'Tipo de pantalla' : 'Material de pantalla'}
               <select
-                value={pantallaTipo}
+                value={isDoble ? (isGlassScreen ? 'VIDRIO' : 'SOLID') : pantallaTipo}
                 onChange={(event) => onChange({
-                  pantallaTipo: event.target.value,
+                  pantallaTipo: event.target.value === 'SOLID' ? 'FORMICA' : event.target.value,
                   ...(event.target.value === 'FRONTAL_PERIMETRAL' ? { pantallaPosicion: 'CENTRAL' } : {}),
                 })}
                 style={{ width: '100%', minHeight: 36, padding: '6px 8px', color: '#1f2937', background: '#fff', border: '1px solid #d1d5db', borderRadius: 7, colorScheme: 'light' }}
@@ -209,6 +215,22 @@ export default function KuoAVOptions({ config, onChange, isDoble = false }) {
                 {screenTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
+            {isDoble && !isGlassScreen && (
+              <label style={{ fontSize: 12 }}>
+                Material de pantalla
+                <select
+                  value={solidScreenTypes.some(([value]) => value === pantallaTipo) ? pantallaTipo : ''}
+                  onChange={(event) => onChange({ pantallaTipo: event.target.value })}
+                  style={{ width: '100%', minHeight: 36, padding: '6px 8px', color: '#1f2937', background: '#fff', border: '1px solid #d1d5db', borderRadius: 7, colorScheme: 'light' }}
+                >
+                  {!solidScreenTypes.some(([value]) => value === pantallaTipo) && (
+                    <option value="" disabled>Selecciona un material disponible</option>
+                  )}
+                  {solidScreenTypes.map(([value, label]) =>
+                    <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+            )}
           </>
         )}
       </div>

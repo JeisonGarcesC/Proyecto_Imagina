@@ -1,6 +1,30 @@
 # Variables de Configuración y Dirección: KUO AV - Superficie Perimetral
 
+## Vista detallada 2D
+
+Perimetral y doble utilizan el mismo boton Vista detallada 2D que Koncisa Plus.
+El snapshot incluye la huella local, el centro mundial y el giro mundial del
+ensamble para mantener alineados contornos, seleccion y exportaciones al rotar.
+El detalle se genera bajo demanda mediante extractDetailedFootprint2D y su
+cache existente, sin modificar geometria 3D ni crear entidades seleccionables.
+SVG/imagen/PDF y DXF consumen la misma seleccion de detalle del plano.
+El doble permite hasta 192 contornos y 4096 puntos (la variante elevada con
+vertebras laterales contiene 142 meshes proyectables) por contener dos puestos;
+los demas limites y la alternativa de huella normal permanecen vigentes.
+
 ## Opciones comerciales de creacion y edicion
+
+En creacion y propiedades, el doble ofrece dos familias: Pantalla
+Formica/Melamina/Tela y Pantalla Vidrio. La primera conserva un selector
+de material para resolver FORMICA/MELAMINA/TELA y su referencia BOM;
+la segunda usa VIDRIO (KUAC660000). No se instalan ambas a la vez.
+El frontal perimetral permanece exclusivo de la oferta del sencillo.
+
+La pantalla central del doble compensa el origen del GLB en profundidad:
+16 mm en Formica/Melamina/Tela (KUAC690000) y 12 mm en vidrio (KUAC660000).
+El plano medio del panel queda en Z=0, equidistante de las dos tapas, como
+en las pantallas independientes. No se mueven tapas ni soportes del puesto;
+el montaje especifico del frontal perimetral KUAC710000 no cambia.
 
 El formulario compartido [KuoAVOptions.jsx](../src/components/KuoAVOptions.jsx)
 mantiene ancho y profundidad, ademas de las opciones de la referencia original:
@@ -10,6 +34,17 @@ mantiene ancho y profundidad, ademas de las opciones de la referencia original:
 - Acabado de Grommet (Anodizado/Pintura): sin marcar = ALUMINIUM; marcado = PAINTED.
 - Especial/Rematable, Aumentar Altura, Elevar kit F izquierdo y Colocar Vertebra Lateral.
 - Incluir pantalla y su material siguen disponibles.
+
+En ambos puestos, Kit Fuente aplica Blanco/Negro/Gris solamente a las columnas
+elevables KUAC1040000; no repinta los costados fijos, bases, ductos ni accesorios.
+En el doble, kitFuenteColor tiene prioridad sobre el campo legado acabadoParales.
+Los colores se resuelven desde la configuracion de propiedades del puesto.
+Acabados permitidos se utiliza para las superficies, sin repintar la estructura.
+Con un puesto completo seleccionado se aplica a sus tapas; con una tapa
+individual seleccionada, Parte modifica solo esa tapa. Grupo/Todo aplica a
+las tapas del mismo puesto, nunca al kit ni a otros puestos.
+Los acabados se guardan por rol en config.surfaceFinishes y se restauran al
+reconstruir el puesto (por ejemplo, al cambiar medidas o color del kit).
 
 La oferta comercial Especial/Rematable, tanto al crear como al editar sencillo
 perimetral y doble, permite largos 120/130/140/150/160 cm y profundidades
