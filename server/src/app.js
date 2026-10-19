@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { createAuthRouter } from './auth/authRouter.js';
+import { createAdminRouter } from './admin/adminRouter.js';
 import { prisma } from './db/prisma.js';
 
 export function createApp({ db = prisma } = {}) {
@@ -25,6 +26,7 @@ export function createApp({ db = prisma } = {}) {
   app.use(cookieParser());
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
   app.use('/auth', createAuthRouter({ db }));
+  app.use('/admin', createAdminRouter({ db }));
   app.use(notFoundHandler);
   app.use(errorHandler);
   return app;

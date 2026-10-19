@@ -14,6 +14,14 @@ function moneyCOP(v) {
 export default function TopMenuBar({
   user,
   perms,
+  canAdminUsers = false,
+  onOpenAdminUsers,
+  canAdminRoles = false,
+  onOpenAdminRoles,
+  canAdminDevices = false,
+  onOpenAdminDevices,
+  canAdminAudit = false,
+  onOpenAdminAudit,
   country,
   setCountry,
   catalogCountries = [],
@@ -386,6 +394,24 @@ export default function TopMenuBar({
       </div>
 
       <div className="topbar-right">
+        {canAdminUsers && (
+          <button type="button" className="topbar-bom-btn" onClick={onOpenAdminUsers}>
+            Administración · Usuarios
+          </button>
+        )}
+        {canAdminRoles && (
+          <button type="button" className="topbar-bom-btn" onClick={onOpenAdminRoles}>
+            Roles y permisos
+          </button>
+        )}
+        {canAdminDevices && (
+          <button type="button" className="topbar-bom-btn" onClick={onOpenAdminDevices}>
+            Dispositivos y sesiones
+          </button>
+        )}
+        {canAdminAudit && (
+          <button type="button" className="topbar-bom-btn" onClick={onOpenAdminAudit}>Auditoría</button>
+        )}
         <span className="topbar-user">{labelUser}</span>
         <button type="button" onClick={bomOpen ? onCloseBom : onOpenBom} className="topbar-bom-btn">
           <span>{bomShowText}</span>

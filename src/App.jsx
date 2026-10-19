@@ -75,6 +75,7 @@ import { deleteOpeningsForWall } from './core/architecture/openings/openingInter
 import { exportProjectPPT } from './exports/exportPPT';
 
 import { useAuth, getRolePermissions } from './auth/AuthContext.jsx';
+import { ADMIN_AUDIT_PATH, ADMIN_DEVICES_PATH, ADMIN_ROLES_PATH, ADMIN_USERS_PATH, navigateInApp } from './admin/adminNavigation.js';
 
 import LeftRail from './components/LeftRail';
 import LeftPanel from './components/LeftPanel';
@@ -179,7 +180,7 @@ function _unionAllowedCodes(genericos = [], ptCodesByGenerico) {
 }
 
 export default function App() {
-  const { user, logout } = useAuth();
+  const { user, permissions, logout } = useAuth();
   const perms = getRolePermissions(user?.role);
   const readOnly = !perms.canEdit;
 
@@ -1215,6 +1216,14 @@ export default function App() {
       <TopMenuBar
         user={user}
         perms={perms}
+        canAdminUsers={permissions.includes('admin.users.read')}
+        onOpenAdminUsers={() => navigateInApp(ADMIN_USERS_PATH)}
+        canAdminRoles={permissions.includes('admin.roles.read')}
+        onOpenAdminRoles={() => navigateInApp(ADMIN_ROLES_PATH)}
+        canAdminDevices={permissions.includes('admin.devices.read')}
+        onOpenAdminDevices={() => navigateInApp(ADMIN_DEVICES_PATH)}
+        canAdminAudit={permissions.includes('admin.audit.read')}
+        onOpenAdminAudit={() => navigateInApp(ADMIN_AUDIT_PATH)}
         country={country}
         setCountry={setCountry}
         catalogCountries={CATALOG_COUNTRIES}

@@ -1,0 +1,14 @@
+.admin-modal-wide { width: min(960px, 100%); }
+.admin-user-permissions { padding: 0 22px 24px; border-top: 1px solid #e7e9ec; font-size: 13px; }
+.admin-user-permissions h3 { margin: 20px 0 8px; font-size: 17px; }
+.admin-user-permissions-help { color: #697584; font-size: 12px; }
+.admin-user-permission-group { margin-top: 20px; border: 1px solid #e0e5eb; border-radius: 10px; overflow: hidden; }
+.admin-user-permission-group h4 { margin: 0; padding: 10px 12px; background: #f6f8fa; color: #526071; font-size: 12px; text-transform: uppercase; }
+.admin-user-permission-row { display: grid; grid-template-columns: minmax(180px, 2fr) 72px minmax(150px, 1fr) 85px; align-items: center; gap: 12px; padding: 10px 12px; border-top: 1px solid #eef0f2; }
+.admin-user-permission-row strong, .admin-user-permission-row small { display: block; overflow-wrap: anywhere; }
+.admin-user-permission-row small { margin-top: 3px; color: #788290; }
+.admin-user-permission-row label { display: grid; gap: 3px; color: #697584; font-size: 11px; }
+.admin-user-permission-row span { color: #697584; font-size: 11px; }
+.admin-user-permission-row span strong { color: #252b36; font-size: 13px; }
+.admin-user-permissions .admin-form-actions { margin-top: 22px; }
+@media (max-width: 680px) { .admin-user-permission-row { grid-template-columns: 1fr 1fr; } .admin-user-permission-row > div { grid-column: 1 / -1; } }
