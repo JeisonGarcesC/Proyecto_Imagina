@@ -3,6 +3,17 @@ import { getThreeMaterialFromDef } from './materialRegistry.js';
 
 const textureLoader = new THREE.TextureLoader();
 const textureCache = new Map();
+const visualFinishIdentity = new WeakMap();
+
+export function getVisualFinishIdentity(object) {
+  return object ? visualFinishIdentity.get(object) || null : null;
+}
+
+export function setVisualFinishIdentity(object, identity) {
+  if (!object) return;
+  if (identity) visualFinishIdentity.set(object, identity);
+  else visualFinishIdentity.delete(object);
+}
 
 function loadTextureCached(url) {
   if (!url) return null;
@@ -33,6 +44,11 @@ function buildThreeMaterialFromDef(def = {}) {
       map.repeat.set(def.repeatX || 1, def.repeatY || 1);
       material.map = map;
     }
+  }
+
+  if (def.mapTexture) {
+    def.mapTexture.colorSpace = THREE.SRGBColorSpace;
+    material.map = def.mapTexture;
   }
 
   if (def.normalMapUrl) {
@@ -73,6 +89,7 @@ function restoreMeshMaterial(mesh) {
 function resolveMaterial(materialDef) {
   const isTextured =
     !!materialDef?.mapUrl ||
+    !!materialDef?.mapTexture ||
     !!materialDef?.normalMapUrl ||
     !!materialDef?.roughnessMapUrl ||
     materialDef?.materialType === 'floor' ||
@@ -94,16 +111,22 @@ function resolveMaterial(materialDef) {
   );
 }
 
-export function applyMaterialToObject3D(root, materialCode, materialDef) {
+export function applyMaterialToObject3D(root, materialCode, materialDef, options = {}) {
   if (!root) return;
 
   const code = materialCode ? String(materialCode) : null;
-  root.userData.materialCode = code;
+  const visualOnly = options.visualOnly === true;
+  if (visualOnly) visualFinishIdentity.set(root, options.identity);
+  else {
+    visualFinishIdentity.delete(root);
+    root.userData.materialCode = code;
+  }
 
   // Sin acabado: restaurar originales
-  if (!code) {
+  if (!code && !visualOnly) {
     root.traverse((obj) => {
       if (!obj?.isMesh) return;
+      visualFinishIdentity.delete(obj);
       restoreMeshMaterial(obj);
     });
     return;
@@ -113,6 +136,8 @@ export function applyMaterialToObject3D(root, materialCode, materialDef) {
 
   root.traverse((obj) => {
     if (!obj?.isMesh) return;
+    if (visualOnly) visualFinishIdentity.set(obj, options.identity);
+    else visualFinishIdentity.delete(obj);
 
     // guardar original una sola vez
     if (!obj.userData.__origMaterial) obj.userData.__origMaterial = obj.material;
@@ -123,21 +148,26 @@ export function applyMaterialToObject3D(root, materialCode, materialDef) {
       obj.material = baseMat.clone ? baseMat.clone() : baseMat;
     }
 
-    obj.userData.materialCode = code;
+    if (!visualOnly) obj.userData.materialCode = code;
     markNeedsUpdate(obj.material);
     obj.castShadow = true;
     obj.receiveShadow = true;
   });
 }
 
-export function applyMaterialToMesh(mesh, materialCode, materialDef) {
+export function applyMaterialToMesh(mesh, materialCode, materialDef, options = {}) {
   if (!mesh?.isMesh) return;
 
   const code = materialCode ? String(materialCode) : null;
-  mesh.userData.materialCode = code;
+  const visualOnly = options.visualOnly === true;
+  if (visualOnly) visualFinishIdentity.set(mesh, options.identity);
+  else {
+    visualFinishIdentity.delete(mesh);
+    mesh.userData.materialCode = code;
+  }
 
   // Sin acabado: restaurar solo este mesh
-  if (!code) {
+  if (!code && !visualOnly) {
     restoreMeshMaterial(mesh);
     return;
   }

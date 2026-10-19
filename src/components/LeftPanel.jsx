@@ -18,6 +18,7 @@ import { loadClakItems } from '../services/clakLoader';
 import { loadEdukItems } from '../mepal/eduk/catalog/edukLoader';
 import { loadMoreaItems } from '../services/moreaLoader';
 import './LeftPanel.css';
+import SpecialFinishesPanel from './SpecialFinishesPanel.jsx';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
@@ -291,6 +292,8 @@ function ShapeRotationInput({ shape, onApply, inputStyle, labelStyle }) {
 
 export default function LeftPanel({
   section,
+  specialFinishPermissions = [],
+  onApplySpecialFinish,
   threeApiRef,
   readOnly,
   // datos
@@ -1869,6 +1872,14 @@ export default function LeftPanel({
             {openingMode === 'EDIT' && selectedOpening && <DoorProperties door={selectedOpening} onChange={onOpeningChange} onDelete={onDeleteOpening} onClose={onCloseOpeningProperties} />}
           </div>
         </>
+      )}
+
+      {section === 'specialFinishes' && (
+        specialFinishPermissions.includes('finishes.view')
+          ? <SpecialFinishesPanel canCreate={specialFinishPermissions.includes('finishes.create')}
+              canApply={specialFinishPermissions.includes('finishes.apply')}
+              selectedPart={selectedPart} onApply={onApplySpecialFinish} />
+          : <div role="alert">No tienes permiso para consultar Acabados Especiales.</div>
       )}
 
       {/* ======================= MATERIALES (placeholder) ======================= */}

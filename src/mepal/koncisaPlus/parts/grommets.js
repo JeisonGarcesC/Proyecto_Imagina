@@ -33,6 +33,14 @@ export function createGrommet({
     rawCodigoPT: resolved.rawCodigoPT,
 
     name: isLeader ? 'GROMMET LKAC670000' : `Grommet ${finish}`,
+    ...(isLeader
+      ? {
+          description:
+            finish === 'PAINTED'
+              ? 'GROMMET LKAC670000 - PINTADO'
+              : 'GROMMET LKAC670000 - ALUMINIO ANODIZADO',
+        }
+      : {}),
     dimMm: {
       diameterMm,
       widthMm: diameterMm,

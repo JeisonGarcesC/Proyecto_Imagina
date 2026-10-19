@@ -24,6 +24,11 @@ enum DeviceStatus {
   LOST
 }
 
+enum SpecialFinishType {
+  RGB
+  TEXTURE
+}
+
 model User {
   id                  String                   @id @default(uuid()) @db.Uuid
   username            String                   @unique @db.VarChar(64)
@@ -42,6 +47,46 @@ model User {
   refreshSessions     RefreshSession[]
   offlineGrants       OfflineGrant[]
   auditEvents         AuditLog[]               @relation("AuditActor")
+  createdSpecialFinishes SpecialFinish[]        @relation("SpecialFinishCreator")
+  uploadedSpecialFinishAssets SpecialFinishAsset[] @relation("SpecialFinishAssetUploader")
+}
+
+model SpecialFinish {
+  id          String            @id @default(uuid()) @db.Uuid
+  name        String            @db.VarChar(160)
+  type        SpecialFinishType
+  rgbR        Int?
+  rgbG        Int?
+  rgbB        Int?
+  assetId     String?           @unique @db.Uuid
+  revision    Int               @default(1)
+  createdById String?           @db.Uuid
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime?
+  createdBy   User?             @relation("SpecialFinishCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  asset       SpecialFinishAsset? @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([deletedAt, createdAt])
+  @@index([name])
+  @@index([createdById])
+}
+
+model SpecialFinishAsset {
+  id          String         @id @default(uuid()) @db.Uuid
+  storageKey  String         @unique @db.VarChar(128)
+  mimeType    String         @db.VarChar(32)
+  byteSize    Int
+  sha256      String         @db.VarChar(64)
+  width       Int
+  height      Int
+  version     Int            @default(1)
+  uploadedById String?       @db.Uuid
+  createdAt   DateTime       @default(now())
+  uploadedBy  User?          @relation("SpecialFinishAssetUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  finish      SpecialFinish?
+
+  @@index([uploadedById])
 }
 
 model Role {

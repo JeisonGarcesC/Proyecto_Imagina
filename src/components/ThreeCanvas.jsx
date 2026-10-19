@@ -73,7 +73,11 @@ import { MODEL_TYPES } from '../catalog/catalogData';
 
 //import { resolveSurfaceCodigoPTCeil } from '../factories/surfaceSkuResolver';
 import { resolveSurfaceCodigoPT } from '../rules/surfaceRules';
-import { applyMaterialToObject3D, applyMaterialToMesh } from '../materials/applyMaterial';
+import { applyMaterialToObject3D, applyMaterialToMesh, getVisualFinishIdentity,
+  setVisualFinishIdentity } from '../materials/applyMaterial';
+import { resolveSpecialVisualTargets } from '../specialFinishes/resolveSpecialVisualTargets.js';
+import { collectProjectSpecialFinishes, restoreProjectSpecialFinishes as restoreSpecialFinishes }
+  from '../specialFinishes/specialFinishProjectState.js';
 
 import { exportSceneToGLTF } from '../utils/exportGLTF';
 
@@ -91,6 +95,7 @@ import {
   hasDetailedFootprint2DCacheEntry,
   invalidateDetailedFootprint2D,
 } from '../plan2d/extractDetailedFootprint2D';
+import { diagnoseDetail2DInstance } from '../plan2d/diagnoseDetail2D';
 import { get2DDetailKey } from '../plan2d/detailSelection2D';
 import { resolveFinishAppearance2D } from '../plan2d/finishAppearance2D';
 import { buildWallsGeometry3D } from '../core/architecture/walls/wallGeometry3D';
@@ -2385,7 +2390,7 @@ function ThreeCanvas({
       const floor = floorMeshRef.current;
       if (!floor) return;
 
-      const hasFinish = Boolean(floor.userData?.materialCode);
+      const hasFinish = Boolean(floor.userData?.materialCode || getVisualFinishIdentity(floor));
       const floorMaterials = Array.isArray(floor.material) ? floor.material : [floor.material];
       floorMaterials.filter(Boolean).forEach((material) => {
         material.transparent = !hasFinish;
@@ -6702,6 +6707,7 @@ function ThreeCanvas({
           ![assembly.userData.instanceId, assembly.userData.groupId].includes(instanceId))
       )
         return { success: false, reason: 'Selecciona nuevamente la superficie Koncisa Plus.' };
+
       try {
         const selectedEditablePart = getActiveEditablePartObject();
         const preserveGrommetProperties =
@@ -6725,6 +6731,78 @@ function ThreeCanvas({
           reason: error?.message || 'Configuración de superficie inválida.',
         };
       }
+    }
+
+    async function applyKoncisaLeaderOutletCouplingConfiguration(
+      assembly,
+      nextConfig,
+      recordHistory = true
+    ) {
+      if (assembly?.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY')
+        return { success: false, reason: 'KONCISA_PLUS_ASSEMBLY_REQUIRED' };
+      const before = JSON.parse(JSON.stringify(assembly.userData.config || {}));
+      const enabled =
+        nextConfig?.leaderJunctionHasOutletBox === true &&
+        nextConfig?.leaderCredenza?.enabled !== true &&
+        nextConfig?.leaderCostadoOutletCoupling?.enabled === true;
+      const existingCoupling = assembly.children.find(
+        (child) => child.userData?.meta?.leaderRole === 'COSTADO_OUTLET_WALL_COUPLING'
+      );
+      const junctionCostado = assembly.children.find(
+        (child) => child.userData?.meta?.leaderRole === 'MAIN_RETURN_JUNCTION'
+      );
+
+      if (enabled && !existingCoupling) {
+        const descriptor = buildKoncisaPlus(nextConfig).parts.find(
+          (part) => part.meta?.leaderRole === 'COSTADO_OUTLET_WALL_COUPLING'
+        );
+        if (!descriptor) return { success: false, reason: 'LEADER_OUTLET_COUPLING_UNAVAILABLE' };
+        const created = await addExternalGlbPart({
+          ...descriptor,
+          groupId: assembly.userData.groupId,
+          groupName: assembly.userData.groupName,
+          parentGroup: assembly,
+        });
+        if (!created) return { success: false, reason: 'LEADER_OUTLET_COUPLING_LOAD_FAILED' };
+      } else if (!enabled && existingCoupling) {
+        removePartObject(existingCoupling, { exactTarget: true, emitBom: false });
+      }
+
+      assembly.userData.config = nextConfig;
+      if (junctionCostado) junctionCostado.userData.meta.outletCouplingEnabled = enabled;
+      setActivePart(assembly, {
+        propertiesTarget: junctionCostado || assembly,
+        targetIds: [assembly.userData.instanceId],
+      });
+      if (recordHistory && JSON.stringify(before) !== JSON.stringify(nextConfig)) {
+        historyManager.pushAction({
+          type: HISTORY_ACTION_TYPES.KONCISA_LEADER_OUTLET_COUPLING_CHANGE,
+          instanceId: assembly.userData.instanceId,
+          before,
+          after: JSON.parse(JSON.stringify(nextConfig)),
+        });
+      }
+      emitBOM();
+      refreshFloorAndGrid();
+      return { success: true, assembly };
+    }
+
+    function updateSelectedKoncisaLeaderOutletCoupling(enabled, instanceId = null) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const selected = getActiveEditablePartObject();
+      const assembly = getKoncisaAssemblyObject(selected || activePart);
+      if (
+        !assembly ||
+        (instanceId && ![assembly.userData.instanceId, assembly.userData.groupId].includes(instanceId))
+      )
+        return { success: false, reason: 'Selecciona nuevamente el costado Koncisa Plus.' };
+      if (assembly.userData.config?.leaderJunctionHasOutletBox !== true)
+        return { success: false, reason: 'LEADER_OUTLET_BOX_REQUIRED' };
+      const nextConfig = {
+        ...assembly.userData.config,
+        leaderCostadoOutletCoupling: { enabled: enabled === true },
+      };
+      return applyKoncisaLeaderOutletCouplingConfiguration(assembly, nextConfig);
     }
 
     function addLocker(config = {}, options = {}) {
@@ -11356,6 +11434,10 @@ function ThreeCanvas({
       return object;
     }
 
+    async function restoreProjectSpecialFinishes(project, result) {
+      result.failed.push(...await restoreSpecialFinishes(project, parts, getMeshPathKey));
+    }
+
     async function loadProject(project) {
       //console.log('[loadProject] materialsByCodeRef size:', materialsByCodeRef.current?.size || 0);
 
@@ -11870,6 +11952,7 @@ function ThreeCanvas({
           }
         }
 
+        await restoreProjectSpecialFinishes(project, result);
         emitBOM();
         refreshFloorAndGrid();
         if (result.failed.length) console.warn('[loadProject] Carga parcial:', result);
@@ -12030,6 +12113,7 @@ function ThreeCanvas({
         }
       }
 
+      await restoreProjectSpecialFinishes(project, legacyResult);
       emitBOM();
       if (legacyResult.failed.length)
         console.warn('[loadProject] Carga legacy parcial:', legacyResult);
@@ -12707,6 +12791,20 @@ function ThreeCanvas({
       removePartById,
       applyFinishToActivePart,
       getPartsSnapshot2D,
+      diagnoseDetail2D: () => {
+        // Explicit invocation only. The report never enters the rendering snapshot.
+        const snapshots = getPartsSnapshot2D();
+        const snapshotById = new Map(snapshots.map((snapshot, index) =>
+          [snapshot.instanceId || snapshot.id, { snapshot, index }]));
+        return parts.filter(({ obj }) => obj).map(({ obj }) => {
+          const entry = snapshotById.get(obj.userData?.instanceId || obj.uuid);
+          const cachedDetail = getDetailedFootprint2DCacheEntry(obj);
+          const diagnosticSnapshot = entry?.snapshot && cachedDetail
+            ? { ...entry.snapshot, detailedFootprint: cachedDetail }
+            : entry?.snapshot || null;
+          return diagnoseDetail2DInstance(obj, diagnosticSnapshot, entry?.index ?? -1);
+        });
+      },
       getElevationSource2D: (ids) => {
         const sourceIds = Array.from(new Set(Array.isArray(ids) ? ids : selectedIds3D));
         const boxes = [];
@@ -12756,6 +12854,7 @@ function ThreeCanvas({
       updateSelectedMultipleComponent,
       updateSelectedLinkComponent,
       updateSelectedKoncisaSurface,
+      updateSelectedKoncisaLeaderOutletCoupling,
       getSelectedKoncisaSimpleReturnConfig,
       updateSelectedKoncisaSimpleReturn,
       addLocker,
@@ -13927,7 +14026,9 @@ function ThreeCanvas({
 
     function replayHistoryAction(action, direction) {
       const state = direction === 'undo' ? action.before : action.after;
-      if (action.type === HISTORY_ACTION_TYPES.ROTATE) {
+      if (action.type === HISTORY_ACTION_TYPES.APPLY_SPECIAL_FINISH) {
+        restoreSpecialFinishMaterials(state);
+      } else if (action.type === HISTORY_ACTION_TYPES.ROTATE) {
         applyRotationHistoryState(state);
       } else if (action.type === HISTORY_ACTION_TYPES.MOVE) {
         applyMoveHistoryState(state);
@@ -13980,6 +14081,16 @@ function ThreeCanvas({
         ).then((result) => {
           if (!result?.success)
             throw new Error(result?.reason || 'KONCISA_SURFACE_HISTORY_REBUILD_FAILED');
+          return result;
+        });
+      } else if (action.type === HISTORY_ACTION_TYPES.KONCISA_LEADER_OUTLET_COUPLING_CHANGE) {
+        return applyKoncisaLeaderOutletCouplingConfiguration(
+          findPartById(action.instanceId),
+          state || {},
+          false
+        ).then((result) => {
+          if (!result?.success)
+            throw new Error(result?.reason || 'KONCISA_LEADER_OUTLET_COUPLING_HISTORY_FAILED');
           return result;
         });
       } else if (action.type === HISTORY_ACTION_TYPES.LOCKER_CONFIG_CHANGE) {
@@ -19729,6 +19840,15 @@ function ThreeCanvas({
     }
     animate();
 
+    function isSurfaceEdgeMesh(node) {
+      return node?.isMesh && (
+        node.userData?.edgeGroupKey === 'SURFACE_EDGE_ALL' ||
+        node.userData?.subKey === 'canto' ||
+        node.userData?.category === 'cantos' ||
+        String(node.name || '').toUpperCase().includes('CANTO')
+      );
+    }
+
     function applySurfaceEdgeFinish(surfaceObj, materialCode, materialDef = null) {
       const root = getRootPartObject(surfaceObj) || surfaceObj;
 
@@ -19743,15 +19863,7 @@ function ThreeCanvas({
       root.traverse((node) => {
         if (!node?.isMesh) return;
 
-        const isSurfaceEdge =
-          node.userData?.edgeGroupKey === 'SURFACE_EDGE_ALL' ||
-          node.userData?.subKey === 'canto' ||
-          node.userData?.category === 'cantos' ||
-          String(node.name || '')
-            .toUpperCase()
-            .includes('CANTO');
-
-        if (!isSurfaceEdge) return;
+        if (!isSurfaceEdgeMesh(node)) return;
 
         node.userData.edgeFinish = materialCode;
         node.userData.materialCode = materialCode;
@@ -22777,9 +22889,54 @@ function ThreeCanvas({
       return path.reverse().join('/');
     }
 
-    function applyFinishToActivePart(materialCode, materialDef = null, scope = 'PART') {
-      if (readOnly) return;
-      if (!activePart) return;
+    function captureSpecialFinishMaterials(targets) {
+      const nodes = new Set();
+      for (const { object, meshOnly } of targets) {
+        nodes.add(object);
+        if (!meshOnly) object.traverse((node) => { if (node.isMesh) nodes.add(node); });
+      }
+      return [...nodes].map((node) => ({ node, material: node.isMesh ? node.material : null,
+        identity: getVisualFinishIdentity(node) }));
+    }
+
+    function restoreSpecialFinishMaterials(states) {
+      for (const { node, material, identity } of states || []) {
+        setVisualFinishIdentity(node, identity);
+        if (!node.isMesh) continue;
+        node.material = material;
+        if (Array.isArray(material)) material.forEach((item) => { if (item) item.needsUpdate = true; });
+        else if (material) material.needsUpdate = true;
+      }
+    }
+
+    function applyFinishToActivePart(materialCode, materialDef = null, scope = 'PART', visualSource = null) {
+      const isSpecialVisual = visualSource?.source === 'SPECIAL_FINISH';
+      if (readOnly && !isSpecialVisual) return;
+      if (!activePart) return false;
+      if (isSpecialVisual) {
+        const selectedId = activePart.userData?.instanceId || activePart.uuid;
+        if (visualSource.expectedSelectionId && visualSource.expectedSelectionId !== selectedId) return false;
+        if (!materialDef || !visualSource.specialFinishId || !Number.isInteger(visualSource.revision)) return false;
+        const identity = { source: 'SPECIAL_FINISH', specialFinishId: visualSource.specialFinishId,
+          revision: visualSource.revision, assetId: visualSource.assetId || null,
+          assetVersion: visualSource.assetVersion || null,
+          snapshot: visualSource.snapshot, scope };
+        const options = { visualOnly: true, identity };
+        const targets = resolveSpecialVisualTargets({ activePart, activeSubMesh,
+          editablePart: getActiveEditablePartObject(), scope, usesKuoAVPropertyFinishes,
+          getKuoAVSurfaceTargets, getLinkRoot, getFinishGroupTargets, isSurfaceEdgeMesh });
+        if (!targets.length) return false;
+        const before = captureSpecialFinishMaterials(targets);
+        for (const { object, meshOnly } of targets) {
+          if (meshOnly) applyMaterialToMesh(object, null, materialDef, options);
+          else applyMaterialToObject3D(object, null, materialDef, options);
+          if (object.userData?.isFloor) applyFloorVisualState();
+        }
+        const after = captureSpecialFinishMaterials(targets);
+        historyManager.pushAction({ type: HISTORY_ACTION_TYPES.APPLY_SPECIAL_FINISH,
+          before, after });
+        return true;
+      }
       if (usesKuoAVPropertyFinishes(activePart)) {
         const targets = getKuoAVSurfaceTargets(activePart, activeSubMesh, scope);
         if (!targets.length) {
@@ -23116,13 +23273,15 @@ function ThreeCanvas({
         return entry;
       });
 
-      return buildVersionedProject({
+      const project = buildVersionedProject({
         parts,
         collectFinishes: collectFinishesFromObject,
         floor,
         camera: cameraState,
         legacyParts,
       });
+      return { ...project,
+        specialFinishes: collectProjectSpecialFinishes(parts, getMeshPathKey, project.entities) };
     }
 
     // ====== Cleanup ======

@@ -180,12 +180,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
         finishCode: leaderMaterialType === 'FORMICA' ? '22008689' : '22015137',
 
-        leaderCostadoOutletCoupling: {
-          enabled:
-            leaderJunctionHasOutletBox &&
-            !leaderCredenzaEnabled &&
-            leaderCostadoOutletCouplingEnabled,
-        },
         // Falda
         leaderHasSkirt,
 
@@ -355,8 +349,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderCredenzaLengthMm, setLeaderCredenzaLengthMm] = useState(1500);
   const [leaderMaterialType, setLeaderMaterialType] = useState('FORMICA');
 
-  const [leaderCostadoOutletCouplingEnabled, setLeaderCostadoOutletCouplingEnabled] =
-    useState(false);
   // Falda puesto líder
   const [leaderHasSkirt, setLeaderHasSkirt] = useState(false);
 
@@ -534,7 +526,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   setLeaderCredenzaEnabled(enabled);
                   if (enabled) {
                     setLeaderJunctionHasOutletBox(false);
-                    setLeaderCostadoOutletCouplingEnabled(false);
                   }
                 }}
               />{' '}
@@ -647,22 +638,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
               Incluir caja de tomas en el costado junto al retorno
             </label>
 
-            {leaderJunctionHasOutletBox && !leaderCredenzaEnabled && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={leaderCostadoOutletCouplingEnabled}
-                  onChange={(e) => setLeaderCostadoOutletCouplingEnabled(e.target.checked)}
-                />{' '}
-                <img
-                  src="/assets/imagen/KoncisaPlusImagenes/acoplepuestolider.png"
-                  alt=""
-                  aria-hidden="true"
-                  style={{ width: 88, height: 58, objectFit: 'contain', flexShrink: 0 }}
-                />
-                <span>Incluir acople a pared para la caja del costado</span>
-              </label>
-            )}
           </div>
 
           <div

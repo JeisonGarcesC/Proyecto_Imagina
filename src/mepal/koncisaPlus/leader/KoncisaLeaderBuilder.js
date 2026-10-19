@@ -85,7 +85,6 @@ function createLeaderSurfaceGrommet({
     z: resolvedPosition.z + (Number(positionOffsetMm?.z) || 0),
     rotY: rotationY,
   });
-
   grommet.meta = {
     ...(grommet.meta || {}),
     layoutType: 'LEADER',
@@ -342,13 +341,17 @@ export function buildKoncisaLeader(config = {}) {
     surfaceFallback.cableAccessType = 'NONE';
     surfaceFallback.grommet = false;
   }
-  const mainComponentConfig = suppressLeaderPasacable(
+  const resolvedMainComponentConfig = suppressLeaderPasacable(
     getKoncisaSurfaceComponentConfig(config, 'MAIN_SURFACE', {
       ...surfaceFallback,
       floorDuctEnabled: leaderMainFloorDuct?.enabled === true,
       outletCouplingEnabled: leaderMainOutletCoupling?.enabled === true,
     })
   );
+  const mainComponentConfig = {
+    ...resolvedMainComponentConfig,
+    ...(leaderCredenzaEnabled ? {} : { cableAccessType: 'NONE', grommet: false, pasacable: false }),
+  };
   const returnComponentConfig = suppressLeaderPasacable(
     getKoncisaSurfaceComponentConfig(config, 'RETURN_SURFACE', {
       ...surfaceFallback,
@@ -393,28 +396,34 @@ export function buildKoncisaLeader(config = {}) {
     ...(mainSurface.meta || {}),
     componentKey: 'MAIN_SURFACE',
     componentConfig: mainComponentConfig,
+    allowMainGrommet: leaderCredenzaEnabled,
   };
   mainSurface.componentKey = 'MAIN_SURFACE';
   mainSurface.componentConfig = mainComponentConfig;
 
   parts.push(mainSurface);
 
-  if (mainComponentConfig.grommet) {
+  const shouldCreateMainGrommet = leaderCredenzaEnabled
+    ? mainComponentConfig.grommet
+    : hasLeaderJunctionOutletBox;
+  if (shouldCreateMainGrommet) {
     parts.push(
       createLeaderSurfaceGrommet({
         groupId,
         groupName,
         surfaceRole: 'MAIN',
         position: mainComponentConfig.grommetPosition,
-        finish: Object.hasOwn(config.surfaceOverrides?.MAIN_SURFACE || {}, 'grommetFinish')
-          ? mainComponentConfig.grommetFinish
-          : null,
+        finish: mainComponentConfig.grommetFinish,
         widthMm: leaderMainWidthMm,
         depthMm: leaderMainDepthMm,
         centerX: mainSurface.position.x,
         centerZ: mainSurface.position.z,
         rotationY: mainSurface.rotation.y + Math.PI / 2, //Math.PI / 2 cambiar la rotacion
-        componentConfig: mainComponentConfig,
+        componentConfig: {
+          ...mainComponentConfig,
+          cableAccessType: 'GROMMET',
+          grommet: true,
+        },
         positionOffsetMm: {
           x: 870, // mueve hacia los lados
           y: 0, // sube o baja
@@ -837,6 +846,7 @@ export function buildKoncisaLeader(config = {}) {
     pedestalTarget: false,
 
     hasOutletBox: hasLeaderJunctionOutletBox,
+    outletCouplingEnabled: leaderCostadoOutletCoupling?.enabled === true,
 
     outletBoxSrc: '/assets/models/koncisaPlus/CAJA_TOMAS_COSTADO.glb',
 

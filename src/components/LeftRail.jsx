@@ -1,5 +1,5 @@
 // src/components/LeftRail.jsx
-export default function LeftRail({ active, onChange }) {
+export default function LeftRail({ active, onChange, canViewSpecialFinishes = false }) {
   const items = [
     { id: 'catalog', label: 'Catálogo', icon: '📦' },
     { id: 'typologies', label: 'Tipologías', icon: '🧩' },
@@ -8,6 +8,7 @@ export default function LeftRail({ active, onChange }) {
     { id: 'openings', label: 'Puertas/Ventanas', icon: '🚪' },
     { id: 'elements2d', label: 'Elementos 2D', icon: '◇' },
     { id: 'materials', label: 'Materiales', icon: '🎨' },
+    ...(canViewSpecialFinishes ? [{ id: 'specialFinishes', label: 'Acabados Especiales', icon: '✦' }] : []),
     { id: 'plans', label: 'Planos', icon: '🗺️' },
     { id: 'importedModels', label: 'Importar objeto', icon: '⬡' },
     { id: 'sillas', label: 'Sillas', icon: '🪑' },

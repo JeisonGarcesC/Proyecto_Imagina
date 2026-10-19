@@ -24,17 +24,68 @@ test('agrega grommet principal al incluir caja de tomas en el costado junto al r
   );
 });
 
-test('agrega grommet principal al sustituir el retorno por credenza', () => {
+test('agrega el acople a pared de la caja lateral cuando está habilitado', () => {
+  const product = buildLeader({
+    leaderJunctionHasOutletBox: true,
+    leaderCostadoOutletCoupling: { enabled: true },
+  });
+  const coupling = product.parts.find(
+    (part) => part.meta?.leaderRole === 'COSTADO_OUTLET_WALL_COUPLING'
+  );
+
+  assert.equal(coupling?.code, '22000137143');
+  assert.equal(coupling?.name, 'ACOPLE CAJA TOMAS A PARED');
+});
+
+test('omite el acople a pared de la caja lateral cuando está deshabilitado', () => {
+  const product = buildLeader({
+    leaderJunctionHasOutletBox: true,
+    leaderCostadoOutletCoupling: { enabled: false },
+  });
+
+  assert.equal(
+    product.parts.some((part) => part.meta?.leaderRole === 'COSTADO_OUTLET_WALL_COUPLING'),
+    false
+  );
+});
+
+test('permite quitar el grommet principal cuando el retorno se sustituye por credenza', () => {
   const product = buildLeader({ leaderCredenza: { enabled: true } });
   const grommets = getMainGrommets(product);
 
-  assert.equal(grommets.length, 1);
-  assert.equal(grommets[0].meta.leaderRole, 'MAIN_GROMMET');
-  assert.equal(grommets[0].code, '22000023626');
+  assert.equal(grommets.length, 0);
   assert.equal(
     product.parts.some((part) => part.code === '22000135010'),
     false
   );
+});
+
+test('permite incluir grommet pintado con credenza y conserva su código comercial', () => {
+  const product = buildLeader({
+    leaderCredenza: { enabled: true },
+    surfaceOverrides: {
+      MAIN_SURFACE: { cableAccessType: 'GROMMET', grommetFinish: 'PAINTED' },
+    },
+  });
+  const grommets = getMainGrommets(product);
+
+  assert.equal(grommets.length, 1);
+  assert.equal(grommets[0].meta.leaderRole, 'MAIN_GROMMET');
+  assert.equal(grommets[0].meta.commercialCode, '22000126725');
+  assert.equal(grommets[0].description, 'GROMMET LKAC670000 - PINTADO');
+});
+
+test('resuelve grommet anodizado con el código comercial correcto', () => {
+  const product = buildLeader({
+    leaderCredenza: { enabled: true },
+    surfaceOverrides: {
+      MAIN_SURFACE: { cableAccessType: 'GROMMET', grommetFinish: 'ALUMINIUM' },
+    },
+  });
+  const grommet = getMainGrommets(product)[0];
+
+  assert.equal(grommet.meta.commercialCode, '22000126724');
+  assert.equal(grommet.description, 'GROMMET LKAC670000 - ALUMINIO ANODIZADO');
 });
 
 test('no agrega grommet automáticamente cuando ninguna condición aplica', () => {

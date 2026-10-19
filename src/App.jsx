@@ -79,6 +79,8 @@ import { ADMIN_AUDIT_PATH, ADMIN_DEVICES_PATH, ADMIN_ROLES_PATH, ADMIN_USERS_PAT
 
 import LeftRail from './components/LeftRail';
 import LeftPanel from './components/LeftPanel';
+import { prepareSpecialFinishVisual } from './specialFinishes/specialFinishVisual.js';
+import { snapshotSpecialFinish } from './specialFinishes/specialFinishPersistence.js';
 
 import { loadCategoriasIntranet } from './services/categoriasIntranet.js';
 
@@ -1287,7 +1289,7 @@ export default function App() {
             zIndex: 2,
           }}
         >
-          <LeftRail active={leftSection} onChange={setLeftSection} />
+          <LeftRail active={leftSection} onChange={setLeftSection} canViewSpecialFinishes={permissions.includes('finishes.view')} />
           {/* CONTENEDOR VERTICAL */}
           <div
             style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}
@@ -1371,6 +1373,30 @@ export default function App() {
             {/* PANEL */}
             <LeftPanel
               section={leftSection}
+              specialFinishPermissions={permissions}
+              onApplySpecialFinish={async (finish, scope) => {
+                if (!permissions.includes('finishes.view') || !permissions.includes('finishes.apply')) {
+                  throw new Error('No tienes permiso para aplicar acabados especiales.');
+                }
+                if (!selectedPart || !threeApiRef.current?.applyFinishToActivePart) {
+                  throw new Error('Selecciona primero una parte u objeto del modelo.');
+                }
+                let prepared;
+                try {
+                  prepared = await prepareSpecialFinishVisual(finish);
+                } catch (error) {
+                  if (error?.status) throw error;
+                  throw new Error(finish.type === 'TEXTURE'
+                    ? 'No se pudo cargar la textura de este acabado.'
+                    : 'No se pudo preparar el color de este acabado.');
+                }
+                const applied = threeApiRef.current.applyFinishToActivePart(
+                  null, prepared.definition, scope,
+                  { ...prepared.identity, snapshot: snapshotSpecialFinish(finish),
+                    expectedSelectionId: selectedPart.instanceId || null }
+                );
+                if (!applied) throw new Error('La selección cambió o esta parte no admite el acabado. Selecciónala de nuevo.');
+              }}
               threeApiRef={threeApiRef}
               readOnly={readOnly}
               catalogItems={catalogItems}
@@ -1577,6 +1603,8 @@ export default function App() {
             country={country}
             onApiReady={(api) => {
               threeApiRef.current = api;
+              // Console-only, opt-in diagnostic. No report is generated until called.
+              window.imaginaDiagnose2D = () => api.diagnoseDetail2D?.();
               api.setMoveAsGroup?.(moveAsGroup);
               setThreeApi(api);
               setIsReady(true);

@@ -74,7 +74,31 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
 
   const canUseIntegration = tipoPuesto === 'doble' && isTerminal && !isIntegrationLeg;
   const canUsePedestal = part?.meta?.pedestalTarget !== false && !isIntegrationLeg;
+  const hasLeaderOutletBox =
+    part?.meta?.leaderRole === 'MAIN_RETURN_JUNCTION' && part?.meta?.hasOutletBox === true;
+  const [outletCouplingEnabled, setOutletCouplingEnabled] = useState(
+    part?.meta?.outletCouplingEnabled === true
+  );
+  const [outletCouplingBusy, setOutletCouplingBusy] = useState(false);
+  const [outletCouplingError, setOutletCouplingError] = useState('');
   const [placementSide, setPlacementSide] = useState('RIGHT');
+
+  async function updateOutletCoupling(enabled) {
+    setOutletCouplingBusy(true);
+    setOutletCouplingError('');
+    try {
+      const result = await api?.updateSelectedKoncisaLeaderOutletCoupling?.(
+        enabled,
+        part?.parentAssemblyId
+      );
+      if (!result?.success) throw new Error(result?.reason || 'No se pudo actualizar el acople.');
+      setOutletCouplingEnabled(enabled);
+    } catch (cause) {
+      setOutletCouplingError(cause?.message || 'No se pudo actualizar el acople.');
+    } finally {
+      setOutletCouplingBusy(false);
+    }
+  }
 
   const [integrationWidthMm, setIntegrationWidthMm] = useState(() => {
     const width = Number(getInitialWidth(part));
@@ -129,6 +153,28 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
           <b>Replace key:</b> {part?.meta?.replaceKey || 'No definido'}
         </div>
       </div>
+
+      {hasLeaderOutletBox && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
+          <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8 }}>
+            Caja de tomas del costado
+          </div>
+          <label style={labelStyle}>
+            <input
+              type="checkbox"
+              checked={outletCouplingEnabled}
+              disabled={outletCouplingBusy}
+              onChange={(event) => updateOutletCoupling(event.target.checked)}
+            />{' '}
+            Acople caja tomas a pared (22000137143)
+          </label>
+          {outletCouplingError && (
+            <div role="alert" style={{ color: '#b91c1c', fontSize: 12 }}>
+              {outletCouplingError}
+            </div>
+          )}
+        </div>
+      )}
 
       {canUsePedestal && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
