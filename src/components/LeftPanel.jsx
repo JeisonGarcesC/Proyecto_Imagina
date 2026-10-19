@@ -856,7 +856,6 @@ export default function LeftPanel({
           },
           prices: {
             [country]: Number(c.precio || 0),
-            CO: Number(c.precio || 0),
           },
           model: { kind: 'ARES' },
           raw: c,

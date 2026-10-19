@@ -2821,6 +2821,7 @@ function ThreeCanvas({
 
     function getPartsSnapshot2D(options = {}) {
       const requestedDetailKeys = new Set(options?.detailed2DIds || []);
+      const detailAll = options?.detailAll === true;
       let detailedGenerationBudget = Math.max(0, Number(options?.detailedGenerationBudget) || 2);
       return parts
         .map(({ obj, code }) => {
@@ -2842,7 +2843,7 @@ function ThreeCanvas({
           const attachDetailed = (snapshot) => {
             if (snapshot?.kind === 'CRITTERIUM_8_ASSEMBLY') return snapshot;
             const detailKey = get2DDetailKey(snapshot);
-            if (!detailKey || !requestedDetailKeys.has(detailKey)) return snapshot;
+            if (!detailAll && (!detailKey || !requestedDetailKeys.has(detailKey))) return snapshot;
             let detailedFootprint = getDetailedFootprint2DCacheEntry(obj);
             const isSpecialKoncisaDuct =
               obj.userData?.kind === 'ducto' &&
@@ -5582,6 +5583,7 @@ function ThreeCanvas({
       pickables.push(obj);
 
       setActivePart(obj);
+      if (options.recordHistory !== false) recordCreateObjects({ objects: [obj] });
       emitBOM();
 
       if (parts.length === 1) frameObject(obj);
@@ -11796,7 +11798,7 @@ function ThreeCanvas({
           createSurface: createPersistedSurface,
           addClak,
           addEduk,
-          addAres,
+          addAres: (code) => addAres(code, { recordHistory: false }),
           addMepalSalud,
           addMepalTekSocial,
           addZen,
@@ -12676,7 +12678,7 @@ function ThreeCanvas({
         const creators = {
           TYPOLOGY: addTypology,
           CHAIR: addChair,
-          ARES: addAres,
+          ARES: (aresCode) => addAres(aresCode, { recordHistory: false }),
           PLANT: addPlant,
           OFFICE_ACCESSORY: addOfficeAccessory,
           MEPAL_SALUD: addMepalSalud,
@@ -12942,14 +12944,16 @@ function ThreeCanvas({
       swapEdukShelfHeight,
       swapEdukVariant,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
-      exportDXF: ({ detailed2DIds = [] } = {}) => {
-        const snap = getPartsSnapshot2D({ detailed2DIds });
+      exportDXF: ({ detailed2DIds = [], detailLevel = 3, detailAll = false } = {}) => {
+        const snap = getPartsSnapshot2D({ detailed2DIds, detailAll: detailAll && detailLevel > 1 });
         exportPlanToDXF({
           walls: architectureWallsRef.current,
           columns: architectureColumnsRef.current,
           openings: architectureOpeningsRef.current,
           partsSnapshot: snap,
           detailed2DIds,
+          detailLevel,
+          detailAll,
           fileName: 'proyecto.dxf',
         });
       },

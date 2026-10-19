@@ -12,12 +12,8 @@ import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
 import { drawFurnitureFootprint2D, FURNITURE_2D_RENDER_MODES } from '../plan2d/furnitureRenderer2D';
+import { getVisibleDetailed2DShapes } from '../plan2d/detailLevel2D';
 import { hitTestFootprint2D } from '../plan2d/footprintGeometry2D';
-import {
-  collectSelected2DDetailKeys,
-  is2DDetailEnabled,
-  updateDetailed2DIds,
-} from '../plan2d/detailSelection2D';
 import {
   classifySelectionWindow,
   collectSelectionCandidates,
@@ -231,14 +227,12 @@ function createDimensionSnapReference(resolved) {
   };
 }
 
-const EMPTY_DETAILED_2D_IDS = new Set();
-
 export default function Plan2DOverlay({
   historyApi,
   getSnapshot,
   selectedIds = [],
-  detailed2DIds = EMPTY_DETAILED_2D_IDS,
-  onDetailed2DIdsChange,
+  detailLevel = 4,
+  onDetailLevelChange,
   moveAsGroup = false,
   onPickIds,
   resolveSelectionTargetIds,
@@ -327,15 +321,30 @@ export default function Plan2DOverlay({
     const plant = buildSnapGeometry(getSnapshot?.() || []);
     const elevations = buildElevationSnapGeometry(shapes2D, { invertZ });
     return {
-      points: [...plant.points.map((candidate) => ({ ...candidate, sourceType: candidate.sourceType || 'plant' })), ...elevations.points],
-      segments: [...plant.segments.map((candidate) => ({ ...candidate, sourceType: candidate.sourceType || 'plant' })), ...elevations.segments],
+      points: [
+        ...plant.points.map((candidate) => ({
+          ...candidate,
+          sourceType: candidate.sourceType || 'plant',
+        })),
+        ...elevations.points,
+      ],
+      segments: [
+        ...plant.segments.map((candidate) => ({
+          ...candidate,
+          sourceType: candidate.sourceType || 'plant',
+        })),
+        ...elevations.segments,
+      ],
     };
   }, [getSnapshot, shapes2D, invertZ]);
   const [selectedDimensionId, setSelectedDimensionId] = useState(null);
   const selectedDimension =
     dimensions.find((dimension) => dimension.id === selectedDimensionId) || null;
   useEffect(() => {
-    if (selectedDimensionId && !dimensions.some((dimension) => dimension.id === selectedDimensionId)) {
+    if (
+      selectedDimensionId &&
+      !dimensions.some((dimension) => dimension.id === selectedDimensionId)
+    ) {
       setSelectedDimensionId(null);
     }
   }, [dimensions, selectedDimensionId]);
@@ -427,13 +436,16 @@ export default function Plan2DOverlay({
   const suppressNextClickRef = useRef(false);
   const rotationDragRef = useRef(null);
   const shapeDragRef = useRef(null);
-  const cancelShapeDrag = useCallback((pointerId) => {
-    const session = shapeDragRef.current;
-    if (!session || (pointerId != null && session.pointerId !== pointerId)) return false;
-    shapeDragRef.current = null;
-    if (session.hasMoved) onReplaceShape2D?.(session.initialShape);
-    return true;
-  }, [onReplaceShape2D]);
+  const cancelShapeDrag = useCallback(
+    (pointerId) => {
+      const session = shapeDragRef.current;
+      if (!session || (pointerId != null && session.pointerId !== pointerId)) return false;
+      shapeDragRef.current = null;
+      if (session.hasMoved) onReplaceShape2D?.(session.initialShape);
+      return true;
+    },
+    [onReplaceShape2D]
+  );
   const textDragRef = useRef(null);
   const [isRotatingPiece, setIsRotatingPiece] = useState(false);
 
@@ -1316,12 +1328,26 @@ export default function Plan2DOverlay({
         const movedPx = Math.hypot(deltaX, deltaY);
         if (!dimensionTextDrag.hasMoved && movedPx < 2) return;
 
-        const changes = dimensionTextDrag.mode === 'offset'
-          ? { offset: dimensionTextDrag.initialOffset + deltaX * dimensionTextDrag.normal.x + deltaY * dimensionTextDrag.normal.y }
-          : { textOffset: {
-              alongPx: dimensionTextDrag.initialTextOffset.alongPx + deltaX * dimensionTextDrag.along.x + deltaY * dimensionTextDrag.along.y,
-              normalPx: dimensionTextDrag.initialTextOffset.normalPx + deltaX * dimensionTextDrag.normal.x + deltaY * dimensionTextDrag.normal.y,
-            } };
+        const changes =
+          dimensionTextDrag.mode === 'offset'
+            ? {
+                offset:
+                  dimensionTextDrag.initialOffset +
+                  deltaX * dimensionTextDrag.normal.x +
+                  deltaY * dimensionTextDrag.normal.y,
+              }
+            : {
+                textOffset: {
+                  alongPx:
+                    dimensionTextDrag.initialTextOffset.alongPx +
+                    deltaX * dimensionTextDrag.along.x +
+                    deltaY * dimensionTextDrag.along.y,
+                  normalPx:
+                    dimensionTextDrag.initialTextOffset.normalPx +
+                    deltaX * dimensionTextDrag.normal.x +
+                    deltaY * dimensionTextDrag.normal.y,
+                },
+              };
         const nextDimension = createDimension2D({ ...dimensionTextDrag.before, ...changes });
         if (!nextDimension) return;
 
@@ -1942,9 +1968,12 @@ export default function Plan2DOverlay({
           if (dimension.id === selectedDimensionId) {
             const textPosition = resolveDimensionTextPosition(resolvedDimension, toCanvas);
             const movingText = textDistance <= 4;
-            const normal = movingText ? textPosition.normal
-              : dimension.type === DIMENSION_TYPES.LINEAR_HORIZONTAL ? { x: 0, y: -1 }
-                : dimension.type === DIMENSION_TYPES.LINEAR_VERTICAL ? { x: 1, y: 0 }
+            const normal = movingText
+              ? textPosition.normal
+              : dimension.type === DIMENSION_TYPES.LINEAR_HORIZONTAL
+                ? { x: 0, y: -1 }
+                : dimension.type === DIMENSION_TYPES.LINEAR_VERTICAL
+                  ? { x: 1, y: 0 }
                   : textPosition.normal;
             dimensionTextDragRef.current = {
               mode: movingText ? 'text' : 'offset',
@@ -2140,7 +2169,13 @@ export default function Plan2DOverlay({
     };
     window.addEventListener('blur', cancelActiveDrag);
     return () => window.removeEventListener('blur', cancelActiveDrag);
-  }, [cancelSelectionDrag, cancelDimensionTextDrag, cancelPieceDrag, cancelVariantHandleDrag, cancelShapeDrag]);
+  }, [
+    cancelSelectionDrag,
+    cancelDimensionTextDrag,
+    cancelPieceDrag,
+    cancelVariantHandleDrag,
+    cancelShapeDrag,
+  ]);
 
   useEffect(() => {
     if (transformTool === 'rotate' || !rotationDragRef.current) return;
@@ -2436,7 +2471,6 @@ export default function Plan2DOverlay({
         }
         return;
       }
-
     };
 
     window.addEventListener('keydown', onKey, true);
@@ -2502,7 +2536,7 @@ export default function Plan2DOverlay({
 
       const snap = (
         getSnapshot?.({
-          detailed2DIds: Array.from(detailed2DIds),
+          detailAll: detailLevel > 1,
         }) || []
       ).filter(Boolean);
       latestSnapshotRef.current = snap;
@@ -2824,18 +2858,37 @@ export default function Plan2DOverlay({
         ctx.strokeStyle = isSel ? 'rgba(56, 194, 212, 0.95)' : 'rgba(0,0,0,0.30)';
         ctx.lineWidth = isSel ? 2.2 : 1;
 
-        drawFurnitureFootprint2D(ctx, p, {
-          scale: s,
-          invertZ,
-          mode: is2DDetailEnabled(p, detailed2DIds)
-            ? FURNITURE_2D_RENDER_MODES.DETAILED
-            : FURNITURE_2D_RENDER_MODES.NORMAL,
-        });
+        if (detailLevel === 2) {
+          drawFurnitureFootprint2D(ctx, p, { scale: s, invertZ });
+          const baseAlpha = ctx.globalAlpha;
+          ctx.globalAlpha = baseAlpha * (finishStyle.fillOpacity ?? 1);
+          ctx.fill();
+          ctx.globalAlpha = baseAlpha;
+          ctx.stroke();
+        }
+        const hasVisibleDetail =
+          detailLevel > 1 && getVisibleDetailed2DShapes(p, detailLevel).length > 0;
+        if (detailLevel !== 2 || hasVisibleDetail)
+          drawFurnitureFootprint2D(ctx, p, {
+            scale: s,
+            invertZ,
+            mode:
+              detailLevel > 1
+                ? FURNITURE_2D_RENDER_MODES.DETAILED
+                : FURNITURE_2D_RENDER_MODES.NORMAL,
+            detailLevel,
+          });
         const previousAlpha = ctx.globalAlpha;
-        ctx.globalAlpha = previousAlpha * (finishStyle.fillOpacity ?? 1);
-        ctx.fill();
+        if (detailLevel !== 2) {
+          ctx.globalAlpha = previousAlpha * (finishStyle.fillOpacity ?? 1);
+          ctx.fill();
+        }
         ctx.globalAlpha = previousAlpha;
-        ctx.stroke();
+        if (detailLevel !== 2 || hasVisibleDetail) ctx.stroke();
+        if (detailLevel === 4 && hasVisibleDetail) {
+          drawFurnitureFootprint2D(ctx, p, { scale: s, invertZ });
+          ctx.stroke();
+        }
 
         ctx.fillStyle = isSel ? 'rgba(56, 194, 212, 1)' : 'rgba(0,0,0,0.35)';
         ctx.beginPath();
@@ -3189,7 +3242,7 @@ export default function Plan2DOverlay({
     resolveActiveVariantControl2D,
     hoveredVariantHandleDir,
     isVariantHandleDragging,
-    detailed2DIds,
+    detailLevel,
     cimbraVisiblePostIds,
     showFinishes2D,
     shapes2D,
@@ -3199,9 +3252,6 @@ export default function Plan2DOverlay({
     selectedText2DId,
   ]);
 
-  const selectedDetailKeys = collectSelected2DDetailKeys(selectedIds, latestSnapshotRef.current);
-  const selectedAreDetailed =
-    selectedDetailKeys.length > 0 && selectedDetailKeys.every((key) => detailed2DIds.has(key));
   const selectedCimbraPostId = resolveSelectedKoncisaPostId(latestSnapshotRef.current, selectedIds);
   const selectedPostCimbraVisible = selectedCimbraPostId
     ? cimbraVisiblePostIds.has(selectedCimbraPostId)
@@ -3273,32 +3323,18 @@ export default function Plan2DOverlay({
           Fit
         </button>
 
-        <button
-          type="button"
-          disabled={!selectedDetailKeys.length}
-          onClick={() =>
-            onDetailed2DIdsChange?.(
-              updateDetailed2DIds(detailed2DIds, selectedDetailKeys, !selectedAreDetailed)
-            )
-          }
-          aria-pressed={selectedAreDetailed}
-          title={
-            selectedDetailKeys.length
-              ? 'Alternar representación 2D de la selección'
-              : 'Seleccione uno o varios objetos'
-          }
-          style={{
-            padding: '6px 10px',
-            borderRadius: 10,
-            border: '1px solid rgba(0,0,0,0.14)',
-            background: selectedAreDetailed ? 'rgba(37, 99, 235, 0.14)' : 'rgba(255,255,255,0.92)',
-            color: selectedAreDetailed ? 'rgba(30, 64, 175, 1)' : 'inherit',
-            cursor: selectedDetailKeys.length ? 'pointer' : 'not-allowed',
-            opacity: selectedDetailKeys.length ? 1 : 0.55,
-          }}
-        >
-          {selectedAreDetailed ? 'Vista normal 2D' : 'Vista detallada 2D'}
-        </button>
+        <label>
+          Detalle 2D:{' '}
+          <select
+            value={detailLevel}
+            onChange={(event) => onDetailLevelChange?.(Number(event.target.value))}
+          >
+            <option value={1}>1 — B</option>
+            <option value={2}>2 — M</option>
+            <option value={3}>3 — A</option>
+            <option value={4}>4 — C</option>
+          </select>
+        </label>
 
         {viewMode !== 'normal' && (
           <button
@@ -3678,7 +3714,9 @@ export default function Plan2DOverlay({
                 label: event.target.value || null,
               })
             }
-            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
           />
 
           <label htmlFor="dimension-offset">Offset</label>
@@ -3694,7 +3732,9 @@ export default function Plan2DOverlay({
                 applyDimensionUpdate(selectedDimension.id, { offset });
               }
             }}
-            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
           />
 
           <label htmlFor="dimension-color">Color</label>
@@ -3732,7 +3772,9 @@ export default function Plan2DOverlay({
                 });
               }
             }}
-            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
           />
 
           <label htmlFor="dimension-text-size">Tamaño de texto</label>
@@ -3757,7 +3799,9 @@ export default function Plan2DOverlay({
                 });
               }
             }}
-            onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') event.currentTarget.blur();
+            }}
           />
         </section>
       )}

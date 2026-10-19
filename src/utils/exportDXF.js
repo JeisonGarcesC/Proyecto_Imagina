@@ -25,6 +25,8 @@ export function generatePlanDxf({
   openings = [],
   partsSnapshot = [],
   detailed2DIds = [],
+  detailLevel = 3,
+  detailAll = false,
   layers = {
     walls: 'WALLS',
     columns: 'COLUMNS',
@@ -93,11 +95,11 @@ export function generatePlanDxf({
   for (const p of partsSnapshot || []) {
     const geometry = buildFootprintWorldGeometry(p);
     if (!geometry) continue;
-    const detailedShapes = is2DDetailEnabled(p, detailIds)
-      ? buildDetailedFootprintWorldShapes(p)
+    const detailedShapes = detailLevel > 1 && (detailAll || is2DDetailEnabled(p, detailIds))
+      ? buildDetailedFootprintWorldShapes(p, detailLevel)
       : [];
     d.setActiveLayer(layers.parts);
-    if (detailedShapes.length) {
+    if (detailedShapes.length && detailLevel >= 3) {
       detailedShapes.forEach((shape) => addPolyline(shape.points, layers.parts, shape.closed));
     } else if (
       (geometry.type === FOOTPRINT2D_TYPES.CIRCLE ||
@@ -123,6 +125,12 @@ export function generatePlanDxf({
         );
       }
     } else {
+      addPolyline(geometry.vertices, layers.parts, true);
+    }
+    if (detailLevel === 2) {
+      detailedShapes.forEach((shape) => addPolyline(shape.points, layers.parts, shape.closed));
+    }
+    if (detailLevel === 4 && detailedShapes.length) {
       addPolyline(geometry.vertices, layers.parts, true);
     }
 
