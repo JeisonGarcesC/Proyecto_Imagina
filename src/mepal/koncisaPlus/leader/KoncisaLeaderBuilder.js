@@ -29,9 +29,10 @@ function resolveLeaderSurfaceAccessPosition({
     .trim()
     .toUpperCase();
   const localX = positionKey === 'LEFT' ? -widthMm / 4 : positionKey === 'RIGHT' ? widthMm / 4 : 0;
-  const localZ = depthMm <= 600 ? -224 : -255;
+  const localZ = 0; //depthMm <= 600 ? -224 : -255; //-224 : -255
   const cos = Math.cos(rotationY);
   const sin = Math.sin(rotationY);
+
   const x = centerX + localX * cos + localZ * sin;
   const z = centerZ - localX * sin + localZ * cos;
 
@@ -595,6 +596,7 @@ export function buildKoncisaLeader(config = {}) {
       // El mismo desplazamiento del grommet conserva su relación física.
       const accessOffsetX = accessPosition.localX * Math.cos(returnSurface.rotation.y);
       const accessOffsetZ = -accessPosition.localX * Math.sin(returnSurface.rotation.y);
+      const movimientoz = 189; //positionKey === 'LEFT' ? 189 : positionKey === 'RIGHT' ? -189 * 2 : 0;
       parts.push(
         createLeaderSurfaceGrommet({
           groupId,
@@ -611,16 +613,15 @@ export function buildKoncisaLeader(config = {}) {
           rotationY: returnSurface.rotation.y,
           componentConfig: returnComponentConfig,
           positionOffsetMm: {
-            // Offset manual exclusivo del grommet de la superficie de retorno.
-            x: sideKey === 'RIGHT' ? 370 : -370,
+            // Cancela el desplazamiento lateral que la rotación ya aporta en Z.
+            x: sideKey === 'RIGHT' ? 177 : -177,
             y: 0,
-            z: 158,
+            z: movimientoz, //accessPosition.localX * Math.sin(returnSurface.rotation.y),
           },
         })
       );
 
-      parts.push(
-        createLeaderGrommetOutletBox({
+      const returnOutletBox = createLeaderGrommetOutletBox({
           groupId,
           groupName,
           surfaceRole: 'RETURN',
@@ -644,8 +645,8 @@ export function buildKoncisaLeader(config = {}) {
               z: 0,
             },
           },
-        })
-      );
+        });
+      parts.push(returnOutletBox);
 
       if (returnComponentConfig.outletCouplingEnabled) {
         parts.push(
@@ -654,15 +655,16 @@ export function buildKoncisaLeader(config = {}) {
             groupName,
             targetRole: 'RETURN',
             placement: {
-              // Posición manual del acople de la superficie de retorno.
+              // El acople girado 90° sale por el costado +X de la caja.
+              // Los orígenes de ambos GLB están en esquinas distintas.
               position: {
-                x: accessOffsetX,
-                y: 0,
-                z: accessOffsetZ,
+                x: returnOutletBox.position.x - 2.6,
+                y: returnOutletBox.position.y + 123,
+                z: returnOutletBox.position.z - 83.85,
               },
               rotation: {
                 x: 0,
-                y: sideKey === 'RIGHT' ? 0 : -0,
+                y: Math.PI / 2,
                 z: 0,
               },
             },

@@ -1,6 +1,7 @@
 import { applyMaterialToMesh, getVisualFinishIdentity } from '../materials/applyMaterial.js';
 import { prepareSpecialFinishVisual } from './specialFinishVisual.js';
 import { finishFromSnapshot, normalizeSpecialFinishRecord } from './specialFinishPersistence.js';
+import { getMeshPathKey as getLockerMeshPathKey } from './meshPathKey.js';
 
 export function collectProjectSpecialFinishes(parts, getMeshPathKey, entities = []) {
   const entries = [];
@@ -32,6 +33,7 @@ export async function restoreProjectSpecialFinishes(project, parts, getMeshPathK
   prepareVisual = prepareSpecialFinishVisual, applyVisual = applyMaterialToMesh,
 } = {}) {
   const failures = [];
+  const restoredMeshes = new Set();
   for (const entry of Array.isArray(project?.specialFinishes) ? project.specialFinishes : []) {
     const record = normalizeSpecialFinishRecord(entry);
     if (!record) {
@@ -57,6 +59,12 @@ export async function restoreProjectSpecialFinishes(project, parts, getMeshPathK
     owner.traverse((node) => {
       if (node.isMesh && getMeshPathKey(owner, node) === entry.meshPath) mesh = node;
     });
+    if (!mesh && owner.userData?.kind === 'LOCKER_PRODUCT') {
+      owner.traverse((node) => {
+        if (!mesh && node.isMesh && !restoredMeshes.has(node) &&
+          getLockerMeshPathKey(owner, node, { legacyLockerNames: true }) === entry.meshPath) mesh = node;
+      });
+    }
     if (!mesh) {
       failures.push({ kind: 'SPECIAL_FINISH', reason: 'MESH_NOT_FOUND',
         ownerInstanceId: entry.ownerInstanceId, meshPath: entry.meshPath });
@@ -66,6 +74,7 @@ export async function restoreProjectSpecialFinishes(project, parts, getMeshPathK
       const prepared = await prepareVisual(finishFromSnapshot(record.snapshot));
       applyVisual(mesh, null, prepared.definition, { visualOnly: true,
         identity: { ...prepared.identity, snapshot: record.snapshot, scope: record.scope } });
+      restoredMeshes.add(mesh);
     } catch (error) {
       failures.push({ kind: 'SPECIAL_FINISH', reason: error?.message || 'RESOURCE_UNAVAILABLE',
         specialFinishId: record.specialFinishId, revision: record.revision });

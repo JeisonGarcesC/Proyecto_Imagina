@@ -202,7 +202,6 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
         </div>
       )}
 
-
       <div
         style={{
           marginTop: 12,

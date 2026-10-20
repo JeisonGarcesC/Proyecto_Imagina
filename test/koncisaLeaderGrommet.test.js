@@ -88,6 +88,38 @@ test('resuelve grommet anodizado con el código comercial correcto', () => {
   assert.equal(grommet.description, 'GROMMET LKAC670000 - ALUMINIO ANODIZADO');
 });
 
+for (const { position, expectedMovementMm } of [
+  { position: 'LEFT', expectedMovementMm: 189 },
+  { position: 'RIGHT', expectedMovementMm: -189 },
+]) {
+  for (const leaderSide of ['LEFT', 'RIGHT']) {
+    test(`desplaza ${expectedMovementMm} mm en Z el grommet ${position} del retorno ${leaderSide} desde su posición base`, () => {
+      const product = buildLeader({
+        leaderSide,
+        surfaceOverrides: {
+          RETURN_SURFACE: {
+            cableAccessType: 'GROMMET',
+            grommetPosition: position,
+          },
+        },
+      });
+      const returnSurface = product.parts.find(
+        (part) => part.type === 'superficie' && part.meta?.leaderRole === 'RETURN'
+      );
+      const returnGrommet = product.parts.find(
+        (part) => part.type === 'grommet' && part.meta?.leaderRole === 'RETURN_GROMMET'
+      );
+      const localX = position === 'LEFT' ? -900 / 4 : 900 / 4;
+      const baseZOffset = -localX * Math.sin(returnSurface.rotation.y);
+
+      assert.equal(
+        returnGrommet.position.z - returnSurface.position.z - baseZOffset,
+        expectedMovementMm
+      );
+    });
+  }
+}
+
 test('no agrega grommet automáticamente cuando ninguna condición aplica', () => {
   assert.equal(getMainGrommets(buildLeader()).length, 0);
 });

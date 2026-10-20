@@ -7,6 +7,11 @@ const expected = [
   ['diseno', 'Diseño', 'diseno'],
   ['comercial', 'Comercial', 'comercial'],
 ];
+const finishPermissions = {
+  administrador: ['finishes.view', 'finishes.apply', 'finishes.create', 'finishes.delete'],
+  diseno: ['finishes.view', 'finishes.apply', 'finishes.create', 'finishes.delete'],
+  comercial: ['finishes.view', 'finishes.apply', 'finishes.create'],
+};
 
 test('expone las tres opciones de desarrollo esperadas', () => {
   assert.deepEqual(
@@ -19,7 +24,7 @@ for (const [username, label, role] of expected) {
   test(`crea una sesión local compatible para ${username}`, () => {
     const session = createDevSession(username);
     assert.deepEqual(session.roles, [role]);
-    assert.deepEqual(session.permissions, []);
+    assert.deepEqual(session.permissions, finishPermissions[role]);
     assert.equal(session.user.username, username);
     assert.equal(session.user.displayName, label);
     assert.equal(session.user.status, 'ACTIVE');
