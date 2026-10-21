@@ -308,6 +308,7 @@ export default function LeftPanel({
   setEspesorFilter,
   materials, // 👈 nuevo
   selectedPart,
+  selectedFinishTarget,
   critteriumHistoryRevision,
   onApplyGlobalMaterial,
   onAddCatalogItem,
@@ -333,6 +334,8 @@ export default function LeftPanel({
   setWallThickness,
   selectedWall,
   onWallChange,
+  onWallSegmentLength,
+  onWallPointChange,
   onDeleteWall,
   onCloseWallProperties,
   onClearWalls,
@@ -1607,6 +1610,14 @@ export default function LeftPanel({
 
       {section === 'koncisaPlus' && (
         <KoncisaPlusPanel
+          onAddDrawer={async () => {
+            const api = threeApiRef.current;
+            if (!api) {
+              alert('El visor 3D aún no está listo.');
+              return null;
+            }
+            return api.addKoncisaPlusDrawer?.();
+          }}
           onCreate={async (config) => {
             const api = threeApiRef.current;
             if (!api) {
@@ -1721,8 +1732,11 @@ export default function LeftPanel({
 
             {wallMode === 'EDIT' && selectedWall && (
               <WallProperties
+                key={selectedWall.id}
                 wall={selectedWall}
                 onChange={onWallChange}
+                onSegmentLength={onWallSegmentLength}
+                onPointChange={onWallPointChange}
                 onDelete={onDeleteWall}
                 onClose={onCloseWallProperties}
               />
@@ -1878,7 +1892,7 @@ export default function LeftPanel({
         specialFinishPermissions.includes('finishes.view')
           ? <SpecialFinishesPanel canCreate={specialFinishPermissions.includes('finishes.create')}
               canApply={specialFinishPermissions.includes('finishes.apply')}
-              selectedPart={selectedPart} onApply={onApplySpecialFinish} />
+              selectedPart={selectedPart} selectedFinishTarget={selectedFinishTarget} onApply={onApplySpecialFinish} />
           : <div role="alert">No tienes permiso para consultar Acabados Especiales.</div>
       )}
 

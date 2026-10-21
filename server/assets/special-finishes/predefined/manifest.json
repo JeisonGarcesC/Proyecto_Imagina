@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000001", "name": "Ladrillo grande",
+      "category": "WALL", "compatibleScopes": ["WALL", "COLUMN"], "suggestedTileWidth": 0.25,
+      "revisions": [{ "revision": 1, "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000001", "assetVersion": 1,
+        "image": "walls/ladrillo-grande-v1.png", "preview": "walls/ladrillo-grande-v1-preview.png" }]
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000002", "name": "Ladrillo pequeño",
+      "category": "WALL", "compatibleScopes": ["WALL", "COLUMN"], "suggestedTileWidth": 0.12,
+      "revisions": [{ "revision": 1, "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000002", "assetVersion": 1,
+        "image": "walls/ladrillo-pequeno-v1.png", "preview": "walls/ladrillo-pequeno-v1-preview.png" }]
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000003", "name": "Concreto",
+      "category": "WALL", "compatibleScopes": ["WALL", "COLUMN"], "suggestedTileWidth": 0.75,
+      "revisions": [{ "revision": 1, "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000003", "assetVersion": 1,
+        "image": "walls/concreto-v1.png", "preview": "walls/concreto-v1-preview.png" }]
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000004", "name": "Piedra",
+      "category": "WALL", "compatibleScopes": ["WALL", "COLUMN"], "suggestedTileWidth": 0.5,
+      "revisions": [{ "revision": 1, "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000004", "assetVersion": 1,
+        "image": "walls/piedra-v1.png", "preview": "walls/piedra-v1-preview.png" }]
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000005", "name": "Madera",
+      "category": "FLOOR", "compatibleScopes": ["FLOOR"], "suggestedTileWidth": 0.48,
+      "revisions": [{ "revision": 1, "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000005", "assetVersion": 1,
+        "image": "floors/madera-v1.png", "preview": "floors/madera-v1-preview.png" }]
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000006", "name": "Baldosa",
+      "category": "FLOOR", "compatibleScopes": ["FLOOR"], "suggestedTileWidth": 0.6,
+      "revisions": [{ "revision": 1, "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000006", "assetVersion": 1,
+        "image": "floors/baldosa-v1.png", "preview": "floors/baldosa-v1-preview.png" }]
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000007", "name": "Porcelanato",
+      "category": "FLOOR", "compatibleScopes": ["FLOOR"], "suggestedTileWidth": 0.6,
+      "revisions": [{ "revision": 1, "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000007", "assetVersion": 1,
+        "image": "floors/porcelanato-v1.png", "preview": "floors/porcelanato-v1-preview.png" }]
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000008", "name": "Alfombra",
+      "category": "FLOOR", "compatibleScopes": ["FLOOR"], "suggestedTileWidth": 0.5,
+      "revisions": [{ "revision": 1, "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000008", "assetVersion": 1,
+        "image": "floors/alfombra-v1.png", "preview": "floors/alfombra-v1-preview.png" }]
+    }
+  ]
+}

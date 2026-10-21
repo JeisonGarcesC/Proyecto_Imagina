@@ -4,7 +4,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 import { loginSession, logoutSession } from '../src/auth/authApi.js';
-import { createSpecialFinish, getSpecialFinishTextureBlob, listSpecialFinishes,
+import { createSpecialFinish, getSpecialFinishTextureBlob, listPredefinedSpecialFinishes, listSpecialFinishes,
   specialFinishError, uploadSpecialFinishTexture } from '../src/specialFinishes/specialFinishApi.js';
 import { parseRgbChannels, validateTextureFile } from '../src/specialFinishes/specialFinishValidation.js';
 
@@ -37,6 +37,8 @@ test('rail muestra la sección solo con permiso y el panel inicia en carga', () 
   assert.match(canCreate, /Crear acabado/);
   assert.doesNotMatch(cannotCreate, /Crear acabado/);
   assert.match(cannotCreate, /Cargando acabados/);
+  assert.match(cannotCreate, /Texturas predeterminadas/);
+  assert.match(cannotCreate, /Mis acabados/);
 });
 
 test('card RGB usa canales de servidor y card TEXTURE no usa asset URL directamente', () => {
@@ -53,6 +55,14 @@ test('card RGB usa canales de servidor y card TEXTURE no usa asset URL directame
   assert.match(texture, /TEXTURA/);
   assert.doesNotMatch(texture, /private.example/);
   assert.match(texture, /Cargando/);
+  const predefined = renderToStaticMarkup(React.createElement(SpecialFinishCard, { finish: {
+    id: '3', name: 'Ladrillo', type: 'TEXTURE', source: 'PREDEFINED', category: 'WALL',
+    suggestedTileWidth: 0.25, asset: { id: 'asset-3' },
+  }, canApply: true, hasSelection: true, applicable: false }));
+  assert.match(predefined, /Muros y columnas/);
+  assert.match(predefined, /Ancho sugerido: 0.25 m/);
+  assert.match(predefined, /disabled/);
+  assert.doesNotMatch(predefined, /Usuario anterior|Activo/);
 });
 
 test('resultados muestran listado, vacío, error y paginación', () => {
@@ -105,7 +115,7 @@ test('API autenticada lista, busca, pagina, crea RGB y textura y descarga previe
     if (input === '/api/auth/logout') return new Response(null, { status: 204 });
     const request = input;
     requests.push(request);
-    if (request.url.endsWith('/textures/asset-1')) return new Response(new Blob(['preview'], { type: 'image/png' }));
+    if (request.url.includes('/textures/asset-1')) return new Response(new Blob(['preview'], { type: 'image/png' }));
     if (request.method === 'POST' && request.url.endsWith('/textures')) return json({ id: 'asset-1' }, 201);
     if (request.method === 'POST') return json({ id: 'finish-1' }, 201);
     return json({ items: [{ id: 'finish-1', name: 'Nogal' }], total: 1, page: 2, pageSize: 12 });
@@ -115,11 +125,15 @@ test('API autenticada lista, busca, pagina, crea RGB y textura y descarga previe
   assert.equal(list.total, 1);
   assert.match(requests[0].url, /page=2/);
   assert.match(requests[0].url, /search=Nogal/);
+  await listPredefinedSpecialFinishes({ search: 'ladrillo' });
+  assert.ok(requests.some((request) => request.url.includes('/predefined?search=ladrillo')));
   await createSpecialFinish({ name: 'Azul', type: 'RGB', rgb: { r: 1, g: 2, b: 3 } });
   const file = Object.assign(new Blob(['image'], { type: 'image/png' }), { name: 'wood.png' });
   assert.equal((await uploadSpecialFinishTexture(file)).id, 'asset-1');
   await createSpecialFinish({ name: 'Nogal', type: 'TEXTURE', assetId: 'asset-1' });
   assert.equal((await getSpecialFinishTextureBlob('asset-1')).size, 7);
+  assert.equal((await getSpecialFinishTextureBlob('asset-1', undefined, { preview: true })).size, 7);
+  assert.ok(requests.some((request) => request.url.endsWith('/textures/asset-1?preview=1')));
   assert.ok(requests.every((request) => request.headers.get('Authorization') === 'Bearer finish-token'));
   const upload = requests.find((request) => request.url.endsWith('/textures') && request.method === 'POST');
   assert.equal(upload.headers.get('Content-Type'), 'image/png');

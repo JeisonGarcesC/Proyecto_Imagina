@@ -34,6 +34,12 @@ export function listSpecialFinishes({ page = 1, pageSize = 12, search = '', sign
   return request(`?${params}`, { signal });
 }
 
+export function listPredefinedSpecialFinishes({ search = '', signal } = {}) {
+  const params = new URLSearchParams();
+  if (search.trim()) params.set('search', search.trim());
+  return request(`/predefined${params.size ? `?${params}` : ''}`, { signal });
+}
+
 export function createSpecialFinish(payload) {
   return request('', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 }
@@ -44,6 +50,6 @@ export function uploadSpecialFinishTexture(file) {
   }, body: file });
 }
 
-export function getSpecialFinishTextureBlob(assetId, signal) {
-  return request(`/textures/${encodeURIComponent(assetId)}`, { signal }, 'blob');
+export function getSpecialFinishTextureBlob(assetId, signal, { preview = false } = {}) {
+  return request(`/textures/${encodeURIComponent(assetId)}${preview ? '?preview=1' : ''}`, { signal }, 'blob');
 }

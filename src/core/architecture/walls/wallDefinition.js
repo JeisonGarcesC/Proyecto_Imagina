@@ -85,3 +85,35 @@ export function updateWallDefinition(wall, patch = {}) {
     { previousPoints: current.points }
   );
 }
+
+// La longitud pertenece al par de puntos; nunca se guarda en la definición.
+export function getWallSegmentLength(wall, segmentIndex = 0) {
+  const start = wall?.points?.[segmentIndex];
+  const end = wall?.points?.[segmentIndex + 1];
+  if (!start || !end) return null;
+  return Math.hypot(end.x - start.x, end.z - start.z);
+}
+
+export function updateWallPoint(wall, pointIndex, coordinates) {
+  if (!wall || wall.locked || !Number.isInteger(pointIndex) || !wall.points?.[pointIndex]) return null;
+  const x = Number(coordinates?.x);
+  const z = Number(coordinates?.z);
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+  const points = wall.points.map((point, index) => index === pointIndex ? { ...point, x, z } : point);
+  if (points.some((point, index) => index > 0 &&
+    Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z) <= 0)) return null;
+  return updateWallDefinition(wall, { points });
+}
+
+export function resizeWallSegment(wall, segmentIndex, length) {
+  const nextLength = Number(length);
+  const currentLength = getWallSegmentLength(wall, segmentIndex);
+  if (!Number.isInteger(segmentIndex) || !Number.isFinite(nextLength) || nextLength <= 0 ||
+      !Number.isFinite(currentLength) || currentLength <= 0) return null;
+  const start = wall.points[segmentIndex];
+  const end = wall.points[segmentIndex + 1];
+  return updateWallPoint(wall, segmentIndex + 1, {
+    x: start.x + (end.x - start.x) * nextLength / currentLength,
+    z: start.z + (end.z - start.z) * nextLength / currentLength,
+  });
+}

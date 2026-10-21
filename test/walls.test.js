@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createWallDefinition, normalizeWallDefinition, updateWallDefinition } from '../src/core/architecture/walls/wallDefinition.js';
+import { createWallDefinition, getWallSegmentLength, normalizeWallDefinition, resizeWallSegment, updateWallDefinition, updateWallPoint } from '../src/core/architecture/walls/wallDefinition.js';
 import { deserializeWalls, serializeWalls } from '../src/core/architecture/walls/wallPersistence.js';
 import { deleteWallById, hitTestWall, selectWallAtPoint } from '../src/core/architecture/walls/wallInteraction2D.js';
 import { buildWallGeometry2D, getWallBounds2D } from '../src/core/architecture/walls/wallGeometry2D.js';
 import { buildWallGeometry3D } from '../src/core/architecture/walls/wallGeometry3D.js';
 import { buildWallsGeometry3D } from '../src/core/architecture/walls/wallGeometry3D.js';
 import { buildJoinedWallsGeometry2D, JOIN_EPSILON, WALL_JOIN_TYPES } from '../src/core/architecture/walls/wallJoins2D.js';
+import { validateWallPointEdit } from '../src/core/architecture/walls/wallEditValidation.js';
+import { createDoorDefinition } from '../src/core/architecture/openings/doorDefinition.js';
 
 const legacyWall = {
   id: 'WALL_LEGACY',
@@ -190,8 +192,8 @@ test('resuelve ingletes L de 90 y 45 grados', () => {
     const result = buildJoinedWallsGeometry2D([wall]);
     assert.ok(result.joins.some((join) => join.type === WALL_JOIN_TYPES.L));
     const [first, second] = result.wallGeometries[0].segmentsGeometry;
-    assert.deepEqual(first.polygon[2], second.polygon[0]);
-    assert.deepEqual(first.polygon[1], second.polygon[3]);
+    assert.deepEqual(first.polygon[2], second.polygon[3]);
+    assert.deepEqual(first.polygon[1], second.polygon[0]);
   }
 });
 
@@ -259,4 +261,75 @@ test('geometría 3D aplica el recorte T sin cambiar identidad lógica', () => {
   const branchSegment = geometry.segmentsGeometry.find((segment) => segment.wallId === branch.id);
   assert.equal(branchSegment.length, 1.9);
   assert.equal(branchSegment.segmentId, buildWallGeometry2D(branch).segmentsGeometry[0].segmentId);
+});
+
+test('largo horizontal 3 a 5 conserva inicio, dirección, IDs y actualiza 2D y 3D', () => {
+  const wall = createWallDefinition({ id: 'LENGTH_H', points: [{ id: 'p1', x: 2, z: 3 }, { id: 'p2', x: 5, z: 3 }], height: 2.4, thickness: 0.15 });
+  const resized = resizeWallSegment(wall, 0, 5);
+  assert.deepEqual(resized.points, [{ id: 'p1', x: 2, z: 3 }, { id: 'p2', x: 7, z: 3 }]);
+  assert.equal(getWallSegmentLength(resized), 5);
+  assert.equal(buildWallGeometry2D(resized).segmentsGeometry[0].length, 5);
+  const mesh = buildWallsGeometry3D([resized]).segmentsGeometry[0];
+  assert.equal(mesh.length, 5);
+  assert.equal(mesh.center.x, 4.5);
+  assert.equal(mesh.height, 2.4);
+  assert.equal(mesh.thickness, 0.15);
+  assert.equal(wall.points[1].x, 5);
+});
+
+test('largos verticales, diagonales y decimales conservan orientación', () => {
+  const vertical = createWallDefinition({ points: [{ x: 1, z: 1 }, { x: 1, z: 3 }] });
+  const verticalNext = resizeWallSegment(vertical, 0, 2.75);
+  assert.equal(verticalNext.points[1].x, 1);
+  assert.equal(verticalNext.points[1].z, 3.75);
+  const diagonal = createWallDefinition({ points: [{ x: 2, z: 3 }, { x: 4, z: 6 }] });
+  const diagonalNext = resizeWallSegment(diagonal, 0, 5);
+  assert.ok(Math.abs(getWallSegmentLength(diagonalNext) - 5) < 1e-12);
+  assert.ok(Math.abs((diagonalNext.points[1].z - 3) / (diagonalNext.points[1].x - 2) - 1.5) < 1e-12);
+  assert.equal(buildWallGeometry2D(diagonalNext).segmentsGeometry[0].angle, buildWallGeometry2D(diagonal).segmentsGeometry[0].angle);
+});
+
+test('rechaza longitudes y coordenadas inválidas sin cambiar el muro', () => {
+  const wall = createWallDefinition({ points: [{ x: 0, z: 0 }, { x: 3, z: 0 }] });
+  for (const length of [0, -1, NaN, Infinity, 'abc']) assert.equal(resizeWallSegment(wall, 0, length), null);
+  assert.equal(updateWallPoint(wall, 1, { x: Infinity, z: 0 }), null);
+  assert.equal(updateWallPoint(wall, 1, { x: 0, z: 0 }), null);
+  assert.equal(getWallSegmentLength(wall), 3);
+});
+
+test('polilínea cambia solo el extremo compartido del segmento elegido', () => {
+  const wall = createWallDefinition({ points: [
+    { id: 'a', x: 0, z: 0 }, { id: 'b', x: 2, z: 0 },
+    { id: 'c', x: 2, z: 2 }, { id: 'd', x: 4, z: 2 },
+  ] });
+  const resized = resizeWallSegment(wall, 1, 3);
+  assert.deepEqual(resized.points.map((point) => point.id), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(resized.points.map(({ x, z }) => [x, z]), [[0, 0], [2, 0], [2, 3], [4, 2]]);
+  assert.equal(getWallSegmentLength(resized, 1), 3);
+  const moved = updateWallPoint(resized, 2, { x: 3, z: 3 });
+  assert.equal(getWallSegmentLength(moved, 1), Math.sqrt(10));
+  assert.equal(moved.points[3].x, 4);
+});
+
+test('round-trip legacy deriva largo y no persiste length', () => {
+  const legacy = deserializeWalls({ architecture: { walls: [{ id: 'LEGACY_LENGTH', points: [{ x: 0, z: 0 }, { x: 3, z: 0 }] }] } })[0];
+  const resized = resizeWallSegment(legacy, 0, 3.5);
+  const serialized = serializeWalls([resized]);
+  assert.equal(Object.hasOwn(serialized[0], 'length'), false);
+  assert.equal(getWallSegmentLength(deserializeWalls({ architecture: { walls: serialized } })[0]), 3.5);
+});
+
+test('una abertura conserva segmentId y offset; se rechaza un acortamiento que la expulsa', () => {
+  const wall = createWallDefinition({ id: 'WALL_WITH_DOOR', points: [
+    { id: 'p1', x: 0, z: 0 }, { id: 'p2', x: 4, z: 0 },
+  ] });
+  const segmentId = buildWallGeometry2D(wall).segmentsGeometry[0].segmentId;
+  const opening = createDoorDefinition({ wallId: wall.id, segmentId, offset: 2, width: 0.9, height: 2.1 });
+  const longer = resizeWallSegment(wall, 0, 5);
+  assert.equal(validateWallPointEdit(longer, [wall], [opening]).ok, true);
+  assert.equal(buildWallGeometry2D(longer).segmentsGeometry[0].segmentId, segmentId);
+  assert.equal(opening.offset, 2);
+  const shorter = resizeWallSegment(wall, 0, 2);
+  assert.equal(validateWallPointEdit(shorter, [wall], [opening]).ok, false);
+  assert.equal(getWallSegmentLength(wall), 4);
 });

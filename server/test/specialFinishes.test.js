@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import express from 'express';
 import { createSpecialFinishRouter } from '../src/specialFinishes/specialFinishRouter.js';
+import { createPredefinedCatalog, predefinedCatalog } from '../src/specialFinishes/predefinedCatalog.js';
 import { createSpecialFinish, archiveSpecialFinish, listSpecialFinishes } from '../src/specialFinishes/specialFinishService.js';
 import { MAX_TEXTURE_BYTES, validateTexture } from '../src/specialFinishes/textureStorage.js';
 import { issueAccessToken } from '../src/auth/tokenService.js';
@@ -78,10 +79,10 @@ function fixture({ permissions = [], role = 'DESIGNER', auditFailure = false } =
   return { db, finishes, assets, events, authUser };
 }
 
-async function serverTest(fx, callback) {
+async function serverTest(fx, callback, catalog) {
   const app = express();
   app.use(express.json());
-  app.use('/special-finishes', createSpecialFinishRouter({ db: fx.db, tokenOptions }));
+  app.use('/special-finishes', createSpecialFinishRouter({ db: fx.db, tokenOptions, catalog }));
   app.use(errorHandler);
   const server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
@@ -110,6 +111,100 @@ test('RGB válido, rango inválido, listado, búsqueda, detalle y auditoría', a
     assert.equal((await fetch(`${base}/${id}`, { headers })).status, 200);
     assert.equal((await fetch(`${base}/33333333-3333-4333-8333-333333333333`, { headers })).status, 404);
   });
+});
+
+test('catálogo oficial usa identidad estable, preview autenticada y protege revisión y eliminación', async () => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'imagina-predefined-'));
+  const firstId = '22222222-2222-4222-8222-222222222221';
+  const firstAsset = '33333333-3333-4333-8333-333333333331';
+  const laterAsset = '33333333-3333-4333-8333-333333333332';
+  const floorId = '22222222-2222-4222-8222-222222222222';
+  const floorAsset = '33333333-3333-4333-8333-333333333333';
+  try {
+    await mkdir(path.join(folder, 'walls'));
+    await mkdir(path.join(folder, 'floors'));
+    for (const filename of ['walls/brick-v1.png', 'walls/brick-v2.png',
+      'walls/brick-preview.png', 'floors/carpet.png', 'floors/carpet-preview.png']) {
+      await writeFile(path.join(folder, filename), png);
+    }
+    const catalog = createPredefinedCatalog({ schemaVersion: 1, items: [
+      { id: firstId, name: 'Ladrillo grande', category: 'WALL',
+        compatibleScopes: ['WALL', 'COLUMN'], suggestedTileWidth: 0.25,
+        revisions: [
+          { revision: 1, assetId: firstAsset, assetVersion: 1,
+            image: 'walls/brick-v1.png', preview: 'walls/brick-preview.png' },
+          { revision: 2, assetId: laterAsset, assetVersion: 2,
+            image: 'walls/brick-v2.png', preview: 'walls/brick-preview.png' },
+        ] },
+      { id: floorId, name: 'Alfombra', category: 'FLOOR',
+        compatibleScopes: ['FLOOR'], suggestedTileWidth: 0.5,
+        revisions: [{ revision: 1, assetId: floorAsset, assetVersion: 1,
+          image: 'floors/carpet.png', preview: 'floors/carpet-preview.png' }] },
+    ] }, folder);
+    assert.equal(catalog.list('ladrillo').items[0].source, 'PREDEFINED');
+    assert.equal(catalog.list('ladrillo').items[0].type, 'TEXTURE');
+    assert.equal(catalog.list('ladrillo').items[0].revision, 2);
+    assert.equal(catalog.list('ladrillo').items[0].asset.id, laterAsset);
+    assert.equal(catalog.getAsset(firstAsset).version, 1);
+    assert.equal(catalog.list('alfombra').items[0].category, 'FLOOR');
+    const fx = fixture({ permissions: ['finishes.view', 'finishes.delete'] });
+    await serverTest(fx, async (base, headers) => {
+      const listed = await fetch(`${base}/predefined?search=ladrillo`, { headers });
+      assert.equal(listed.status, 200);
+      assert.equal((await listed.json()).items[0].id, firstId);
+      assert.equal((await fetch(`${base}/textures/${firstAsset}`, { headers })).status, 200);
+      const preview = await fetch(`${base}/textures/${laterAsset}?preview=1`, { headers });
+      assert.equal(preview.headers.get('content-type'), 'image/png');
+      assert.deepEqual(Buffer.from(await preview.arrayBuffer()), png);
+      assert.equal((await fetch(`${base}/${firstId}`, { method: 'DELETE', headers })).status, 403);
+      assert.equal((await fetch(`${base}/predefined`, { headers })).status, 200);
+      assert.equal((await fetch(`${base}/textures/${laterAsset}`, { headers })).status, 200);
+      assert.equal((await fetch(base, { method: 'POST', headers: { ...headers,
+        'content-type': 'application/json' }, body: JSON.stringify({ name: 'Falso',
+        type: 'TEXTURE', assetId: laterAsset }) })).status, 403);
+    }, catalog);
+    const creator = fixture({ permissions: ['finishes.view', 'finishes.create'] });
+    await serverTest(creator, async (base, headers) => {
+      assert.equal((await fetch(`${base}/predefined`, { headers })).status, 200);
+      assert.equal((await fetch(base, { method: 'POST', headers: { ...headers,
+        'content-type': 'application/json' }, body: JSON.stringify({ name: 'Falso',
+        type: 'TEXTURE', assetId: laterAsset }) })).status, 422);
+      assert.equal((await fetch(base, { method: 'POST', headers: { ...headers,
+        'content-type': 'application/json' }, body: JSON.stringify({ name: 'RGB propio',
+        type: 'RGB', rgb: { r: 1, g: 2, b: 3 } }) })).status, 201);
+    }, catalog);
+    const denied = fixture({ permissions: [] });
+    await serverTest(denied, async (base, headers) => {
+      assert.equal((await fetch(`${base}/predefined`, { headers })).status, 403);
+      assert.equal((await fetch(`${base}/textures/${laterAsset}`, { headers })).status, 403);
+    }, catalog);
+  } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
+test('ocho patrones originales instalados quedan separados de personalizados y usan previews pequeñas', async () => {
+  assert.equal(predefinedCatalog.list().total, 8);
+  assert.equal(predefinedCatalog.list('ladrillo').total, 2);
+  assert.equal(predefinedCatalog.list('piedra').total, 1);
+  assert.equal(predefinedCatalog.list('alfombra').total, 1);
+  const wallItems = predefinedCatalog.list().items.filter((item) => item.category === 'WALL');
+  const floorItems = predefinedCatalog.list().items.filter((item) => item.category === 'FLOOR');
+  assert.equal(wallItems.length, 4);
+  assert.equal(floorItems.length, 4);
+  assert.ok(wallItems.every((item) => item.compatibleScopes.includes('COLUMN')));
+  assert.ok(floorItems.every((item) => !item.compatibleScopes.includes('WALL')));
+  for (const item of predefinedCatalog.list().items) {
+    const asset = predefinedCatalog.getAsset(item.asset.id);
+    assert.equal(asset.width, 512);
+    assert.equal(asset.height, 512);
+    assert.ok((await readFile(asset.previewFilename)).length < (await readFile(asset.filename)).length);
+  }
+  await serverTest(fixture({ permissions: ['finishes.view'] }), async (base, headers) => {
+    assert.equal((await (await fetch(base, { headers })).json()).total, 0);
+    assert.equal((await (await fetch(`${base}/predefined`, { headers })).json()).total, 8);
+    const assetId = wallItems[0].asset.id;
+    assert.equal((await fetch(`${base}/textures/${assetId}?preview=1`, { headers })).status, 200);
+    assert.equal((await fetch(`${base}/textures/${assetId}`, { headers })).status, 200);
+  }, predefinedCatalog);
 });
 
 test('textura valida extensión, MIME, tamaño y firma', () => {

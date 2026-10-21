@@ -1,5 +1,6 @@
 import { writeAudit } from '../audit/auditService.js';
 import { storeTexture, removeFailedUpload } from './textureStorage.js';
+import { predefinedCatalog } from './predefinedCatalog.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const include = { createdBy: { select: { id: true, displayName: true } }, asset: { select: {
@@ -33,14 +34,16 @@ export async function listSpecialFinishes(db, query = {}) {
   return { items: rows.map(finishDto), total, page, pageSize };
 }
 
-export async function getSpecialFinish(db, id) {
+export async function getSpecialFinish(db, id, catalog = predefinedCatalog) {
   checkId(id);
+  const predefined = catalog.getFinish(id);
+  if (predefined) return predefined;
   const row = await db.specialFinish.findUnique({ where: { id }, include });
   if (!row) fail(404, 'SPECIAL_FINISH_NOT_FOUND', 'Acabado no encontrado.');
   return finishDto(row);
 }
 
-export async function createSpecialFinish(db, body, actor, context = {}) {
+export async function createSpecialFinish(db, body, actor, context = {}, catalog = predefinedCatalog) {
   if (!body || typeof body !== 'object' || Array.isArray(body)
     || Object.keys(body).some((key) => !['name', 'type', 'rgb', 'assetId'].includes(key))) {
     fail(422, 'INVALID_FINISH', 'Datos de acabado inválidos.');
@@ -58,6 +61,7 @@ export async function createSpecialFinish(db, body, actor, context = {}) {
   } else if (body.rgb !== undefined || !uuid.test(String(body.assetId || ''))) {
     fail(422, 'INVALID_ASSET', 'Se requiere assetId válido.');
   }
+  if (!isRgb && catalog.getAsset(body.assetId)) fail(422, 'INVALID_ASSET', 'Recurso no disponible.');
   return db.$transaction(async (tx) => {
     if (!isRgb) {
       const asset = await tx.specialFinishAsset.findUnique({ where: { id: body.assetId }, include: { finish: true } });
@@ -73,8 +77,9 @@ export async function createSpecialFinish(db, body, actor, context = {}) {
   });
 }
 
-export async function archiveSpecialFinish(db, id, actor, context = {}) {
+export async function archiveSpecialFinish(db, id, actor, context = {}, catalog = predefinedCatalog) {
   checkId(id);
+  if (catalog.getFinish(id)) fail(403, 'PREDEFINED_IMMUTABLE', 'El acabado predeterminado no se puede archivar.');
   return db.$transaction(async (tx) => {
     const row = await tx.specialFinish.findUnique({ where: { id }, include });
     if (!row) fail(404, 'SPECIAL_FINISH_NOT_FOUND', 'Acabado no encontrado.');
@@ -101,9 +106,15 @@ export async function uploadSpecialFinishTexture(db, bytes, mimeType, filename, 
   }
 }
 
-export async function getSpecialFinishTexture(db, id) {
+export async function getSpecialFinishTexture(db, id, catalog = predefinedCatalog) {
   checkId(id);
+  const predefined = catalog.getAsset(id);
+  if (predefined) return predefined;
   const asset = await db.specialFinishAsset.findUnique({ where: { id } });
   if (!asset) fail(404, 'TEXTURE_NOT_FOUND', 'Textura no encontrada.');
   return asset;
+}
+
+export function listPredefinedSpecialFinishes(query = {}, catalog = predefinedCatalog) {
+  return catalog.list(query.search);
 }

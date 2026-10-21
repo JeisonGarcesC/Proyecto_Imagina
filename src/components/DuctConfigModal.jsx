@@ -40,7 +40,7 @@ export default function DuctConfigModal({
           <div key={i} style={{ marginBottom: 12 }}>
             <label>Módulo {i + 1}</label>
             <select
-              value={ductModes[i] || 'TERMINAL'}
+              value={ductModes[i] || 'INTERMEDIO'}
               onChange={(e) => updateMode(i, e.target.value)}
               style={{ width: '100%' }}
             >

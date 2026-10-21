@@ -325,6 +325,7 @@ export function buildKoncisaLeader(config = {}) {
     leaderMainOutletCoupling = null,
     leaderReturnOutletCoupling = null,
     leaderCostadoOutletCoupling = null,
+    leaderCostadoFloorDuct = null,
 
     // Falda principal
     leaderHasSkirt = false,
@@ -426,7 +427,7 @@ export function buildKoncisaLeader(config = {}) {
           grommet: true,
         },
         positionOffsetMm: {
-          x: 870, // mueve hacia los lados
+          x: sideKey === 'LEFT' ? -647 : 647, //870, // mueve hacia los lados
           y: 0, // sube o baja
           z: 0, // mueve hacia el frente o fondo
         },
@@ -616,36 +617,36 @@ export function buildKoncisaLeader(config = {}) {
             // Cancela el desplazamiento lateral que la rotación ya aporta en Z.
             x: sideKey === 'RIGHT' ? 177 : -177,
             y: 0,
-            z: movimientoz, //accessPosition.localX * Math.sin(returnSurface.rotation.y),
+            z: movimientoz, //accessPosition.localX * Math.sin(returnSurface.rotation.y), //movimientoz, //
           },
         })
       );
 
       const returnOutletBox = createLeaderGrommetOutletBox({
-          groupId,
-          groupName,
-          surfaceRole: 'RETURN',
-          position: returnComponentConfig.grommetPosition,
-          widthMm: leaderReturnLengthMm,
-          depthMm: leaderReturnDepthMm,
-          centerX: returnSurface.position.x,
-          centerZ: returnSurface.position.z,
-          rotationY: returnSurface.rotation.y,
-          componentConfig: returnComponentConfig,
-          placement: {
-            // Posición manual de la caja de tomas de la superficie de retorno.
-            position: {
-              x: (sideKey === 'RIGHT' ? 707 : -550) + accessOffsetX,
-              y: 550,
-              z: -400 + 64 + accessOffsetZ,
-            },
-            rotation: {
-              x: 0,
-              y: Math.PI / 2,
-              z: 0,
-            },
+        groupId,
+        groupName,
+        surfaceRole: 'RETURN',
+        position: returnComponentConfig.grommetPosition,
+        widthMm: leaderReturnLengthMm,
+        depthMm: leaderReturnDepthMm,
+        centerX: returnSurface.position.x,
+        centerZ: returnSurface.position.z,
+        rotationY: returnSurface.rotation.y,
+        componentConfig: returnComponentConfig,
+        placement: {
+          // Posición manual de la caja de tomas de la superficie de retorno.
+          position: {
+            x: (sideKey === 'RIGHT' ? 707 : -550) + accessOffsetX,
+            y: 550,
+            z: -400 + 64 + accessOffsetZ,
           },
-        });
+          rotation: {
+            x: 0,
+            y: Math.PI / 2,
+            z: 0,
+          },
+        },
+      });
       parts.push(returnOutletBox);
 
       if (returnComponentConfig.outletCouplingEnabled) {
@@ -849,6 +850,7 @@ export function buildKoncisaLeader(config = {}) {
 
     hasOutletBox: hasLeaderJunctionOutletBox,
     outletCouplingEnabled: leaderCostadoOutletCoupling?.enabled === true,
+    floorDuctEnabled: leaderCostadoFloorDuct?.enabled === true,
 
     outletBoxSrc: '/assets/models/koncisaPlus/CAJA_TOMAS_COSTADO.glb',
 
@@ -923,6 +925,31 @@ export function buildKoncisaLeader(config = {}) {
           },
         })
       );
+    }
+
+    if (hasLeaderJunctionOutletBox && leaderCostadoFloorDuct?.enabled === true) {
+      const floorDuct = createLeaderFloorDuct({
+        groupId,
+        groupName,
+        surfaceRole: 'COSTADO',
+        position: 'CENTER',
+        widthMm: leaderMainDepthMm,
+        depthMm: leaderMainDepthMm,
+        centerX: junctionCostado.position.x,
+        centerZ: junctionCostado.position.z,
+        rotationY: Math.PI / 2,
+        placement: {
+          position: {
+            x: junctionCostado.position.x + (sideKey === 'RIGHT' ? -300 : 300),
+            y: 0,
+            z: sideKey === 'RIGHT' ? -leaderMainDepthMm / 2 + 105.1 : leaderMainDepthMm / 2 - 105.1,
+          },
+          rotation: { x: 0, y: Math.PI / 2, z: 0 },
+        },
+      });
+      floorDuct.meta.targetSurfaceRole = 'MAIN_RETURN_JUNCTION';
+      floorDuct.meta.targetSurfaceKey = 'MAIN_RETURN_JUNCTION';
+      parts.push(floorDuct);
     }
   }
 

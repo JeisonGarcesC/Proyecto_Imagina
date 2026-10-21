@@ -35,6 +35,7 @@ export async function restoreProjectSpecialFinishes(project, parts, getMeshPathK
   const failures = [];
   const restoredMeshes = new Set();
   for (const entry of Array.isArray(project?.specialFinishes) ? project.specialFinishes : []) {
+    if (entry?.entityType === 'WALL' || entry?.entityType === 'COLUMN') continue;
     const record = normalizeSpecialFinishRecord(entry);
     if (!record) {
       failures.push({ kind: 'SPECIAL_FINISH', reason: 'INVALID_SNAPSHOT' });

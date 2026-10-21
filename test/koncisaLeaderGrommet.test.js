@@ -49,6 +49,42 @@ test('omite el acople a pared de la caja lateral cuando está deshabilitado', ()
   );
 });
 
+test('agrega el ducto bajante del costado con caja cuando está habilitado', () => {
+  const product = buildLeader({
+    leaderJunctionHasOutletBox: true,
+    leaderCostadoFloorDuct: { enabled: true },
+  });
+  const floorDuct = product.parts.find((part) => part.meta?.leaderRole === 'COSTADO_FLOOR_DUCT');
+
+  assert.equal(floorDuct?.code, '22000104949');
+  assert.equal(floorDuct?.meta?.targetSurfaceKey, 'MAIN_RETURN_JUNCTION');
+  assert.equal(floorDuct?.position.x, 450);
+  assert.equal(floorDuct?.position.z, -194.9);
+  assert.equal(floorDuct?.rotation.y, Math.PI / 2);
+});
+
+test('refleja la ubicación del ducto y conserva el giro de 90 grados para el puesto LEFT', () => {
+  const product = buildLeader({
+    leaderSide: 'LEFT',
+    leaderJunctionHasOutletBox: true,
+    leaderCostadoFloorDuct: { enabled: true },
+  });
+  const floorDuct = product.parts.find((part) => part.meta?.leaderRole === 'COSTADO_FLOOR_DUCT');
+
+  assert.equal(floorDuct?.position.x, -450);
+  assert.equal(floorDuct?.position.z, 194.9);
+  assert.equal(floorDuct?.rotation.y, Math.PI / 2);
+});
+
+test('no agrega el ducto bajante del costado cuando falta la caja de tomas', () => {
+  const product = buildLeader({ leaderCostadoFloorDuct: { enabled: true } });
+
+  assert.equal(
+    product.parts.some((part) => part.meta?.leaderRole === 'COSTADO_FLOOR_DUCT'),
+    false
+  );
+});
+
 test('permite quitar el grommet principal cuando el retorno se sustituye por credenza', () => {
   const product = buildLeader({ leaderCredenza: { enabled: true } });
   const grommets = getMainGrommets(product);

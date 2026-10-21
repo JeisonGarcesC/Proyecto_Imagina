@@ -49,9 +49,12 @@ import { createDxfCalibration, resolveDxfUnitSelection } from './core/plans/util
 import DxfUnitSelector from './core/plans/components/DxfUnitSelector';
 import {
   normalizeWallDefinition,
+  resizeWallSegment,
   updateWallDefinition,
+  updateWallPoint,
 } from './core/architecture/walls/wallDefinition';
 import { deserializeWalls, serializeWalls } from './core/architecture/walls/wallPersistence';
+import { validateWallPointEdit } from './core/architecture/walls/wallEditValidation';
 import {
   COLUMN_SHAPES,
   normalizeColumnDefinition,
@@ -61,6 +64,11 @@ import {
   deserializeColumns,
   serializeColumns,
 } from './core/architecture/columns/columnPersistence';
+import {
+  COLUMN_HISTORY_TYPES,
+  createColumnHistoryAction,
+  replayColumnHistoryAction,
+} from './core/architecture/columns/columnHistory.js';
 import {
   createDoorDefinition,
   updateDoorDefinition,
@@ -81,6 +89,8 @@ import LeftRail from './components/LeftRail';
 import LeftPanel from './components/LeftPanel';
 import { prepareSpecialFinishVisual } from './specialFinishes/specialFinishVisual.js';
 import { snapshotSpecialFinish } from './specialFinishes/specialFinishPersistence.js';
+import { ARCHITECTURE_FINISH_HISTORY_TYPE, findArchitectureFinish, restoreArchitectureFinishes, setArchitectureFinish } from './specialFinishes/architectureSpecialFinishes.js';
+import { getArchitectureTextureTileSize, normalizeArchitectureTextureScale } from './specialFinishes/architectureTextureUv.js';
 
 import { loadCategoriasIntranet } from './services/categoriasIntranet.js';
 
@@ -282,14 +292,35 @@ export default function App() {
     );
   };
 
+  const applyWallPointEdit = (candidate) => {
+    const result = validateWallPointEdit(candidate, walls, openings);
+    if (result.ok) setWalls(result.walls);
+    return result;
+  };
+
+  const handleWallSegmentLength = (segmentIndex, length) =>
+    applyWallPointEdit(resizeWallSegment(selectedWall, segmentIndex, length));
+
+  const handleWallPointChange = (pointIndex, axis, value) => {
+    const point = selectedWall?.points?.[pointIndex];
+    if (!point || !['x', 'z'].includes(axis)) return { ok: false, error: 'Punto inválido.' };
+    return applyWallPointEdit(updateWallPoint(selectedWall, pointIndex, { ...point, [axis]: value }));
+  };
+
   const handleDeleteWall = () => {
     if (!selectedWall || selectedWall.locked) return;
+    setArchitectureSpecialFinishes((current) => setArchitectureFinish(current, 'WALL', selectedWall.id, null));
     setWalls((currentWalls) => currentWalls.filter((wall) => wall.id !== selectedWall.id));
     setOpenings((current) => deleteOpeningsForWall(current, selectedWall.id));
     setSelectedOpeningId(null);
     setSelectedWallId(null);
   };
   const [columns, setColumns] = useState([]);
+  const [architectureSpecialFinishes, setArchitectureSpecialFinishes] = useState([]);
+  const architectureSpecialFinishesRef = useRef([]);
+  architectureSpecialFinishesRef.current = architectureSpecialFinishes;
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
   const [columnMode, setColumnMode] = useState('NONE');
   const [columnShape, setColumnShape] = useState(COLUMN_SHAPES.RECTANGLE);
   const [columnWidth, setColumnWidth] = useState(0.3);
@@ -301,6 +332,49 @@ export default function App() {
     () => columns.find((column) => column.id === selectedColumnId) || null,
     [columns, selectedColumnId]
   );
+  const selectedFinishTarget = wallMode === 'EDIT' && selectedWall
+    ? { entityType: 'WALL', entityId: selectedWall.id }
+    : columnMode === 'EDIT' && selectedColumn
+      ? { entityType: 'COLUMN', entityId: selectedColumn.id }
+      : null;
+  const selectedFinishTargetRef = useRef(selectedFinishTarget);
+  selectedFinishTargetRef.current = selectedFinishTarget;
+
+  useEffect(() => {
+    if (!threeApi?.setArchitectureFinishReplayHandler) return undefined;
+    threeApi.setArchitectureFinishReplayHandler((action, direction) => {
+      const entry = direction === 'undo' ? action.before : action.after;
+      const next = setArchitectureFinish(architectureSpecialFinishesRef.current,
+        action.entityType, action.entityId, entry);
+      architectureSpecialFinishesRef.current = next;
+      setArchitectureSpecialFinishes(next);
+      return true;
+    });
+    return () => threeApi.setArchitectureFinishReplayHandler(null);
+  }, [threeApi]);
+
+  useEffect(() => {
+    if (!threeApi?.setColumnHistoryReplayHandler) return undefined;
+    const replay = (action, direction) => {
+      const restored = replayColumnHistoryAction(action, direction);
+      if (!restored) return false;
+      columnsRef.current = restored;
+      setColumns(restored);
+      setSelectedColumnId((id) => restored.some((column) => column.id === id) ? id : null);
+      return true;
+    };
+    threeApi.setColumnHistoryReplayHandler(replay);
+    return () => threeApi.setColumnHistoryReplayHandler(null);
+  }, [threeApi]);
+
+  const commitColumns = (next, type) => {
+    const action = createColumnHistoryAction(type, columnsRef.current, next);
+    if (!action) return false;
+    columnsRef.current = action.after.columns;
+    setColumns(action.after.columns);
+    threeApiRef.current?.recordColumnHistoryAction?.(action);
+    return true;
+  };
 
   const handleColumnModeChange = (nextMode) => {
     setColumnMode(nextMode);
@@ -314,16 +388,16 @@ export default function App() {
 
   const handleColumnChange = (patch) => {
     if (!selectedColumnId) return;
-    setColumns((current) =>
-      current.map((column) =>
-        column.id === selectedColumnId ? updateColumnDefinition(column, patch) || column : column
-      )
+    const next = columnsRef.current.map((column) =>
+      column.id === selectedColumnId ? updateColumnDefinition(column, patch) || column : column
     );
+    commitColumns(next, COLUMN_HISTORY_TYPES.UPDATE);
   };
 
   const handleDeleteColumn = () => {
     if (!selectedColumn || selectedColumn.locked) return;
-    setColumns((current) => current.filter((column) => column.id !== selectedColumn.id));
+    setArchitectureSpecialFinishes((current) => setArchitectureFinish(current, 'COLUMN', selectedColumn.id, null));
+    commitColumns(columnsRef.current.filter((column) => column.id !== selectedColumn.id), COLUMN_HISTORY_TYPES.DELETE);
     setSelectedColumnId(null);
   };
   const [openings, setOpenings] = useState([]);
@@ -794,6 +868,10 @@ export default function App() {
 
     return {
       ...project,
+      specialFinishes: [
+        ...(project.specialFinishes || []).filter((entry) => !['WALL', 'COLUMN'].includes(entry?.entityType)),
+        ...architectureSpecialFinishes,
+      ],
       shapes2D,
       texts2D,
       dimensions,
@@ -906,9 +984,12 @@ export default function App() {
     setSelectedText2DId(null);
     setDetailLevel(4);
     setSelectedWallId(null);
-    setWalls(deserializeWalls(project));
+    const restoredWalls = deserializeWalls(project);
+    const restoredColumns = deserializeColumns(project);
+    setWalls(restoredWalls);
     setSelectedColumnId(null);
-    setColumns(deserializeColumns(project));
+    setColumns(restoredColumns);
+    setArchitectureSpecialFinishes(restoreArchitectureFinishes(project, restoredWalls, restoredColumns));
     setSelectedOpeningId(null);
     setOpenings(deserializeOpenings(project));
     await restorePlan2DFromProject(project);
@@ -1249,6 +1330,7 @@ export default function App() {
           setWalls([]);
           setSelectedColumnId(null);
           setColumns([]);
+          setArchitectureSpecialFinishes([]);
           threeApiRef.current?.clearProject?.();
         }}
         getProjectData={buildProjectData}
@@ -1374,9 +1456,38 @@ export default function App() {
             <LeftPanel
               section={leftSection}
               specialFinishPermissions={permissions}
-              onApplySpecialFinish={async (finish, scope) => {
+              selectedFinishTarget={selectedFinishTarget}
+              onApplySpecialFinish={async (finish, scope, textureScaleInput) => {
                 if (!permissions.includes('finishes.view') || !permissions.includes('finishes.apply')) {
                   throw new Error('No tienes permiso para aplicar acabados especiales.');
+                }
+                if (selectedFinishTarget) {
+                  if (!['RGB', 'TEXTURE'].includes(finish.type)) throw new Error('Tipo de acabado no admitido.');
+                  const { entityType, entityId } = selectedFinishTarget;
+                  const textureScale = finish.type === 'TEXTURE'
+                    ? normalizeArchitectureTextureScale(textureScaleInput) : null;
+                  if (finish.type === 'TEXTURE') {
+                    if (!textureScale) throw new Error('El ancho de repetición debe estar entre 0,01 y 10 m.');
+                    const prepared = await prepareSpecialFinishVisual(finish);
+                    getArchitectureTextureTileSize(prepared.definition.mapTexture, textureScale);
+                  }
+                  if (selectedFinishTargetRef.current?.entityType !== entityType ||
+                    selectedFinishTargetRef.current?.entityId !== entityId) {
+                    throw new Error('La selección cambió. Selecciona de nuevo el muro o la columna.');
+                  }
+                  const before = findArchitectureFinish(architectureSpecialFinishesRef.current, entityType, entityId);
+                  const snapshot = snapshotSpecialFinish(finish);
+                  const after = { source: 'SPECIAL_FINISH', entityType, entityId, scope: 'ENTITY',
+                    snapshot, specialFinishId: snapshot.specialFinishId, revision: snapshot.revision,
+                    ...(textureScale ? { textureScale } : {}) };
+                  const next = setArchitectureFinish(architectureSpecialFinishesRef.current, entityType, entityId, after);
+                  if (next === architectureSpecialFinishesRef.current) return;
+                  architectureSpecialFinishesRef.current = next;
+                  setArchitectureSpecialFinishes(next);
+                  threeApiRef.current?.recordArchitectureFinishHistoryAction?.({
+                    type: ARCHITECTURE_FINISH_HISTORY_TYPE, entityType, entityId, before, after,
+                  });
+                  return;
                 }
                 if (!selectedPart || !threeApiRef.current?.applyFinishToActivePart) {
                   throw new Error('Selecciona primero una parte u objeto del modelo.');
@@ -1472,13 +1583,17 @@ export default function App() {
               setWallThickness={setWallThickness}
               selectedWall={selectedWall}
               onWallChange={handleWallChange}
+              onWallSegmentLength={handleWallSegmentLength}
+              onWallPointChange={handleWallPointChange}
               onDeleteWall={handleDeleteWall}
               onCloseWallProperties={() => setSelectedWallId(null)}
               onUndoLastWall={() => {
                 setWalls((prev) => {
                   const removedWallId = prev.at(-1)?.id;
-                  if (removedWallId)
+                  if (removedWallId) {
                     setOpenings((current) => deleteOpeningsForWall(current, removedWallId));
+                    setArchitectureSpecialFinishes((current) => setArchitectureFinish(current, 'WALL', removedWallId, null));
+                  }
                   return prev.slice(0, -1);
                 });
                 setSelectedWallId(null);
@@ -1486,6 +1601,7 @@ export default function App() {
               }}
               onClearWalls={() => {
                 setWalls([]);
+                setArchitectureSpecialFinishes((current) => current.filter((entry) => entry.entityType !== 'WALL'));
                 setOpenings([]);
                 setSelectedWallId(null);
                 setSelectedOpeningId(null);
@@ -1507,7 +1623,8 @@ export default function App() {
               onDeleteColumn={handleDeleteColumn}
               onCloseColumnProperties={() => setSelectedColumnId(null)}
               onClearColumns={() => {
-                setColumns([]);
+                commitColumns([], COLUMN_HISTORY_TYPES.CLEAR);
+                setArchitectureSpecialFinishes((current) => current.filter((entry) => entry.entityType !== 'COLUMN'));
                 setSelectedColumnId(null);
               }}
               openingMode={openingMode}
@@ -1594,7 +1711,12 @@ export default function App() {
 
           <ThreeCanvas
             walls={walls}
+            architectureSpecialFinishes={architectureSpecialFinishes}
+            wallMode={wallMode}
+            onSelectWall={setSelectedWallId}
             columns={columns}
+            columnMode={columnMode}
+            onSelectColumn={setSelectedColumnId}
             openings={openings}
             readOnly={readOnly}
             onHistoryChange={() => setCritteriumHistoryRevision((value) => value + 1)}
@@ -1776,6 +1898,7 @@ export default function App() {
             }}
             onDeleteSelectedText2D={handleDeleteText2D}
             walls={walls}
+            architectureSpecialFinishes={architectureSpecialFinishes}
             columns={columns}
             openings={openings}
             wallMode={wallMode}
@@ -1791,7 +1914,7 @@ export default function App() {
             onSelectColumn={setSelectedColumnId}
             onAddColumn={(column) => {
               const normalized = normalizeColumnDefinition(column);
-              if (normalized) setColumns((current) => [...current, normalized]);
+              if (normalized) commitColumns([...columnsRef.current, normalized], COLUMN_HISTORY_TYPES.CREATE);
             }}
             openingMode={openingMode}
             doorWidth={doorWidth}

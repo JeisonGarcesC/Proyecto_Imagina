@@ -52,10 +52,13 @@ import {
 } from '../plan2d/geometry2D/shapeInteraction2D';
 import { getEdukWidthInfoByCode } from '../mepal/eduk/products/edukShelfHeightDefinition';
 import { createWallDefinition } from '../core/architecture/walls/wallDefinition';
+import { resolveWallAngularSnap } from '../core/architecture/walls/wallAngularSnap.js';
 import { selectWallAtPoint } from '../core/architecture/walls/wallInteraction2D';
+import { buildResolvedWallFootprint } from '../core/architecture/walls/wallResolvedFootprint.js';
+import { buildResolvedWallColumnFootprint } from '../core/architecture/columns/wallColumnIntersection.js';
+import { architectureFinish2dCss, buildExclusiveWallFinishFootprints, findArchitectureFinish } from '../specialFinishes/architectureSpecialFinishes.js';
 import {
   buildJoinedWallsGeometry2D,
-  getJoinedWallGeometry,
 } from '../core/architecture/walls/wallJoins2D';
 import {
   createColumnDefinition,
@@ -70,7 +73,6 @@ import {
 } from '../core/architecture/openings/doorDefinition';
 import {
   buildDoorGeometry2D,
-  buildWallSegmentPolygons2D,
   projectPointToWallSegment,
 } from '../core/architecture/openings/doorGeometry2D';
 import { selectOpeningAtPoint } from '../core/architecture/openings/openingInteraction2D';
@@ -238,6 +240,7 @@ export default function Plan2DOverlay({
   resolveSelectionTargetIds,
   onPickId,
   walls = [],
+  architectureSpecialFinishes = [],
   wallMode = false,
   selectedWallId = null,
   onSelectWall,
@@ -597,6 +600,7 @@ export default function Plan2DOverlay({
   // draft muros
   const [draftPts, setDraftPts] = useState([]); // [{x,z}...]
   const [mouseWorld, setMouseWorld] = useState(null);
+  const [wallAngleGuide, setWallAngleGuide] = useState(null);
   const [architectureSnap, setArchitectureSnap] = useState(null);
   const [doorPreview, setDoorPreview] = useState(null);
 
@@ -847,11 +851,13 @@ export default function Plan2DOverlay({
     if (wall) onAddWall?.(wall);
     setDraftPts([]);
     setMouseWorld(null);
+    setWallAngleGuide(null);
   }, [draftPts, wallHeight, wallThickness, onAddWall]);
 
   const clearDraft = useCallback(() => {
     setDraftPts([]);
     setMouseWorld(null);
+    setWallAngleGuide(null);
   }, []);
 
   const clearMeasureDraft = useCallback(() => {
@@ -893,6 +899,15 @@ export default function Plan2DOverlay({
       }),
     [walls, columns, getSnapshot, selectedIds]
   );
+  const resolvedWallsGeometry = useMemo(
+    () => columns.length
+      ? buildResolvedWallColumnFootprint(walls, columns, { openings })
+      : buildResolvedWallFootprint(walls, { openings }),
+    [walls, columns, openings]
+  );
+  const exclusiveWallRgbFootprints = useMemo(() =>
+    buildExclusiveWallFinishFootprints(resolvedWallsGeometry, architectureSpecialFinishes),
+  [resolvedWallsGeometry, architectureSpecialFinishes]);
 
   const resolveArchitectureSnap = useCallback(
     (mx, my) => {
@@ -908,6 +923,12 @@ export default function Plan2DOverlay({
     },
     [architectureSnapGeometry, canvasToWorld]
   );
+
+  const resolveWallDraftPoint = useCallback((resolved, points) =>
+    resolveWallAngularSnap(points.at(-1), resolved.point, {
+      pointSnapped: resolved.snapped,
+      scale: viewRef.current.s,
+    }), []);
 
   const resolveDoorAtCanvasPoint = useCallback(
     (mx, my) => {
@@ -1418,7 +1439,9 @@ export default function Plan2DOverlay({
         const resolved = resolveArchitectureSnap(mx, my);
         if (!resolved) return;
         setArchitectureSnap(resolved.snapped ? resolved : null);
-        setMouseWorld({ x: resolved.point.x, z: resolved.point.z });
+        const angular = resolveWallDraftPoint(resolved, draftPts);
+        setMouseWorld(angular.point);
+        setWallAngleGuide(angular.axis);
         return;
       }
 
@@ -1446,6 +1469,8 @@ export default function Plan2DOverlay({
       columnMode,
       canvasToWorld,
       resolveArchitectureSnap,
+      resolveWallDraftPoint,
+      draftPts,
       openingMode,
       resolveDoorAtCanvasPoint,
       invertZ,
@@ -2302,7 +2327,10 @@ export default function Plan2DOverlay({
         const resolved = resolveArchitectureSnap(mx, my);
         if (!resolved) return;
         setArchitectureSnap(resolved.snapped ? resolved : null);
-        setDraftPts((prev) => [...prev, { x: resolved.point.x, z: resolved.point.z }]);
+        const angular = resolveWallDraftPoint(resolved, draftPts);
+        setDraftPts((prev) => [...prev, angular.point]);
+        setMouseWorld(null);
+        setWallAngleGuide(null);
         return;
       }
 
@@ -2355,6 +2383,8 @@ export default function Plan2DOverlay({
       isWallDrawMode,
       canvasToWorld,
       resolveArchitectureSnap,
+      resolveWallDraftPoint,
+      draftPts,
       resolveMeasureSnap,
       getAllBounds,
       pickFootprintHit,
@@ -2639,65 +2669,75 @@ export default function Plan2DOverlay({
       // Muros existentes
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      const joinedWallsGeometry = buildJoinedWallsGeometry2D(walls);
+      const resolvedWalls = resolvedWallsGeometry;
 
+      if (resolvedWalls.rings.length) {
+        ctx.beginPath();
+        resolvedWalls.rings.forEach((ring) => {
+          ring.forEach((point, index) => {
+            const [x, y] = toCanvasLocal(point.x, point.z);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.closePath();
+        });
+        ctx.fillStyle = 'rgba(20,20,20,0.32)';
+        ctx.strokeStyle = 'rgba(20,20,20,0.78)';
+        ctx.lineWidth = 1;
+        ctx.fill('evenodd');
+        ctx.stroke();
+      }
+      ctx.save();
+      ctx.beginPath();
+      resolvedWalls.rings.forEach((ring) => {
+        ring.forEach((point, index) => {
+          const [x, y] = toCanvasLocal(point.x, point.z);
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+      });
+      ctx.clip('evenodd');
+      for (const patch of exclusiveWallRgbFootprints) {
+        ctx.beginPath();
+        patch.rings.forEach((ring) => {
+          ring.forEach((point, index) => {
+            const [x, y] = toCanvasLocal(point.x, point.z);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.closePath();
+        });
+        ctx.fillStyle = patch.color;
+        ctx.fill('evenodd');
+      }
+      ctx.restore();
       for (const wall of walls || []) {
         if (wall?.visible === false) continue;
         const pts = wall?.points || [];
-        if (pts.length < 2) continue;
-
-        const isSelected = wall.id === selectedWallId;
-        const geometry = getJoinedWallGeometry(joinedWallsGeometry, wall.id);
-        if (!geometry) continue;
-        for (const segment of geometry.segmentsGeometry) {
-          const segmentOpenings = openings.filter(
-            (opening) =>
-              opening.wallId === wall.id &&
-              opening.segmentId === segment.segmentId &&
-              validateDoorPlacement(opening, walls, openings).valid
-          );
-          const polygons = segmentOpenings.length
-            ? buildWallSegmentPolygons2D(segment, segmentOpenings)
-            : [segment.polygon];
-          polygons.forEach((polygon) => {
-            ctx.beginPath();
-            polygon.forEach((point, index) => {
-              const [x, y] = toCanvasLocal(point.x, point.z);
-              if (index === 0) ctx.moveTo(x, y);
-              else ctx.lineTo(x, y);
-            });
-            ctx.closePath();
-            ctx.fillStyle = isSelected ? 'rgba(0,145,180,0.32)' : 'rgba(20,20,20,0.32)';
-            ctx.strokeStyle = isSelected ? 'rgba(0,145,180,0.95)' : 'rgba(20,20,20,0.78)';
-            ctx.lineWidth = isSelected ? 3 : 1;
-            ctx.fill();
-            ctx.stroke();
-          });
-        }
-
         for (let i = 0; i < pts.length - 1; i++) {
           const a = pts[i];
           const b = pts[i + 1];
           const len = Math.hypot(b.x - a.x, b.z - a.z);
           const [x1, y1] = toCanvasLocal(a.x, a.z);
           const [x2, y2] = toCanvasLocal(b.x, b.z);
-          const pixLen = Math.hypot(x2 - x1, y2 - y1);
-          if (pixLen > 40) drawDimText(ctx, x1, y1, x2, y2, fmtMeters(len));
+          if (Math.hypot(x2 - x1, y2 - y1) > 40) drawDimText(ctx, x1, y1, x2, y2, fmtMeters(len));
         }
       }
-
-      for (const join of joinedWallsGeometry.joins) {
-        if (!join.patch?.length) continue;
-        const isSelected = join.wallIds.includes(selectedWallId);
+      const selectedWall = walls.find((wall) => wall.id === selectedWallId);
+      if (selectedWall?.visible !== false && selectedWall?.points?.length > 1) {
+        ctx.save();
         ctx.beginPath();
-        join.patch.forEach((point, index) => {
+        selectedWall.points.forEach((point, index) => {
           const [x, y] = toCanvasLocal(point.x, point.z);
           if (index === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
-        ctx.closePath();
-        ctx.fillStyle = isSelected ? 'rgba(0,145,180,0.32)' : 'rgba(20,20,20,0.32)';
-        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,145,180,0.95)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.restore();
       }
 
       for (const column of columns || []) {
@@ -2716,7 +2756,9 @@ export default function Plan2DOverlay({
           });
           ctx.closePath();
         }
-        ctx.fillStyle = isSelected ? 'rgba(168,92,0,0.32)' : 'rgba(70,70,70,0.28)';
+        const columnFinish = findArchitectureFinish(architectureSpecialFinishes, 'COLUMN', column.id);
+        ctx.fillStyle = columnFinish ? architectureFinish2dCss(columnFinish)
+          : isSelected ? 'rgba(168,92,0,0.32)' : 'rgba(70,70,70,0.28)';
         ctx.strokeStyle = isSelected ? 'rgba(190,100,0,0.95)' : 'rgba(35,35,35,0.82)';
         ctx.lineWidth = isSelected ? 3 : 1;
         ctx.fill();
@@ -2796,6 +2838,25 @@ export default function Plan2DOverlay({
           ctx.strokeStyle = 'rgba(56, 194, 212, 0.95)';
           ctx.lineWidth = Math.max(1, wallThickness * s);
           ctx.stroke();
+
+          if (wallAngleGuide && mouseWorld) {
+            const start = draftPts.at(-1);
+            const [x1, y1] = toCanvasLocal(start.x, start.z);
+            const [x2, y2] = toCanvasLocal(mouseWorld.x, mouseWorld.z);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(22, 163, 74, 0.95)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([7, 5]);
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(21, 128, 61, 1)';
+            ctx.font = '12px sans-serif';
+            ctx.fillText(wallAngleGuide === 'HORIZONTAL' ? 'Horizontal' : 'Vertical', x2 + 10, y2 - 10);
+            ctx.restore();
+          }
 
           for (let i = 0; i < pts.length - 1; i++) {
             const a = pts[i];
@@ -3213,9 +3274,13 @@ export default function Plan2DOverlay({
     getSnapshot,
     selectedIds,
     walls,
+    resolvedWallsGeometry,
+    exclusiveWallRgbFootprints,
+    architectureSpecialFinishes,
     isWallDrawMode,
     draftPts,
     mouseWorld,
+    wallAngleGuide,
     wallThickness,
     title,
     ensureInitializedView,

@@ -39,10 +39,12 @@ function redondearAnchoDoble(mm) {
   return 1200;
 }
 
-export default function KoncisaPlusPanel({ onCreate }) {
+export default function KoncisaPlusPanel({ onCreate, onAddDrawer }) {
   const [puestos, setPuestos] = useState(1);
   const [tipoPuesto, setTipoPuesto] = useState('sencillo');
   const [modoEspecial, setModoEspecial] = useState(false);
+  const [addingDrawer, setAddingDrawer] = useState(false);
+  const [drawerError, setDrawerError] = useState('');
 
   const [largoRealMm, setLargoRealMm] = useState(1200);
   const [anchoRealMm, setAnchoRealMm] = useState(600);
@@ -114,6 +116,19 @@ export default function KoncisaPlusPanel({ onCreate }) {
     setSelectedPrivacyPanelFinishId(
       tipo === 'frontal' ? selectedFrontalPrivacyPanelFinishId : selectedLateralPrivacyPanelFinishId
     );
+  };
+
+  const handleAddDrawer = async () => {
+    setAddingDrawer(true);
+    setDrawerError('');
+    try {
+      const result = await onAddDrawer?.();
+      if (!result) throw new Error('No se pudo agregar la cajonera.');
+    } catch (error) {
+      setDrawerError(error?.message || 'No se pudo agregar la cajonera.');
+    } finally {
+      setAddingDrawer(false);
+    }
   };
 
   const largoCobroMm = useMemo(() => {
@@ -307,7 +322,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
   }, [tipoPasoCable]);
 
   const [ductConfigOpen, setDuctConfigOpen] = useState(false);
-  const [ductModes, setDuctModes] = useState([]);
+  const [ductModes, setDuctModes] = useState(['INTERMEDIO']);
 
   useEffect(() => {
     if (tipoPasoCable !== 'grommet') return;
@@ -319,16 +334,16 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
     setDuctModes((prev) =>
       Array.from({ length: puestos }, (_, index) =>
-        String(prev[index] || 'TERMINAL').toUpperCase() === 'INDIVIDUAL'
-          ? 'TERMINAL'
-          : prev[index] || 'TERMINAL'
+        String(prev[index] || 'INTERMEDIO').toUpperCase() === 'INDIVIDUAL'
+          ? 'INTERMEDIO'
+          : prev[index] || 'INTERMEDIO'
       )
     );
   }, [tipoPasoCable, puestos]);
 
   useEffect(() => {
     setDuctModes((prev) => {
-      const next = Array.from({ length: puestos }, (_, i) => prev[i] || 'TERMINAL');
+      const next = Array.from({ length: puestos }, (_, i) => prev[i] || 'INTERMEDIO');
       return next;
     });
   }, [puestos]);
@@ -433,6 +448,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
           <option value="LEADER">Puesto líder</option>
         </select>
       </div>
+
       {layoutType === 'LEADER' && (
         <>
           <div
@@ -1185,6 +1201,35 @@ export default function KoncisaPlusPanel({ onCreate }) {
               </select>
             </div>
           )}
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              padding: 10,
+              background: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <img
+              src="/assets/imagen/KoncisaPlusImagenes/2KAL003000.png"
+              alt="Cajonera móvil Koncisa Plus"
+              style={{ width: 68, height: 68, objectFit: 'contain', flexShrink: 0 }}
+            />
+            <div style={{ display: 'grid', gap: 6, minWidth: 0 }}>
+              <span style={{ fontSize: 12, lineHeight: 1.3 }}>Cajonera móvil Koncisa Plus</span>
+              <button type="button" disabled={addingDrawer} onClick={handleAddDrawer}>
+                {addingDrawer ? 'Agregando...' : 'Agregar cajonera'}
+              </button>
+              {drawerError && (
+                <span role="alert" style={{ color: '#b91c1c', fontSize: 11 }}>
+                  {drawerError}
+                </span>
+              )}
+            </div>
+          </div>
 
           <div
             style={{

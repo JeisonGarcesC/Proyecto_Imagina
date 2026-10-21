@@ -79,8 +79,13 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
   const [outletCouplingEnabled, setOutletCouplingEnabled] = useState(
     part?.meta?.outletCouplingEnabled === true
   );
+  const [floorDuctEnabled, setFloorDuctEnabled] = useState(
+    part?.meta?.floorDuctEnabled === true
+  );
   const [outletCouplingBusy, setOutletCouplingBusy] = useState(false);
   const [outletCouplingError, setOutletCouplingError] = useState('');
+  const [floorDuctBusy, setFloorDuctBusy] = useState(false);
+  const [floorDuctError, setFloorDuctError] = useState('');
   const [placementSide, setPlacementSide] = useState('RIGHT');
 
   async function updateOutletCoupling(enabled) {
@@ -97,6 +102,23 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
       setOutletCouplingError(cause?.message || 'No se pudo actualizar el acople.');
     } finally {
       setOutletCouplingBusy(false);
+    }
+  }
+
+  async function updateFloorDuct(enabled) {
+    setFloorDuctBusy(true);
+    setFloorDuctError('');
+    try {
+      const result = await api?.updateSelectedKoncisaLeaderFloorDuct?.(
+        enabled,
+        part?.parentAssemblyId
+      );
+      if (!result?.success) throw new Error(result?.reason || 'No se pudo actualizar el ducto.');
+      setFloorDuctEnabled(enabled);
+    } catch (cause) {
+      setFloorDuctError(cause?.message || 'No se pudo actualizar el ducto.');
+    } finally {
+      setFloorDuctBusy(false);
     }
   }
 
@@ -159,6 +181,20 @@ export default function KoncisaCostadoProperties({ part, api, onClose }) {
           <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 8 }}>
             Caja de tomas del costado
           </div>
+          <label style={labelStyle}>
+            <input
+              type="checkbox"
+              checked={floorDuctEnabled}
+              disabled={floorDuctBusy}
+              onChange={(event) => updateFloorDuct(event.target.checked)}
+            />{' '}
+            Ducto bajante a piso TKAC120000 (22000104949)
+          </label>
+          {floorDuctError && (
+            <div role="alert" style={{ color: '#b91c1c', fontSize: 12 }}>
+              {floorDuctError}
+            </div>
+          )}
           <label style={labelStyle}>
             <input
               type="checkbox"

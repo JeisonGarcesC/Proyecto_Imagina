@@ -46,6 +46,8 @@ import {
 // ✅ También corregí: applyFinishToActivePart (materialDef no estaba definido) y cleanup de listeners.
 
 import { useEffect, useRef } from 'react';
+import { ARCHITECTURE_FINISH_HISTORY_TYPE, findArchitectureFinish,
+  paintArchitectureFinishes, paintArchitectureFinishTarget } from '../specialFinishes/architectureSpecialFinishes.js';
 import { resolveKuoAVDobleSupportUpdates } from '../mepal/kuoAVDoble/config/kuoAVDobleSupportUpdates.js';
 import {
   expandKuoAVBatchTargets,
@@ -63,6 +65,7 @@ import { createHistoryManager, HISTORY_ACTION_TYPES } from '../history/historyMa
 import { CreateObjectsCommand } from '../history/CreateObjectsCommand';
 import { setClipboard } from '../clipboard/clipboardManager';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
+import { createKoncisaPlusDrawerPart } from '../mepal/koncisaPlus/parts/koncisaPlusDrawer.js';
 import { buildKoncisaPlus } from '../mepal/koncisaPlus/builders/KoncisaPlusBuilder.js';
 import { resolveComponentKey } from '../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe';
 import { createKoncisaSurfaceConfigPatch } from '../mepal/koncisaPlus/rules/koncisaSurfaceComponentRules.js';
@@ -114,8 +117,11 @@ import {
 import { diagnoseDetail2DInstance } from '../plan2d/diagnoseDetail2D';
 import { get2DDetailKey } from '../plan2d/detailSelection2D';
 import { resolveFinishAppearance2D } from '../plan2d/finishAppearance2D';
-import { buildWallsGeometry3D } from '../core/architecture/walls/wallGeometry3D';
+import { buildResolvedWallVolumes3D } from '../core/architecture/walls/wallGeometry3D';
+import { createWallVolumeGeometry } from '../core/architecture/walls/wallExtrusion3D';
+import { resolveWallIdFrom3DHit } from '../core/architecture/walls/wallSelection3D.js';
 import { buildColumnGeometry3D } from '../core/architecture/columns/columnGeometry3D';
+import { COLUMN_HISTORY_TYPES } from '../core/architecture/columns/columnHistory.js';
 import { buildDoorGeometry2D } from '../core/architecture/openings/doorGeometry2D';
 import {
   MAX_IMPORTED_MODEL_SIZE,
@@ -724,13 +730,28 @@ function applyMoreaSeatTurn180(root, rotated180) {
   return true;
 }
 
+function isArchitecturePaintCurrent(entry, currentEntries, currentWalls, currentColumns,
+  paintedWalls, paintedColumns) {
+  if (JSON.stringify(findArchitectureFinish(currentEntries, entry.entityType, entry.entityId))
+    !== JSON.stringify(entry)) return false;
+  const source = entry.entityType === 'WALL' ? paintedWalls : paintedColumns;
+  const current = entry.entityType === 'WALL' ? currentWalls : currentColumns;
+  return source.find((item) => item.id === entry.entityId)
+    === current.find((item) => item.id === entry.entityId);
+}
+
 function ThreeCanvas({
   onApiReady,
   onSelectionChange,
   onHistoryChange,
   onBOMChange,
   walls = [],
+  architectureSpecialFinishes = [],
+  wallMode = 'NONE',
+  onSelectWall,
   columns = [],
+  columnMode = 'NONE',
+  onSelectColumn,
   openings = [],
   readOnly = false,
   materialsByCode,
@@ -749,9 +770,20 @@ function ThreeCanvas({
   const architectureWallsRef = useRef(walls);
   const architectureColumnsRef = useRef(columns);
   const architectureOpeningsRef = useRef(openings);
+  const architectureSpecialFinishesRef = useRef(architectureSpecialFinishes);
+  const previousArchitectureFinishesRef = useRef([]);
   architectureWallsRef.current = walls;
   architectureColumnsRef.current = columns;
+  architectureSpecialFinishesRef.current = architectureSpecialFinishes;
   architectureOpeningsRef.current = openings;
+  const wallModeRef = useRef(wallMode);
+  const onSelectWallRef = useRef(onSelectWall);
+  wallModeRef.current = wallMode;
+  onSelectWallRef.current = onSelectWall;
+  const columnModeRef = useRef(columnMode);
+  const onSelectColumnRef = useRef(onSelectColumn);
+  columnModeRef.current = columnMode;
+  onSelectColumnRef.current = onSelectColumn;
 
   const floorMeshRef = useRef(null);
   const gridHelperRef = useRef(null);
@@ -999,6 +1031,9 @@ function ThreeCanvas({
     let moveSession2D = null;
     let dimensionHistoryReplayHandler = null;
     let shape2DHistoryReplayHandler = null;
+    let columnHistoryReplayHandler = null;
+    let architectureFinishReplayHandler = null;
+    const columnHistoryActionTypes = new Set(Object.values(COLUMN_HISTORY_TYPES));
     const shape2DHistoryActionTypes = new Set([
       HISTORY_ACTION_TYPES.CREATE_SHAPE_2D,
       HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D,
@@ -5840,6 +5875,27 @@ function ThreeCanvas({
       return obj;
     }
 
+    async function addKoncisaPlusDrawer() {
+      if (readOnly) return null;
+      scene.updateMatrixWorld(true);
+      const sceneBounds = new THREE.Box3();
+      parts.forEach(({ obj }) => {
+        if (!obj || obj.userData?.isFloor) return;
+        obj.updateWorldMatrix(true, false);
+        const objectBounds = new THREE.Box3().setFromObject(obj);
+        if (!objectBounds.isEmpty()) sceneBounds.union(objectBounds);
+      });
+      const sceneCenter = new THREE.Vector3();
+      const position = sceneBounds.isEmpty()
+        ? { x: 0, y: 0, z: 0 }
+        : {
+            x: (sceneBounds.max.x + 0.65) * 1000,
+            y: 0,
+            z: sceneBounds.getCenter(sceneCenter).z * 1000,
+          };
+      return addExternalGlbPart(createKoncisaPlusDrawerPart(position));
+    }
+
     async function addMepalSalud(codigoMepal, options = {}) {
       if (readOnly) return;
       const parentGroup = options?.parentGroup || null;
@@ -6809,7 +6865,8 @@ function ThreeCanvas({
     async function applyKoncisaLeaderOutletCouplingConfiguration(
       assembly,
       nextConfig,
-      recordHistory = true
+      recordHistory = true,
+      historyActionType = HISTORY_ACTION_TYPES.KONCISA_LEADER_OUTLET_COUPLING_CHANGE
     ) {
       if (assembly?.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY')
         return { success: false, reason: 'KONCISA_PLUS_ASSEMBLY_REQUIRED' };
@@ -6818,8 +6875,15 @@ function ThreeCanvas({
         nextConfig?.leaderJunctionHasOutletBox === true &&
         nextConfig?.leaderCredenza?.enabled !== true &&
         nextConfig?.leaderCostadoOutletCoupling?.enabled === true;
+      const floorDuctEnabled =
+        nextConfig?.leaderJunctionHasOutletBox === true &&
+        nextConfig?.leaderCredenza?.enabled !== true &&
+        nextConfig?.leaderCostadoFloorDuct?.enabled === true;
       const existingCoupling = assembly.children.find(
         (child) => child.userData?.meta?.leaderRole === 'COSTADO_OUTLET_WALL_COUPLING'
+      );
+      const existingFloorDuct = assembly.children.find(
+        (child) => child.userData?.meta?.leaderRole === 'COSTADO_FLOOR_DUCT'
       );
       const junctionCostado = assembly.children.find(
         (child) => child.userData?.meta?.leaderRole === 'MAIN_RETURN_JUNCTION'
@@ -6841,15 +6905,32 @@ function ThreeCanvas({
         removePartObject(existingCoupling, { exactTarget: true, emitBom: false });
       }
 
+      if (floorDuctEnabled && !existingFloorDuct) {
+        const descriptor = buildKoncisaPlus(nextConfig).parts.find(
+          (part) => part.meta?.leaderRole === 'COSTADO_FLOOR_DUCT'
+        );
+        if (!descriptor) return { success: false, reason: 'LEADER_COSTADO_FLOOR_DUCT_UNAVAILABLE' };
+        const created = await addExternalGlbPart({
+          ...descriptor,
+          groupId: assembly.userData.groupId,
+          groupName: assembly.userData.groupName,
+          parentGroup: assembly,
+        });
+        if (!created) return { success: false, reason: 'LEADER_COSTADO_FLOOR_DUCT_LOAD_FAILED' };
+      } else if (!floorDuctEnabled && existingFloorDuct) {
+        removePartObject(existingFloorDuct, { exactTarget: true, emitBom: false });
+      }
+
       assembly.userData.config = nextConfig;
       if (junctionCostado) junctionCostado.userData.meta.outletCouplingEnabled = enabled;
+      if (junctionCostado) junctionCostado.userData.meta.floorDuctEnabled = floorDuctEnabled;
       setActivePart(assembly, {
         propertiesTarget: junctionCostado || assembly,
         targetIds: [assembly.userData.instanceId],
       });
       if (recordHistory && JSON.stringify(before) !== JSON.stringify(nextConfig)) {
         historyManager.pushAction({
-          type: HISTORY_ACTION_TYPES.KONCISA_LEADER_OUTLET_COUPLING_CHANGE,
+          type: historyActionType,
           instanceId: assembly.userData.instanceId,
           before,
           after: JSON.parse(JSON.stringify(nextConfig)),
@@ -6877,6 +6958,30 @@ function ThreeCanvas({
         leaderCostadoOutletCoupling: { enabled: enabled === true },
       };
       return applyKoncisaLeaderOutletCouplingConfiguration(assembly, nextConfig);
+    }
+
+    function updateSelectedKoncisaLeaderFloorDuct(enabled, instanceId = null) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const selected = getActiveEditablePartObject();
+      const assembly = getKoncisaAssemblyObject(selected || activePart);
+      if (
+        !assembly ||
+        (instanceId &&
+          ![assembly.userData.instanceId, assembly.userData.groupId].includes(instanceId))
+      )
+        return { success: false, reason: 'Selecciona nuevamente el costado Koncisa Plus.' };
+      if (assembly.userData.config?.leaderJunctionHasOutletBox !== true)
+        return { success: false, reason: 'LEADER_OUTLET_BOX_REQUIRED' };
+      const nextConfig = {
+        ...assembly.userData.config,
+        leaderCostadoFloorDuct: { enabled: enabled === true },
+      };
+      return applyKoncisaLeaderOutletCouplingConfiguration(
+        assembly,
+        nextConfig,
+        true,
+        HISTORY_ACTION_TYPES.KONCISA_LEADER_COSTADO_FLOOR_DUCT_CHANGE
+      );
     }
 
     function addLocker(config = {}, options = {}) {
@@ -12934,6 +13039,7 @@ function ThreeCanvas({
       addPlant,
       importModelFile,
       addOfficeAccessory,
+      addKoncisaPlusDrawer,
       addMepalSalud,
       addMepalTekSocial,
       addClak,
@@ -12951,6 +13057,7 @@ function ThreeCanvas({
       updateSelectedLinkComponent,
       updateSelectedKoncisaSurface,
       updateSelectedKoncisaLeaderOutletCoupling,
+      updateSelectedKoncisaLeaderFloorDuct,
       getSelectedKoncisaSimpleReturnConfig,
       updateSelectedKoncisaSimpleReturn,
       addLocker,
@@ -13267,6 +13374,22 @@ function ThreeCanvas({
       },
       setDimensionHistoryReplayHandler: (handler) => {
         dimensionHistoryReplayHandler = typeof handler === 'function' ? handler : null;
+        return true;
+      },
+      recordColumnHistoryAction: (action) => {
+        if (!columnHistoryActionTypes.has(action?.type)) return null;
+        return historyManager.pushAction(action);
+      },
+      setColumnHistoryReplayHandler: (handler) => {
+        columnHistoryReplayHandler = typeof handler === 'function' ? handler : null;
+        return true;
+      },
+      recordArchitectureFinishHistoryAction: (action) => {
+        if (action?.type !== ARCHITECTURE_FINISH_HISTORY_TYPE) return null;
+        return historyManager.pushAction(action);
+      },
+      setArchitectureFinishReplayHandler: (handler) => {
+        architectureFinishReplayHandler = typeof handler === 'function' ? handler : null;
         return true;
       },
       recordShape2DHistoryAction: (action) => {
@@ -14187,10 +14310,22 @@ function ThreeCanvas({
         return applyKoncisaLeaderOutletCouplingConfiguration(
           findPartById(action.instanceId),
           state || {},
-          false
+          false,
+          HISTORY_ACTION_TYPES.KONCISA_LEADER_OUTLET_COUPLING_CHANGE
         ).then((result) => {
           if (!result?.success)
             throw new Error(result?.reason || 'KONCISA_LEADER_OUTLET_COUPLING_HISTORY_FAILED');
+          return result;
+        });
+      } else if (action.type === HISTORY_ACTION_TYPES.KONCISA_LEADER_COSTADO_FLOOR_DUCT_CHANGE) {
+        return applyKoncisaLeaderOutletCouplingConfiguration(
+          findPartById(action.instanceId),
+          state || {},
+          false,
+          HISTORY_ACTION_TYPES.KONCISA_LEADER_COSTADO_FLOOR_DUCT_CHANGE
+        ).then((result) => {
+          if (!result?.success)
+            throw new Error(result?.reason || 'KONCISA_LEADER_FLOOR_DUCT_HISTORY_FAILED');
           return result;
         });
       } else if (action.type === HISTORY_ACTION_TYPES.LOCKER_CONFIG_CHANGE) {
@@ -14270,6 +14405,16 @@ function ThreeCanvas({
           throw new Error('Dimension2D history replay handler is not registered.');
         }
         return dimensionHistoryReplayHandler(action, direction);
+      } else if (columnHistoryActionTypes.has(action.type)) {
+        if (typeof columnHistoryReplayHandler !== 'function') {
+          throw new Error('Column history replay handler is not registered.');
+        }
+        return columnHistoryReplayHandler(action, direction);
+      } else if (action.type === ARCHITECTURE_FINISH_HISTORY_TYPE) {
+        if (typeof architectureFinishReplayHandler !== 'function') {
+          throw new Error('Architecture finish history replay handler is not registered.');
+        }
+        return architectureFinishReplayHandler(action, direction);
       } else if (shape2DHistoryActionTypes.has(action.type)) {
         if (typeof shape2DHistoryReplayHandler !== 'function') {
           throw new Error('Shape2D history replay handler is not registered.');
@@ -17957,10 +18102,37 @@ function ThreeCanvas({
 
       if (!pickables.length) return;
 
-      const hits = raycaster.intersectObjects(pickables, true);
+      const selectionPickables = columnModeRef.current === 'EDIT'
+        ? [...pickables, columnsGroup, wallsGroup]
+        : wallModeRef.current === 'EDIT'
+          ? [...pickables, wallsGroup, columnsGroup]
+          : pickables;
+      const hits = raycaster.intersectObjects(selectionPickables, true);
       if (!hits.length) return;
 
-      const hitObj = hits[0].object; // Mesh real clickeado
+      const firstHit = hits[0];
+      if (columnModeRef.current === 'EDIT' && firstHit.object.userData?.kind === 'COLUMN') {
+        const columnId = firstHit.object.userData.columnId;
+        if (architectureColumnsRef.current.some((column) => column.id === columnId && column.visible !== false)) {
+          onSelectColumnRef.current?.(columnId);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+      if (wallModeRef.current === 'EDIT' &&
+          (firstHit.object.userData?.kind === 'WALL' || firstHit.object.userData?.kind === 'DOOR')) {
+        const wallId = resolveWallIdFrom3DHit(firstHit, architectureWallsRef.current);
+        if (wallId) {
+          onSelectWallRef.current?.(wallId);
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+      }
+      if (['WALL', 'DOOR', 'COLUMN'].includes(firstHit.object.userData?.kind)) return;
+
+      const hitObj = firstHit.object; // Mesh real clickeado
       const multipleSystemProduct = getMultipleSystemProductFromHit(hitObj);
       const root = getMultipleRoot(hitObj) || getRootPartObject(hitObj);
       if (!root) return;
@@ -23413,6 +23585,8 @@ function ThreeCanvas({
     return () => {
       dimensionHistoryReplayHandler = null;
       shape2DHistoryReplayHandler = null;
+      columnHistoryReplayHandler = null;
+      architectureFinishReplayHandler = null;
       historyManager.clearHistory();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
@@ -23508,19 +23682,20 @@ function ThreeCanvas({
 
     const matBase = new THREE.MeshStandardMaterial({ color: 0xdddddd });
 
-    const wallsGeometry = buildWallsGeometry3D(walls, { openings });
-    for (const segment of wallsGeometry.segmentsGeometry) {
-      if (segment.length < 0.001) continue;
-      const geom = new THREE.BoxGeometry(segment.length, segment.height, segment.thickness);
-      const mesh = new THREE.Mesh(geom, matBase.clone());
+    const volumes = buildResolvedWallVolumes3D(walls, { openings, columns });
+    for (const [index, volume] of volumes.entries()) {
+      const geom = createWallVolumeGeometry(volume);
+      if (!geom) continue;
+      const finishClasses = geom.userData.wallFinishClasses || [];
+      const mesh = new THREE.Mesh(geom,
+        finishClasses.length ? finishClasses.map(() => matBase.clone()) : matBase.clone());
 
-      mesh.name = segment.segmentId;
-      // centro del segmento, apoyado en el piso
-      mesh.position.set(segment.center.x, segment.center.y, segment.center.z);
-      mesh.rotation.y = segment.rotationY;
+      mesh.name = `WALL_VOLUME_${index}`;
+      mesh.position.y = volume.baseElevation;
       mesh.userData.kind = 'WALL';
-      mesh.userData.wallId = segment.wallId;
-      mesh.userData.segmentId = segment.segmentId;
+      mesh.userData.wallIds = volume.wallIds;
+      mesh.userData.wallTextureSources = volume.sources;
+      if (volume.wallIds.length === 1) mesh.userData.wallId = volume.wallIds[0];
 
       group.add(mesh);
     }
@@ -23547,8 +23722,14 @@ function ThreeCanvas({
       mesh.userData.wallId = opening.wallId;
       group.add(mesh);
     }
+    paintArchitectureFinishes(group, null, architectureSpecialFinishesRef.current,
+      architectureWallsRef.current, architectureColumnsRef.current, {
+        isCurrent: (entry) => isArchitecturePaintCurrent(entry,
+          architectureSpecialFinishesRef.current, architectureWallsRef.current,
+          architectureColumnsRef.current, walls, columns),
+      }).catch((error) => console.warn('No se pudo restaurar la textura del muro:', error));
     refreshFloorAndGridRef.current?.();
-  }, [walls, openings]);
+  }, [walls, openings, columns]);
 
   useEffect(() => {
     const group = columnsGroupRef.current;
@@ -23580,8 +23761,35 @@ function ThreeCanvas({
       mesh.userData.columnId = column.id;
       group.add(mesh);
     }
+    paintArchitectureFinishes(null, group, architectureSpecialFinishesRef.current,
+      architectureWallsRef.current, architectureColumnsRef.current, {
+        isCurrent: (entry) => isArchitecturePaintCurrent(entry,
+          architectureSpecialFinishesRef.current, architectureWallsRef.current,
+          architectureColumnsRef.current, walls, columns),
+      }).catch((error) => console.warn('No se pudo restaurar la textura de la columna:', error));
     refreshFloorAndGridRef.current?.();
   }, [columns]);
+
+  useEffect(() => {
+    const before = previousArchitectureFinishesRef.current;
+    const after = architectureSpecialFinishes;
+    const keys = new Set([...before, ...after].map((entry) => `${entry.entityType}:${entry.entityId}`));
+    for (const key of keys) {
+      const [entityType, ...idParts] = key.split(':');
+      const entityId = idParts.join(':');
+      const previous = before.find((entry) => entry.entityType === entityType && entry.entityId === entityId);
+      const current = after.find((entry) => entry.entityType === entityType && entry.entityId === entityId);
+      if (JSON.stringify(previous) !== JSON.stringify(current)) {
+        paintArchitectureFinishTarget(wallsGroupRef.current, columnsGroupRef.current,
+          after, entityType, entityId, architectureWallsRef.current, architectureColumnsRef.current, {
+            isCurrent: (entry) => isArchitecturePaintCurrent(entry,
+              architectureSpecialFinishesRef.current, architectureWallsRef.current,
+              architectureColumnsRef.current, walls, columns),
+          }).catch((error) => console.warn('No se pudo aplicar el acabado arquitectónico:', error));
+      }
+    }
+    previousArchitectureFinishesRef.current = after;
+  }, [architectureSpecialFinishes]);
 
   return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
 }

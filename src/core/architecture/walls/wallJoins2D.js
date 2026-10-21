@@ -169,11 +169,14 @@ function applyMiter(node, epsilon) {
     x: node.point.x + ref.normal.x * ref.segment.halfThickness * sign,
     z: node.point.z + ref.normal.z * ref.segment.halfThickness * sign,
   });
-  const plus = lineIntersection(offsetOrigin(a, 1), a.ray, offsetOrigin(b, 1), b.ray, epsilon);
-  const minus = lineIntersection(offsetOrigin(a, -1), a.ray, offsetOrigin(b, -1), b.ray, epsilon);
+  // Las dos caras que se encuentran usan signos opuestos: ambas referencias
+  // apuntan desde el nodo hacia afuera. Emparejar signos iguales crea una
+  // diagonal entre esquinas opuestas en el contorno exterior de una L.
+  const plus = lineIntersection(offsetOrigin(a, 1), a.ray, offsetOrigin(b, -1), b.ray, epsilon);
+  const minus = lineIntersection(offsetOrigin(a, -1), a.ray, offsetOrigin(b, 1), b.ray, epsilon);
   if (!plus || !minus) return;
   setEndpointCorners(a, plus, minus);
-  setEndpointCorners(b, plus, minus);
+  setEndpointCorners(b, minus, plus);
 }
 
 function resolveHostAndBranches(node, epsilon) {
