@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { PERMISSION_CATALOG, assertUniquePermissionKeys } from '../src/permissions/permissionCatalog.js';
 import { ROLE_CATALOG } from '../src/roles/roleCatalog.js';
+import { reconcileFinishRolePermissions } from '../src/roles/reconcileFinishRolePermissions.js';
 
 const prisma = new PrismaClient();
 
@@ -30,6 +31,10 @@ async function seed() {
         update: {},
         create: { roleId: role.id, permissionId: permission.id },
       });
+    }
+
+    if (roleData.key === 'COMMERCIAL' || roleData.key === 'VIEWER') {
+      await reconcileFinishRolePermissions(prisma, role, permissions);
     }
   }
 }

@@ -259,6 +259,27 @@ export function resolveSnapPoint({
   return { snapped: true, ...resolved, screenPoint: screenPoint || null };
 }
 
+// Ayuda angular para el segundo punto de una cota. El snap a geometría conserva prioridad.
+export function resolveDimensionAxisAssist(startPoint, resolvedSnap, scale) {
+  const point = resolvedSnap?.point;
+  if (!isFinitePoint(startPoint) || !isFinitePoint(point) || resolvedSnap.snapped ||
+      !Number.isFinite(scale) || scale <= 0) return { ...resolvedSnap, axis: null };
+  const dx = point.x - startPoint.x;
+  const dz = point.z - startPoint.z;
+  const distancePx = Math.hypot(dx, dz) * scale;
+  if (distancePx < 14) return { ...resolvedSnap, axis: null };
+  const angleTolerance = Math.tan(12 * Math.PI / 180);
+  if (Math.abs(dx) >= Math.abs(dz) && Math.abs(dz / dx) <= angleTolerance &&
+      Math.abs(dz) * scale <= 18) {
+    return { ...resolvedSnap, point: { x: point.x, z: startPoint.z }, axis: 'HORIZONTAL' };
+  }
+  if (Math.abs(dz) > Math.abs(dx) && Math.abs(dx / dz) <= angleTolerance &&
+      Math.abs(dx) * scale <= 18) {
+    return { ...resolvedSnap, point: { x: startPoint.x, z: point.z }, axis: 'VERTICAL' };
+  }
+  return { ...resolvedSnap, axis: null };
+}
+
 const PLACEMENT_PRIORITY = Object.freeze({
   [PLACEMENT_SNAP_TYPES.VERTEX_TO_VERTEX]: 0,
   [PLACEMENT_SNAP_TYPES.CENTER_TO_CENTER]: 1,

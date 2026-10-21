@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { buildSnapGeometry, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
+import { buildSnapGeometry, resolveDimensionAxisAssist, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
 import { buildElevationSnapGeometry } from '../plan2d/geometry2D/elevation2D';
 import {
   createDimension2D,
@@ -801,15 +801,16 @@ export default function Plan2DOverlay({
     (mx, my) => {
       const worldPoint = canvasToWorld(mx, my);
       if (!worldPoint) return null;
-      return resolveSnapPoint({
+      const resolved = resolveSnapPoint({
         worldPoint,
         screenPoint: { x: mx, y: my },
         scale: viewRef.current.s,
         geometry: getDimensionSnapGeometry(),
         tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
       });
+      return measureStart ? resolveDimensionAxisAssist(measureStart, resolved, viewRef.current.s) : resolved;
     },
-    [canvasToWorld, getDimensionSnapGeometry]
+    [canvasToWorld, getDimensionSnapGeometry, measureStart]
   );
 
   const pickDimensionAtCanvasPoint = useCallback(
@@ -1430,7 +1431,7 @@ export default function Plan2DOverlay({
       if (measureMode) {
         const resolved = resolveMeasureSnap(mx, my);
         if (!resolved) return;
-        setMeasureSnap(resolved.snapped ? resolved : null);
+        setMeasureSnap(resolved.snapped || resolved.axis ? resolved : null);
         if (measureStart) setMeasureHover(resolved.point);
         return;
       }
@@ -1465,6 +1466,7 @@ export default function Plan2DOverlay({
     [
       measureMode,
       measureStart,
+      resolveMeasureSnap,
       isWallDrawMode,
       columnMode,
       canvasToWorld,
@@ -2270,7 +2272,7 @@ export default function Plan2DOverlay({
         const resolved = resolveMeasureSnap(mx, my);
         if (!resolved) return;
         const wpt = resolved.point;
-        setMeasureSnap(resolved.snapped ? resolved : null);
+        setMeasureSnap(resolved.snapped || resolved.axis ? resolved : null);
 
         if (!measureStart) {
           setMeasureStart({
@@ -2286,7 +2288,9 @@ export default function Plan2DOverlay({
 
         if (len > 0.001) {
           const dimension = createDimension2D({
-            type: DIMENSION_TYPES.ALIGNED,
+            type: resolved.axis === 'HORIZONTAL' ? DIMENSION_TYPES.LINEAR_HORIZONTAL
+              : resolved.axis === 'VERTICAL' ? DIMENSION_TYPES.LINEAR_VERTICAL
+                : DIMENSION_TYPES.ALIGNED,
             startPoint: measureStart,
             endPoint: wpt,
             references: {
@@ -3167,7 +3171,9 @@ export default function Plan2DOverlay({
         const len = Math.hypot(measureHover.x - measureStart.x, measureHover.z - measureStart.z);
 
         if (len > 0.001) {
-          drawMeasureLine(ctx, x1, y1, x2, y2, fmtMeasure(len), {
+          const axisLabel = measureSnap?.axis === 'HORIZONTAL' ? ' · Horizontal'
+            : measureSnap?.axis === 'VERTICAL' ? ' · Vertical' : '';
+          drawMeasureLine(ctx, x1, y1, x2, y2, `${fmtMeasure(len)}${axisLabel}`, {
             preview: true,
           });
         }

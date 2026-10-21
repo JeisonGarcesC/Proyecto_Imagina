@@ -22,7 +22,7 @@ const DEV_USERS = Object.freeze({
 const DEV_FINISH_PERMISSIONS = Object.freeze({
   administrador: Object.freeze(['finishes.view', 'finishes.apply', 'finishes.create', 'finishes.delete']),
   diseno: Object.freeze(['finishes.view', 'finishes.apply', 'finishes.create', 'finishes.delete']),
-  comercial: Object.freeze(['finishes.view', 'finishes.apply', 'finishes.create']),
+  comercial: Object.freeze([]),
 });
 
 export const DEV_USER_OPTIONS = Object.freeze(

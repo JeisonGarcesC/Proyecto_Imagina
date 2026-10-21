@@ -10,7 +10,7 @@ const expected = [
 const finishPermissions = {
   administrador: ['finishes.view', 'finishes.apply', 'finishes.create', 'finishes.delete'],
   diseno: ['finishes.view', 'finishes.apply', 'finishes.create', 'finishes.delete'],
-  comercial: ['finishes.view', 'finishes.apply', 'finishes.create'],
+  comercial: [],
 };
 
 test('expone las tres opciones de desarrollo esperadas', () => {
