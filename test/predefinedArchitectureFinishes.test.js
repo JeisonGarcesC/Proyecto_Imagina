@@ -115,3 +115,36 @@ test('historial conserva textura oficial al alternar con RGB y entre dos oficial
     assert.equal(findArchitectureFinish(entries, 'WALL', 'W1').specialFinishId, next.specialFinishId);
   }
 });
+
+test('nuevas familias se aplican a cuatro muros y a columnas con el motor existente', async () => {
+  const catalog = predefinedCatalog.list().items;
+  const finishes = ['Ladrillo blanco', 'Piedra clara', 'Concreto oscuro', 'Roble claro']
+    .map((name) => catalog.find((item) => item.name === name && item.category === 'WALL'));
+  const walls = finishes.map((_, index) => definition(`W${index + 1}`,
+    [index * 4, 0], [index * 4 + 2, 0]));
+  const group = wallGroup(walls);
+  const entries = finishes.map((finish, index) => assignment(finish, 'WALL', `W${index + 1}`));
+  const textures = new Map(finishes.map((finish) => [finish.id,
+    new THREE.Texture({ width: 512, height: 512 })]));
+  const prepareVisual = async (finish) => ({ definition: { mapTexture: textures.get(finish.id) } });
+  for (const entry of entries) await paintArchitectureFinishTarget(group, null, entries,
+    'WALL', entry.entityId, walls, [], { prepareVisual });
+  for (const [index, mesh] of group.children.entries()) {
+    assert.ok(mesh.material.some((material) => material.map === textures.get(finishes[index].id)));
+  }
+  assert.deepEqual(restoreArchitectureFinishes(JSON.parse(JSON.stringify({ specialFinishes: entries })), walls), entries);
+
+  const columns = [{ id: 'C1', diameter: 0.5 }, { id: 'C2', diameter: 0.5 }];
+  const columnGroup = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(.5, 2.5, .5), new THREE.MeshStandardMaterial());
+  const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(.25, .25, 2.5, 16), new THREE.MeshStandardMaterial());
+  box.userData = { kind: 'COLUMN', columnId: 'C1' };
+  cylinder.userData = { kind: 'COLUMN', columnId: 'C2' };
+  cylinder.rotation.y = Math.PI / 4;
+  columnGroup.add(box, cylinder);
+  const columnEntries = [assignment(finishes[0], 'COLUMN', 'C1'), assignment(finishes[1], 'COLUMN', 'C2')];
+  for (const entry of columnEntries) await paintArchitectureFinishTarget(null, columnGroup,
+    columnEntries, 'COLUMN', entry.entityId, [], columns, { prepareVisual });
+  assert.equal(box.material.map, textures.get(finishes[0].id));
+  assert.equal(cylinder.material.map, textures.get(finishes[1].id));
+});

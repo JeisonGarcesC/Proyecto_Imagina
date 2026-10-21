@@ -7,6 +7,7 @@ import { loginSession, logoutSession } from '../src/auth/authApi.js';
 import { createSpecialFinish, getSpecialFinishTextureBlob, listPredefinedSpecialFinishes, listSpecialFinishes,
   specialFinishError, uploadSpecialFinishTexture } from '../src/specialFinishes/specialFinishApi.js';
 import { parseRgbChannels, validateTextureFile } from '../src/specialFinishes/specialFinishValidation.js';
+import { filterPredefinedFinishes } from '../src/specialFinishes/predefinedFinishFilters.js';
 
 let vite;
 let LeftRail;
@@ -16,7 +17,8 @@ let SpecialFinishResults;
 before(async () => {
   vite = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
   LeftRail = (await vite.ssrLoadModule('/src/components/LeftRail.jsx')).default;
-  ({ default: SpecialFinishesPanel, SpecialFinishCard, SpecialFinishResults } = await vite.ssrLoadModule('/src/components/SpecialFinishesPanel.jsx'));
+  ({ default: SpecialFinishesPanel, SpecialFinishCard, SpecialFinishResults } =
+    await vite.ssrLoadModule('/src/components/SpecialFinishesPanel.jsx'));
 });
 after(async () => { await vite?.close(); });
 
@@ -39,6 +41,18 @@ test('rail muestra la sección solo con permiso y el panel inicia en carga', () 
   assert.match(cannotCreate, /Cargando acabados/);
   assert.match(cannotCreate, /Texturas predeterminadas/);
   assert.match(cannotCreate, /Mis acabados/);
+  assert.match(cannotCreate, /Familia/);
+});
+
+test('filtros del catálogo separan ámbito y familia sin alterar personalizados', () => {
+  const items = [
+    { name: 'Ladrillo blanco', category: 'WALL', subcategory: 'BRICK' },
+    { name: 'Roble claro', category: 'WALL', subcategory: 'WOOD' },
+    { name: 'Roble natural', category: 'FLOOR', subcategory: 'WOOD' },
+  ];
+  assert.deepEqual(filterPredefinedFinishes(items, '', ''), items);
+  assert.deepEqual(filterPredefinedFinishes(items, 'WALL', 'WOOD'), [items[1]]);
+  assert.deepEqual(filterPredefinedFinishes(items, 'FLOOR', ''), [items[2]]);
 });
 
 test('card RGB usa canales de servidor y card TEXTURE no usa asset URL directamente', () => {

@@ -128,7 +128,8 @@ test('catálogo oficial usa identidad estable, preview autenticada y protege rev
       await writeFile(path.join(folder, filename), png);
     }
     const catalog = createPredefinedCatalog({ schemaVersion: 1, items: [
-      { id: firstId, name: 'Ladrillo grande', category: 'WALL',
+      { id: firstId, name: 'Ladrillo grande', category: 'WALL', subcategory: 'BRICK',
+        origin: 'GENERATED_LOCALLY', license: 'Proyecto Imagina original',
         compatibleScopes: ['WALL', 'COLUMN'], suggestedTileWidth: 0.25,
         revisions: [
           { revision: 1, assetId: firstAsset, assetVersion: 1,
@@ -136,7 +137,8 @@ test('catálogo oficial usa identidad estable, preview autenticada y protege rev
           { revision: 2, assetId: laterAsset, assetVersion: 2,
             image: 'walls/brick-v2.png', preview: 'walls/brick-preview.png' },
         ] },
-      { id: floorId, name: 'Alfombra', category: 'FLOOR',
+      { id: floorId, name: 'Alfombra', category: 'FLOOR', subcategory: 'CARPET',
+        origin: 'GENERATED_LOCALLY', license: 'Proyecto Imagina original',
         compatibleScopes: ['FLOOR'], suggestedTileWidth: 0.5,
         revisions: [{ revision: 1, assetId: floorAsset, assetVersion: 1,
           image: 'floors/carpet.png', preview: 'floors/carpet-preview.png' }] },
@@ -181,26 +183,36 @@ test('catálogo oficial usa identidad estable, preview autenticada y protege rev
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
-test('ocho patrones originales instalados quedan separados de personalizados y usan previews pequeñas', async () => {
-  assert.equal(predefinedCatalog.list().total, 8);
-  assert.equal(predefinedCatalog.list('ladrillo').total, 2);
-  assert.equal(predefinedCatalog.list('piedra').total, 1);
-  assert.equal(predefinedCatalog.list('alfombra').total, 1);
+test('biblioteca profesional conserva originales, separa personalizados y usa previews pequeñas', async () => {
+  assert.equal(predefinedCatalog.list().total, 40);
+  assert.equal(predefinedCatalog.list('ladrillo').total, 6);
+  assert.ok(predefinedCatalog.list('piedra').total >= 5);
+  assert.ok(predefinedCatalog.list('alfombra').total >= 3);
+  assert.ok(predefinedCatalog.list('gris').items.every((item) => item.name.toLowerCase().includes('gris')));
   const wallItems = predefinedCatalog.list().items.filter((item) => item.category === 'WALL');
   const floorItems = predefinedCatalog.list().items.filter((item) => item.category === 'FLOOR');
-  assert.equal(wallItems.length, 4);
-  assert.equal(floorItems.length, 4);
+  assert.equal(wallItems.length, 26);
+  assert.equal(floorItems.length, 14);
   assert.ok(wallItems.every((item) => item.compatibleScopes.includes('COLUMN')));
   assert.ok(floorItems.every((item) => !item.compatibleScopes.includes('WALL')));
+  assert.equal(new Set(predefinedCatalog.list().items.map((item) => item.id)).size, 40);
   for (const item of predefinedCatalog.list().items) {
     const asset = predefinedCatalog.getAsset(item.asset.id);
+    assert.equal(item.source, 'PREDEFINED');
+    assert.equal(item.type, 'TEXTURE');
+    assert.equal(item.revision, 1);
+    assert.equal(item.asset.version, 1);
+    assert.ok(item.subcategory);
+    assert.equal(item.origin, 'GENERATED_LOCALLY');
+    assert.equal(item.license, 'Proyecto Imagina original');
+    assert.ok(item.suggestedTileWidth >= 0.01 && item.suggestedTileWidth <= 10);
     assert.equal(asset.width, 512);
     assert.equal(asset.height, 512);
     assert.ok((await readFile(asset.previewFilename)).length < (await readFile(asset.filename)).length);
   }
   await serverTest(fixture({ permissions: ['finishes.view'] }), async (base, headers) => {
     assert.equal((await (await fetch(base, { headers })).json()).total, 0);
-    assert.equal((await (await fetch(`${base}/predefined`, { headers })).json()).total, 8);
+    assert.equal((await (await fetch(`${base}/predefined`, { headers })).json()).total, 40);
     const assetId = wallItems[0].asset.id;
     assert.equal((await fetch(`${base}/textures/${assetId}?preview=1`, { headers })).status, 200);
     assert.equal((await fetch(`${base}/textures/${assetId}`, { headers })).status, 200);

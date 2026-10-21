@@ -3,10 +3,14 @@ import { createSpecialFinish, getSpecialFinishTextureBlob, listPredefinedSpecial
   specialFinishError, uploadSpecialFinishTexture } from '../specialFinishes/specialFinishApi.js';
 import { parseRgbChannels, validateTextureFile } from '../specialFinishes/specialFinishValidation.js';
 import { DEFAULT_TEXTURE_TILE_WIDTH, normalizeArchitectureTextureScale } from '../specialFinishes/architectureTextureUv.js';
+import { filterPredefinedFinishes } from '../specialFinishes/predefinedFinishFilters.js';
 import './SpecialFinishesPanel.css';
 
 const PAGE_SIZE = 12;
 const EMPTY_RGB = { r: '', g: '', b: '' };
+const SUBCATEGORY_LABELS = { BRICK: 'Ladrillos', STONE: 'Piedras', CONCRETE: 'Concretos',
+  CERAMIC: 'Cerámicos', WOOD: 'Maderas', CLADDING: 'Revestimientos',
+  PORCELAIN: 'Porcelanatos', TILE: 'Baldosas', CARPET: 'Alfombras' };
 
 function rgbCss(rgb) {
   const channels = parseRgbChannels(rgb);
@@ -54,6 +58,7 @@ export function SpecialFinishCard({ finish, canApply = false, hasSelection = fal
       <span className="sf-type">{finish.type === 'RGB' ? 'RGB' : 'TEXTURA'}</span>
       {finish.source === 'PREDEFINED' ? <>
         <small>{finish.category === 'WALL' ? 'Muros y columnas' : 'Pisos'}</small>
+        {finish.subcategory && <small>{SUBCATEGORY_LABELS[finish.subcategory] || finish.subcategory}</small>}
         <small>Ancho sugerido: {finish.suggestedTileWidth} m</small>
       </> : <>
         <small>{finish.createdBy?.displayName || 'Usuario anterior'} · {date}</small>
@@ -163,6 +168,8 @@ export default function SpecialFinishesPanel({ canCreate = false, canApply = fal
   const [result, setResult] = useState({ key: null, data: null, error: '' });
   const [predefinedResult, setPredefinedResult] = useState({ key: null, data: null, error: '' });
   const [predefinedRevision, setPredefinedRevision] = useState(0);
+  const [predefinedCategory, setPredefinedCategory] = useState('');
+  const [predefinedSubcategory, setPredefinedSubcategory] = useState('');
   const [creating, setCreating] = useState(false);
   const [scope, setScope] = useState('PART');
   const [applyingId, setApplyingId] = useState(null);
@@ -205,6 +212,11 @@ export default function SpecialFinishesPanel({ canCreate = false, canApply = fal
     setRevision((current) => current + 1);
   };
   const pageCount = Math.max(1, Math.ceil((data?.total || 0) / PAGE_SIZE));
+  const predefinedItems = filterPredefinedFinishes(predefinedResult.data?.items || [],
+    predefinedCategory, predefinedSubcategory);
+  const availableSubcategories = [...new Set((predefinedResult.data?.items || [])
+    .filter((finish) => !predefinedCategory || finish.category === predefinedCategory)
+    .map((finish) => finish.subcategory).filter(Boolean))];
   const apply = async (finish) => {
     if (!canApply || (!selectedPart && !selectedFinishTarget) || !onApply) return;
     if (finish.source === 'PREDEFINED' && (!selectedFinishTarget ||
@@ -244,10 +256,26 @@ export default function SpecialFinishesPanel({ canCreate = false, canApply = fal
     </div>}
     {applyError && <p className="sf-error" role="alert">{applyError}</p>}
     <h4>Texturas predeterminadas</h4>
+    <div className="sf-catalog-filters">
+      <label className="sf-field">Ámbito
+        <select value={predefinedCategory} onChange={(event) => {
+          setPredefinedCategory(event.target.value); setPredefinedSubcategory('');
+        }}>
+          <option value="">Todos</option><option value="WALL">Muros y columnas</option><option value="FLOOR">Pisos</option>
+        </select>
+      </label>
+      <label className="sf-field">Familia
+        <select value={predefinedSubcategory} onChange={(event) => setPredefinedSubcategory(event.target.value)}>
+          <option value="">Todas</option>
+          {availableSubcategories.map((value) => <option value={value} key={value}>
+            {SUBCATEGORY_LABELS[value] || value}</option>)}
+        </select>
+      </label>
+    </div>
     {predefinedResult.key !== `${search}:${predefinedRevision}` ? <p role="status">Cargando texturas…</p>
       : predefinedResult.error ? <div className="sf-error" role="alert">{predefinedResult.error}
         <button type="button" onClick={() => setPredefinedRevision((value) => value + 1)}>Reintentar</button></div>
-        : predefinedResult.data?.items?.length ? <div className="sf-list">{predefinedResult.data.items.map((finish) =>
+        : predefinedItems.length ? <div className="sf-list sf-predefined-list">{predefinedItems.map((finish) =>
           <SpecialFinishCard key={`${finish.id}:${finish.revision}`} finish={finish} canApply={canApply}
             hasSelection={Boolean(selectedFinishTarget)}
             applicable={Boolean(selectedFinishTarget && finish.compatibleScopes?.includes(selectedFinishTarget.entityType))}

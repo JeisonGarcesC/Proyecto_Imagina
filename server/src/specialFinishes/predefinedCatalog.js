@@ -8,6 +8,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FILE = /^(walls|floors)\/[a-z0-9_-]+\.(jpg|jpeg|png)$/;
 const CATEGORIES = new Set(['WALL', 'FLOOR']);
 const SCOPES = new Set(['WALL', 'COLUMN', 'FLOOR']);
+const SUBCATEGORIES = new Set(['BRICK', 'STONE', 'CONCRETE', 'CERAMIC', 'WOOD',
+  'CLADDING', 'PORCELAIN', 'TILE', 'CARPET']);
 
 function checkedImage(root, relativePath) {
   if (!FILE.test(relativePath)) throw new Error(`Imagen predeterminada inválida: ${relativePath}`);
@@ -30,7 +32,9 @@ export function createPredefinedCatalog(manifest, root = ROOT) {
       !CATEGORIES.has(item.category) || !Array.isArray(item.compatibleScopes) ||
       !item.compatibleScopes.length || item.compatibleScopes.some((scope) => !SCOPES.has(scope)) ||
       !Number.isFinite(item.suggestedTileWidth) || item.suggestedTileWidth < 0.01 ||
-      item.suggestedTileWidth > 10 || !Array.isArray(item.revisions) || !item.revisions.length) {
+      item.suggestedTileWidth > 10 || !Array.isArray(item.revisions) || !item.revisions.length ||
+      !SUBCATEGORIES.has(item.subcategory) || item.origin !== 'GENERATED_LOCALLY' ||
+      item.license !== 'Proyecto Imagina original') {
       throw new Error(`Definición predeterminada inválida: ${item?.id || '(sin ID)'}`);
     }
     ids.add(item.id);
@@ -54,7 +58,8 @@ export function createPredefinedCatalog(manifest, root = ROOT) {
       if (!current || version.revision > current.revision) current = { revision: version.revision, asset };
     }
     finishes.push(Object.freeze({ id: item.id, name: item.name, type: 'TEXTURE', source: 'PREDEFINED',
-      revision: current.revision, category: item.category,
+      revision: current.revision, category: item.category, subcategory: item.subcategory,
+      origin: item.origin, license: item.license,
       compatibleScopes: Object.freeze([...new Set(item.compatibleScopes)]),
       suggestedTileWidth: item.suggestedTileWidth,
       asset: Object.freeze({ id: current.asset.id, version: current.asset.version,

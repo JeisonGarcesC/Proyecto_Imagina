@@ -5,6 +5,9 @@
 .sf-panel .sf-primary:hover:not(:disabled) { background: #202020; color: #fff; }
 .sf-field { display: grid; gap: 4px; min-width: 0; font-size: 12px; font-weight: 600; }
 .sf-field input { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px; }
+.sf-field select { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px; }
+.sf-catalog-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sf-predefined-list { max-height: 460px; overflow-y: auto; padding-right: 4px; }
 .sf-list { display: grid; gap: 10px; min-width: 0; }
 .sf-card { display: flex; align-items: center; gap: 10px; padding: 10px; min-width: 0; border: 1px solid #e5e7eb; border-radius: 9px; background: #fff; box-shadow: 0 3px 9px #0000000d; }
 .sf-preview { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 7px; border: 1px solid #ddd; object-fit: cover; overflow: hidden; }
