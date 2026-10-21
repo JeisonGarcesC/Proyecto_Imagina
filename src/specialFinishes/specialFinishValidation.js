@@ -13,6 +13,7 @@ export function validateTextureFile(file) {
   if (!/\.(jpe?g|png)$/i.test(file.name || '')) return 'La imagen debe ser JPG, JPEG o PNG.';
   const expectedMime = /\.png$/i.test(file.name) ? 'image/png' : 'image/jpeg';
   if (file.type !== expectedMime) return 'El formato de la imagen no coincide con el archivo.';
-  if (!file.size || file.size > MAX_TEXTURE_BYTES) return 'La imagen debe pesar entre 1 byte y 5 MiB.';
+  if (!file.size) return 'La imagen está vacía.';
+  if (file.size > MAX_TEXTURE_BYTES) return 'La imagen supera el tamaño máximo de 5 MiB.';
   return null;
 }

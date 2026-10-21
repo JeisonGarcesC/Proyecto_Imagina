@@ -61,7 +61,10 @@ export function SpecialFinishCard({ finish, canApply = false, hasSelection = fal
         {finish.subcategory && <small>{SUBCATEGORY_LABELS[finish.subcategory] || finish.subcategory}</small>}
         <small>Ancho sugerido: {finish.suggestedTileWidth} m</small>
       </> : <>
-        <small>{finish.createdBy?.displayName || 'Usuario anterior'} · {date}</small>
+        <small>Creado por: {finish.createdBy?.displayName || 'Usuario no disponible'}</small>
+        <small>{date} · Revisión {finish.revision ?? '—'}</small>
+        {finish.type === 'TEXTURE' && Number.isFinite(finish.asset?.byteSize) &&
+          <small>Tamaño: {(finish.asset.byteSize / 1024 / 1024).toFixed(2)} MiB</small>}
         <small className="sf-active">Activo</small>
       </>}
       {canApply && <button type="button" disabled={!hasSelection || applying || !applicable} onClick={() => onApply?.(finish)}

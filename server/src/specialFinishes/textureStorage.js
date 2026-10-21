@@ -72,8 +72,13 @@ export function texturePath(storageKey) {
 export async function storeTexture(bytes, mimeType, filename) {
   const metadata = validateTexture(bytes, mimeType, filename);
   const storageKey = `${randomUUID()}.${metadata.mimeType === 'image/png' ? 'png' : 'jpg'}`;
-  await mkdir(storageDir(), { recursive: true });
-  await writeFile(texturePath(storageKey), bytes, { flag: 'wx', mode: 0o600 });
+  try {
+    await mkdir(storageDir(), { recursive: true });
+    await writeFile(texturePath(storageKey), bytes, { flag: 'wx', mode: 0o600 });
+  } catch (error) {
+    throw Object.assign(new Error('No se pudo guardar la textura.', { cause: error }),
+      { status: 500, code: 'TEXTURE_STORAGE_FAILED' });
+  }
   return { ...metadata, storageKey };
 }
 

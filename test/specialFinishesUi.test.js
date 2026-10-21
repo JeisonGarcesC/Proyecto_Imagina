@@ -4,7 +4,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 import { loginSession, logoutSession } from '../src/auth/authApi.js';
-import { createSpecialFinish, getSpecialFinishTextureBlob, listPredefinedSpecialFinishes, listSpecialFinishes,
+import { createSpecialFinish, getSpecialFinishTextureBlob, listPredefinedSpecialFinishes, listSpecialFinishes, MAX_TEXTURE_BYTES,
   specialFinishError, uploadSpecialFinishTexture } from '../src/specialFinishes/specialFinishApi.js';
 import { parseRgbChannels, validateTextureFile } from '../src/specialFinishes/specialFinishValidation.js';
 import { filterPredefinedFinishes } from '../src/specialFinishes/predefinedFinishFilters.js';
@@ -62,13 +62,19 @@ test('card RGB usa canales de servidor y card TEXTURE no usa asset URL directame
   } }));
   assert.match(rgb, /rgb\(4, 8, 240\)/);
   assert.match(rgb, /Ana/);
+  assert.match(rgb, /Creado por: Ana/);
+  assert.match(rgb, /Revisión/);
   assert.match(rgb, /Activo/);
   const texture = renderToStaticMarkup(React.createElement(SpecialFinishCard, { finish: {
-    id: '2', name: 'Nogal', type: 'TEXTURE', asset: { id: 'asset-1', url: 'https://private.example/secret' },
+    id: '2', name: 'Nogal', type: 'TEXTURE', revision: 1,
+    asset: { id: 'asset-1', byteSize: 2_464_154, url: 'https://private.example/secret' },
   } }));
   assert.match(texture, /TEXTURA/);
   assert.doesNotMatch(texture, /private.example/);
   assert.match(texture, /Cargando/);
+  assert.match(texture, /Usuario no disponible/);
+  assert.match(texture, /Tamaño: 2.35 MiB/);
+  assert.match(texture, /Revisión 1/);
   const predefined = renderToStaticMarkup(React.createElement(SpecialFinishCard, { finish: {
     id: '3', name: 'Ladrillo', type: 'TEXTURE', source: 'PREDEFINED', category: 'WALL',
     suggestedTileWidth: 0.25, asset: { id: 'asset-3' },
@@ -109,6 +115,10 @@ test('validación preliminar RGB y textura', () => {
   assert.equal(parseRgbChannels({ r: '2.5', g: '0', b: '0' }), null);
   assert.equal(parseRgbChannels({ r: '', g: '0', b: '0' }), null);
   assert.equal(validateTextureFile({ name: 'wood.jpg', type: 'image/jpeg', size: 100 }), null);
+  assert.equal(MAX_TEXTURE_BYTES, 5_242_880);
+  assert.equal(validateTextureFile({ name: 'wood.png', type: 'image/png', size: 2_464_154 }), null);
+  assert.equal(validateTextureFile({ name: 'wood.png', type: 'image/png', size: MAX_TEXTURE_BYTES }), null);
+  assert.match(validateTextureFile({ name: 'wood.png', type: 'image/png', size: MAX_TEXTURE_BYTES + 1 }), /supera el tamaño máximo de 5 MiB/);
   assert.match(validateTextureFile({ name: 'wood.svg', type: 'image/svg+xml', size: 100 }), /JPG/);
   assert.match(validateTextureFile({ name: 'wood.jpg', type: 'image/png', size: 100 }), /formato/);
   assert.match(validateTextureFile({ name: 'wood.png', type: 'image/png', size: 6 * 1024 * 1024 }), /5 MiB/);
@@ -162,4 +172,8 @@ test('errores comunes se presentan sin mensajes técnicos', () => {
     assert.doesNotMatch(message, /stack|prisma|sql/i);
   }
   assert.match(specialFinishError(new Error('network')), /conectar/);
+  assert.match(specialFinishError({ status: 413, code: 'TEXTURE_TOO_LARGE' }), /supera el tamaño máximo de 5 MiB/);
+  assert.doesNotMatch(specialFinishError({ status: 413 }), /supera el tamaño máximo de 5 MiB/);
+  assert.doesNotMatch(specialFinishError({ status: 500 }), /5 MiB/);
+  assert.match(specialFinishError({ status: 500, code: 'TEXTURE_STORAGE_FAILED' }), /guardar la imagen/);
 });

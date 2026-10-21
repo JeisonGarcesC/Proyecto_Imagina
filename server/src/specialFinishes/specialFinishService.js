@@ -3,7 +3,7 @@ import { storeTexture, removeFailedUpload } from './textureStorage.js';
 import { predefinedCatalog } from './predefinedCatalog.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const include = { createdBy: { select: { id: true, displayName: true } }, asset: { select: {
+const include = { createdBy: { select: { displayName: true } }, asset: { select: {
   id: true, mimeType: true, byteSize: true, width: true, height: true, version: true, createdAt: true,
 } } };
 

@@ -26,7 +26,7 @@ function fixture({ permissions = [], role = 'DESIGNER', auditFailure = false } =
   const authUser = { id: userId, status: 'ACTIVE', tokenVersion: 1,
     roles: [{ role: { key: role, enabled: true, permissions: permissions.map((key) => ({ permission: { key } })) } }],
     permissionOverrides: [] };
-  const hydrate = (row) => row && { ...row, createdBy: { id: userId, displayName: 'Test' },
+  const hydrate = (row) => row && { ...row, createdBy: { displayName: 'Test' },
     asset: row.assetId ? assets.get(row.assetId) : null };
   const db = {
     user: { findUnique: async () => authUser },
@@ -220,12 +220,62 @@ test('biblioteca profesional conserva originales, separa personalizados y usa pr
 });
 
 test('textura valida extensión, MIME, tamaño y firma', () => {
+  const exact = Buffer.concat([png.subarray(0, -12),
+    Buffer.alloc(MAX_TEXTURE_BYTES - png.length), png.subarray(-12)]);
+  assert.equal(MAX_TEXTURE_BYTES, 5_242_880);
+  assert.equal(validateTexture(exact, 'image/png', 'sample.png').byteSize, MAX_TEXTURE_BYTES);
+  assert.equal(validateTexture(png, 'image/png', 'sample.png').byteSize, png.length);
   assert.equal(validateTexture(png, 'image/png', 'sample.png').width, 1);
   assert.throws(() => validateTexture(png, 'image/png', 'sample.svg'), { code: 'TEXTURE_EXTENSION_INVALID' });
   assert.throws(() => validateTexture(png, 'image/jpeg', 'sample.jpg'), { code: 'TEXTURE_INVALID' });
   assert.throws(() => validateTexture(png, 'image/jpeg', 'sample.png'), { code: 'TEXTURE_MIME_INVALID' });
   assert.throws(() => validateTexture(png.subarray(0, 24), 'image/png', 'sample.png'), { code: 'TEXTURE_INVALID' });
   assert.throws(() => validateTexture(Buffer.alloc(MAX_TEXTURE_BYTES + 1), 'image/png', 'sample.png'), { code: 'TEXTURE_TOO_LARGE' });
+});
+
+test('upload HTTP acepta 2,35 MiB y 5 MiB exactos; rechaza más de 5 MiB', async () => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'imagina-limit-'));
+  const old = process.env.SPECIAL_FINISH_STORAGE_DIR;
+  process.env.SPECIAL_FINISH_STORAGE_DIR = folder;
+  try {
+    const fx = fixture({ permissions: ['finishes.create'] });
+    await serverTest(fx, async (base, headers) => {
+      for (const size of [2_464_154, MAX_TEXTURE_BYTES]) {
+        const bytes = Buffer.concat([png.subarray(0, -12),
+          Buffer.alloc(size - png.length), png.subarray(-12)]);
+        const response = await fetch(`${base}/textures`, { method: 'POST', headers: {
+          ...headers, 'content-type': 'image/png', 'x-file-name': 'sample.png',
+        }, body: bytes });
+        assert.equal(response.status, 201, String(size));
+      }
+      const tooLarge = await fetch(`${base}/textures`, { method: 'POST', headers: {
+        ...headers, 'content-type': 'image/png', 'x-file-name': 'sample.png',
+      }, body: Buffer.alloc(MAX_TEXTURE_BYTES + 2) });
+      assert.equal(tooLarge.status, 413);
+      assert.equal((await tooLarge.json()).error, 'TEXTURE_TOO_LARGE');
+    });
+  } finally {
+    if (old === undefined) delete process.env.SPECIAL_FINISH_STORAGE_DIR; else process.env.SPECIAL_FINISH_STORAGE_DIR = old;
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
+test('ADMIN y DESIGNER crean y consultan acabado con autor, fecha y revisión sin datos privados', async () => {
+  for (const role of ['ADMIN', 'DESIGNER']) {
+    const fx = fixture({ role, permissions: ['finishes.view', 'finishes.create'] });
+    await serverTest(fx, async (base, headers) => {
+      const created = await fetch(base, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ name: role, type: 'RGB', rgb: { r: 1, g: 2, b: 3 } }) });
+      assert.equal(created.status, 201);
+      const listed = await (await fetch(base, { headers })).json();
+      assert.equal(listed.items[0].createdBy.displayName, 'Test');
+      assert.ok(listed.items[0].createdAt);
+      assert.equal(listed.items[0].revision, 1);
+      assert.equal(listed.items[0].createdById, undefined);
+      assert.equal(listed.items[0].createdBy.id, undefined);
+      assert.equal(listed.items[0].createdBy.passwordHash, undefined);
+    });
+  }
 });
 
 test('upload, creación TEXTURE y archivado conservan bytes sin auditarlos', async () => {
