@@ -14,7 +14,7 @@ const RETURN_GROMMET_TOWARD_MAIN_MM=158,RETURN_GROMMET_OUTER_EDGE_MM=120;
 export function createLeaderReturnSurface(config,layout){
   const effective={...config,widthMm:config.returnLengthMm,depthMm:config.returnDepthMm,cableAccess:config.leaderReturnGrommet?'grommet':'none'};
   return createSuperficie({config:effective,key:'return-surface',widthMm:layout.returnLengthMm,depthMm:config.returnDepthMm,
-    position:[layout.returnX,0,layout.returnZ],rotationY:layout.returnRotation,leaderRole:'RETURN',grommetLeader:false,
+    position:[layout.returnX,0,layout.returnZ],rotationY:layout.returnRotation,leaderRole:'RETURN',grommetLeader:true,
     grommetOffset:{xMm:-layout.sign*RETURN_GROMMET_TOWARD_MAIN_MM,zMm:config.returnDepthMm/2-RETURN_GROMMET_OUTER_EDGE_MM}});
 }
 

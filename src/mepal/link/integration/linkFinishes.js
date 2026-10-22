@@ -27,12 +27,26 @@ export function reapplyLinkFinishes(object, materialsByCode, applyMaterial) {
   }
 }
 export function getLinkSelectionInfo(object, node) {
-  const d=node?.userData?.componentKey ? node.userData : object.userData;
-  const materialCode=resolveLinkFinishCode(object.userData.config,d);
-  return {code:d.codigoPT || null,description:d.description,dimMm:d.dim || object.userData.dim,
-    materialBase:d.materialBase || null,materialCode,subMaterialCode:materialCode,
-    componentRole:d.componentRole || null,componentKey:d.componentKey || null,
-    componentConfig:d.componentConfig || null,configTargetKey:d.configTargetKey || d.componentKey || null,
-    leaderRole:d.leaderRole || null,meta:d.meta || null,
-    subName:d.componentKey ? d.description:null,config:object.userData.config,kind:'LINK_PRODUCT',line:'LINK'};
+  const component = object?.children?.find(c => c.userData?.componentKey && c.userData.componentKey === node?.userData?.componentKey) || (node?.userData?.componentKey ? node : object);
+  const d = component?.userData || {};
+  const materialCode = resolveLinkFinishCode(object.userData.config, d);
+  return {
+    code: d.codigoPT || null,
+    description: d.description,
+    dimMm: d.dim || object.userData.dim,
+    materialBase: d.materialBase || null,
+    materialCode,
+    subMaterialCode: materialCode,
+    componentRole: d.componentRole || null,
+    componentKey: d.componentKey || null,
+    componentConfig: d.componentConfig || null,
+    configTargetKey: d.configTargetKey || d.componentKey || null,
+    leaderRole: d.leaderRole || null,
+    meta: d.meta || null,
+    is120: !!(d.is120 || node?.userData?.is120 || object.userData?.config?.type === 'puesto120'),
+    subName: d.componentKey ? d.description : null,
+    config: object.userData.config,
+    kind: 'LINK_PRODUCT',
+    line: 'LINK',
+  };
 }

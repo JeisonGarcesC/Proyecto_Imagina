@@ -6,6 +6,7 @@ export const LINK_DEFAULT_CONFIG = Object.freeze({
   leaderCredenza: false, credenzaLengthMm: 1200, credenzaModel: 'LKAL160000',
   surfaceColor: '#d8c4a5', structureColor: '#444b52', pedestalColor: '#d8c4a5',
   hasPantallaFrontal: false, pantallaFrontalMaterial: 'formica',
+  hasPantallaLateral: false, pantallaLateralMaterial: 'formica', pantallaLateralSide: 'ambos',
   hasPantallaFalda: false, pantallaFaldaMaterial: 'formica',
   integracionType: 'ninguna', integracionSide: 'ambas', integracionHoleSide: 'derecha',
 });

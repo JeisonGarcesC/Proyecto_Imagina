@@ -46,7 +46,7 @@ export default function LinkEditor({ initialConfig, onApply, editing = false, re
     </div>}
     {preview.error && <div role="alert">{preview.error}</div>}
     <button type="button" disabled={readOnly || busy || !!preview.error} onClick={apply} style={btnStyle}>
-      {busy ? 'Aplicando…' : editing ? 'Aplicar cambios' : config.type === 'credenza' ? 'Crear puesto credenza' : config.type === 'lider' ? 'Crear puesto líder' : 'Crear puesto LINK'}
+      {busy ? 'Aplicando…' : editing ? 'Aplicar cambios' : config.type === 'credenza' ? 'Crear puesto credenza' : config.type === 'lider' ? 'Crear puesto líder' : config.type === 'puesto120' ? 'Crear puesto 120°' : 'Crear puesto LINK'}
     </button>
     {message && <div role="status" style={{ fontSize: 12 }}>{message}</div>}
   </div>;

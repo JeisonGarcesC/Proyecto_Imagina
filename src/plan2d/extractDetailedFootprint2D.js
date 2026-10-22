@@ -123,10 +123,19 @@ export function extractDetailedFootprint2D(
       ].join(':')
     );
 
+    const isDense = position.count > 500;
+    const seen = isDense ? new Set() : null;
     const points = [];
     for (let index = 0; index < position.count; index += 1) {
       vertex.fromBufferAttribute(position, index).applyMatrix4(relativeMatrix);
       if (Number.isFinite(vertex.x) && Number.isFinite(vertex.z)) {
+        if (isDense) {
+          const qx = Math.round(vertex.x * 4000);
+          const qz = Math.round(vertex.z * 4000);
+          const key = `${qx}:${qz}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+        }
         points.push({ x: vertex.x, z: vertex.z });
       }
     }

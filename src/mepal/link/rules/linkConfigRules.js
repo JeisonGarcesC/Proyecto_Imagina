@@ -21,6 +21,22 @@ export function normalizeLinkConfig(input = {}) {
       hasDuct: false, hasPantallaFrontal: false, hasPantallaLateral: false, hasPantallaFalda: false, integracionType: 'ninguna',
       leaderCredenza: false, leaderReturnGrommet: false });
   }
+  if (c.type === 'puesto120') {
+    const depthMm = [600, 750].includes(Number(c.depthMm)) ? Number(c.depthMm) : 600;
+    const disp = c.disposicion120 || 'individual';
+    const is360 = disp === '360';
+    const isDoble = disp === 'doble';
+    const puestos = is360 ? 3 : (isDoble ? 2 : 1);
+    Object.assign(c, {
+      disposicion120: disp,
+      side120: ['derecha', 'izquierda'].includes(c.side120) ? c.side120 : 'derecha',
+      grommetSide120: ['izquierda', 'derecha', 'ambos'].includes(c.grommetSide120) ? c.grommetSide120 : 'izquierda',
+      widthMm: 1200, depthMm, puestos, modoEspecial: false, surfaceMode: 'principal',
+      hasDuct: (is360 || isDoble) ? (c.hasDuct !== false) : false,
+      hasPantallaFrontal: false, hasPantallaLateral: false, hasPantallaFalda: false, integracionType: 'ninguna',
+      leaderCredenza: false, leaderReturnGrommet: false
+    });
+  }
   for (const key of ['pasacable', 'ducto', 'ductCover', 'floorDuct', 'ceilingDuct']) {
     if (input[key] && input[key] !== 'none') throw new Error('Configura los accesorios desde la pieza LINK correspondiente.');
   }
@@ -29,10 +45,12 @@ export function normalizeLinkConfig(input = {}) {
   if (typeof c.hasDuct !== 'boolean') throw new Error('Opción de ducto LINK inválida.');
   const leader = isLinkLeader(c.type), widths = leader ? LINK_LEADER_WIDTHS : LINK_WIDTHS;
   const widthMm = Number(c.widthMm), depthMm = Number(c.depthMm), puestos = Number(c.puestos);
-  if (!Number.isInteger(puestos) || puestos < 1 || puestos > 12 || (leader && puestos !== 1)) throw new Error('Cantidad de puestos no válida.');
   const special = c.modoEspecial === true;
-  if (special ? !Number.isFinite(widthMm) || widthMm < (leader ? 1500 : 900) || widthMm > (leader ? 1800 : 1851) || !Number.isFinite(depthMm) || depthMm < 600 || depthMm > 750
-    : !widths.includes(widthMm) || !LINK_DEPTHS.includes(depthMm)) throw new Error('Dimensiones LINK no disponibles.');
+  if (c.type !== 'credenza' && c.type !== 'puesto120') {
+    if (!Number.isInteger(puestos) || puestos < 1 || puestos > 12 || (leader && puestos !== 1)) throw new Error('Cantidad de puestos no válida.');
+    if (special ? !Number.isFinite(widthMm) || widthMm < (leader ? 1500 : 900) || widthMm > (leader ? 1800 : 1851) || !Number.isFinite(depthMm) || depthMm < 600 || depthMm > 750
+      : !widths.includes(widthMm) || !LINK_DEPTHS.includes(depthMm)) throw new Error('Dimensiones LINK no disponibles.');
+  }
   if (!['principal', 'plena'].includes(c.surfaceMode) || (c.type !== 'doble' && c.surfaceMode !== 'principal')) throw new Error('Superficie LINK no disponible.');
   if (!['derecha', 'izquierda'].includes(c.side)) throw new Error('Entrega LINK no disponible.');
   const returnLengthMm = Number(c.returnLengthMm), returnDepthMm = Number(c.returnDepthMm);
@@ -46,10 +64,11 @@ export function normalizeLinkConfig(input = {}) {
   if (!LINK_SUPPORT_SHAPES.some(s => s.value === c.tipoCostado)) throw new Error('Tipo de costado no disponible.');
   if (!['PINTADO','CROMADO'].includes(c.supportFinish)) throw new Error('Acabado de costado inválido.');
   if (!['none','grommet'].includes(c.cableAccess) || !['ALUMINIUM','PAINTED'].includes(c.grommetFinish)) throw new Error('Grommet LINK no válido.');
-  if (!['ninguna', 'individual', 'recta', 'redonda', 'curva'].includes(c.integracionType)) throw new Error('Superficie de integración LINK no válida.');
+  if (!['ninguna', 'individual', 'recta', 'redonda', 'curva', '120'].includes(c.integracionType)) throw new Error('Superficie de integración LINK no válida.');
   if (!['ambas', 'izquierda', 'derecha'].includes(c.integracionSide)) throw new Error('Lado de integración LINK no válido.');
   if (!['izquierda', 'derecha'].includes(c.integracionHoleSide)) throw new Error('Lado del orificio LINK no válido.');
-  if (c.type === 'sencillo' && !['ninguna', 'individual'].includes(c.integracionType)) throw new Error('En puesto individual, la integración LINK disponible es la individual.');
+  if (c.type === 'sencillo' && c.integracionType === '120') c.integracionType = 'ninguna';
+  if (c.type === 'sencillo' && !['ninguna', 'individual'].includes(c.integracionType)) throw new Error('En puesto individual, la integración LINK disponible es individual.');
   if (c.type === 'doble' && ['individual'].includes(c.integracionType)) throw new Error('La integración individual LINK solo está disponible en puesto individual.');
   if (!['sencillo', 'doble'].includes(c.type) && c.integracionType !== 'ninguna') throw new Error('Superficie de integración LINK no disponible para este tipo.');
   if (typeof c.leaderReturnGrommet !== 'boolean' || typeof c.leaderCredenza !== 'boolean') throw new Error('Configuración líder LINK inválida.');
@@ -64,7 +83,7 @@ export function normalizeLinkConfig(input = {}) {
   const finishAssignments = {};
   for (const [key,value] of Object.entries(c.finishAssignments || {})) if (typeof value === 'string' && /^(?:\*|role:[A-Z_]+|component:[\w-]+)$/.test(key)) finishAssignments[key] = value.trim();
   return { type:c.type, widthMm, depthMm, surfaceMode:c.surfaceMode, returnLengthMm, returnDepthMm, side:c.side,
-    puestos, modoEspecial:special, finishId:c.finishId, tipoCostado:c.tipoCostado, supportFinish:c.supportFinish,
+    puestos, modoEspecial:c.modoEspecial === true, finishId:c.finishId, tipoCostado:c.tipoCostado, supportFinish:c.supportFinish,
     hasDuct:c.hasDuct, cableAccess:c.cableAccess, grommetFinish:c.grommetFinish, finishAssignments,
     componentTransforms:normalizeLinkComponentTransforms(c.componentTransforms),
     components:normalizeLinkComponents(c.components,c.type), leaderReturnGrommet:c.leaderReturnGrommet,
@@ -72,6 +91,11 @@ export function normalizeLinkConfig(input = {}) {
     surfaceColor:c.surfaceColor, structureColor:c.structureColor, pedestalColor:c.pedestalColor,
     hasPantallaFrontal:c.type==='doble' && c.hasPantallaFrontal, pantallaFrontalMaterial:c.pantallaFrontalMaterial,
     hasPantallaLateral:c.hasPantallaLateral, pantallaLateralMaterial:c.pantallaLateralMaterial,
+    pantallaLateralSide:['ambos','ambas','izquierda','derecha'].includes(c.pantallaLateralSide)?(c.pantallaLateralSide==='ambas'?'ambos':c.pantallaLateralSide):'ambos',
     hasPantallaFalda:c.hasPantallaFalda, pantallaFaldaMaterial:c.pantallaFaldaMaterial,
-    integracionType:c.integracionType, integracionSide:c.integracionSide, integracionHoleSide:c.integracionHoleSide };
+    integracionType:c.integracionType, integracionSide:c.integracionSide, integracionHoleSide:c.integracionHoleSide,
+    disposicion120: ['individual', 'doble', '360'].includes(c.disposicion120) ? c.disposicion120 : 'individual',
+    side120: ['derecha', 'izquierda'].includes(c.side120) ? c.side120 : 'derecha',
+    grommetSide120: ['izquierda', 'derecha', 'ambos'].includes(c.grommetSide120) ? c.grommetSide120 : 'izquierda',
+    integracion120Wing: ['ambas', 'izquierda', 'derecha'].includes(c.integracion120Wing) ? c.integracion120Wing : 'ambas' };
 }

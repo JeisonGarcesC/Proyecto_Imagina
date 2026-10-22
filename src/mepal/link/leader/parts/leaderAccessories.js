@@ -1,6 +1,6 @@
 import { linkPart } from '../../parts/linkParts.js';
 import { LINK_LEADER_ACCESSORIES } from '../rules/leaderAccessoryRules.js';
-import { LINK_LEADER_PEDESTAL } from '../rules/leaderPedestalRules.js';
+import { LINK_LEADER_PEDESTAL, resolveLeaderPedestal } from '../rules/leaderPedestalRules.js';
 // Alturas (mm): la caja de tomas va pegada a la cara inferior de la superficie y el bajante sube hasta tocar la cara inferior de la caja.
 const SURFACE_UNDERSIDE_MM=710;
 export function createLeaderSurfaceAccessories(config,surface) {
@@ -12,7 +12,9 @@ export function createLeaderSurfaceAccessories(config,surface) {
     surface.position[2]-localX*Math.sin(angle)+localZ*Math.cos(angle)];
   // Todo grommet del líder lleva su caja de tomas, como en Koncisa Plus.
   let topY=SURFACE_UNDERSIDE_MM;
+  let hasOutlet=false;
   if(hole&&surface.leaderRole){
+    hasOutlet=true;
     const r=LINK_LEADER_ACCESSORIES.outletBox,centerY=SURFACE_UNDERSIDE_MM-r.dimensions[1]/2;
     topY=centerY-r.dimensions[1]/2;
     result.push(linkPart('OUTLET_BOX',surface.key+'-outlet',r.dimensions,[point[0],centerY,point[2]],r.code,'LINK caja tomas para grommet',
@@ -20,7 +22,9 @@ export function createLeaderSurfaceAccessories(config,surface) {
   }
   if(c.floorDuct){
     const r=LINK_LEADER_ACCESSORIES.floorDuct;
-    result.push(linkPart('FLOOR_DUCT',surface.key+'-floor',[r.widthMm,topY,r.depthMm],[point[0],topY/2,point[2]],r.code,'LINK ducto bajante a piso',
+    // Si hay caja de tomas / ducto cableado, se alarga la altura del ducto para compensar el bracket interior del GLB y que el cuerpo conecte sin separación
+    const ductHeight = hasOutlet ? topY + 65 : topY;
+    result.push(linkPart('FLOOR_DUCT',surface.key+'-floor',[r.widthMm,ductHeight,r.depthMm],[point[0],ductHeight/2,point[2]],r.code,'LINK ducto bajante a piso',
       {rotationY:angle+(hole?.rotationY||0),model:{kind:'glb',src:r.modelSrc},componentConfig:c,configTargetKey:surface.key,parentComponentKey:surface.key,meta:{category:'ductos-a-piso'}}));
   }
   return result;
@@ -33,9 +37,14 @@ export function createLeaderUnionPlates(config,layout){
     {model:{kind:'glb',src:r.modelSrc},meta:{category:'leader-supports',layoutType:'LEADER',leaderRole:'SURFACE_JUNCTION',unionPlateIndex:index}}));
 }
 export function createLeaderPedestal(config,layout,support){
-  const r=LINK_LEADER_PEDESTAL;
+  const r=resolveLeaderPedestal(support.componentConfig?.pedestalModel);
+  const offsetMm=Number(support.componentConfig?.pedestalOffsetMm||0);
+  const posX=layout.returnX+layout.sign*(config.returnDepthMm/2-r.widthMm/2)-layout.sign*offsetMm;
+  const posZ=-(config.depthMm/2+layout.returnLengthMm-r.depthMm/2);
   return linkPart('PEDESTAL','pedestal',[r.widthMm,r.heightMm,r.depthMm],
-    [layout.returnX,r.heightMm/2,-(config.depthMm/2+layout.returnLengthMm-r.depthMm/2)],r.code,
-    'LINK pedestal de retorno · código por confirmar',{materialRole:'pedestal',materialBase:'FORMICA',model:{kind:'glb',src:r.modelSrc},
-      provisional:true,componentConfig:support.componentConfig,configTargetKey:'return-support',meta:{category:'pedestales',layoutType:'LEADER'}});
+    [posX,r.heightMm/2,posZ],
+    r.code,r.name||'LINK pedestal de retorno',
+    {materialRole:'pedestal',materialBase:r.isKoncisa?'METAL':'FORMICA',model:{kind:'glb',src:r.modelSrc},
+      provisional:!r.code,componentConfig:support.componentConfig,configTargetKey:'return-support',
+      leaderRole:'RETURN_END',meta:{category:'pedestales',layoutType:'LEADER',leaderRole:'RETURN_END',pedestalOffsetMm:offsetMm}});
 }

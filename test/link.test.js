@@ -494,7 +494,8 @@ test('ducto intermedio expone tapas y bajantes con reglas LINK por componente',(
   assert.equal(product.parts.filter(part=>part.role==='DUCT_COVER').length,2);
   assert.equal(product.parts.find(part=>part.role==='FLOOR_DUCT').code,'22000119705');
   assert.equal(product.parts.find(part=>part.role==='CEILING_DUCT').code,'22000009983');
-  assert.equal(object.userData.bomStatus,'PARTIAL','las tapas no reciben un SKU inventado');
+  assert.equal(object.userData.bom.some(row=>row.code==='22000034843'),false,'la tapa ducto no se factura por aparte porque el costado terminal ya la incluye');
+  assert.equal(object.userData.bomStatus,'BASE_COMPONENTS');
   const duct=object.children.find(child=>child.userData.componentKey==='duct-0');
   assert.equal(duct.userData.meta.tipoModulo,'INTERMEDIO');
 });
@@ -531,7 +532,7 @@ test('líder independiente ofrece retorno, credenza LINK y edición de sus pieza
   const returnPart=withReturnGrommet.find(part=>part.key==='return-surface'),returnHole=returnPart.grommetHole;
   near(returnHole.xMm,-158);near(returnHole.zMm,180);
   const grommet=withReturnGrommet.find(part=>part.key==='return-grommet');
-  assert.equal(grommet.code,'22000023626');
+  assert.equal(grommet.code,'22000126724');
   near(grommet.position[0]-returnPart.position[0],180);near(grommet.position[2]-returnPart.position[2],158);
   const outlet=withReturnGrommet.find(part=>part.key==='return-surface-outlet'),floor=withReturnGrommet.find(part=>part.key==='return-surface-floor');
   assert.equal(outlet.code,'22000135010');
