@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { buildSnapGeometry, computePointToPointPlacement, resolveDimensionAxisAssist, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
+import {
+  buildSnapGeometry,
+  computePointToPointPlacement,
+  resolveDimensionAxisAssist,
+  resolveSnapPoint,
+  SNAP_LABELS,
+} from '../plan2d/geometrySnap2D';
 import { buildElevationSnapGeometry } from '../plan2d/geometry2D/elevation2D';
 import {
   createDimension2D,
@@ -56,10 +62,12 @@ import { resolveWallAngularSnap } from '../core/architecture/walls/wallAngularSn
 import { selectWallAtPoint } from '../core/architecture/walls/wallInteraction2D';
 import { buildResolvedWallFootprint } from '../core/architecture/walls/wallResolvedFootprint.js';
 import { buildResolvedWallColumnFootprint } from '../core/architecture/columns/wallColumnIntersection.js';
-import { architectureFinish2dCss, buildExclusiveWallFinishFootprints, findArchitectureFinish } from '../specialFinishes/architectureSpecialFinishes.js';
 import {
-  buildJoinedWallsGeometry2D,
-} from '../core/architecture/walls/wallJoins2D';
+  architectureFinish2dCss,
+  buildExclusiveWallFinishFootprints,
+  findArchitectureFinish,
+} from '../specialFinishes/architectureSpecialFinishes.js';
+import { buildJoinedWallsGeometry2D } from '../core/architecture/walls/wallJoins2D';
 import {
   createColumnDefinition,
   COLUMN_SHAPES,
@@ -812,7 +820,9 @@ export default function Plan2DOverlay({
         geometry: getDimensionSnapGeometry(),
         tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
       });
-      return measureStart ? resolveDimensionAxisAssist(measureStart, resolved, viewRef.current.s) : resolved;
+      return measureStart
+        ? resolveDimensionAxisAssist(measureStart, resolved, viewRef.current.s)
+        : resolved;
     },
     [canvasToWorld, getDimensionSnapGeometry, measureStart]
   );
@@ -905,14 +915,16 @@ export default function Plan2DOverlay({
     [walls, columns, getSnapshot, selectedIds]
   );
   const resolvedWallsGeometry = useMemo(
-    () => columns.length
-      ? buildResolvedWallColumnFootprint(walls, columns, { openings })
-      : buildResolvedWallFootprint(walls, { openings }),
+    () =>
+      columns.length
+        ? buildResolvedWallColumnFootprint(walls, columns, { openings })
+        : buildResolvedWallFootprint(walls, { openings }),
     [walls, columns, openings]
   );
-  const exclusiveWallRgbFootprints = useMemo(() =>
-    buildExclusiveWallFinishFootprints(resolvedWallsGeometry, architectureSpecialFinishes),
-  [resolvedWallsGeometry, architectureSpecialFinishes]);
+  const exclusiveWallRgbFootprints = useMemo(
+    () => buildExclusiveWallFinishFootprints(resolvedWallsGeometry, architectureSpecialFinishes),
+    [resolvedWallsGeometry, architectureSpecialFinishes]
+  );
 
   const resolveArchitectureSnap = useCallback(
     (mx, my) => {
@@ -929,11 +941,14 @@ export default function Plan2DOverlay({
     [architectureSnapGeometry, canvasToWorld]
   );
 
-  const resolveWallDraftPoint = useCallback((resolved, points) =>
-    resolveWallAngularSnap(points.at(-1), resolved.point, {
-      pointSnapped: resolved.snapped,
-      scale: viewRef.current.s,
-    }), []);
+  const resolveWallDraftPoint = useCallback(
+    (resolved, points) =>
+      resolveWallAngularSnap(points.at(-1), resolved.point, {
+        pointSnapped: resolved.snapped,
+        scale: viewRef.current.s,
+      }),
+    []
+  );
 
   const resolveDoorAtCanvasPoint = useCallback(
     (mx, my) => {
@@ -1009,21 +1024,25 @@ export default function Plan2DOverlay({
     [moveAsGroup]
   );
 
-  const resolvePositionSnap = useCallback((mx, my, draft = positionDraft) => {
-    if (!draft?.sourceId) return null;
-    const worldPoint = canvasToWorld(mx, my);
-    if (!worldPoint) return null;
-    const movableIds = new Set(draft.ids);
-    const candidates = (getSnapshot?.() || []).filter((part) =>
-      draft.origin ? !movableIds.has(part?.id) : part?.id === draft.sourceId);
-    const geometry = buildSnapGeometry(candidates);
-    return resolveSnapPoint({
-      worldPoint,
-      scale: viewRef.current.s,
-      geometry: { points: geometry.points, segments: [] },
-      tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
-    });
-  }, [canvasToWorld, getSnapshot, positionDraft]);
+  const resolvePositionSnap = useCallback(
+    (mx, my, draft = positionDraft) => {
+      if (!draft?.sourceId) return null;
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint) return null;
+      const movableIds = new Set(draft.ids);
+      const candidates = (getSnapshot?.() || []).filter((part) =>
+        draft.origin ? !movableIds.has(part?.id) : part?.id === draft.sourceId
+      );
+      const geometry = buildSnapGeometry(candidates);
+      return resolveSnapPoint({
+        worldPoint,
+        scale: viewRef.current.s,
+        geometry: { points: geometry.points, segments: [] },
+        tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
+      });
+    },
+    [canvasToWorld, getSnapshot, positionDraft]
+  );
 
   const getRotationHandle = useCallback(() => {
     if (transformTool !== 'rotate') return null;
@@ -2246,14 +2265,31 @@ export default function Plan2DOverlay({
   }, [transformTool, measureMode, scaleMode, isWallDrawMode, cancelVariantHandleDrag]);
 
   useEffect(() => {
-    if (!positionMode || (transformTool === 'move' && !scaleMode && !isWallDrawMode &&
-        !shapeTool2D && !textTool2D && openingMode !== 'PLACE' && columnMode !== 'PLACE')) return;
+    if (
+      !positionMode ||
+      (transformTool === 'move' &&
+        !scaleMode &&
+        !isWallDrawMode &&
+        !shapeTool2D &&
+        !textTool2D &&
+        openingMode !== 'PLACE' &&
+        columnMode !== 'PLACE')
+    )
+      return;
     setPositionMode(false);
     setPositionDraft(null);
     setPositionHover(null);
     setPositionError('');
-  }, [positionMode, transformTool, scaleMode, isWallDrawMode, shapeTool2D, textTool2D,
-    openingMode, columnMode]);
+  }, [
+    positionMode,
+    transformTool,
+    scaleMode,
+    isWallDrawMode,
+    shapeTool2D,
+    textTool2D,
+    openingMode,
+    columnMode,
+  ]);
 
   const handleClick = useCallback(
     (e) => {
@@ -2274,8 +2310,11 @@ export default function Plan2DOverlay({
           const part = pickPartAtCanvasPoint(mx, my);
           const snapshot = getSnapshot?.() || [];
           const ids = part ? getSelectionTargetIds(part, snapshot) : [];
-          if (!ids.length || ids.some((id) => isPartMovementLocked2D?.(id)) ||
-              !buildSnapGeometry([part]).points.length) {
+          if (
+            !ids.length ||
+            ids.some((id) => isPartMovementLocked2D?.(id)) ||
+            !buildSnapGeometry([part]).points.length
+          ) {
             setPositionError('Selecciona un elemento móvil con puntos de referencia.');
             return;
           }
@@ -2288,8 +2327,11 @@ export default function Plan2DOverlay({
         }
         const snap = resolvePositionSnap(mx, my);
         if (!snap?.snapped || !snap.sourceId) {
-          setPositionError(positionDraft.origin
-            ? 'Selecciona un punto de otro elemento.' : 'Selecciona un punto del elemento que se moverá.');
+          setPositionError(
+            positionDraft.origin
+              ? 'Selecciona un punto de otro elemento.'
+              : 'Selecciona un punto del elemento que se moverá.'
+          );
           return;
         }
         if (!positionDraft.origin) {
@@ -2298,10 +2340,15 @@ export default function Plan2DOverlay({
           setPositionError('');
           return;
         }
-        const parts = (getSnapshot?.() || []).filter((part) => positionDraft.ids.includes(part?.id));
+        const parts = (getSnapshot?.() || []).filter((part) =>
+          positionDraft.ids.includes(part?.id)
+        );
         const placement = computePointToPointPlacement(positionDraft.origin, snap.point, parts);
-        if (!placement || parts.length !== positionDraft.ids.length ||
-            parts.some((part) => isPartMovementLocked2D?.(part.id))) {
+        if (
+          !placement ||
+          parts.length !== positionDraft.ids.length ||
+          parts.some((part) => isPartMovementLocked2D?.(part.id))
+        ) {
           setPositionError('El elemento ya no está disponible para mover.');
           return;
         }
@@ -2310,9 +2357,14 @@ export default function Plan2DOverlay({
             setPositionError('No se pudo iniciar el movimiento.');
             return;
           }
-          const moved = placement.updates.length > 1
-            ? onMoveParts2D?.(placement.updates)
-            : onMovePart2D?.(placement.updates[0].id, placement.updates[0].x, placement.updates[0].z);
+          const moved =
+            placement.updates.length > 1
+              ? onMoveParts2D?.(placement.updates)
+              : onMovePart2D?.(
+                  placement.updates[0].id,
+                  placement.updates[0].x,
+                  placement.updates[0].z
+                );
           if (moved !== true) {
             if (parts.length > 1) onMoveParts2D?.(parts.map(({ id, x, z }) => ({ id, x, z })));
             else onMovePart2D?.(parts[0].id, parts[0].x, parts[0].z);
@@ -2385,9 +2437,12 @@ export default function Plan2DOverlay({
 
         if (len > 0.001) {
           const dimension = createDimension2D({
-            type: resolved.axis === 'HORIZONTAL' ? DIMENSION_TYPES.LINEAR_HORIZONTAL
-              : resolved.axis === 'VERTICAL' ? DIMENSION_TYPES.LINEAR_VERTICAL
-                : DIMENSION_TYPES.ALIGNED,
+            type:
+              resolved.axis === 'HORIZONTAL'
+                ? DIMENSION_TYPES.LINEAR_HORIZONTAL
+                : resolved.axis === 'VERTICAL'
+                  ? DIMENSION_TYPES.LINEAR_VERTICAL
+                  : DIMENSION_TYPES.ALIGNED,
             startPoint: measureStart,
             endPoint: wpt,
             references: {
@@ -2882,9 +2937,16 @@ export default function Plan2DOverlay({
           });
           ctx.closePath();
         }
-        const columnFinish = findArchitectureFinish(architectureSpecialFinishes, 'COLUMN', column.id);
-        ctx.fillStyle = columnFinish ? architectureFinish2dCss(columnFinish)
-          : isSelected ? 'rgba(168,92,0,0.32)' : 'rgba(70,70,70,0.28)';
+        const columnFinish = findArchitectureFinish(
+          architectureSpecialFinishes,
+          'COLUMN',
+          column.id
+        );
+        ctx.fillStyle = columnFinish
+          ? architectureFinish2dCss(columnFinish)
+          : isSelected
+            ? 'rgba(168,92,0,0.32)'
+            : 'rgba(70,70,70,0.28)';
         ctx.strokeStyle = isSelected ? 'rgba(190,100,0,0.95)' : 'rgba(35,35,35,0.82)';
         ctx.lineWidth = isSelected ? 3 : 1;
         ctx.fill();
@@ -2980,7 +3042,11 @@ export default function Plan2DOverlay({
             ctx.setLineDash([]);
             ctx.fillStyle = 'rgba(21, 128, 61, 1)';
             ctx.font = '12px sans-serif';
-            ctx.fillText(wallAngleGuide === 'HORIZONTAL' ? 'Horizontal' : 'Vertical', x2 + 10, y2 - 10);
+            ctx.fillText(
+              wallAngleGuide === 'HORIZONTAL' ? 'Horizontal' : 'Vertical',
+              x2 + 10,
+              y2 - 10
+            );
             ctx.restore();
           }
 
@@ -3293,8 +3359,12 @@ export default function Plan2DOverlay({
         const len = Math.hypot(measureHover.x - measureStart.x, measureHover.z - measureStart.z);
 
         if (len > 0.001) {
-          const axisLabel = measureSnap?.axis === 'HORIZONTAL' ? ' · Horizontal'
-            : measureSnap?.axis === 'VERTICAL' ? ' · Vertical' : '';
+          const axisLabel =
+            measureSnap?.axis === 'HORIZONTAL'
+              ? ' · Horizontal'
+              : measureSnap?.axis === 'VERTICAL'
+                ? ' · Vertical'
+                : '';
           drawMeasureLine(ctx, x1, y1, x2, y2, `${fmtMeasure(len)}${axisLabel}`, {
             preview: true,
           });
@@ -3623,10 +3693,17 @@ export default function Plan2DOverlay({
               clearMeasureDraft();
             }
           }}
-          disabled={isWallDrawMode || scaleMode || shapeTool2D || textTool2D ||
-            transformTool !== 'move' || openingMode === 'PLACE' || columnMode === 'PLACE'}
+          disabled={
+            isWallDrawMode ||
+            scaleMode ||
+            shapeTool2D ||
+            textTool2D ||
+            transformTool !== 'move' ||
+            openingMode === 'PLACE' ||
+            columnMode === 'PLACE'
+          }
           aria-pressed={positionMode}
-          title="Posicionar punto a punto"
+          title="Punto a punto"
           style={{
             padding: '6px 10px',
             borderRadius: 10,
@@ -3634,12 +3711,19 @@ export default function Plan2DOverlay({
             background: positionMode ? 'rgba(22, 163, 74, 0.16)' : 'rgba(255,255,255,0.92)',
             cursor: 'pointer',
           }}
-        >Posicionar</button>
-        {positionMode && <small role="status">
-          {positionError || (!positionDraft?.sourceId ? 'Selecciona el elemento que se moverá'
-            : !positionDraft.origin ? 'Selecciona su punto de origen'
-              : 'Selecciona un punto de otro elemento')}
-        </small>}
+        >
+          📍--📍
+        </button>
+        {positionMode && (
+          <small role="status">
+            {positionError ||
+              (!positionDraft?.sourceId
+                ? 'Selecciona un elemento'
+                : !positionDraft.origin
+                  ? 'Punto de origen'
+                  : 'Punto de destino')}
+          </small>
+        )}
         <button
           onClick={() => {
             setPositionMode(false);
@@ -4085,7 +4169,13 @@ export default function Plan2DOverlay({
           display: 'block',
           touchAction: 'none',
           cursor:
-            positionMode || measureMode || isWallDrawMode || shapeTool2D || textTool2D || scaleMode || selectionDrag
+            positionMode ||
+            measureMode ||
+            isWallDrawMode ||
+            shapeTool2D ||
+            textTool2D ||
+            scaleMode ||
+            selectionDrag
               ? 'crosshair'
               : isPlanDragging
                 ? 'grabbing'
