@@ -1808,8 +1808,8 @@ export default function App() {
               }
             }}
             onMovePart2D={(id, x, z) => {
-              if (readOnly) return;
-              threeApiRef.current?.movePartToXZ?.(id, x, z);
+              if (readOnly) return false;
+              return threeApiRef.current?.movePartToXZ?.(id, x, z) === true;
             }}
             onMoveParts2D={(updates) => {
               if (readOnly || !updates?.length) return false;
@@ -1829,7 +1829,7 @@ export default function App() {
             onBeginMove2D={(ids, individualTargets) =>
               threeApiRef.current?.beginMove2D?.({ ids, individualTargets })
             }
-            onEndMove2D={() => threeApiRef.current?.endMove2D?.()}
+            onEndMove2D={(options) => threeApiRef.current?.endMove2D?.(options)}
             onCancelMove2D={() => threeApiRef.current?.cancelMove2D?.()}
             isPartMovementLocked2D={(id) =>
               readOnly || threeApiRef.current?.isPartMovementLocked?.(id) === true

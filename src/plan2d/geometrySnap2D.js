@@ -259,6 +259,16 @@ export function resolveSnapPoint({
   return { snapped: true, ...resolved, screenPoint: screenPoint || null };
 }
 
+export function computePointToPointPlacement(origin, destination, parts) {
+  if (!isFinitePoint(origin) || !isFinitePoint(destination) || !Array.isArray(parts) ||
+      parts.length === 0 || parts.some((part) => !part?.id || !isFinitePoint(part))) return null;
+  const delta = { x: destination.x - origin.x, z: destination.z - origin.z };
+  return {
+    delta,
+    updates: parts.map(({ id, x, z }) => ({ id, x: x + delta.x, z: z + delta.z })),
+  };
+}
+
 // Ayuda angular para el segundo punto de una cota. El snap a geometría conserva prioridad.
 export function resolveDimensionAxisAssist(startPoint, resolvedSnap, scale) {
   const point = resolvedSnap?.point;

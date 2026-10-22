@@ -13926,10 +13926,10 @@ function ThreeCanvas({
       return true;
     }
 
-    function endMove2D() {
+    function endMove2D({ skipSnap = false } = {}) {
       if (!moveSession2D) return false;
       const { targets, before } = moveSession2D;
-      snapActivePart();
+      if (!skipSnap) snapActivePart();
       const after = captureMoveState(targets);
       persistLinkComponentTransforms(targets);
       moveSession2D = null;
