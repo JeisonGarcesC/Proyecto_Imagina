@@ -2,13 +2,15 @@ import { linkComponentConfig } from '../rules/linkComponentRules.js';
 import { resolveLinkCostado } from '../rules/linkCostadoRules.js';
 import { resolveLeaderCostadoOutlet } from '../leader/rules/leaderCostadoOutletRules.js';
 
-export function createCostado({config,key,terminal=true,replaceZone=null,depthMm,position,moduleIndex=0,rotationY=0,leaderRole=null,lengthScale=1,integracion=false,ruleDepthMm=config.depthMm}) {
-  const component=linkComponentConfig(config,key,{shape:config.tipoCostado,supportFinish:config.supportFinish,hasOutletBox:false,pedestal:false});
+export function createCostado({config,key,terminal=true,replaceZone=null,depthMm,position,moduleIndex=0,rotationY=0,leaderRole=null,lengthScale=1,integracion=false,ruleDepthMm=config.depthMm,hasTapa=true}) {
+  const component=linkComponentConfig(config,key,{shape:config.tipoCostado,supportFinish:config.supportFinish,hasOutletBox:false,pedestal:false,hasTapa,removed:false});
+  if (component.removed) return null;
   const rule=resolveLinkCostado({type:config.type,depthMm:ruleDepthMm,terminal,shape:component.shape,supportFinish:component.supportFinish,integracion});
   if(leaderRole==='MAIN_RETURN_JUNCTION'&&component.hasOutletBox)rule.code=resolveLeaderCostadoOutlet(config.depthMm,component.shape,component.supportFinish).code;
   const subtype=terminal?'terminal':'intermedio';
-  const description=`LINK costado ${integracion&&terminal?'integración':subtype} ${component.shape} ${component.supportFinish}`;
+  const description=rule.logicalCode ? `LINK costado ${rule.logicalCode} ${integracion&&terminal?'integración':subtype} ${component.shape} ${component.supportFinish}` : `LINK costado ${integracion&&terminal?'integración':subtype} ${component.shape} ${component.supportFinish}`;
   const [x=0,y=0,z=0]=position || [];
+  const effectiveHasTapa = component.hasTapa !== undefined ? component.hasTapa : hasTapa;
 
   return {
     type:'costado',
@@ -17,7 +19,7 @@ export function createCostado({config,key,terminal=true,replaceZone=null,depthMm
     role:'SUPPORT',
     key,
     code:rule.code,
-    logicalCode:rule.code,
+    logicalCode:rule.logicalCode || rule.code,
     existsInCatalog:!!rule.code,
     rawCodigoPT:rule.code,
     name:description,
@@ -33,7 +35,8 @@ export function createCostado({config,key,terminal=true,replaceZone=null,depthMm
     shape:component.shape,
     supportFinish:component.supportFinish,
     provisional:!rule.code,
-    componentConfig:component,
+    hasTapa: effectiveHasTapa,
+    componentConfig:{ ...component, hasTapa: effectiveHasTapa },
     leaderRole,
     meta:{
       category:'costados',
@@ -41,6 +44,7 @@ export function createCostado({config,key,terminal=true,replaceZone=null,depthMm
       tipoPuesto:config.type,
       integracion:integracion&&terminal,
       terminal,
+      hasTapa: effectiveHasTapa,
       shape:component.shape,
       supportFinish:component.supportFinish,
       depthMm,

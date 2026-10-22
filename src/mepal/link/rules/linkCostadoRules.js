@@ -13,16 +13,41 @@ export const LINK_COSTADO_INTEGRACION_CODES = {
 // Pie de amigo (MCAC940000) bajo cada superficie de integración de mesa doble. Solo BOM, sin geometría 3D.
 export const LINK_INTEGRACION_PIE_AMIGO = { code: '22191702186', description: 'PIE DE AMIGO MCAC940000', perSurface: 4 };
 export const LINK_COSTADO_MODELS = {
-  sencillo: {Link:'ELSO090000_60',Kuo:'ELSO090000_60'},
-  doble: {Link:'ELSO060000_120',Kuo:'ELSO060000_120'},
+  sencillo: {
+    terminal: 'ELSO090000_60',
+    intermedio: 'ELSO100000_60',
+  },
+  doble: {
+    terminal: 'ELSO060000_120',
+    intermedio: 'ELSO080000_120',
+    integracion: 'ELSO070000-120-Integration',
+  },
 };
+
+export const LINK_COSTADO_LOGICAL_CODES = {
+  sencillo: {
+    terminal: 'ELSO090000',
+    intermedio: 'ELSO100000',
+  },
+  doble: {
+    terminal: 'ELSO060000',
+    intermedio: 'ELSO080000',
+    integracion: 'ELSO070000',
+  },
+};
+
 // Model local axes are normalized by the visual adapter only, not by commercial rules.
 export function resolveLinkCostado({type='sencillo',depthMm=600,terminal=true,shape='Link',supportFinish='PINTADO',integracion=false}) {
   const seat=type==='doble'?'doble':'sencillo', nominal=nominalCeiling(depthMm,[600,750]);
   const useIntegracion=integracion&&seat==='doble'&&terminal;
+  const roleKey = useIntegracion ? 'integracion' : (terminal ? 'terminal' : 'intermedio');
+  const logicalCode = LINK_COSTADO_LOGICAL_CODES[seat][roleKey];
+  const modelFile = LINK_COSTADO_MODELS[seat][roleKey];
+
   return {code:shape!=='Link'?null:useIntegracion?LINK_COSTADO_INTEGRACION_CODES[supportFinish][nominal]
       :LINK_COSTADO_CODES[seat][terminal?'terminal':'intermedio'][supportFinish][nominal],
-    modelSrc:'/assets/models/Link/SuperficiePrincipal/'+LINK_COSTADO_MODELS[seat][shape]+'.glb',
+    logicalCode,
+    modelSrc:'/assets/models/Link/SuperficiePrincipal/'+modelFile+'.glb',
     provisional:shape!=='Link', nominalDepthMm:nominal};
 }
 

@@ -6,6 +6,7 @@ import {
 import { getLockerSelectionInfo } from '../mepal/lockers/integration/lockerFinishSelection.js';
 import { createLinkInstance } from '../mepal/link/factories/createLinkInstance.js';
 import { applyLinkIntegrationPuestoBOM } from '../mepal/link/bom/linkBOM.js';
+import { LINK_COSTADO_CODES, LINK_COSTADO_INTEGRACION_CODES } from '../mepal/link/rules/linkCostadoRules.js';
 import { resolveLinkIntegracionTrabajoCode } from '../mepal/link/rules/linkSurfaceRules.js';
 import { registerLinkInstance, getLinkRoot } from '../mepal/link/integration/linkRegistration.js';
 import { rebuildLinkInstance } from '../mepal/link/integration/rebuildLinkInstance.js';
@@ -365,6 +366,13 @@ import {
   resolveMoreaGiroDefinition,
 } from '../mepal/morea/factories/createMoreaGiroInstance.js';
 import { realignMoreaAssemblyByRoot } from '../mepal/morea/factories/createMoreaInstance.js';
+import {
+  resolveLink120AssemblyConnectors,
+  findBestLink120ConnectorSnap,
+  unifyLink120ConnectedAssemblies,
+  isLink120PortOccupied,
+  LINK_120_CONNECTOR_CONFIG,
+} from '../mepal/link/120/connectors/link120Connectors.js';
 
 const MM_TO_M = 1 / 1000;
 const ALMACENAMIENTO_CUSHION_CODE = '22000008239';
@@ -1767,11 +1775,31 @@ function ThreeCanvas({
         return 'MILA';
       }
 
+      const linkRoot = getLinkRoot(obj) || (obj?.userData?.kind === 'LINK_PRODUCT' ? obj : null);
+      if (linkRoot?.userData?.kind === 'LINK_PRODUCT') {
+        return 'LINK_120';
+      }
+
       return null;
     }
 
     function resolveConnectorContext(object) {
       if (!object) return null;
+
+      const link120Root = getLinkRoot(object) || (object?.userData?.kind === 'LINK_PRODUCT' ? object : null);
+      if (link120Root?.userData?.config?.type === 'puesto120') {
+        return {
+          scopeLine: 'LINK_120',
+          root: link120Root,
+          engine: {
+            resolveAssemblyConnectors: resolveLink120AssemblyConnectors,
+            findBestSnap: findBestLink120ConnectorSnap,
+            unifyConnectedAssemblies: unifyLink120ConnectedAssemblies,
+            isPortOccupied: isLink120PortOccupied,
+            config: LINK_120_CONNECTOR_CONFIG,
+          },
+        };
+      }
 
       const moreaRoot = getMoreaAssemblyRoot(object) || object;
       const moreaScopeLine = resolveConnectorScopeLine(moreaRoot);
@@ -1834,7 +1862,9 @@ function ThreeCanvas({
           kind === 'MILA_ASSEMBLY' ||
           kind === 'MOREA_ASSEMBLY' ||
           type === 'MILA' ||
-          type === 'MOREA'
+          type === 'MOREA' ||
+          kind === 'LINK_PRODUCT' ||
+          type === 'LINK_PRODUCT'
         ) {
           allAssemblies.push(node);
           return;
@@ -1901,7 +1931,7 @@ function ThreeCanvas({
         return;
       }
 
-      if (connectorScopeLine !== 'MILA' && connectorScopeLine !== 'MOREA') {
+      if (connectorScopeLine !== 'MILA' && connectorScopeLine !== 'MOREA' && connectorScopeLine !== 'LINK_120') {
         milaConnectorHandleGroup.visible = false;
         return;
       }
@@ -1933,7 +1963,52 @@ function ThreeCanvas({
       let isLeftOccupied = true;
       let isRightOccupied = true;
 
-      if (connectors.isPanelDivisor) {
+      if (connectorScopeLine === 'LINK_120') {
+        const pBase = connectors.ports?.base;
+        const pWingDer = connectors.ports?.wing_right || connectors.ports?.wing;
+        const pWingIzq = connectors.ports?.wing_left;
+
+        if (pBase?.worldPos) {
+          milaLeftConnector.position.copy(pBase.worldPos);
+          if (pBase.worldNormal) {
+            milaLeftConnector.quaternion.setFromUnitVectors(
+              new THREE.Vector3(1, 0, 0),
+              pBase.worldNormal
+            );
+          }
+          milaLeftConnector.visible = !isDragging && !connectorEngine.isPortOccupied(pBase.worldPos, targetObj, allSceneObjects);
+        } else {
+          milaLeftConnector.visible = false;
+        }
+
+        if (pWingDer?.worldPos) {
+          milaRightConnector.position.copy(pWingDer.worldPos);
+          if (pWingDer.worldNormal) {
+            milaRightConnector.quaternion.setFromUnitVectors(
+              new THREE.Vector3(1, 0, 0),
+              pWingDer.worldNormal
+            );
+          }
+          milaRightConnector.visible = !isDragging && !connectorEngine.isPortOccupied(pWingDer.worldPos, targetObj, allSceneObjects);
+        } else {
+          milaRightConnector.visible = false;
+        }
+
+        if (pWingIzq?.worldPos) {
+          milaPanelLeftConnector.position.copy(pWingIzq.worldPos);
+          if (pWingIzq.worldNormal) {
+            milaPanelLeftConnector.quaternion.setFromUnitVectors(
+              new THREE.Vector3(1, 0, 0),
+              pWingIzq.worldNormal
+            );
+          }
+          milaPanelLeftConnector.visible = !isDragging && !connectorEngine.isPortOccupied(pWingIzq.worldPos, targetObj, allSceneObjects);
+        } else {
+          milaPanelLeftConnector.visible = false;
+        }
+
+        milaPanelRightConnector.visible = false;
+      } else if (connectors.isPanelDivisor) {
         if (panelLeftPort?.worldPos) {
           milaPanelLeftConnector.position.copy(panelLeftPort.worldPos);
           if (panelLeftPort.worldNormal) {
@@ -2083,7 +2158,12 @@ function ThreeCanvas({
 
       let isSnapCandidate = false;
       if (isDragging) {
-        if (connectors.isAccessory) {
+        if (connectorScopeLine === 'LINK_120') {
+          milaLeftConnector.visible = Boolean(connectors.ports?.base);
+          milaRightConnector.visible = Boolean(connectors.ports?.wing_right || connectors.ports?.wing);
+          milaPanelLeftConnector.visible = Boolean(connectors.ports?.wing_left);
+          milaPanelRightConnector.visible = false;
+        } else if (connectors.isAccessory) {
           if (connectors.accessoryRole === 'armrest-left') milaRightConnector.visible = true;
           else if (connectors.accessoryRole === 'armrest-right') milaLeftConnector.visible = true;
           else milaLeftConnector.visible = true;
@@ -2117,25 +2197,42 @@ function ThreeCanvas({
 
         if (snapResult) {
           isSnapCandidate = true;
-          const activeMesh =
-            snapResult.activeSide === 'left' ||
-            snapResult.activeSide === 'center' ||
-            snapResult.activeSide === 'screen'
-              ? milaLeftConnector
-              : milaRightConnector;
+          let activeMesh = milaLeftConnector;
+          if (connectorScopeLine === 'LINK_120') {
+            if (snapResult.activeSide === 'wing_right' || snapResult.activeSide === 'wing') {
+              activeMesh = milaRightConnector;
+            } else if (snapResult.activeSide === 'wing_left') {
+              activeMesh = milaPanelLeftConnector;
+            } else {
+              activeMesh = milaLeftConnector;
+            }
+          } else {
+            activeMesh =
+              snapResult.activeSide === 'left' ||
+              snapResult.activeSide === 'center' ||
+              snapResult.activeSide === 'screen'
+                ? milaLeftConnector
+                : milaRightConnector;
+          }
           setConnectorMeshColor(
             activeMesh,
             connectorEngine.config.COLOR_SNAP_ACTIVE,
             connectorEngine.config.CORE_COLOR_ACTIVE
           );
 
-          const otherMesh =
-            activeMesh === milaLeftConnector ? milaRightConnector : milaLeftConnector;
-          setConnectorMeshColor(
-            otherMesh,
-            connectorEngine.config.COLOR_NORMAL,
-            connectorEngine.config.CORE_COLOR_NORMAL
-          );
+          const otherMeshes = [
+            milaLeftConnector,
+            milaRightConnector,
+            milaPanelLeftConnector,
+            milaPanelRightConnector,
+          ].filter((m) => m !== activeMesh);
+          otherMeshes.forEach((otherMesh) => {
+            setConnectorMeshColor(
+              otherMesh,
+              connectorEngine.config.COLOR_NORMAL,
+              connectorEngine.config.CORE_COLOR_NORMAL
+            );
+          });
 
           if (snapResult.connectionPoint) {
             milaSnapTargetConnector.position.copy(snapResult.connectionPoint);
@@ -2960,12 +3057,31 @@ function ThreeCanvas({
             objectCategory === 'superficies';
 
           if (isSurface) {
-            const localBounds = computeBounds2D(obj);
+            let localBounds = obj.userData?.bounds2d
+              ? {
+                  localCenter: new THREE.Vector3().fromArray(obj.userData.bounds2d.localCenter),
+                  sizeLocal: new THREE.Vector3().fromArray(obj.userData.bounds2d.sizeLocal),
+                }
+              : null;
+            if (!localBounds) {
+              localBounds = computeBounds2D(obj);
+              if (localBounds) {
+                obj.userData.bounds2d = {
+                  localCenter: localBounds.localCenter.toArray(),
+                  sizeLocal: localBounds.sizeLocal.toArray(),
+                };
+              }
+            }
             if (!localBounds) return null;
             const worldCenter = localBounds.localCenter.clone().applyMatrix4(obj.matrixWorld);
             const worldScale = obj.getWorldScale(new THREE.Vector3());
             const worldQuaternion = obj.getWorldQuaternion(new THREE.Quaternion());
             const worldRotY = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
+            let footprint = obj.userData?.footprint2D;
+            if (!footprint) {
+              footprint = getFootprint2D(obj, { fallbackBounds: localBounds });
+              if (footprint) obj.userData.footprint2D = footprint;
+            }
 
             return attachDetailed({
               ...snapshotPartMetadata,
@@ -2991,11 +3107,21 @@ function ThreeCanvas({
               type: obj.userData?.type || 'superficie',
 
               subtype: obj.userData?.subtype || null,
-              footprint: getFootprint2D(obj, { fallbackBounds: localBounds }),
+              footprint,
             });
           }
 
-          const b = obj.userData?.bounds2d;
+          let b = obj.userData?.bounds2d;
+          if (!b) {
+            const cb = computeBounds2D(obj);
+            if (cb) {
+              b = {
+                localCenter: cb.localCenter.toArray(),
+                sizeLocal: cb.sizeLocal.toArray(),
+              };
+              obj.userData.bounds2d = b;
+            }
+          }
 
           if (b?.localCenter && b?.sizeLocal) {
             const localCenter = new THREE.Vector3().fromArray(b.localCenter);
@@ -3015,6 +3141,15 @@ function ThreeCanvas({
             obj.getWorldQuaternion(worldQuaternion);
 
             const worldEuler = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ');
+
+            let footprint = obj.userData?.footprint2D;
+            if (!footprint) {
+              footprint =
+                obj.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'
+                  ? obj.userData.footprint2D
+                  : getFootprint2D(obj, { fallbackBounds: b });
+              if (footprint) obj.userData.footprint2D = footprint;
+            }
 
             return attachDetailed({
               ...snapshotPartMetadata,
@@ -3036,10 +3171,7 @@ function ThreeCanvas({
               rotY: Number(worldEuler.y || 0),
 
               kind: obj.userData?.kind || 'PART',
-              footprint:
-                obj.userData?.kind === 'CRITTERIUM_8_ASSEMBLY'
-                  ? obj.userData.footprint2D
-                  : getFootprint2D(obj, { fallbackBounds: b }),
+              footprint,
             });
           }
 
@@ -4616,6 +4748,8 @@ function ThreeCanvas({
 
       while (current && current !== scene) {
         if (
+          current.userData?.kind === 'LINK_PRODUCT' ||
+          current.userData?.type === 'LINK_PRODUCT' ||
           current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ||
           current.userData?.type === 'koncisa-plus' ||
           current.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' ||
@@ -13405,6 +13539,7 @@ function ThreeCanvas({
       replaceSelectedCostadoWithPedestal,
       replaceSelectedPedestalWithCostado,
       moveSelectedKoncisaPedestal,
+      moveSelectedLinkPedestal,
       replaceSelectedCostadoWithIntegration,
       removeSelectedIntegrationAndRestoreCostado,
       rotateSelectedDuct180,
@@ -13440,7 +13575,16 @@ function ThreeCanvas({
         targetRoots.add(targetAssembly || target);
       }
 
-      return Array.from(targetRoots).filter(Boolean);
+      const rootsArray = Array.from(targetRoots).filter(Boolean);
+      const rootsSet = new Set(rootsArray);
+      return rootsArray.filter((obj) => {
+        let ancestor = obj.parent;
+        while (ancestor) {
+          if (rootsSet.has(ancestor)) return false;
+          ancestor = ancestor.parent;
+        }
+        return true;
+      });
     }
 
     function getFinishFamilyKey(obj) {
@@ -14991,8 +15135,29 @@ function ThreeCanvas({
       return true;
     }
 
+    function moveSelectedLinkPedestal(direction) {
+      if (readOnly) return false;
+      const object = getLinkRoot(activePart);
+      if (!object || object.userData?.kind !== 'LINK_PRODUCT') return false;
+      const config = object.userData.config;
+      if (config?.type !== 'lider') return false;
+      const currentOffset = Number(config.components?.['return-support']?.pedestalOffsetMm || 0);
+      const dirUpper = String(direction || '').toUpperCase();
+      const sign = (dirUpper === 'LEFT' || dirUpper === 'BACKWARD' || dirUpper === 'ATRAS' || dirUpper === 'IZQUIERDA') ? -1 : 1;
+      const nextOffset = currentOffset + sign * 65;
+      return applyLinkConfiguration(
+        object,
+        createLinkComponentPatch(object, 'return-support', { pedestalOffsetMm: nextOffset })
+      );
+    }
+
     function moveSelectedKoncisaPedestal(direction) {
       if (readOnly) return false;
+
+      const linkRoot = getLinkRoot(activePart);
+      if (linkRoot?.userData?.kind === 'LINK_PRODUCT') {
+        return moveSelectedLinkPedestal(direction);
+      }
 
       const pedestalObj = getActiveEditablePartObject();
       const isPedestal =
@@ -15000,12 +15165,13 @@ function ThreeCanvas({
         pedestalObj?.userData?.meta?.category === 'pedestales';
       if (!isPedestal) return false;
 
-      const sign = String(direction || '').toUpperCase() === 'LEFT' ? -1 : 1;
-      pedestalObj.position.x += sign * 0.065;
+      const dirUpper = String(direction || '').toUpperCase();
+      const sign = (dirUpper === 'BACKWARD' || dirUpper === 'ATRAS' || dirUpper === 'LEFT' || dirUpper === 'IZQUIERDA') ? -1 : 1;
+      pedestalObj.position.z += sign * 0.065;
       pedestalObj.userData = {
         ...(pedestalObj.userData || {}),
-        manualPedestalOffsetXmm:
-          Number(pedestalObj.userData?.manualPedestalOffsetXmm || 0) + sign * 65,
+        manualPedestalOffsetZmm:
+          Number(pedestalObj.userData?.manualPedestalOffsetZmm || 0) + sign * 65,
       };
       pedestalObj.updateMatrixWorld(true);
       selectionHelper?.update?.();
@@ -15016,6 +15182,14 @@ function ThreeCanvas({
     async function replaceSelectedPedestalWithCostado() {
       if (readOnly) return false;
       if (!activePart) return false;
+
+      const linkRoot = getLinkRoot(activePart);
+      if (linkRoot?.userData?.kind === 'LINK_PRODUCT') {
+        return applyLinkConfiguration(
+          linkRoot,
+          createLinkComponentPatch(linkRoot, 'return-support', { pedestal: false, pedestalOffsetMm: 0 })
+        );
+      }
 
       const pedestalObj = getActiveEditablePartObject();
 
@@ -15110,6 +15284,140 @@ function ThreeCanvas({
       refreshFloorAndGrid();
 
       return true;
+    }
+
+    async function swapLinkCostadoModel(
+      costadoObj,
+      newModelSrc,
+      newCode,
+      newLogicalCode,
+      newDescription,
+      extraMeta = {}
+    ) {
+      if (!costadoObj) return;
+
+      const loader = new GLTFLoader();
+      const gltf = await loader.loadAsync(newModelSrc);
+      const model = gltf.scene.clone(true);
+
+      let existingMaterial = null;
+      costadoObj.traverse((node) => {
+        if (!existingMaterial && node.isMesh && node.material) {
+          existingMaterial = Array.isArray(node.material) ? node.material[0] : node.material;
+        }
+      });
+
+      const material = existingMaterial
+        ? existingMaterial.clone()
+        : new THREE.MeshStandardMaterial({
+            color: '#333333',
+            roughness: 0.45,
+            metalness: 0.3,
+          });
+
+      model.traverse((node) => {
+        node.userData = {};
+        if (node.isMesh) {
+          node.geometry = node.geometry.clone();
+          node.material = material;
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+
+      let box = new THREE.Box3().setFromObject(model);
+      let size = box.getSize(new THREE.Vector3());
+
+      if (size.z > size.x) {
+        model.rotation.y = -Math.PI / 2;
+        box = new THREE.Box3().setFromObject(model);
+        size = box.getSize(new THREE.Vector3());
+      }
+
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.sub(center);
+
+      // Manejo de la tapa del ducto SOLO para modelos terminales (ELSO060000 y ELSO090000)
+      const isDobleTerminal = newModelSrc.includes('ELSO060000');
+      const isSingleTerminal = newModelSrc.includes('ELSO090000');
+      const tapaNodeNames = isDobleTerminal
+        ? ['0_20', '0_11', '0_21']
+        : isSingleTerminal
+          ? ['0_27', '0_1', '0_23']
+          : [];
+      const hasTapa = extraMeta.hasTapa !== false && costadoObj.userData?.hasTapa !== false;
+      const supportKey = costadoObj.userData?.componentKey || costadoObj.name;
+      tapaNodeNames.forEach(name => {
+        const n = model.getObjectByName(name);
+        if (n) {
+          n.visible = hasTapa;
+          n.traverse(child => {
+            if (child.isMesh) {
+              child.userData.isCostadoTapa = true;
+              child.userData.supportKey = supportKey;
+            }
+          });
+        }
+      });
+
+      // Mover tapa del costado individual hacia la esquina del ducto cableado
+      if (newModelSrc.includes('ELSO090000')) {
+        const singleTapaNames = ['0_27', '0_1', '0_23'];
+        const refNode = model.getObjectByName('0_27');
+        if (refNode) {
+          const rotY = Number(costadoObj.rotation.y || 0);
+          const shiftDist = 0.200;
+          const shiftY = rotY < 0 ? -shiftDist : shiftDist;
+          singleTapaNames.forEach(name => {
+            const n = model.getObjectByName(name);
+            if (n) n.position.y += shiftY;
+          });
+        }
+      }
+
+      // Orientación del costado de integración doble: soporte de viga más separado hacia el puesto de integración
+      if (extraMeta.isIntegrationLeg) {
+        const zone = extraMeta.replaceZone || extraMeta.side || costadoObj.userData?.replaceZone || (costadoObj.userData?.componentKey?.endsWith('-0') ? 'LEFT' : 'RIGHT');
+        costadoObj.rotation.y = zone === 'LEFT' ? Math.PI / 2 : -Math.PI / 2;
+      }
+
+      const visual = new THREE.Group();
+      visual.add(model);
+      const scale = size.y > 10 ? 1 / 1000 : 1;
+      const lengthScale = Number(costadoObj.userData.meta?.lengthScale || 1);
+      visual.scale.set(scale * lengthScale, scale, scale);
+
+      const geometriesToDispose = [];
+      costadoObj.traverse((node) => {
+        if (node !== costadoObj && node.geometry) geometriesToDispose.push(node.geometry);
+      });
+      geometriesToDispose.forEach((g) => g.dispose());
+      costadoObj.clear();
+
+      costadoObj.userData.code = newCode;
+      costadoObj.userData.codigoPT = newCode;
+      costadoObj.userData.logicalCode = newLogicalCode;
+      costadoObj.userData.description = newDescription;
+      costadoObj.userData.visualModelSrc = newModelSrc;
+      costadoObj.userData.modelSrc = newModelSrc;
+      costadoObj.name = newDescription || newLogicalCode;
+
+      if (costadoObj.userData.meta) {
+        Object.assign(costadoObj.userData.meta, extraMeta, {
+          code: newCode,
+          logicalCode: newLogicalCode,
+          modelSrc: newModelSrc,
+        });
+      }
+
+      visual.traverse((node) => {
+        node.userData = { ...costadoObj.userData };
+        delete node.userData.isPartRoot;
+        if (node.isMesh) node.name = newDescription;
+      });
+
+      costadoObj.add(visual);
+      costadoObj.updateMatrixWorld(true);
     }
 
     async function replaceSelectedCostadoWithIntegration({
@@ -15353,14 +15661,43 @@ function ThreeCanvas({
 
       // =====================================================
       // 1. Costado doble integración: reemplaza costado terminal
-      // (Solo para Koncisa Plus, Link usa su propio costado terminal)
       // =====================================================
       const integrationLeg = pkg.doubleIntegrationLeg;
 
       let newIntegrationLegObj = null;
 
-      if (!isLinkComponent) {
-        if (integrationLeg?.assembly) {
+      if (isLinkComponent) {
+        const linkConfig = parentGroup?.userData?.config || {};
+        const linkNominal = (linkConfig.depthMm || 600) >= 750 ? 750 : 600;
+        const linkFinish =
+          costadoObj.userData?.supportFinish ||
+          costadoObj.userData?.meta?.supportFinish ||
+          linkConfig.supportFinish ||
+          'PINTADO';
+        const linkIntegracionCode =
+          LINK_COSTADO_INTEGRACION_CODES[linkFinish]?.[linkNominal] || '22000032437';
+        const linkIntegracionModel =
+          '/assets/models/Link/SuperficiePrincipal/ELSO070000-120-Integration.glb';
+        const linkIntegracionDesc = `LINK costado ELSO070000 integración ${linkFinish}`;
+
+        costadoObj.userData.originalCostadoSnapshot = originalCostadoSnapshot;
+
+        await swapLinkCostadoModel(
+          costadoObj,
+          linkIntegracionModel,
+          linkIntegracionCode,
+          'ELSO070000',
+          linkIntegracionDesc,
+          {
+            isIntegrationLeg: true,
+            replacesCostado: true,
+            integrationSetId,
+            hasIntegration: true,
+            originalCostadoSnapshot,
+          }
+        );
+        newIntegrationLegObj = costadoObj;
+      } else if (integrationLeg?.assembly) {
           newIntegrationLegObj = await addKoncisaCostadoAssemblyPart({
             type: 'costado',
             line: 'KONCISA.PLUS',
@@ -15478,7 +15815,6 @@ function ThreeCanvas({
             },
           });
         }
-      }
 
       // =====================================================
       // 2. Superficie sencilla de integración
@@ -16118,6 +16454,7 @@ function ThreeCanvas({
       let originalCostadoSnapshot = null;
 
       const objectsToRemove = [];
+      const linkLegsToRestore = [];
 
       const scanRoot = parentGroup || scene;
 
@@ -16142,12 +16479,7 @@ function ThreeCanvas({
           node.userData?.kind === 'LINK_PRODUCT';
 
         if (isLinkLeg) {
-          // This is the original Link piece, do not remove it, just clear its integration metadata
-          delete node.userData.integrationSetId;
-          if (node.userData.meta) {
-            delete node.userData.meta.integrationSetId;
-            node.userData.meta.hasIntegration = false;
-          }
+          linkLegsToRestore.push(node);
           return;
         }
 
@@ -16158,6 +16490,35 @@ function ThreeCanvas({
           originalCostadoSnapshot = meta.originalCostadoSnapshot || null;
         }
       });
+
+      for (const node of linkLegsToRestore) {
+        const snapshot =
+          node.userData.originalCostadoSnapshot ||
+          node.userData.meta?.originalCostadoSnapshot;
+        if (snapshot && node.userData?.componentRole === 'SUPPORT') {
+          await swapLinkCostadoModel(
+            node,
+            snapshot.model?.src || snapshot.modelSrc || '/assets/models/Link/SuperficiePrincipal/ELSO060000_120.glb',
+            snapshot.code || snapshot.codigoPT,
+            snapshot.logicalCode || 'ELSO060000',
+            snapshot.description || snapshot.name || 'LINK costado ELSO060000 terminal',
+            {
+              isIntegrationLeg: false,
+              replacesCostado: false,
+              hasIntegration: false,
+            }
+          );
+          delete node.userData.originalCostadoSnapshot;
+          if (node.userData.meta) delete node.userData.meta.originalCostadoSnapshot;
+        }
+        delete node.userData.integrationSetId;
+        if (node.userData.meta) {
+          delete node.userData.meta.integrationSetId;
+          node.userData.meta.hasIntegration = false;
+          node.userData.meta.isIntegrationLeg = false;
+          node.userData.meta.replacesCostado = false;
+        }
+      }
 
       if (!objectsToRemove.length) {
         alert('No se encontraron piezas asociadas a esta integración.');
@@ -18132,11 +18493,25 @@ function ThreeCanvas({
       }
       if (['WALL', 'DOOR', 'COLUMN'].includes(firstHit.object.userData?.kind)) return;
 
-      const hitObj = firstHit.object; // Mesh real clickeado
+      let hitObj = firstHit.object; // Mesh real clickeado
       const multipleSystemProduct = getMultipleSystemProductFromHit(hitObj);
       const root = getMultipleRoot(hitObj) || getRootPartObject(hitObj);
       if (!root) return;
       if (root.userData?.isFloor) return;
+
+      // Si se clickeó la tapa de un costado Link, redirigir selección al ducto cableado correspondiente
+      if (hitObj?.userData?.isCostadoTapa && root.userData?.kind === 'LINK_PRODUCT') {
+        const supportKey = String(hitObj.userData.supportKey || '');
+        const puestos = root.userData?.config?.puestos || 1;
+        const ductKey = supportKey.endsWith('-0') ? 'duct-0' : `duct-${puestos - 1}`;
+        const ductChild = root.children.find(c => c.name === ductKey || c.userData?.componentKey === ductKey);
+        if (ductChild) {
+          let ductMesh = null;
+          ductChild.traverse(node => { if (!ductMesh && node.isMesh) ductMesh = node; });
+          if (ductMesh) hitObj = ductMesh;
+        }
+      }
+
       const selectedCritteriumSystem =
         activePart?.userData?.kind === 'CRITERIUM_SYSTEM' &&
         getCritteriumSystemRoot(hitObj) === activePart
@@ -18708,6 +19083,8 @@ function ThreeCanvas({
       }
       if (!dragSession3D || !activePart) return;
 
+      if (controls.enabled) controls.enabled = false;
+
       if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
         const screenDelta = Math.hypot(
           e.clientX - (dragSession3D.screenStartX || 0),
@@ -18921,7 +19298,11 @@ function ThreeCanvas({
 
       if (!targetObj) return { snapped: false, mergeCandidate: null };
 
-      if (connectorScopeLine !== 'MILA' && connectorScopeLine !== 'MOREA') {
+      if (
+        connectorScopeLine !== 'MILA' &&
+        connectorScopeLine !== 'MOREA' &&
+        connectorScopeLine !== 'LINK_120'
+      ) {
         return { snapped: false, mergeCandidate: null };
       }
 
@@ -19159,6 +19540,117 @@ function ThreeCanvas({
         targetObj.updateMatrixWorld(true);
 
         connectorEngine.unifyConnectedAssemblies(targetObj, snapResult.targetObj);
+
+        if (connectorScopeLine === 'LINK_120') {
+          const actSide = snapResult.activeSide;
+          const tgtSide = snapResult.targetSide;
+          const actRoot = targetObj;
+          const tgtRoot = snapResult.targetObj;
+
+          const getTargetSupportKey = (root, side) => {
+            const cfg = root?.userData?.config;
+            if (!cfg) return null;
+            const disp = cfg.disposicion120 || 'individual';
+            if (cfg.type !== 'puesto120') {
+              return (side === 'left' || side === 'base') ? 'support-0' : `support-${cfg.puestos || 1}`;
+            }
+            if (side === 'base') return disp === '360' ? 'support-360-base' : 'support-120-base';
+            if (side === 'wing_right' || (disp === 'individual' && side === 'wing')) {
+              return disp === '360' ? 'support-360-wing-der' : (disp === 'individual' ? 'support-120-wing' : 'support-120-wing-der');
+            }
+            if (side === 'wing_left') return disp === '360' ? 'support-360-wing-izq' : 'support-120-wing-izq';
+            return null;
+          };
+
+          const updateConnectedComponents = (root, side, keepCostado = false) => {
+            if (!root?.userData?.config) return false;
+            let changed = false;
+            const cfg = root.userData.config;
+            const components = { ...(cfg.components || {}) };
+            const disp = cfg.disposicion120 || 'individual';
+
+            // Si keepCostado es true, se conserva el costado convirtiéndolo en INTERMEDIO (con soportes de viga a ambos lados).
+            // Si keepCostado es false, se remueve el costado (removed: true) para que solo quede 1 costado intermedio en la unión.
+            const supportPatch = keepCostado
+              ? { terminal: false, hasTapa: false, removed: false }
+              : { terminal: false, hasTapa: false, removed: true };
+
+            if (cfg.type !== 'puesto120') {
+              if (side === 'left' || side === 'base') {
+                components['support-0'] = {
+                  ...(components['support-0'] || {}),
+                  ...supportPatch,
+                };
+                components['duct-0'] = {
+                  ...(components['duct-0'] || {}),
+                  coverLeft: false,
+                };
+                changed = true;
+              } else if (side === 'right') {
+                const lastIdx = (cfg.puestos || 1);
+                components[`support-${lastIdx}`] = {
+                  ...(components[`support-${lastIdx}`] || {}),
+                  ...supportPatch,
+                };
+                components[`duct-${lastIdx - 1}`] = {
+                  ...(components[`duct-${lastIdx - 1}`] || {}),
+                  coverRight: false,
+                };
+                changed = true;
+              }
+            } else if (side === 'base') {
+              const supportKey = disp === '360' ? 'support-360-base' : 'support-120-base';
+              components[supportKey] = {
+                ...(components[supportKey] || {}),
+                ...supportPatch,
+              };
+              components['duct-0'] = {
+                ...(components['duct-0'] || {}),
+                coverLeft: false,
+              };
+              changed = true;
+            } else if (side === 'wing_right' || (disp === 'individual' && side === 'wing')) {
+              const supportKey = disp === '360' ? 'support-360-wing-der' : (disp === 'individual' ? 'support-120-wing' : 'support-120-wing-der');
+              components[supportKey] = {
+                ...(components[supportKey] || {}),
+                ...supportPatch,
+              };
+              if (disp === '360') {
+                components['duct-1'] = {
+                  ...(components['duct-1'] || {}),
+                  coverRight: false,
+                };
+              }
+              changed = true;
+            } else if (side === 'wing_left') {
+              const supportKey = disp === '360' ? 'support-360-wing-izq' : 'support-120-wing-izq';
+              components[supportKey] = {
+                ...(components[supportKey] || {}),
+                ...supportPatch,
+              };
+              if (disp === '360') {
+                components['duct-2'] = {
+                  ...(components['duct-2'] || {}),
+                  coverRight: false,
+                };
+              }
+              changed = true;
+            }
+
+            if (changed) {
+              cfg.components = components;
+              applyLinkConfiguration(root, cfg, false);
+            }
+            return changed;
+          };
+
+          const tgtKey = getTargetSupportKey(tgtRoot, tgtSide);
+          const tgtAlreadyRemoved = tgtKey && Boolean(tgtRoot.userData?.config?.components?.[tgtKey]?.removed);
+          const tgtKeepsCostado = !tgtAlreadyRemoved;
+
+          updateConnectedComponents(tgtRoot, tgtSide, tgtKeepsCostado);
+          updateConnectedComponents(actRoot, actSide, !tgtKeepsCostado);
+        }
 
         if (connectorScopeLine === 'MOREA') {
           const activeRole = String(
@@ -20104,7 +20596,7 @@ function ThreeCanvas({
     // ====== Loop ======
     let rafId;
     function animate() {
-      if (!isDragging && !isRotating3D && controls.enabled === false) controls.enabled = true;
+      if (!isDragging && !dragSession3D && !isRotating3D && controls.enabled === false) controls.enabled = true;
 
       controls.update();
       if (selectionHelper) selectionHelper.update();

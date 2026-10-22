@@ -15,17 +15,94 @@ function createVisual(source, part, material) {
       node.receiveShadow = true;
     }
   });
-  const box = new Box3().setFromObject(model), size = box.getSize(new Vector3());
+  let box = new Box3().setFromObject(model), size = box.getSize(new Vector3());
   if (size.toArray().some(value => !Number.isFinite(value) || value <= 0)) {
     model.traverse(node => { if (node.isMesh) { node.geometry.dispose(); node.material.dispose(); } });
     throw new Error('LINK_CABLE_MODEL_EMPTY');
   }
+
+  // Normalizar orientación de los costados: si el GLB viene con el eje mayor en Z (como ELSO060000 y ELSO070000),
+  // se orienta a X local para que la rotación paramétrica estándar de Three.js lo alinee con la profundidad Z.
+  const isSpecial120Support = part.logicalCode === 'LKSO110000' || part.logicalCode === 'ELSO740000' ||
+    Boolean(part.model?.src?.includes('C360G')) || Boolean(part.model?.src?.includes('C120G'));
+  if (part.role === 'SUPPORT' && size.z > size.x && !isSpecial120Support) {
+    model.rotation.y = -Math.PI / 2;
+    box = new Box3().setFromObject(model);
+    size = box.getSize(new Vector3());
+  }
+
+  // Normalizar orientación del pedestal: el GLB de Zen Almacenamiento se orienta para que el frente (gavetas)
+  // mire hacia el frente (-Z) hacia fuera del puesto y no hacia el grommet (+Z), con su ancho (400 mm) en X y profundidad (500 mm) en Z.
+  if (part.role === 'PEDESTAL') {
+    model.rotation.y = -Math.PI / 2;
+    box = new Box3().setFromObject(model);
+    size = box.getSize(new Vector3());
+  }
+
+  // Normalizar orientación de los ductos bajantes a piso y techo de Link:
+  // Deben ser 100% VERTICALES (como un poste/palo mirando hacia arriba, con la altura en Y).
+  if ((part.role === 'FLOOR_DUCT' || part.role === 'CEILING_DUCT') && part.model?.src?.includes('/Link/Ductos/')) {
+    // Si el largo (tubo) viene acostado en X: rotar 90° en Z para que quede vertical en Y
+    if (size.x > size.y && size.x > size.z) {
+      model.traverse(node => {
+        if (node.isMesh && node.geometry) {
+          node.geometry.rotateZ(Math.PI / 2);
+        }
+      });
+    } else if (size.z > size.y && size.z > size.x) {
+      // Si el largo (tubo) viene acostado en Z: rotar 90° en X para que quede vertical en Y
+      model.traverse(node => {
+        if (node.isMesh && node.geometry) {
+          node.geometry.rotateX(-Math.PI / 2);
+        }
+      });
+    }
+  }
+
   const partDimensions = getLinkPartDimensions(part);
   const dimensions = part.role === 'GROMMET'
     ? [partDimensions[0] + 2, 33.542, 115.5] // flange extends beyond the cutout
     : partDimensions;
   const center = box.getCenter(new Vector3());
   model.position.sub(center);
+
+  // Manejo de la tapa del ducto en los costados terminales de Link (ELSO060000 y ELSO090000)
+  if (part.role === 'SUPPORT') {
+    const isDobleTerminal = Boolean(part.model?.src?.includes('ELSO060000'));
+    const isSingleTerminal = Boolean(part.model?.src?.includes('ELSO090000'));
+    const tapaNodeNames = isDobleTerminal
+      ? ['0_20', '0_11', '0_21']
+      : isSingleTerminal
+        ? ['0_27', '0_1', '0_23']
+        : [];
+    const hasTapa = part.componentConfig?.hasTapa !== false && part.hasTapa !== false;
+    tapaNodeNames.forEach(name => {
+      const n = model.getObjectByName(name);
+      if (n) {
+        n.visible = hasTapa;
+        n.traverse(child => {
+          if (child.isMesh) {
+            child.userData.isCostadoTapa = true;
+            child.userData.supportKey = part.key;
+          }
+        });
+      }
+    });
+
+    // Ubicar la tapa del costado terminal individual (ELSO090000_60) en la esquina del ducto cableado
+    if (isSingleTerminal) {
+      const rotY = Number(part.rotation?.y ?? part.rotationY ?? 0);
+      const depthMm = part.dimMm?.depthMm || 600;
+      // 0.195 m cubre todo el cuadrado del ducto cableado sin quedar metido en el poste del costado
+      const shiftDist = 0.195 * (depthMm / 600);
+      const shiftY = rotY < 0 ? -shiftDist : shiftDist;
+      ['0_27', '0_1', '0_23'].forEach(name => {
+        const n = model.getObjectByName(name);
+        if (n) n.position.y += shiftY;
+      });
+    }
+  }
+
   if (part.model?.exactSize) {
     // Determine uniform scale factor (assuming model might be in mm or m).
     // If size.y is ~710, it's in mm, so scale is 1/1000. If ~0.71, scale is 1.
@@ -60,15 +137,19 @@ export async function hydrateLinkGlbParts(object, product, { loadAsset, onVisual
       component.traverse(node => { if (!material && node.isMesh) material = Array.isArray(node.material) ? node.material[0] : node.material; });
       const ownsMaterial = !material;
       if (!material) {
+        const isChrome = product.config.supportFinish === 'CROMADO' || part.componentConfig?.supportFinish === 'CROMADO';
         const color = part.materialRole === 'surface'
           ? product.config.surfaceColor
           : part.materialRole === 'pedestal'
             ? product.config.pedestalColor
-            : product.config.structureColor;
-        material = new MeshStandardMaterial({ color, roughness: 0.55 });
+            : (isChrome ? '#c9ced4' : product.config.structureColor);
+        material = new MeshStandardMaterial({
+          color,
+          roughness: isChrome ? 0.15 : 0.55,
+          metalness: isChrome ? 0.9 : 0.3
+        });
       }
       const visual = createVisual(source, part, material);
-      if (ownsMaterial) material.dispose();
       const fallbackGeometries = new Set(), fallbackMaterials = new Set();
       component.traverse(node => {
         if (node.geometry) fallbackGeometries.add(node.geometry);

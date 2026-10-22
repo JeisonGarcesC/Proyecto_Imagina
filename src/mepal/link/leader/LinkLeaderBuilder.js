@@ -14,25 +14,32 @@ export function buildLinkLeader(config) {
   // El GLB del costado mide 600 mm de largo: se estira en proporción a la profundidad de la superficie que soporta.
   const mainScale=config.depthMm/600;
   const main=createLeaderMainSurface(config,layout);
-  parts.push(main,createLeaderMainBeam(config));
+  parts.push(main,createLeaderMainBeam(config,layout));
   parts.push(createCostado({config,key:'support-0',depthMm:config.depthMm,position:[layout.freeX,355,0],rotationY:layout.freeRotation,
-    lengthScale:mainScale,leaderRole:'MAIN_FREE_END'}));
+    lengthScale:mainScale,leaderRole:'MAIN_FREE_END',hasTapa:false}));
   const tops=[main];
   if(config.leaderCredenza)parts.push(createLeaderCredenza(config,layout),createLeaderCredenzaConnector(config,layout));
   else {
     const junction=createCostado({config,key:'support-1',depthMm:config.depthMm,position:[layout.junctionX,355,0],rotationY:layout.junctionRotation,
-      lengthScale:mainScale,leaderRole:'MAIN_RETURN_JUNCTION'});
-    parts.push(junction);
+      lengthScale:mainScale,leaderRole:'MAIN_RETURN_JUNCTION',hasTapa:false});
     if(junction.componentConfig.hasOutletBox){
       const rule=resolveLeaderCostadoOutlet(config.depthMm);
+      if(rule?.code){
+        junction.code=rule.code;
+        junction.rawCodigoPT=rule.code;
+        junction.logicalCode=rule.code;
+        junction.description='LINK costado terminal sencillo con caja tomas';
+        junction.name=junction.description;
+      }
       parts.push(linkPart('OUTLET_BOX','junction-outlet',[80,80,200],[layout.junctionX-layout.sign*50,650,0],null,
         'Caja tomas incluida en costado LINK',{excludeFromBOM:true,model:{kind:'glb',src:rule.modelSrc},configTargetKey:junction.key,
           componentConfig:junction.componentConfig,meta:{category:'cajas-tomas'}}));
     }
+    parts.push(junction);
     const surface=createLeaderReturnSurface(config,layout);
     tops.push(surface);parts.push(surface);
     const support=createCostado({config,key:'return-support',depthMm:config.returnDepthMm,ruleDepthMm:config.returnDepthMm,
-      position:[layout.returnX,355,layout.returnEndZ],rotationY:layout.returnEndRotation,lengthScale:config.returnDepthMm/600,leaderRole:'RETURN_END'});
+      position:[layout.returnX,355,layout.returnEndZ],rotationY:layout.returnEndRotation,lengthScale:config.returnDepthMm/600,leaderRole:'RETURN_END',hasTapa:false});
     if(support.componentConfig.pedestal)parts.push(createLeaderPedestal(config,layout,support));
     else parts.push(support);
     parts.push(...createLeaderUnionPlates(config,layout));

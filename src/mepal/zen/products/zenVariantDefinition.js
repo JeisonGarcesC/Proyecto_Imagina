@@ -41,7 +41,7 @@ const ZEN_VARIANT_GROUPS = Object.freeze([
     category: 'Pedestal',
     variantType: 'cushion',
     variantSuffix: baseCode === '22000020564' ? '__cushion' : '_cushion',
-    disabled: baseCode !== '22000020563',
+    disabled: false,
   })),
 ]);
 

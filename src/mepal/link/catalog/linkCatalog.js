@@ -29,6 +29,7 @@ export const LINK_TYPES = Object.freeze([
   { value: 'doble', label: 'Doble enfrentado' },
   { value: 'lider', label: 'Líder en L · pedestal provisional' },
   { value: 'credenza', label: 'Credenza' },
+  { value: 'puesto120', label: 'Puesto 120° / 360°' },
 ]);
 export const LINK_WIDTHS = Object.freeze([1200, 1500, 1800]);
 export const LINK_LEADER_WIDTHS = Object.freeze([1500, 1650, 1800]);

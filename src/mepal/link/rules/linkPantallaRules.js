@@ -6,9 +6,13 @@
 // Formica y vidrio llevan 38/58 en la descripción comercial (30/50 cm de pantalla + pata).
 export const LINK_PANTALLA_FRONTAL_CODES = {
   formica: { 300: { 1200: '22000021967', 1500: '22000021968', 1800: '22000021969' } },
+  melamina: { 300: { 1200: '22000021967', 1500: '22000021968', 1800: '22000021969' } },
   vidrio: {
     300: { 1200: '22000103716', 1500: '22000103717', 1800: '22000103718', 2100: '22000120363' },
     500: { 1200: '22000103719', 1500: '22000103720', 1800: '22000103721', 2100: '22000120364' },
+  },
+  vidrioTemplado: {
+    300: { 1200: '22000021940', 1500: '22000021941', 1800: '22000021942' },
   },
   tela: {
     300: { 1200: '22000130155', 1500: '22000130156', 1800: '22000130157' },
@@ -19,7 +23,10 @@ export const LINK_PANTALLA_FRONTAL_CODES = {
 // Pantalla lateral por acabado y fondo nominal (mm). Solo existe de 30 cm de alto.
 export const LINK_PANTALLA_LATERAL_CODES = {
   formica: { 600: '22000009065', 750: '22000009066' },
+  melamina: { 600: '22000009065', 750: '22000009066' },
   vidrio: { 600: '22000030562', 750: '22000030563' },
+  vidrioTemplado: { 600: '22000009053', 750: '22000009054' },
+  tela: { 600: '22000009065', 750: '22000009066' },
 };
 // Juego de soporte de pantalla lateral (LKAC051000): uno por pantalla lateral.
 export const LINK_PANTALLA_LATERAL_SUPPORT_CODE = '22000015337';
