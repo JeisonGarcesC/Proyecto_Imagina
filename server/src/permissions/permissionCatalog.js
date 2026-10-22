@@ -3,7 +3,7 @@ const entries = {
   editor: ['view.2d', 'view.3d', 'object.select', 'object.create', 'object.move', 'object.rotate', 'object.delete', 'object.copy', 'object.paste', 'plan.import', 'plan.edit', 'plan.calibrate', 'plan.delete', 'plan.layers.manage', 'dimension.create', 'dimension.update', 'dimension.delete'],
   catalog: ['ares.view', 'eduk.view', 'clak.view', 'salud.view', 'tekSocial.view', 'zen.view', 'koncisaPlus.view', 'prices.view'],
   bom: ['view', 'prices.view', 'export'],
-  finishes: ['view', 'apply'],
+  finishes: ['view', 'apply', 'create', 'delete'],
   admin: ['users.read', 'users.write', 'roles.read', 'roles.write', 'permissions.write', 'devices.read', 'devices.revoke', 'audit.read'],
 };
 

@@ -1,6 +1,7 @@
 import { createCritterium8FrameDefinition } from '../definitions/frameDefinition.js';
-import { buildCritterium8FrameComposition } from '../composition/frameComposition.js';
+import { applyGrowthModuleToComposition, buildCritterium8FrameComposition } from '../composition/frameComposition.js';
 import { isTileCombinationAllowed } from '../rules/tileRules.js';
+import { retainCritterium8TileCommercialOptions } from '../catalog/tileCatalog.js';
 import { getCritterium8FullTileHeight } from '../rules/frameCompositionRules.js';
 
 function clone(value) {
@@ -16,7 +17,21 @@ function buildComposition(config, frameId) {
     compositionMode: config.compositionMode,
     tiles: config.tiles || [],
   });
-  return { frame, composition: buildCritterium8FrameComposition(frame) };
+  let composition = buildCritterium8FrameComposition(frame);
+  const count = config.growthModules?.length || 0;
+  if (count) {
+    const errors = [];
+    if (config.frameMode !== 'HALF_HEIGHT') errors.push('GROWTH_REQUIRES_HALF_HEIGHT_FRAME');
+    if (config.compositionMode !== 'MODULAR') errors.push('GROWTH_REQUIRES_MODULAR_COMPOSITION');
+    if (!Array.isArray(config.growthModules)) errors.push('INVALID_GROWTH_MODULE_COUNT');
+    if (errors.length) composition.diagnostics.push(...errors.map((code) => ({ code, level: 'ERROR' })));
+    else {
+      const result = applyGrowthModuleToComposition(frame, composition, { moduleCount: count });
+      if (result.valid) composition = result.composition;
+      else composition.diagnostics.push(...result.errors.map((code) => ({ code, level: 'ERROR' })));
+    }
+  }
+  return { frame, composition };
 }
 
 export function resolveCritterium8ConfigPatch({ config = {}, patch = {}, frameId } = {}) {
@@ -37,6 +52,9 @@ export function resolveCritterium8ConfigPatch({ config = {}, patch = {}, frameId
     tiles: [],
   };
   const diagnostics = [];
+  if (!Array.isArray(next.growthModules)) {
+    return { success: false, reason: 'INVALID_GROWTH_MODULE_COUNT', diagnostics, config: clone(config) };
+  }
   if (next.compositionMode === 'FULL_TILE' && !getCritterium8FullTileHeight(next.heightCm)) {
     return { success: false, reason: 'FULL_TILE_NOT_DOCUMENTED_FOR_FRAME', diagnostics, config: clone(config) };
   }
@@ -57,17 +75,25 @@ export function resolveCritterium8ConfigPatch({ config = {}, patch = {}, frameId
       diagnostics.push({ code: 'TILE_ASSIGNMENT_DISCARDED', level: 'WARNING', tileType: tileType || null, previousSlotId: tile.slotId || null });
       return;
     }
-    next.tiles.push({
+    const nextTile = {
       ...clone(tile),
       slotId: targetSlot.id,
       tileType,
       heightCm: targetSlot.heightCm,
-    });
+    };
+    if (Object.hasOwn(nextTile, 'commercialOptions')) {
+      nextTile.commercialOptions = retainCritterium8TileCommercialOptions({
+        tileType, widthCm: next.widthCm, heightCm: targetSlot.heightCm,
+        commercialOptions: nextTile.commercialOptions,
+      }) || {};
+    }
+    next.tiles.push(nextTile);
   });
 
   const effective = buildComposition(next, frameId);
   const errors = (effective.composition.diagnostics || []).filter((item) => item.level === 'ERROR');
   if (errors.length) return { success: false, reason: errors[0].code, diagnostics: [...diagnostics, ...errors], config: clone(config) };
+  if (next.frameMode === 'HALF_HEIGHT') next.projectHeightCm = effective.composition.heightCm;
   return { success: true, config: clone(next), frame: effective.frame, composition: effective.composition, diagnostics };
 }
 
@@ -80,7 +106,15 @@ export function patchCritterium8TileConfig({ config, frameId, slotId, patch = {}
       if (candidate.id !== slotId) return candidate.tile;
       const tileType = String(patch.tileType ?? candidate.tile?.tileType ?? '').trim().toUpperCase();
       if (!tileType) return null;
-      return { ...(candidate.tile || {}), ...clone(patch), slotId, tileType, heightCm: candidate.heightCm };
+      const commercialOptions = Object.hasOwn(patch, 'commercialOptions')
+        ? patch.commercialOptions == null
+          ? {}
+          : { ...patch.commercialOptions, ...(candidate.tile?.commercialOptions || {}), ...patch.commercialOptions }
+        : candidate.tile?.commercialOptions;
+      return {
+        ...(candidate.tile || {}), ...clone(patch), slotId, tileType, heightCm: candidate.heightCm,
+        ...(commercialOptions === undefined ? {} : { commercialOptions }),
+      };
     })
     .filter(Boolean);
   return resolveCritterium8ConfigPatch({ config, patch: { tiles }, frameId });

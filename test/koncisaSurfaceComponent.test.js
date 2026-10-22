@@ -6,6 +6,7 @@ import {
   getKoncisaSurfaceComponentConfig,
   getKoncisaSurfaceKey,
 } from '../src/mepal/koncisaPlus/rules/koncisaSurfaceComponentRules.js';
+import { resolveComponentKey } from '../src/mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe.js';
 
 const baseConfig = {
   puestos: 2,
@@ -45,15 +46,27 @@ test('acabado, espesor y acceso de cables se guardan únicamente para la superfi
     grommetFinish: 'PAINTED',
     grommetPosition: 'CENTER',
     pasacablePosition: 'RIGHT',
+    floorDuctEnabled: false,
+    outletCouplingEnabled: false,
   });
   assert.equal(config.thickMm, 25);
   assert.equal(config.tipoPasoCable, 'none');
 });
 
 test('normalización rechaza valores arbitrarios y produce estado serializable', () => {
-  const config = getKoncisaSurfaceComponentConfig({ surfaceOverrides: {
-    SURFACE_0: { finishId: 'NO_EXISTE', cableAccessType: 'GROMMET', pasacablePosition: 'INVALID' },
-  } }, 'SURFACE_0', { finishCode: '22008689', thickMm: 25, variant: '' });
+  const config = getKoncisaSurfaceComponentConfig(
+    {
+      surfaceOverrides: {
+        SURFACE_0: {
+          finishId: 'NO_EXISTE',
+          cableAccessType: 'GROMMET',
+          pasacablePosition: 'INVALID',
+        },
+      },
+    },
+    'SURFACE_0',
+    { finishCode: '22008689', thickMm: 25, variant: '' }
+  );
   assert.equal(config.finishId, 'FORMICA_25');
   assert.equal(config.grommetPosition, 'CENTER');
   assert.equal(config.pasacablePosition, 'CENTER');
@@ -62,16 +75,106 @@ test('normalización rechaza valores arbitrarios y produce estado serializable',
 });
 
 test('el grommet siempre queda centrado y solo el pasacable admite posición lateral', () => {
-  const grommet = getKoncisaSurfaceComponentConfig({ surfaceOverrides: {
-    SURFACE_0: { cableAccessType: 'GROMMET', grommetPosition: 'RIGHT' },
-  } }, 'SURFACE_0', baseConfig);
-  const pasacable = getKoncisaSurfaceComponentConfig({ surfaceOverrides: {
-    SURFACE_0: { cableAccessType: 'PASACABLE', pasacablePosition: 'LEFT' },
-  } }, 'SURFACE_0', baseConfig);
+  const grommet = getKoncisaSurfaceComponentConfig(
+    {
+      surfaceOverrides: {
+        SURFACE_0: { cableAccessType: 'GROMMET', grommetPosition: 'RIGHT' },
+      },
+    },
+    'SURFACE_0',
+    baseConfig
+  );
+  const pasacable = getKoncisaSurfaceComponentConfig(
+    {
+      surfaceOverrides: {
+        SURFACE_0: { cableAccessType: 'PASACABLE', pasacablePosition: 'LEFT' },
+      },
+    },
+    'SURFACE_0',
+    baseConfig
+  );
   assert.equal(grommet.grommetPosition, 'CENTER');
   assert.equal(grommet.grommet, true);
   assert.equal(pasacable.pasacablePosition, 'LEFT');
   assert.equal(pasacable.pasacable, true);
+});
+
+test('las propiedades de caja LEADER persisten el ducto y el acople por superficie', () => {
+  const config = createKoncisaSurfaceConfigPatch(baseConfig, 'MAIN_SURFACE', {
+    floorDuctEnabled: true,
+    outletCouplingEnabled: true,
+  });
+
+  assert.equal(config.surfaceOverrides.MAIN_SURFACE.floorDuctEnabled, true);
+  assert.equal(config.surfaceOverrides.MAIN_SURFACE.outletCouplingEnabled, true);
+});
+
+test('MAIN rechaza una nueva posición y conserva el valor legacy al editar otra propiedad', () => {
+  const legacy = {
+    ...baseConfig,
+    surfaceOverrides: {
+      MAIN_SURFACE: { cableAccessType: 'GROMMET', grommetPosition: 'LEFT' },
+    },
+  };
+  assert.throws(
+    () => createKoncisaSurfaceConfigPatch(legacy, 'MAIN_SURFACE', { grommetPosition: 'RIGHT' }),
+    /no es editable/
+  );
+  const edited = createKoncisaSurfaceConfigPatch(legacy, 'MAIN_SURFACE', {
+    grommetFinish: 'PAINTED',
+  });
+  assert.equal(edited.surfaceOverrides.MAIN_SURFACE.grommetPosition, 'LEFT');
+  assert.equal(legacy.surfaceOverrides.MAIN_SURFACE.grommetPosition, 'LEFT');
+  const returnEdited = createKoncisaSurfaceConfigPatch(edited, 'RETURN_SURFACE', {
+    grommetPosition: 'RIGHT',
+  });
+  assert.equal(returnEdited.surfaceOverrides.RETURN_SURFACE.grommetPosition, 'RIGHT');
+  assert.equal(returnEdited.surfaceOverrides.MAIN_SURFACE.grommetPosition, 'LEFT');
+});
+
+test('editar una caja LEADER preserva los flags legacy independientes de MAIN y RETURN', () => {
+  const legacyConfig = {
+    ...baseConfig,
+    leaderMainFloorDuct: { enabled: true },
+    leaderMainOutletCoupling: { enabled: false },
+    leaderReturnFloorDuct: { enabled: false },
+    leaderReturnOutletCoupling: { enabled: true },
+  };
+  const mainConfig = createKoncisaSurfaceConfigPatch(legacyConfig, 'MAIN_SURFACE', {
+    outletCouplingEnabled: true,
+  });
+  const returnConfig = createKoncisaSurfaceConfigPatch(mainConfig, 'RETURN_SURFACE', {
+    floorDuctEnabled: true,
+  });
+
+  assert.equal(mainConfig.surfaceOverrides.MAIN_SURFACE.floorDuctEnabled, true);
+  assert.equal(mainConfig.surfaceOverrides.MAIN_SURFACE.outletCouplingEnabled, true);
+  assert.equal(returnConfig.surfaceOverrides.RETURN_SURFACE.floorDuctEnabled, true);
+  assert.equal(returnConfig.surfaceOverrides.RETURN_SURFACE.outletCouplingEnabled, true);
+  assert.equal(returnConfig.surfaceOverrides.MAIN_SURFACE.floorDuctEnabled, true);
+  assert.equal(returnConfig.surfaceOverrides.MAIN_SURFACE.outletCouplingEnabled, true);
+});
+
+test('la caja LEADER tiene una clave serializada distinta de su superficie objetivo', () => {
+  const surfaceKey = resolveComponentKey({
+    userData: { type: 'SURFACE', meta: { componentKey: 'MAIN_SURFACE', leaderRole: 'MAIN' } },
+  });
+  const outletBoxKey = resolveComponentKey({
+    userData: {
+      type: 'GLB_PART',
+      meta: {
+        category: 'cajas-de-tomas',
+        layoutType: 'LEADER',
+        leaderRole: 'MAIN_GROMMET_OUTLET_BOX',
+        componentKey: 'MAIN_SURFACE',
+        targetSurfaceKey: 'MAIN_SURFACE',
+      },
+    },
+  });
+
+  assert.equal(surfaceKey, 'MAIN_SURFACE');
+  assert.equal(outletBoxKey, 'MAIN_GROMMET_OUTLET_BOX');
+  assert.notEqual(outletBoxKey, surfaceKey);
 });
 
 test('la extensión contextual de Koncisa no importa módulos LINK', () => {

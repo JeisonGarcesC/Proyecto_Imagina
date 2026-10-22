@@ -1,0 +1,14 @@
+.admin-device-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.admin-device-tabs button.active { background: #303944; border-color: #303944; color: white; }
+.admin-device-detail { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 18px; padding: 18px 20px; border: 1px solid #e1e4e8; border-radius: 12px; background: white; }
+.admin-device-detail h2 { margin: 0 0 5px; font-size: 18px; }
+.admin-device-detail p { margin: 0; color: #697584; font-size: 12px; }
+.admin-device-detail dl { display: grid; grid-template-columns: auto auto; gap: 4px 10px; margin: 0; font-size: 11px; }
+.admin-device-detail dt { color: #697584; }
+.admin-device-detail dd { margin: 0; font-weight: 700; }
+.admin-device-detail-actions, .admin-device-row-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-device-status { display: inline-block; padding: 4px 8px; border-radius: 20px; background: #e1f4e9; color: #13653c; font-weight: 800; white-space: nowrap; }
+.admin-device-status.status-REVOKED { background: #fde7e8; color: #a2343c; }
+.admin-device-status.status-LOST { background: #fff0d7; color: #7e4b10; }
+.admin-device-table td small { display: block; margin-top: 3px; color: #697584; }
+.admin-device-table td button { white-space: nowrap; }

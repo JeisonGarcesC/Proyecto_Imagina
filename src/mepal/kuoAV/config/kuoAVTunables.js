@@ -23,6 +23,8 @@ export const KUO_AV_REFERENCE = Object.freeze({
 
 export const KUO_AV_MASTER_REFERENCE = KUO_AV_REFERENCE;
 
+export const KUO_AV_LATERAL_VERTEBRA_ADJUSTMENT_MM = Object.freeze({ x: 10, y: 10 });
+
 /**
  * 2. ORIGEN Y TRASLACIÓN MATEMÁTICA CET → IMAGINA
  */
@@ -43,6 +45,7 @@ export const KUO_AV_MASTER_ORIGIN = Object.freeze({
 export const KUO_AV_GLB_FILES = Object.freeze({
   COSTADO_IZQ: 'KUSO800000_IZQ.glb',
   COSTADO_DER: 'KUSO800000_DER.glb',
+  COSTADO_INTERMEDIO: 'KUSO810000.glb',
   // Variantes de Viga Soporte KUSO420000
   VIGA_120: 'KUSO420000_120.glb',
   VIGA_150: 'KUSO420000_150.glb',
@@ -109,6 +112,65 @@ export const KUO_AV_VARIANT_METRICS = Object.freeze({
 });
 
 /**
+ * Reglas de remate del mapa de producto Kuo Altura Variable:
+ * superficies, vigas, ductos y pantallas son rematables en largo de 120 a 165 cm;
+ * la superficie también en ancho (profundidad) de 60 a 75 cm.
+ * Un remate se pide con el código de la nominal inmediatamente superior.
+ * La oferta comercial limita el largo especial a 120-160 cm cada 10 cm
+ * y la profundidad a 60-75 cm cada 5 cm, sin modificar nominales ni recetas antiguas.
+ */
+export const KUO_AV_REMATE = Object.freeze({
+  specialWidthsMm: Object.freeze([1200, 1300, 1400, 1500, 1600]),
+  specialDepthsMm: Object.freeze([600, 650, 700, 750]),
+  nominalWidthsMm: Object.freeze([1200, 1500, 1650]),
+  nominalDepthsMm: Object.freeze([600, 750]),
+  vigaRealDeltaMm: 4,
+  ductoRealDeltaMm: 91,
+  pantallaRealDeltaMm: 80,
+});
+
+export function resolveKuoAVNominalSize(valueMm, nominalsMm) {
+  const value = Number(valueMm);
+  if (!Number.isFinite(value) || value <= 0) return nominalsMm[0];
+  return nominalsMm.find((nominal) => nominal >= value) || nominalsMm[nominalsMm.length - 1];
+}
+
+export function resolveKuoAVNominalWidth(widthMm) {
+  return resolveKuoAVNominalSize(widthMm, KUO_AV_REMATE.nominalWidthsMm);
+}
+
+export function resolveKuoAVNominalDepth(depthMm) {
+  return resolveKuoAVNominalSize(depthMm, KUO_AV_REMATE.nominalDepthsMm);
+}
+
+export function isKuoAVRemate(widthMm, depthMm) {
+  return Number(widthMm) !== resolveKuoAVNominalWidth(widthMm) ||
+    Number(depthMm) !== resolveKuoAVNominalDepth(depthMm);
+}
+
+/** Oferta comercial compartida por creacion y edicion de sencillos y dobles. */
+export function resolveKuoAVDimensionOptions(dimension, especial = false) {
+  const nominals = dimension === 'depth'
+    ? KUO_AV_REMATE.nominalDepthsMm
+    : KUO_AV_REMATE.nominalWidthsMm;
+  if (!especial) return [...nominals];
+  return [...(dimension === 'depth' ? KUO_AV_REMATE.specialDepthsMm : KUO_AV_REMATE.specialWidthsMm)];
+}
+
+export function resolveKuoAVSpecialSize(dimension, valueMm) {
+  const values = resolveKuoAVDimensionOptions(dimension, true);
+  const value = Number(valueMm);
+  if (!Number.isFinite(value)) throw new Error('La medida especial Kuo AV debe ser numerica.');
+  return values.reduce((best, candidate) =>
+    Math.abs(candidate - value) < Math.abs(best - value) ? candidate : best, values[0]);
+}
+
+export function formatKuoAVCm(mm) {
+  const cm = Math.round(Number(mm || 0) / 5) / 2;
+  return Number.isInteger(cm) ? String(cm) : cm.toFixed(1).replace('.', ',');
+}
+
+/**
  * Resuelve el nombre del archivo GLB correcto para un componente, ancho o tipo dado.
  *
  * @param {Object} params
@@ -127,11 +189,8 @@ export function resolveKuoAVVariantAsset({ component, anchoMm, tipoGrommet, conf
     return isDoble ? variants.doble : variants.simple;
   }
 
-  const width = Number(anchoMm || config?.anchoMm || 1200);
-  if (variants[width]) return variants[width];
-  if (width <= 1350) return variants[1200];
-  if (width <= 1550) return variants[1500];
-  return variants[1650] || variants[1500] || variants[1200];
+  const width = resolveKuoAVNominalWidth(anchoMm || config?.anchoMm || 1200);
+  return variants[width] || variants[1200];
 }
 
 /**
@@ -146,11 +205,8 @@ export function resolveKuoAVVariantMetrics({ component, anchoMm, tipoGrommet, co
     return isDoble ? metrics.doble : metrics.simple;
   }
 
-  const width = Number(anchoMm || config?.anchoMm || 1200);
-  if (metrics[width]) return metrics[width];
-  if (width <= 1350) return metrics[1200];
-  if (width <= 1550) return metrics[1500];
-  return metrics[1650] || metrics[1500] || metrics[1200];
+  const width = resolveKuoAVNominalWidth(anchoMm || config?.anchoMm || 1200);
+  return metrics[width] || metrics[1200];
 }
 
 export const KUO_AV_CET_CODES = Object.freeze({
@@ -346,19 +402,19 @@ export const KUO_AV_CALIBRATION = {
     glb: KUO_AV_GLB_FILES.VERTEBRA_LATERAL,
     fuente: 'CET Designer',
     posicionMm: {
-      x: -285.0,
+      x: 288.202892,
       y: 430.9,
-      z: -248.0,
+      z: -174.68,
     },
     rotacionDeg: {
       x: 0,
-      y: 180,
+      y: 0,
       z: 0,
     },
     offsetMm: {
-      x: 0,
+      x: -5,
       y: 0,
-      z: 0,
+      z: -10,
     },
     escala: {
       x: 1,

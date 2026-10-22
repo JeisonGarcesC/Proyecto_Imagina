@@ -73,10 +73,10 @@ export function applyKuoAVAssetTransform(partObject, part) {
     const rz = (cfg.rotacionDeg?.z || 0) * DEG2RAD;
     partObject.rotation.set(rx, ry, rz);
 
-    // 2. Escala (mantenida en 1, 1, 1 por regla de oro)
-    const sx = cfg.escala?.x ?? 1;
-    const sy = cfg.escala?.y ?? 1;
-    const sz = cfg.escala?.z ?? 1;
+    // 2. Escala de calibración (1, 1, 1) combinada con la escala de remate de la pieza
+    const sx = (cfg.escala?.x ?? 1) * (part.scale?.x ?? 1);
+    const sy = (cfg.escala?.y ?? 1) * (part.scale?.y ?? 1);
+    const sz = (cfg.escala?.z ?? 1) * (part.scale?.z ?? 1);
     partObject.scale.set(sx, sy, sz);
   } else {
     partObject.rotation.set(0, 0, 0);

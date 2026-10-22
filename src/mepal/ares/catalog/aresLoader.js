@@ -3,10 +3,12 @@
 // Agregar aquí cada nuevo código cuando se añada el GLB correspondiente.
 const ARES_CODES = [
   '22000134845',
+  '22000134846',
+  '22000134847',
 ];
 
 const cacheByList = new Map();
-let cacheAresItems = null;
+const cacheAresItems = new Map();
 
 function normalizeList(list) {
   return String(list || 'CO')
@@ -75,7 +77,8 @@ async function loadPriceListMap(list = 'CO') {
 
 // Devuelve la lista de items Ares disponibles con precios del XML para el país dado
 export async function loadAresItems(list = 'CO') {
-  if (cacheAresItems) return cacheAresItems;
+  const key = normalizeList(list);
+  if (cacheAresItems.has(key)) return cacheAresItems.get(key);
 
   try {
     const priceMap = await loadPriceListMap(list);
@@ -91,7 +94,7 @@ export async function loadAresItems(list = 'CO') {
       };
     });
 
-    cacheAresItems = items;
+    cacheAresItems.set(key, items);
     return items;
   } catch (err) {
     console.error('[loadAresItems] Error:', err);

@@ -44,3 +44,16 @@ Respuesta de login y refresh:
 ```
 
 Los permisos no se incluyen en el JWT; se vuelven a resolver desde PostgreSQL al autenticar cada solicitud. Electron reutilizará los mismos servicios de sesión con otro adaptador de transporte en una fase posterior; no se emiten Offline Grants todavía.
+
+## Acabados especiales (fase 1)
+
+Ejecutar `npm run db:migrate`, `npm run db:generate` y `npm run db:seed` antes de usar la API. `SPECIAL_FINISH_STORAGE_DIR` debe apuntar a un directorio privado y persistente, compartido por todas las instancias del servidor; si se omite en desarrollo se usa `server/storage/special-finishes`. Los archivos no se sirven como estáticos. Respaldar este directorio junto con PostgreSQL. El archivado conserva los archivos indefinidamente porque los proyectos JSON locales pueden referenciarlos.
+
+- `GET /special-finishes?page=1&pageSize=20&search=nogal`: solo activos; `finishes.view`.
+- `GET /special-finishes/:id`: detalle, incluso archivado; `finishes.view`.
+- `POST /special-finishes`: JSON `{ "name": "...", "type": "RGB", "rgb": { "r": 0, "g": 0, "b": 0 } }` o `{ "name": "...", "type": "TEXTURE", "assetId": "uuid" }`; `finishes.create`.
+- `POST /special-finishes/textures`: cuerpo binario PNG o JPEG, `Content-Type: image/png` o `image/jpeg`, `X-File-Name: nombre.png`; `finishes.create`. Máximo 5 MiB y 40 millones de píxeles. Se validan extensión, MIME y firma/dimensiones; la respuesta contiene un `assetId` para crear el acabado.
+- `GET /special-finishes/textures/:id`: bytes protegidos por `finishes.view`.
+- `DELETE /special-finishes/:id`: soft delete; `finishes.delete`. Responde 404 si no existe y 409 si ya estaba archivado.
+
+Cada upload crea una versión inmutable. No hay sustitución ni purga automática; los uploads que nunca se vinculen a un acabado quedan retenidos para una futura política de limpieza. La API de esta fase no modifica materiales ni proyectos.

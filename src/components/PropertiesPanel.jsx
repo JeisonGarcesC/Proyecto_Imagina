@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import './PropertiesPanel.css';
 import Critterium8Properties from '../mepal/critterium8/properties/Critterium8Properties.jsx';
 import VetroProperties from '../mepal/vetro/properties/VetroProperties.jsx';
+import { usesKuoAVPropertyFinishes } from '../mepal/kuoAV/materials/kuoAVFinish.js';
 
 export default function PropertiesPanel({
   part,
@@ -94,6 +95,7 @@ export default function PropertiesPanel({
 
   //para poner el acabado por grupos
   const canApplyGroup = !!part?.groupId;
+  const hasKuoPropertyFinishes = usesKuoAVPropertyFinishes(part);
 
   if (part?.critterium8 || part?.critterium8Sequence || part?.critteriumSystem) {
     return <Critterium8Properties part={part} api={api} readOnly={readOnly} />;
@@ -181,6 +183,13 @@ export default function PropertiesPanel({
           <div className="pp-divider" />
 
           {/* Acabado */}
+          {hasKuoPropertyFinishes && (
+            <div className="pp-hint">
+              En Kuo AV estos acabados se aplican solo a las superficies.
+              El color de Kit Fuente se cambia en las propiedades del puesto.
+            </div>
+          )}
+          <>
           <div className="pp-field-label" style={{ marginBottom: 6 }}>
             Acabado
           </div>
@@ -259,6 +268,7 @@ export default function PropertiesPanel({
               Material base: {part.materialBase}
             </div>
           )}
+          </>
         </div>
       )}
 

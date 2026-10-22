@@ -10,6 +10,19 @@ function getVertebras(built) {
   return built.parts.filter((part) => part.type === 'vertebra');
 }
 
+test('central perimetral conserva el montaje anterior en ambas alturas sin cambiar BOM', () => {
+  for (const anchoMm of [1200, 1500, 1650]) {
+    for (const alturaMm of [730, 1200]) {
+      const built = buildKuoAV({ anchoMm, alturaMm, vertebraLateral: false });
+      const [vertebra] = getVertebras(built);
+      assert.equal(vertebra.position.x, 35);
+      assert.deepEqual(vertebra.scale, { x: 1, y: 1, z: 1 });
+      const row = buildKuoAVBOM(built).find((item) => item.code === '22000116690');
+      assert.equal(row.qty, 1);
+    }
+  }
+});
+
 test('KUO AV siempre incluye la vértebra central aunque una configuración antigua la desactive', () => {
   const built = buildKuoAV({
     anchoMm: 1200,
@@ -77,7 +90,8 @@ test('KUO AV selecciona y factura la vértebra lateral calibrada', () => {
   );
 
   assert.match(vertebra.model.src, /KUAC650000_LAT 1\.glb$/);
-  assert.deepEqual(vertebra.position, { x: -285, y: 430.9, z: -248 });
+  assert.deepEqual(vertebra.position, { x: 288.202892, y: 440.9, z: -174.68 });
+  assert.equal(vertebra.meta.lado, 'der');
   assert.equal(vertebra.meta.isLateral, true);
   assert.equal(bomItem.code, '22000116690');
   assert.equal(bomItem.qty, 1);
@@ -136,7 +150,7 @@ test('factory clona recursos GLB y conserva metadatos de la vértebra lateral', 
   assert.notEqual(clonedMesh.geometry, sourceMesh.geometry);
   assert.notEqual(clonedMesh.material, sourceMesh.material);
   assert.equal(clonedMesh.material.opacity, 1);
-  assert.equal(vertebra.rotation.y, Math.PI);
+  assert.equal(vertebra.rotation.y, 0);
 });
 
 test('BOM estándar resuelve códigos SAP facturables y una sola unidad del kit fuente', () => {
@@ -190,7 +204,7 @@ test('BOM selecciona códigos SAP por ancho, material, color y acabado', () => {
 
   assert.ok(codes.has('22000134910'));
   assert.ok(codes.has('22000116336'));
-  assert.ok(codes.has('KUO150060RECT2'));
+  assert.ok(codes.has('22000114425'));
   assert.ok(codes.has('22000126681'));
   assert.ok(codes.has('22000116523'));
   assert.equal(codes.has('22000116690'), true);
@@ -240,7 +254,7 @@ test('BOM KUO AV 120x60 con grommet pintado sube a $7,923,300', () => {
   assert.equal(byCode.get('22000116523')?.lookupTag, 'KONGROMMET4TOMAS-PAINTED');
 });
 
-test('BOM KUO AV melamina 30 todo seleccionado usa KUO120060RECT2 sin precio de superficie', () => {
+test('BOM KUO AV melamina 30 todo seleccionado usa la superficie melamina 22000114423 del mapa', () => {
   const bom = buildKuoAVBOM(
     buildKuoAV({
       anchoMm: 1200,
@@ -258,10 +272,10 @@ test('BOM KUO AV melamina 30 todo seleccionado usa KUO120060RECT2 sin precio de 
   const byCode = new Map(bom.map((item) => [item.code, item]));
   const total = bom.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.qty || 0), 0);
 
-  assert.equal(total, 7396200);
+  assert.equal(total, 7746900);
   assert.equal(byCode.has('22000008989'), false);
-  assert.equal(byCode.get('KUO120060RECT2')?.lookupTag, 'KUO120060RECT2-22008689');
-  assert.equal(byCode.get('KUO120060RECT2')?.category, '-');
+  assert.equal(byCode.get('22000114423')?.unitPrice, 350700);
+  assert.equal(byCode.get('22000114423')?.category, 'SUPERFICIE');
 });
 
 test('BOM KUO AV respeta colores blanco, negro y gris del kit fuente', () => {

@@ -1,4 +1,9 @@
 import { buildKuoAV } from '../builder/KuoAVBuilder.js';
+import {
+  formatKuoAVCm,
+  resolveKuoAVNominalDepth,
+  resolveKuoAVNominalWidth,
+} from '../config/kuoAVTunables.js';
 
 const BOM_BY_WIDTH = Object.freeze({
   1200: Object.freeze({
@@ -9,6 +14,10 @@ const BOM_BY_WIDTH = Object.freeze({
       600: Object.freeze({ code: '22000008989', price: 527100 }),
       750: Object.freeze({ code: '22000008992', price: 708750 }),
     }),
+    melaminaSurfaces: Object.freeze({
+      600: Object.freeze({ code: '22000114423', price: 350700 }),
+      750: Object.freeze({ code: '22000114428', price: 428400 }),
+    }),
   }),
   1500: Object.freeze({
     widthCm: 150,
@@ -17,6 +26,10 @@ const BOM_BY_WIDTH = Object.freeze({
     formicaSurfaces: Object.freeze({
       600: Object.freeze({ code: '22000008990', price: 711900 }),
       750: Object.freeze({ code: '22000008993', price: 1018500 }),
+    }),
+    melaminaSurfaces: Object.freeze({
+      600: Object.freeze({ code: '22000114425', price: 537600 }),
+      750: Object.freeze({ code: '22000114430', price: 695100 }),
     }),
   }),
   1650: Object.freeze({
@@ -27,8 +40,28 @@ const BOM_BY_WIDTH = Object.freeze({
       600: Object.freeze({ code: '22000114412', price: 895650 }),
       750: Object.freeze({ code: '22000114414', price: 1176000 }),
     }),
+    // Códigos del mapa de producto sin precio en PriceList_CO_2.xml.
+    melaminaSurfaces: Object.freeze({
+      600: Object.freeze({ code: '22000114426', price: 0 }),
+      750: Object.freeze({ code: '22000114431', price: 0 }),
+    }),
   }),
 });
+
+// Mapa de producto (Accesorios): única botonera Kuo AV 22024327 (DPBK06).
+export const KUO_AV_BOTONERAS = Object.freeze([
+  Object.freeze({
+    code: '22024327',
+    lookupTag: 'DPBK06',
+    label: 'DPBK06 (control columnas)',
+    description: 'BOTONERA DE CONTROL P/ COLUMNAS LINAK REFERENCIA DPBK06',
+    price: 77700,
+  }),
+]);
+
+export function resolveKuoAVBotonera() {
+  return KUO_AV_BOTONERAS[0];
+}
 
 const FIXED_BOM = Object.freeze({
   control: Object.freeze({
@@ -101,17 +134,17 @@ function normalizeUpper(value) {
     .toLocaleUpperCase('es');
 }
 
+// Mapa de producto: un remate se pide con el c?digo de la medida nominal superior.
 function resolveWidth(widthMm) {
-  const width = Number(widthMm);
-  if (width <= 1350) return 1200;
-  if (width <= 1575) return 1500;
-  return 1650;
+  return resolveKuoAVNominalWidth(widthMm);
 }
 
 function resolveDepth(depthMm) {
-  const depth = Number(depthMm);
-  return depth <= 675 ? 600 : 750;
+  return resolveKuoAVNominalDepth(depthMm);
 }
+
+// Costado KUSO800000: ?nico c?digo de 60 cm para fondos de 60 a 75 cm.
+const KUO_AV_COLUMN_DEPTH_MM = 600;
 
 function cmLabel(mm) {
   return Math.round(Number(mm || 0) / 10);
@@ -161,14 +194,14 @@ function createBomItem({
   };
 }
 
-function buildDuctItem(config, widthData, widthMm) {
+function buildDuctItem(config, widthData, widthMm, realWidthMm) {
   const isSpecial = !!config.especial;
   const widthCm = widthData.widthCm;
   return createBomItem({
     code: widthData.ducto.code,
     lookupTag: isSpecial ? widthData.ducto.code : `KUOCABLEDUCTTER${widthCm}`,
     description: `${isSpecial ? 'SPECIAL: ' : ''}DUCTO CABLEADO SENCILLO METALICO PINTADO ${widthCm}CM ALTURA VARIABLE KUO KUSO860000${
-      isSpecial ? `  - Largo: ${widthCm} cm` : ''
+      isSpecial ? `  - Largo: ${formatKuoAVCm(realWidthMm)} cm` : ''
     }`,
     category: 'DUCTOS',
     type: 'ducto',
@@ -177,7 +210,8 @@ function buildDuctItem(config, widthData, widthMm) {
   });
 }
 
-function buildColumnItem({ side, config, depthMm }) {
+function buildColumnItem({ side, config }) {
+  const depthMm = KUO_AV_COLUMN_DEPTH_MM;
   const isRight = side === 'right';
   const code = isRight ? '22000128083' : '22000128084';
   const sideLabel = isRight ? 'DERECHO' : 'IZQUIERDO';
@@ -196,41 +230,48 @@ function buildColumnItem({ side, config, depthMm }) {
   });
 }
 
-function buildSurfaceItem(config, widthData, widthMm, depthMm) {
+function buildIntermediateColumnItem(config, qty) {
+  const code = '22000128085';
+  const isSpecial = !!config.especial;
+  return createBomItem({
+    code,
+    lookupTag: isSpecial ? code : 'KUOPAINTEDLEGINTERMEDIATE_16_060SENC',
+    description: `${isSpecial ? '$specialSupport: ' : ''}COSTADO INTERMEDIO SENCILLO 60CM CON BASE ALTURA VARIABLE KUO KUSO810000${
+      isSpecial ? '  - $long: 60 cm' : ''
+    }`,
+    category: 'SOPORTE',
+    type: 'columna',
+    qty,
+    unitPrice: 868350,
+    logicalCode: 'KUSO810000',
+  });
+}
+
+function buildSurfaceItem(config, widthData, widthMm, depthMm, realWidthMm, realDepthMm) {
   const material = resolveSurfaceMaterial(config);
   const widthCm = widthData.widthCm;
   const depthCm = cmLabel(depthMm);
-
-  if (material === 'MELAMINA') {
-    const code = `KUO${widthCm}${paddedCm(depthMm)}RECT2`;
-    return createBomItem({
-      code,
-      lookupTag: `${code}-22008689`,
-      description: '',
-      category: '-',
-      type: 'superficie',
-      unitPrice: 0,
-      logicalCode: code,
-    });
-  }
-
-  const surface = widthData.formicaSurfaces[depthMm];
-  const fallbackSurface = widthData.formicaSurfaces[600];
-  const resolvedSurface = surface || fallbackSurface;
+  const planCode = depthMm >= 750 ? 'LKSU010020' : 'LKSU010010';
+  const isMelamina = material === 'MELAMINA';
+  const surfaces = isMelamina ? widthData.melaminaSurfaces : widthData.formicaSurfaces;
+  const resolvedSurface = surfaces[depthMm] || surfaces[600];
   const isSpecial = !!config.especial;
+  const finishTag = isMelamina ? '22015138' : '22008689';
 
   return createBomItem({
     code: resolvedSurface.code,
-    lookupTag: `${resolvedSurface.code}-22008689`,
-    description: `${isSpecial ? 'SPECIAL: ' : ''}SUPERFICIE PRINCIPAL INTERMEDIA UNICOR CON FORMICA ${widthCm}X${depthCm}X3CM LINK LKSU010010${
+    lookupTag: `${resolvedSurface.code}-${finishTag}`,
+    description: `${isSpecial ? 'SPECIAL: ' : ''}SUPERFICIE PRINCIPAL INTERMEDIA ${
+      isMelamina ? 'MELAMINA' : 'UNICOR CON FORMICA'
+    } ${widthCm}X${depthCm}X3CM LINK ${planCode}${
       isSpecial
-        ? `  - Profundidad: ${depthCm} cm - Largo: ${widthCm} cm - Tipo Grommet`
+        ? `  - Profundidad: ${formatKuoAVCm(realDepthMm)} cm - Largo: ${formatKuoAVCm(realWidthMm)} cm - Tipo Grommet`
         : '  - Tipo Grommet'
     }`,
     category: 'SUPERFICIE',
     type: 'superficie',
     unitPrice: resolvedSurface.price,
-    logicalCode: `LKSU010010_${widthMm}x${depthMm}_T30`,
+    logicalCode: isMelamina ? `${planCode}_${widthMm}x${depthMm}_T30_MELAMINA` : `LKSU010010_${widthMm}x${depthMm}_T30`,
   });
 }
 
@@ -252,18 +293,24 @@ export function buildKuoAVBOM(built) {
   }
 
   const config = built.config || {};
-  const widthMm = resolveWidth(config.anchoMm || built.dimMm?.widthMm || 1200);
-  const depthMm = resolveDepth(config.profundidadMm || built.dimMm?.depthMm || 600);
+  const realWidthMm = Number(config.anchoMm || built.dimMm?.widthMm || 1200);
+  const realDepthMm = Number(config.profundidadMm || built.dimMm?.depthMm || 600);
+  const widthMm = resolveWidth(realWidthMm);
+  const depthMm = resolveDepth(realDepthMm);
   const widthData = BOM_BY_WIDTH[widthMm] || BOM_BY_WIDTH[1200];
   const rows = [];
   const partTypes = new Set(built.parts.map((part) => part.type));
 
   if (partTypes.has('control')) {
+    const botonera = resolveKuoAVBotonera(config.botoneraCode);
     rows.push(
       createBomItem({
         ...FIXED_BOM.control,
+        code: botonera.code,
+        lookupTag: botonera.lookupTag,
+        description: botonera.description,
         type: 'control',
-        unitPrice: FIXED_BOM.control.price,
+        unitPrice: botonera.price,
         complete: config.acabadoGrommet === 'ALUMINIUM' && !config.especial ? 'Y' : 'N',
       })
     );
@@ -280,7 +327,7 @@ export function buildKuoAVBOM(built) {
   }
 
   if (partTypes.has('ducto')) {
-    rows.push(buildDuctItem(config, widthData, widthMm));
+    rows.push(buildDuctItem(config, widthData, widthMm, realWidthMm));
   }
 
   if (partTypes.has('grommet')) {
@@ -320,24 +367,23 @@ export function buildKuoAVBOM(built) {
   }
 
   if (partTypes.has('columna')) {
-    rows.push(
-      buildColumnItem({ side: 'right', config, depthMm }),
-      buildColumnItem({ side: 'left', config, depthMm })
-    );
+    const columns = built.parts.filter((part) => part.type === 'columna');
+    const intermediateCount = columns.filter(
+      (part) => part.isIntermediate || part.logicalCode === 'KUSO810000'
+    ).length;
+    const hasRight = columns.some((part) => part.logicalCode === 'KUSO800000_RIGHT');
+    const hasLeft = columns.some((part) => part.logicalCode === 'KUSO800000_LEFT');
+    if (hasRight) rows.push(buildColumnItem({ side: 'right', config }));
+    if (hasLeft) rows.push(buildColumnItem({ side: 'left', config }));
+    if (intermediateCount > 0) rows.push(buildIntermediateColumnItem(config, intermediateCount));
   }
 
   if (partTypes.has('superficie')) {
-    const surfaceItem = buildSurfaceItem(config, widthData, widthMm, depthMm);
-    if (surfaceItem.category === 'SUPERFICIE') rows.push(surfaceItem);
+    rows.push(buildSurfaceItem(config, widthData, widthMm, depthMm, realWidthMm, realDepthMm));
   }
 
   if (partTypes.has('viga')) {
     rows.push(buildVigaItem(widthData, widthMm));
-  }
-
-  if (partTypes.has('superficie')) {
-    const surfaceItem = buildSurfaceItem(config, widthData, widthMm, depthMm);
-    if (surfaceItem.category === '-') rows.push(surfaceItem);
   }
 
   for (const part of built.parts) {

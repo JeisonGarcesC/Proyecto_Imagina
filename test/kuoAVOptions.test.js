@@ -24,7 +24,8 @@ test('pantalla doble usa ubicación central por defecto y no muestra selector de
     assert.equal(built.config.pantallaPosicion, 'CENTRAL');
     const screen = built.parts.find((part) => part.type === 'pantalla');
     assert.ok(screen);
-    assert.equal(screen.position[2], pantallaTipo === 'FRONTAL_PERIMETRAL' ? 0.203 : 0);
+    assert.equal(screen.position[2], pantallaTipo === 'FRONTAL_PERIMETRAL'
+      ? 0.203 : pantallaTipo === 'VIDRIO' ? 0.012 : 0.016);
   }
 });
 

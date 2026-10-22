@@ -20993,6 +20993,14 @@
           <Fecha_fart_vigencia></Fecha_fart_vigencia>
         </Articulo>
         <Articulo>
+          <Codigo>22000135171</Codigo>
+          <Descripcion>FALDA PP PANTALLA 150CM COLGATE PALMOLIVE 2KES010151</Descripcion>
+          <UDM>und</UDM>
+          <Precio>264</Precio>
+          <Fecha_iart_vigencia>24-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-OCT-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
           <Codigo>22000135194</Codigo>
           <Descripcion>COSTADO SENCILLO TERMINAL CON CAJA TOMAS 60X71CM KONCISA PLUS 2KSO362000</Descripcion>
           <UDM>und</UDM>
@@ -25305,12 +25313,164 @@
           <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
         </Articulo>
         <Articulo>
-          <Codigo>22000137511</Codigo>
-          <Descripcion>BOTONERA REPUESTO BASE ALTURA VAIRABLE ERGO PLUS II PROVE</Descripcion>
+          <Codigo>22000137474</Codigo>
+          <Descripcion>VITRINA PP EN TUBERIA 270CM PINTURA HORNEABLE MACORP (GUYANA) ALE780292</Descripcion>
+          <UDM>und</UDM>
+          <Precio>421</Precio>
+          <Fecha_iart_vigencia>13-OCT-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137487</Codigo>
+          <Descripcion>ALMACENAMIENTO PP METALICO 90X42XH52CM ERGOMATIC CAJA DE AHORROS ALE780310</Descripcion>
+          <UDM>und</UDM>
+          <Precio>277</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137488</Codigo>
+          <Descripcion>COSTADO PP TERMINAL FORMICA 90XH71X3CM DERECHO ERGOMATIC CAJA DE AHORROS LKES0401256</Descripcion>
+          <UDM>und</UDM>
+          <Precio>161</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137489</Codigo>
+          <Descripcion>COSTADO PP TERMINAL FORMICA 90XH71X3CM IZQUIERDO ERGOMATIC CAJA DE AHORROS LKES0401256</Descripcion>
+          <UDM>und</UDM>
+          <Precio>161</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137490</Codigo>
+          <Descripcion>COSTADO PP SENCILLO INTERMEDIO DESCENTRADO 75CM ERGOMATIC CAJA DE AHORROS LKES0401261</Descripcion>
+          <UDM>und</UDM>
+          <Precio>68</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137491</Codigo>
+          <Descripcion>VIGA PP REFUERZO INTERMEDIA ERGOMATIC CAJA DE AHORROS LKES0401265</Descripcion>
+          <UDM>und</UDM>
+          <Precio>35</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137492</Codigo>
+          <Descripcion>VIGA PP REFUERZO TERMINAL ERGOMATIC CAJA DE AHORROS LKES0401268</Descripcion>
+          <UDM>und</UDM>
+          <Precio>34</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137493</Codigo>
+          <Descripcion>FALDA PP FRONTAL METALICA INTERMEDIA ERGOMATIC CAJA DE AHORROS LKES0401272</Descripcion>
+          <UDM>und</UDM>
+          <Precio>41</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137494</Codigo>
+          <Descripcion>FALDA PP FRONTAL METALICA TERMINAL ERGOMATIC CAJA DE AHORROS LKES0401277</Descripcion>
+          <UDM>und</UDM>
+          <Precio>39</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137495</Codigo>
+          <Descripcion>COSTADO PP SENCILLO INTERMEDIO DESCENTRADO 75CM ERGOMATIC CAJA DE AHORROS LKES0401280</Descripcion>
           <UDM>und</UDM>
           <Precio>60</Precio>
-          <Fecha_iart_vigencia>02-SEP-26</Fecha_iart_vigencia>
-          <Fecha_fart_vigencia>30-SEP-26</Fecha_fart_vigencia>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137496</Codigo>
+          <Descripcion>COSTADO PP TERMINAL FORMICA 100XH71X3CM DERECHO ERGOMATIC CAJA DE AHORROS LKES0401282</Descripcion>
+          <UDM>und</UDM>
+          <Precio>174</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137497</Codigo>
+          <Descripcion>COSTADO PP TERMINAL FORMICA 100XH71X3CM IZQUIERDO ERGOMATIC CAJA DE AHORROS LKES0401282</Descripcion>
+          <UDM>und</UDM>
+          <Precio>174</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137498</Codigo>
+          <Descripcion>FALDA PP FRONTAL METÁLICA ERGOMATIC CAJA DE AHORROS LKES0401285</Descripcion>
+          <UDM>und</UDM>
+          <Precio>59</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137499</Codigo>
+          <Descripcion>BANDEJA PP PORTA LAPTOP ERGOMATIC CAJA DE AHORROS LKES0401288</Descripcion>
+          <UDM>und</UDM>
+          <Precio>62</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137500</Codigo>
+          <Descripcion>SUPERFICIE PP INTERMEDIA 30MM FORMICA ERGOMATIC CAJA DE AHORROS LKES0401254</Descripcion>
+          <UDM>und</UDM>
+          <Precio>215</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137501</Codigo>
+          <Descripcion>SUPERFICIE PP TERMINAL 30MM FORMICA DERECHA ERGOMATIC CAJA DE AHORROS LKES0401255</Descripcion>
+          <UDM>und</UDM>
+          <Precio>215</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137502</Codigo>
+          <Descripcion>SUPERFICIE PP TERMINAL 30MM FORMICA IZQUIERDA ERGOMATIC CAJA DE AHORROS LKES0401255</Descripcion>
+          <UDM>und</UDM>
+          <Precio>215</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137503</Codigo>
+          <Descripcion>SUPERFICE PP FORMICA INTERMEDIA 100X115.6X3CM ERGOMATIC CAJA DE AHORROS LKES0401259</Descripcion>
+          <UDM>und</UDM>
+          <Precio>150</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137504</Codigo>
+          <Descripcion>SUPERFICIE PP FORMICA TERMINAL 100X122X3CM DERECHA ERGOMATIC CAJA DE AHORROS LKES0401260</Descripcion>
+          <UDM>und</UDM>
+          <Precio>191</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
+        </Articulo>
+        <Articulo>
+          <Codigo>22000137505</Codigo>
+          <Descripcion>SUPERFICIE PP FORMICA TERMINAL 100X122X3CM IZQUIERDA ERGOMATIC CAJA DE AHORROS LKES0401260</Descripcion>
+          <UDM>und</UDM>
+          <Precio>191</Precio>
+          <Fecha_iart_vigencia>23-SEP-26</Fecha_iart_vigencia>
+          <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
         </Articulo>
         <Articulo>
           <Codigo>22000552</Codigo>
@@ -25575,14 +25735,6 @@
           <Precio>1</Precio>
           <Fecha_iart_vigencia>20-AGO-26</Fecha_iart_vigencia>
           <Fecha_fart_vigencia>31-DIC-26</Fecha_fart_vigencia>
-        </Articulo>
-        <Articulo>
-          <Codigo>22026127</Codigo>
-          <Descripcion>BASE ESCRITORIO ELECTRICA UP GRADUABLE EN ALTURA NEGRO NO INCLUYE SUPERFICIE PINTURA ELECTROSTATICA NEGRA OFIPARTES</Descripcion>
-          <UDM>und</UDM>
-          <Precio>298</Precio>
-          <Fecha_iart_vigencia>04-SEP-26</Fecha_iart_vigencia>
-          <Fecha_fart_vigencia>30-SEP-26</Fecha_fart_vigencia>
         </Articulo>
         <Articulo>
           <Codigo>22107000406</Codigo>

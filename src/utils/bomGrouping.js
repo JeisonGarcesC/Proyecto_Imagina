@@ -7,6 +7,9 @@ const RUNTIME_CONFIG_KEYS = new Set([
   'transform',
   'silentCreation',
   'bomTypologyCode',
+  'kuoBatchId',
+  'kuoBatchIndex',
+  'kuoBatchSize',
 ]);
 
 export function getKoncisaPlusAssembly(object) {
@@ -39,6 +42,16 @@ function normalizeConfigValue(value) {
 export function resolveKoncisaBomConfigurationKey(assembly) {
   if (assembly?.userData?.kind !== 'KONCISA_PLUS_ASSEMBLY') return null;
   return JSON.stringify(normalizeConfigValue(assembly.userData?.config || {}));
+}
+
+export function resolveKuoAVBomConfigurationKey(assembly) {
+  const kind = assembly?.userData?.kind;
+  if (kind !== 'KUO_AV_ASSEMBLY' && kind !== 'KUO_AV_DOBLE_ASSEMBLY') return null;
+  return JSON.stringify([
+    kind,
+    assembly.userData?.groupName || '',
+    normalizeConfigValue(assembly.userData?.config || {}),
+  ]);
 }
 
 export function resolveBomGroupInstanceId(object, fallbackId = null) {

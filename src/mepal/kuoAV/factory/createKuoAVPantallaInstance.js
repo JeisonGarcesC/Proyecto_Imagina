@@ -6,7 +6,8 @@
 
 import * as THREE from 'three';
 import { KUO_AV_PANTALLA_CATALOG } from '../config/kuoAVPantallaCatalog.js';
-import { KUO_AV_PERIMETRAL_SCREEN_MOUNT } from '../config/kuoAVPantallaPlacement.js';
+import { KUO_AV_PERIMETRAL_SCREEN_MOUNT, resolveKuoAVCentralScreenOffset } from '../config/kuoAVPantallaPlacement.js';
+import { resolveKuoAVNominalWidth } from '../config/kuoAVTunables.js';
 
 export { KUO_AV_PANTALLA_CATALOG } from '../config/kuoAVPantallaCatalog.js';
 
@@ -16,7 +17,9 @@ export async function createKuoAVPantallaInstance({
   country = 'CO',
 }) {
   const instanceId = config.instanceId || `KUO_PAN_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const anchoMm = config.anchoMm === 1500 ? 1500 : config.anchoMm >= 1650 ? 1650 : 1200;
+  // Mapa de producto: pantalla rematable en largo; se pide con la medida nominal superior.
+  const realAnchoMm = Math.min(Math.max(Number(config.anchoMm) || 1200, 1200), 1650);
+  const anchoMm = resolveKuoAVNominalWidth(realAnchoMm);
   const rawTipo = (config.tipo || config.material || 'FORMICA').toUpperCase();
   const isFrontalPerimetral = rawTipo === 'FRONTAL_PERIMETRAL' || rawTipo === 'PERIMETRAL' || rawTipo === 'KUAC710000';
   const isVidrioDoble = rawTipo === 'VIDRIO' || rawTipo === 'VIDRIO LAMINADO' || rawTipo === 'KUAC660000';
@@ -26,7 +29,7 @@ export async function createKuoAVPantallaInstance({
   const acabado = config.acabado || config.color || (isVidrio ? '#a5f3fc' : '#dedede');
 
   const dimStr = anchoMm === 1500 ? '150' : anchoMm === 1650 ? '165' : '120';
-  const widthM = anchoMm === 1500 ? 1.425 : anchoMm === 1650 ? 1.575 : 1.125;
+  const widthM = (realAnchoMm - 75) / 1000;
 
   const matMap = KUO_AV_PANTALLA_CATALOG[tipo] || KUO_AV_PANTALLA_CATALOG.FORMICA;
   const itemData = matMap[anchoMm] || matMap[1200];
@@ -102,7 +105,7 @@ export async function createKuoAVPantallaInstance({
     // Centrar la pantalla sobre su origen X y centrar el panel en Z=0
     const centerOffsetZ = isFrontalPerimetral
       ? KUO_AV_PERIMETRAL_SCREEN_MOUNT.glassFaceOffsetM
-      : isVidrioDoble ? 0.012 : 0.016;
+      : resolveKuoAVCentralScreenOffset(tipo);
     loadedScene.position.set(-widthM / 2, 0, centerOffsetZ);
 
     // Configuración de materiales (vidrio translúcido o acabado sólido)
@@ -176,7 +179,8 @@ export async function createKuoAVPantallaInstance({
     lookupTag: itemData.lookupTag,
     description: itemData.name,
     config: {
-      anchoMm,
+      anchoMm: realAnchoMm,
+      nominalAnchoMm: anchoMm,
       tipo,
       acabado,
       pantallaPosicion: config.pantallaPosicion || 'LIBRE',

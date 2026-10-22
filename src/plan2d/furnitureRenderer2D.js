@@ -1,4 +1,5 @@
 import { FOOTPRINT2D_TYPES } from './footprint2D.js';
+import { getVisibleDetailed2DShapes } from './detailLevel2D.js';
 
 export const FURNITURE_2D_RENDER_MODES = Object.freeze({
   NORMAL: 'NORMAL',
@@ -52,8 +53,8 @@ function drawPolygon(ctx, points) {
   appendPolygon(ctx, points);
 }
 
-function drawDetailedShapes(ctx, part, footprintScale, zSign) {
-  const shapes = part?.detailedFootprint?.detailedShapes;
+function drawDetailedShapes(ctx, part, footprintScale, zSign, detailLevel) {
+  const shapes = getVisibleDetailed2DShapes(part, detailLevel);
   const normalShape = part?.footprint;
   if (!normalShape || !Array.isArray(shapes) || !shapes.length) return null;
 
@@ -78,7 +79,7 @@ function drawDetailedShapes(ctx, part, footprintScale, zSign) {
 export function drawFurnitureFootprint2D(
   ctx,
   part,
-  { scale = 1, invertZ = true, mode = FURNITURE_2D_RENDER_MODES.NORMAL } = {}
+  { scale = 1, invertZ = true, mode = FURNITURE_2D_RENDER_MODES.NORMAL, detailLevel = 4 } = {}
 ) {
   if (!ctx?.beginPath || !ctx?.rect) return null;
   const normalizedScale = Math.max(0, finiteNumber(scale, 1));
@@ -92,7 +93,7 @@ export function drawFurnitureFootprint2D(
 
   try {
     if (mode === FURNITURE_2D_RENDER_MODES.DETAILED) {
-      const detailed = drawDetailedShapes(ctx, part, footprintScale, invertZ ? -1 : 1);
+      const detailed = drawDetailedShapes(ctx, part, footprintScale, invertZ ? -1 : 1, detailLevel);
       if (detailed) return detailed;
     }
 

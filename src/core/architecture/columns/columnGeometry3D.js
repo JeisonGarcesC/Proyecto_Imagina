@@ -15,6 +15,7 @@ export function buildColumnGeometry3D(column) {
       y: column.baseElevation + column.height / 2,
       z: column.position.z,
     },
-    rotationY: column.rotation,
+    // Three.js gira el eje X hacia -Z con +Y; la planta usa +Z para +rotation.
+    rotationY: -column.rotation,
   };
 }

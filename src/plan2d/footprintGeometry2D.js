@@ -1,4 +1,5 @@
 import { FOOTPRINT2D_TYPES } from './footprint2D.js';
+import { getVisibleDetailed2DShapes } from './detailLevel2D.js';
 
 export const DEFAULT_CURVE_SEGMENTS_2D = 32;
 
@@ -175,8 +176,8 @@ export function buildFootprintWorldGeometry(part, options) {
   };
 }
 
-export function buildDetailedFootprintWorldShapes(part) {
-  const shapes = part?.detailedFootprint?.detailedShapes;
+export function buildDetailedFootprintWorldShapes(part, detailLevel = 4) {
+  const shapes = getVisibleDetailed2DShapes(part, detailLevel);
   const scale = resolveFootprintScale(part, part?.footprint);
   const centerX = Number(part?.x);
   const centerZ = Number(part?.z);

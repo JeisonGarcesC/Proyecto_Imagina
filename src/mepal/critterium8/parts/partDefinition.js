@@ -6,8 +6,8 @@ export const CRITTERIUM8_PART_TYPES = Object.freeze([
   'CEILING_U', 'JUNCTION_KIT', 'DUCT', 'LEVELER', 'END_CAP',
 ]);
 
-export function createCritterium8PartId({ frameId, type, slotId = null, index = null } = {}) {
-  if (type === 'TILE' && slotId) return `C8_PART_${slotId}`;
+export function createCritterium8PartId({ frameId, type, slotId = null, index = null, face = null } = {}) {
+  if (type === 'TILE' && slotId) return `C8_PART_${slotId}_${face === 'BACK' ? 'BACK' : 'FRONT'}`;
   const suffix = index == null ? '' : `_${Number(index)}`;
   return `C8_PART_${String(frameId)}_${String(type)}${suffix}`;
 }
@@ -18,7 +18,7 @@ export function createCritterium8PartDefinition(options = {}) {
   const slotId = options.slotId == null ? null : String(options.slotId);
   const index = options.index == null ? null : Number(options.index);
   return {
-    id: String(options.id || createCritterium8PartId({ frameId, type, slotId, index })),
+    id: String(options.id || createCritterium8PartId({ frameId, type, slotId, index, face: options.metadata?.face })),
     family: CRITTERIUM8_FAMILY,
     type,
     code: options.code == null || options.code === '' ? null : String(options.code),

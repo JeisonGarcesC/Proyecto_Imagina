@@ -61,10 +61,13 @@ export async function createCritterium8Instance(options = {}) {
   let composition = buildCritterium8FrameComposition(frame);
   const diagnostics = [...(composition.diagnostics || [])];
   if (config.growthModules.length) {
+    if (frameMode !== 'HALF_HEIGHT') diagnostics.push({ code: 'GROWTH_REQUIRES_HALF_HEIGHT_FRAME', level: 'ERROR', source: 'GROWTH_MODULE' });
+    if (config.compositionMode !== 'MODULAR') diagnostics.push({ code: 'GROWTH_REQUIRES_MODULAR_COMPOSITION', level: 'ERROR', source: 'GROWTH_MODULE' });
     const growth = applyGrowthModuleToComposition(frame, composition, { moduleCount: config.growthModules.length });
     if (growth.valid) composition = growth.composition;
     else diagnostics.push(...growth.errors.map((code) => ({ code, level: 'ERROR', source: 'GROWTH_MODULE' })));
   }
+  if (frameMode === 'HALF_HEIGHT') config.projectHeightCm = composition.heightCm;
   const resolved = resolveCritterium8FrameParts(frame, { composition });
   diagnostics.push(...(resolved.diagnostics || []));
   const parts = resolved.parts;
@@ -79,6 +82,7 @@ export async function createCritterium8Instance(options = {}) {
   const serializableComposition = cloneSerializable(composition);
   const serializableLayout = cloneSerializable(layout);
   const serializableParts = cloneSerializable(parts);
+  const serializableCommercialTiles = cloneSerializable(resolved.commercialTiles);
   const serializableConfig = cloneSerializable(config);
   assembly.userData = {
     ...assembly.userData,
@@ -97,6 +101,7 @@ export async function createCritterium8Instance(options = {}) {
     layout: serializableLayout,
     config: serializableConfig,
     partsDefinition: serializableParts,
+    commercialTiles: serializableCommercialTiles,
     isAssemblyRoot: true,
     isPartRoot: true,
     selectionRoot: true,
@@ -133,5 +138,5 @@ export async function createCritterium8Instance(options = {}) {
   });
   applyTransform(assembly, options.transform);
 
-  return { assembly, frame: definition, composition: serializableComposition, parts: serializableParts, layout: serializableLayout, diagnostics: cloneSerializable(diagnostics) };
+  return { assembly, frame: definition, composition: serializableComposition, parts: serializableParts, commercialTiles: serializableCommercialTiles, layout: serializableLayout, diagnostics: cloneSerializable(diagnostics) };
 }

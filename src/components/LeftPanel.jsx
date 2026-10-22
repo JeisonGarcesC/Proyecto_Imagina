@@ -18,6 +18,7 @@ import { loadClakItems } from '../services/clakLoader';
 import { loadEdukItems } from '../mepal/eduk/catalog/edukLoader';
 import { loadMoreaItems } from '../services/moreaLoader';
 import './LeftPanel.css';
+import SpecialFinishesPanel from './SpecialFinishesPanel.jsx';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
@@ -269,8 +270,30 @@ function MoreaCardImage({ codigo, title }) {
   );
 }
 
+function ShapeRotationInput({ shape, onApply, inputStyle, labelStyle }) {
+  const angle = shape.geometry.rotation || 0;
+  const [draft, setDraft] = useState(String(Math.round(angle * 1800 / Math.PI) / 10));
+  useEffect(() => {
+    setDraft(String(Math.round(angle * 1800 / Math.PI) / 10));
+  }, [angle]);
+
+  const apply = (event) => {
+    event.preventDefault();
+    if (draft.trim() === '') return;
+    const degrees = Number(draft);
+    if (Number.isFinite(degrees)) onApply?.(degrees);
+  };
+
+  return <form onSubmit={apply} style={{ display: 'flex', alignItems: 'end', gap: 4 }}>
+    <label style={{ ...labelStyle, flex: 1 }}>Rotación (°)<input type="number" step="any" value={draft} onChange={(event) => setDraft(event.target.value)} style={inputStyle} /></label>
+    <button type="submit">Aplicar</button>
+  </form>;
+}
+
 export default function LeftPanel({
   section,
+  specialFinishPermissions = [],
+  onApplySpecialFinish,
   threeApiRef,
   readOnly,
   // datos
@@ -285,6 +308,7 @@ export default function LeftPanel({
   setEspesorFilter,
   materials, // 👈 nuevo
   selectedPart,
+  selectedFinishTarget,
   critteriumHistoryRevision,
   onApplyGlobalMaterial,
   onAddCatalogItem,
@@ -310,6 +334,8 @@ export default function LeftPanel({
   setWallThickness,
   selectedWall,
   onWallChange,
+  onWallSegmentLength,
+  onWallPointChange,
   onDeleteWall,
   onCloseWallProperties,
   onClearWalls,
@@ -344,8 +370,11 @@ export default function LeftPanel({
   onClearOpenings,
   shapeTool2D,
   setShapeTool2D,
+  elevationDirection2D,
+  setElevationDirection2D,
   selectedShape2D,
   onShape2DChange,
+  onRotateShape2D,
   onDeleteShape2D,
   onTranslateShape2D,
   textTool2D,
@@ -833,7 +862,6 @@ export default function LeftPanel({
           },
           prices: {
             [country]: Number(c.precio || 0),
-            CO: Number(c.precio || 0),
           },
           model: { kind: 'ARES' },
           raw: c,
@@ -1582,6 +1610,14 @@ export default function LeftPanel({
 
       {section === 'koncisaPlus' && (
         <KoncisaPlusPanel
+          onAddDrawer={async () => {
+            const api = threeApiRef.current;
+            if (!api) {
+              alert('El visor 3D aún no está listo.');
+              return null;
+            }
+            return api.addKoncisaPlusDrawer?.();
+          }}
           onCreate={async (config) => {
             const api = threeApiRef.current;
             if (!api) {
@@ -1696,8 +1732,11 @@ export default function LeftPanel({
 
             {wallMode === 'EDIT' && selectedWall && (
               <WallProperties
+                key={selectedWall.id}
                 wall={selectedWall}
                 onChange={onWallChange}
+                onSegmentLength={onWallSegmentLength}
+                onPointChange={onWallPointChange}
                 onDelete={onDeleteWall}
                 onClose={onCloseWallProperties}
               />
@@ -1767,17 +1806,24 @@ export default function LeftPanel({
               ].map(([tool, label]) => <button key={tool} type="button" style={btnMini(shapeTool2D === tool)} onClick={() => { setTextTool2D(false); setShapeTool2D(shapeTool2D === tool ? null : tool); }}>{label}</button>)}
             </div>
             <div style={{ fontSize: 12, opacity: 0.7 }}>{shapeTool2D ? 'Haz clic en el plano para colocar el elemento.' : 'Selecciona una herramienta o una figura existente.'}</div>
+            <strong>ÁREAS / MARCADOS</strong>
+            <button type="button" style={btnMini(shapeTool2D === 'areaRectangle')} onClick={() => { setTextTool2D(false); setShapeTool2D(shapeTool2D === 'areaRectangle' ? null : 'areaRectangle'); }}>Área rectangular</button>
+            <strong>VISTAS / ALZADOS</strong>
+            <button type="button" style={btnMini(shapeTool2D === 'elevation')} onClick={() => { setTextTool2D(false); setShapeTool2D(shapeTool2D === 'elevation' ? null : 'elevation'); }}>Alzado / Elevación</button>
+            {shapeTool2D === 'elevation' && <label style={lab}>Dirección<select value={elevationDirection2D} onChange={(event) => setElevationDirection2D(event.target.value)} style={inp}><option value="front">Frente</option><option value="back">Atrás</option><option value="left">Izquierda</option><option value="right">Derecha</option></select></label>}
             {selectedShape2D && (
               <div style={{ display: 'grid', gap: 7, marginTop: 8, paddingTop: 10, borderTop: '1px solid #ddd' }}>
                 <strong>Propiedades</strong>
+                {selectedShape2D.semanticType === 'area' && <><strong>Área / Marcado</strong><label style={lab}>Patrón<select value={selectedShape2D.hatch?.type || 'default'} onChange={(event) => onShape2DChange({ hatch: { type: event.target.value } })} style={inp}><option value="default">Default</option><option value="solid">Solid</option><option value="lined">Lined</option><option value="dashed">Dashed</option><option value="crossed">Crossed</option></select></label></>}
+                {selectedShape2D.type === 'elevation' && <><strong>Alzado / Elevación</strong><label style={lab}>Dirección<select value={selectedShape2D.viewDirection} onChange={(event) => onShape2DChange({ viewDirection: event.target.value })} style={inp}><option value="front">Frente</option><option value="back">Atrás</option><option value="left">Izquierda</option><option value="right">Derecha</option></select></label><label style={lab}>Etiqueta<input key={`${selectedShape2D.id}:${selectedShape2D.label}`} defaultValue={selectedShape2D.label} onBlur={(event) => onShape2DChange({ label: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} style={inp} /></label><label style={{ fontSize: 12 }}><input type="checkbox" checked={selectedShape2D.visible} onChange={(event) => onShape2DChange({ visible: event.target.checked })} /> Visible</label></>}
                 <label style={lab}>Tipo<input value={selectedShape2D.type} disabled style={inp} /></label>
                 {'x' in selectedShape2D.geometry && <label style={lab}>X (m)<input type="number" step="0.05" value={selectedShape2D.geometry.x} onChange={(e) => onShape2DChange({ geometry: { x: Number(e.target.value) } })} style={inp} /></label>}
                 {'y' in selectedShape2D.geometry && <label style={lab}>Y (m)<input type="number" step="0.05" value={selectedShape2D.geometry.y} onChange={(e) => onShape2DChange({ geometry: { y: Number(e.target.value) } })} style={inp} /></label>}
-                {'width' in selectedShape2D.geometry && <label style={lab}>Ancho (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.width} onChange={(e) => onShape2DChange({ geometry: { width: Number(e.target.value) } })} style={inp} /></label>}
-                {'height' in selectedShape2D.geometry && <label style={lab}>Alto (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.height} onChange={(e) => onShape2DChange({ geometry: { height: Number(e.target.value) } })} style={inp} /></label>}
+                {selectedShape2D.type !== 'elevation' && 'width' in selectedShape2D.geometry && <label style={lab}>Ancho (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.width} onChange={(e) => onShape2DChange({ geometry: { width: Number(e.target.value) } })} style={inp} /></label>}
+                {selectedShape2D.type !== 'elevation' && 'height' in selectedShape2D.geometry && <label style={lab}>Alto (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.height} onChange={(e) => onShape2DChange({ geometry: { height: Number(e.target.value) } })} style={inp} /></label>}
                 {'size' in selectedShape2D.geometry && <label style={lab}>Tamaño (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.size} onChange={(e) => onShape2DChange({ geometry: { size: Number(e.target.value) } })} style={inp} /></label>}
                 {'radius' in selectedShape2D.geometry && <label style={lab}>Radio (m)<input type="number" min="0.01" step="0.05" value={selectedShape2D.geometry.radius} onChange={(e) => onShape2DChange({ geometry: { radius: Number(e.target.value) } })} style={inp} /></label>}
-                {'rotation' in selectedShape2D.geometry && <label style={lab}>Rotación (°)<input type="number" step="1" value={Math.round(selectedShape2D.geometry.rotation * 1800 / Math.PI) / 10} onChange={(e) => onShape2DChange({ geometry: { rotation: Number(e.target.value) * Math.PI / 180 } })} style={inp} /></label>}
+                {['rectangle', 'square', 'triangle', 'polygon'].includes(selectedShape2D.type) && <ShapeRotationInput key={selectedShape2D.id} shape={selectedShape2D} onApply={onRotateShape2D} inputStyle={inp} labelStyle={lab} />}
                 <label style={lab}>Contorno<input type="color" value={selectedShape2D.style.stroke} onChange={(e) => onShape2DChange({ style: { stroke: e.target.value } })} style={inp} /></label>
                 <label style={lab}>Relleno<input type="color" value={selectedShape2D.style.fillColor} onChange={(e) => onShape2DChange({ style: { fillColor: e.target.value } })} style={inp} /></label>
                 <label style={{ fontSize: 12 }}><input type="checkbox" checked={selectedShape2D.style.fill} onChange={(e) => onShape2DChange({ style: { fill: e.target.checked } })} /> Activar relleno</label>
@@ -1840,6 +1886,14 @@ export default function LeftPanel({
             {openingMode === 'EDIT' && selectedOpening && <DoorProperties door={selectedOpening} onChange={onOpeningChange} onDelete={onDeleteOpening} onClose={onCloseOpeningProperties} />}
           </div>
         </>
+      )}
+
+      {section === 'specialFinishes' && (
+        specialFinishPermissions.includes('finishes.view')
+          ? <SpecialFinishesPanel canCreate={specialFinishPermissions.includes('finishes.create')}
+              canApply={specialFinishPermissions.includes('finishes.apply')}
+              selectedPart={selectedPart} selectedFinishTarget={selectedFinishTarget} onApply={onApplySpecialFinish} />
+          : <div role="alert">No tienes permiso para consultar Acabados Especiales.</div>
       )}
 
       {/* ======================= MATERIALES (placeholder) ======================= */}

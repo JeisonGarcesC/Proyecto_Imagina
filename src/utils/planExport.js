@@ -99,6 +99,8 @@ export function generatePlanSvg({
   includeDims = true,
   title = 'Planta 2D',
   detailed2DIds = [],
+  detailLevel = 3,
+  detailAll = false,
 } = {}) {
   const detailIds = normalizeDetailed2DIds(detailed2DIds);
   const b = boundsFromData(parts, walls, columns, openings);
@@ -167,24 +169,26 @@ export function generatePlanSvg({
       const d = Math.max(0.01, safeNum(p.d)) * pxPerM;
       const rot = (-safeNum(p.rotY, 0) * 180) / Math.PI;
       const id = p.id ? esc(p.id) : '';
-      const detailedShapes = is2DDetailEnabled(p, detailIds)
-        ? buildDetailedFootprintWorldShapes(p)
+      const detailedShapes = detailLevel > 1 && (detailAll || is2DDetailEnabled(p, detailIds))
+        ? buildDetailedFootprintWorldShapes(p, detailLevel)
         : [];
-      if (detailedShapes.length) {
-        const shapes = detailedShapes
-          .map((detailedShape) => {
-            const points = detailedShape.points
-              .map((point) => `${X(point.x).toFixed(2)},${Y(point.z).toFixed(2)}`)
-              .join(' ');
-            const tag = detailedShape.closed ? 'polygon' : 'polyline';
-            return `<${tag} points="${points}" fill="${detailedShape.closed ? 'rgba(0,0,0,0.08)' : 'none'}" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
-          })
-          .join('\n  ');
+      const addNormalOutline = detailLevel === 4 && detailedShapes.length > 0;
+      const normalFill = addNormalOutline ? 'none' : 'rgba(0,0,0,0.08)';
+      const detailMarkup = detailedShapes
+        .map((detailedShape) => {
+          const points = detailedShape.points
+            .map((point) => `${X(point.x).toFixed(2)},${Y(point.z).toFixed(2)}`)
+            .join(' ');
+          const tag = detailedShape.closed ? 'polygon' : 'polyline';
+          return `<${tag} points="${points}" fill="${detailLevel >= 3 && detailedShape.closed ? 'rgba(0,0,0,0.08)' : 'none'}" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
+        })
+        .join('\n  ');
+      if (detailedShapes.length && detailLevel === 3) {
         return `
-  ${shapes}
+  ${detailMarkup}
   ${id ? `<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}`;
       }
-      let shape = `<rect x="${(-w / 2).toFixed(2)}" y="${(-d / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${d.toFixed(2)}" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
+      let shape = `<rect x="${(-w / 2).toFixed(2)}" y="${(-d / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${d.toFixed(2)}" fill="${normalFill}" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
 
       if (geometry && !geometry.fallback) {
         if (
@@ -194,7 +198,7 @@ export function generatePlanSvg({
           const points = geometry.vertices
             .map((point) => `${X(point.x).toFixed(2)},${Y(point.z).toFixed(2)}`)
             .join(' ');
-          shape = `<polygon points="${points}" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
+          shape = `<polygon points="${points}" fill="${normalFill}" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
         } else if (
           geometry.type === FOOTPRINT2D_TYPES.CIRCLE ||
           geometry.type === FOOTPRINT2D_TYPES.ELLIPSE
@@ -203,21 +207,23 @@ export function generatePlanSvg({
           const radiusZ = geometry.radii.z * pxPerM;
           const isCircle = Math.abs(radiusX - radiusZ) <= 1e-6;
           shape = isCircle
-            ? `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${radiusX.toFixed(2)}" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`
-            : `<ellipse cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" rx="${radiusX.toFixed(2)}" ry="${radiusZ.toFixed(2)}" transform="rotate(${rot.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})" fill="rgba(0,0,0,0.08)" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
+            ? `<circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${radiusX.toFixed(2)}" fill="${normalFill}" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`
+            : `<ellipse cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" rx="${radiusX.toFixed(2)}" ry="${radiusZ.toFixed(2)}" transform="rotate(${rot.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})" fill="${normalFill}" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
         }
       }
 
       if (shape.startsWith('<polygon') || shape.startsWith('<circle') || shape.startsWith('<ellipse')) {
         return `
   ${shape}
+  ${detailMarkup}
   ${id ? `<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}`;
       }
       return `
   <g transform="translate(${cx.toFixed(2)} ${cy.toFixed(2)}) rotate(${rot.toFixed(2)})">
     ${shape}
     ${id ? `<text x="0" y="0" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}
-  </g>`;
+  </g>
+  ${detailMarkup}`;
     })
     .join('');
 

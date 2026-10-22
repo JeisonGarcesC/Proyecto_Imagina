@@ -88,13 +88,17 @@ export function extractDetailedFootprint2D(
   {
     normalShape = null,
     force = false,
-    maxShapes = DETAILED_FOOTPRINT_LIMITS.maxShapes,
+    maxShapes,
     maxPointsPerShape = DETAILED_FOOTPRINT_LIMITS.maxPointsPerShape,
-    maxTotalPoints = DETAILED_FOOTPRINT_LIMITS.maxTotalPoints,
+    maxTotalPoints,
     minAreaRatio = DETAILED_FOOTPRINT_LIMITS.minAreaRatio,
   } = {}
 ) {
   if (!root?.isObject3D) return null;
+  // The elevated double with lateral chains contains 142 projected meshes.
+  const isKuoDouble = root.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY';
+  maxShapes ??= isKuoDouble ? 192 : DETAILED_FOOTPRINT_LIMITS.maxShapes;
+  maxTotalPoints ??= isKuoDouble ? 4096 : DETAILED_FOOTPRINT_LIMITS.maxTotalPoints;
   const productKey = getProductKey(root);
   const rootEntry = rootCache.get(root);
   if (!force && rootEntry?.productKey === productKey) return rootEntry.value;

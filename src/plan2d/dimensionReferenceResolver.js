@@ -16,10 +16,14 @@ function isFinitePoint(point) {
   return Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.z));
 }
 
-function findSegment(segments, sourceId, edgeIndex) {
+function matchesSource(candidate, sourceId, sourceType) {
+  return candidate?.sourceId === sourceId && (!sourceType || candidate.sourceType === sourceType);
+}
+
+function findSegment(segments, sourceId, edgeIndex, sourceType) {
   return segments.find(
     (segment) =>
-      segment?.sourceId === sourceId &&
+      matchesSource(segment, sourceId, sourceType) &&
       segment?.feature?.kind === 'SEGMENT' &&
       segment.feature.edgeIndex === edgeIndex
   );
@@ -51,6 +55,7 @@ function resolveReference(reference, fallbackPoint, snapGeometry) {
   }
 
   const sourceId = reference.sourceId;
+  const sourceType = reference.sourceType;
   const feature = reference.feature;
   if (!sourceId || !feature?.kind) {
     return {
@@ -63,8 +68,8 @@ function resolveReference(reference, fallbackPoint, snapGeometry) {
   const points = Array.isArray(snapGeometry?.points) ? snapGeometry.points : [];
   const segments = Array.isArray(snapGeometry?.segments) ? snapGeometry.segments : [];
   const sourceExists =
-    points.some((candidate) => candidate?.sourceId === sourceId) ||
-    segments.some((candidate) => candidate?.sourceId === sourceId);
+    points.some((candidate) => matchesSource(candidate, sourceId, sourceType)) ||
+    segments.some((candidate) => matchesSource(candidate, sourceId, sourceType));
 
   if (!sourceExists) {
     return {
@@ -79,17 +84,17 @@ function resolveReference(reference, fallbackPoint, snapGeometry) {
   if (feature.kind === 'VERTEX') {
     resolvedPoint = points.find(
       (candidate) =>
-        candidate?.sourceId === sourceId &&
+        matchesSource(candidate, sourceId, sourceType) &&
         candidate?.feature?.kind === 'VERTEX' &&
         candidate.feature.index === feature.index
     )?.point;
   } else if (feature.kind === 'CENTER') {
     resolvedPoint = points.find(
       (candidate) =>
-        candidate?.sourceId === sourceId && candidate?.feature?.kind === 'CENTER'
+        matchesSource(candidate, sourceId, sourceType) && candidate?.feature?.kind === 'CENTER'
     )?.point;
   } else if (feature.kind === 'MIDPOINT') {
-    const segment = findSegment(segments, sourceId, feature.edgeIndex);
+    const segment = findSegment(segments, sourceId, feature.edgeIndex, sourceType);
     if (segment) {
       resolvedPoint = {
         x: (segment.a.x + segment.b.x) / 2,
@@ -97,12 +102,12 @@ function resolveReference(reference, fallbackPoint, snapGeometry) {
       };
     }
   } else if (feature.kind === 'ENDPOINT') {
-    const segment = findSegment(segments, sourceId, feature.edgeIndex);
+    const segment = findSegment(segments, sourceId, feature.edgeIndex, sourceType);
     if (segment && (feature.endpointIndex === 0 || feature.endpointIndex === 1)) {
       resolvedPoint = feature.endpointIndex === 0 ? segment.a : segment.b;
     }
   } else if (feature.kind === 'SEGMENT') {
-    const segment = findSegment(segments, sourceId, feature.edgeIndex);
+    const segment = findSegment(segments, sourceId, feature.edgeIndex, sourceType);
     if (segment) {
       if (Number.isFinite(feature.t)) {
         const t = Math.max(0, Math.min(1, feature.t));

@@ -39,10 +39,12 @@ function redondearAnchoDoble(mm) {
   return 1200;
 }
 
-export default function KoncisaPlusPanel({ onCreate }) {
+export default function KoncisaPlusPanel({ onCreate, onAddDrawer }) {
   const [puestos, setPuestos] = useState(1);
   const [tipoPuesto, setTipoPuesto] = useState('sencillo');
   const [modoEspecial, setModoEspecial] = useState(false);
+  const [addingDrawer, setAddingDrawer] = useState(false);
+  const [drawerError, setDrawerError] = useState('');
 
   const [largoRealMm, setLargoRealMm] = useState(1200);
   const [anchoRealMm, setAnchoRealMm] = useState(600);
@@ -51,6 +53,16 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [tipoPasoCable, setTipoPasoCable] = useState('none');
   const [grommetFinish, setGrommetFinish] = useState('ALUMINIUM');
   const [selectedFinishId, setSelectedFinishId] = useState('FORMICA_30');
+  const [returnEnabled, setReturnEnabled] = useState(false);
+  const [returnWidthMm, setReturnWidthMm] = useState(1000);
+  const [returnSide, setReturnSide] = useState('RIGHT');
+  const [returnOrientation, setReturnOrientation] = useState('FRONT');
+  const [returnModuleIndex, setReturnModuleIndex] = useState(0);
+  const [returnAccess, setReturnAccess] = useState('NONE');
+  const [returnDuct, setReturnDuct] = useState(false);
+  const [returnDuctType, setReturnDuctType] = useState('TERMINAL');
+  const [returnPedestal, setReturnPedestal] = useState(false);
+  const [returnPedestalSide, setReturnPedestalSide] = useState('RIGHT');
 
   const [includePrivacyPanel, setIncludePrivacyPanel] = useState(false);
   const [privacyPanelType, setPrivacyPanelType] = useState('lateral');
@@ -104,6 +116,19 @@ export default function KoncisaPlusPanel({ onCreate }) {
     setSelectedPrivacyPanelFinishId(
       tipo === 'frontal' ? selectedFrontalPrivacyPanelFinishId : selectedLateralPrivacyPanelFinishId
     );
+  };
+
+  const handleAddDrawer = async () => {
+    setAddingDrawer(true);
+    setDrawerError('');
+    try {
+      const result = await onAddDrawer?.();
+      if (!result) throw new Error('No se pudo agregar la cajonera.');
+    } catch (error) {
+      setDrawerError(error?.message || 'No se pudo agregar la cajonera.');
+    } finally {
+      setAddingDrawer(false);
+    }
   };
 
   const largoCobroMm = useMemo(() => {
@@ -170,38 +195,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
         finishCode: leaderMaterialType === 'FORMICA' ? '22008689' : '22015137',
 
-        leaderHasGrommetBox,
-        leaderMainGrommet: {
-          enabled: leaderMainGrommetEnabled || leaderMainGrommetRequired,
-          position: leaderMainGrommetPosition,
-          finish: grommetFinish,
-        },
-        leaderReturnGrommet: {
-          enabled: !leaderCredenzaEnabled && leaderHasGrommetBox,
-          position: leaderReturnGrommetPosition,
-          finish: grommetFinish,
-        },
-        leaderMainFloorDuct: {
-          enabled: leaderMainFloorDuctEnabled,
-          position: leaderMainGrommetPosition,
-        },
-        leaderReturnFloorDuct: {
-          enabled: !leaderCredenzaEnabled && leaderReturnFloorDuctEnabled,
-          position: leaderReturnGrommetPosition,
-        },
-        leaderMainOutletCoupling: {
-          enabled: leaderMainGrommetEnabled && leaderMainOutletCouplingEnabled,
-        },
-        leaderReturnOutletCoupling: {
-          enabled:
-            !leaderCredenzaEnabled && leaderHasGrommetBox && leaderReturnOutletCouplingEnabled,
-        },
-        leaderCostadoOutletCoupling: {
-          enabled:
-            leaderJunctionHasOutletBox &&
-            !leaderCredenzaEnabled &&
-            leaderCostadoOutletCouplingEnabled,
-        },
         // Falda
         leaderHasSkirt,
 
@@ -234,6 +227,27 @@ export default function KoncisaPlusPanel({ onCreate }) {
       grommetFinish,
 
       hasDuct: true,
+      ...(tipoPuesto === 'sencillo'
+        ? {
+            returnSurface: {
+              enabled: returnEnabled,
+              widthMm: returnWidthMm,
+              targetModuleIndex: returnModuleIndex === 0 ? 0 : puestos - 1,
+              side: returnSide,
+              returnOrientation,
+              ductEnabled: returnDuct,
+              ductType: returnDuctType,
+              pedestal: { enabled: returnPedestal, placementSide: returnPedestalSide },
+            },
+            surfaceOverrides: {
+              SIMPLE_RETURN_SURFACE: {
+                finishId: 'FORMICA_30',
+                cableAccessType: returnAccess,
+                pasacablePosition: 'CENTER',
+              },
+            },
+          }
+        : {}),
 
       finishCode: selectedFinish.finishCode,
       thickMm: selectedFinish.thickMm,
@@ -308,7 +322,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
   }, [tipoPasoCable]);
 
   const [ductConfigOpen, setDuctConfigOpen] = useState(false);
-  const [ductModes, setDuctModes] = useState([]);
+  const [ductModes, setDuctModes] = useState(['INTERMEDIO']);
 
   useEffect(() => {
     if (tipoPasoCable !== 'grommet') return;
@@ -320,16 +334,16 @@ export default function KoncisaPlusPanel({ onCreate }) {
 
     setDuctModes((prev) =>
       Array.from({ length: puestos }, (_, index) =>
-        String(prev[index] || 'TERMINAL').toUpperCase() === 'INDIVIDUAL'
-          ? 'TERMINAL'
-          : prev[index] || 'TERMINAL'
+        String(prev[index] || 'INTERMEDIO').toUpperCase() === 'INDIVIDUAL'
+          ? 'INTERMEDIO'
+          : prev[index] || 'INTERMEDIO'
       )
     );
   }, [tipoPasoCable, puestos]);
 
   useEffect(() => {
     setDuctModes((prev) => {
-      const next = Array.from({ length: puestos }, (_, i) => prev[i] || 'TERMINAL');
+      const next = Array.from({ length: puestos }, (_, i) => prev[i] || 'INTERMEDIO');
       return next;
     });
   }, [puestos]);
@@ -362,16 +376,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderCredenzaLengthMm, setLeaderCredenzaLengthMm] = useState(1500);
   const [leaderMaterialType, setLeaderMaterialType] = useState('FORMICA');
 
-  const [leaderHasGrommetBox, setLeaderHasGrommetBox] = useState(false);
-  const [leaderMainGrommetEnabled, setLeaderMainGrommetEnabled] = useState(false);
-  const [leaderMainGrommetPosition, setLeaderMainGrommetPosition] = useState('CENTER');
-  const [leaderReturnGrommetPosition, setLeaderReturnGrommetPosition] = useState('CENTER');
-  const [leaderMainFloorDuctEnabled, setLeaderMainFloorDuctEnabled] = useState(false);
-  const [leaderReturnFloorDuctEnabled, setLeaderReturnFloorDuctEnabled] = useState(false);
-  const [leaderMainOutletCouplingEnabled, setLeaderMainOutletCouplingEnabled] = useState(false);
-  const [leaderReturnOutletCouplingEnabled, setLeaderReturnOutletCouplingEnabled] = useState(false);
-  const [leaderCostadoOutletCouplingEnabled, setLeaderCostadoOutletCouplingEnabled] =
-    useState(false);
   // Falda puesto líder
   const [leaderHasSkirt, setLeaderHasSkirt] = useState(false);
 
@@ -409,7 +413,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
   const [leaderMainCostadoForma, setLeaderMainCostadoForma] = useState('RECT');
 
   const [leaderJunctionHasOutletBox, setLeaderJunctionHasOutletBox] = useState(false);
-  const leaderMainGrommetRequired = leaderCredenzaEnabled || leaderJunctionHasOutletBox;
 
   const leaderCostadoOptions = [
     { value: 'RECT', label: 'Rectangular' },
@@ -445,6 +448,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
           <option value="LEADER">Puesto líder</option>
         </select>
       </div>
+
       {layoutType === 'LEADER' && (
         <>
           <div
@@ -549,9 +553,7 @@ export default function KoncisaPlusPanel({ onCreate }) {
                   const enabled = e.target.checked;
                   setLeaderCredenzaEnabled(enabled);
                   if (enabled) {
-                    setLeaderMainFloorDuctEnabled(false);
                     setLeaderJunctionHasOutletBox(false);
-                    setLeaderCostadoOutletCouplingEnabled(false);
                   }
                 }}
               />{' '}
@@ -632,142 +634,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
               gap: 10,
             }}
           >
-            <div style={{ fontWeight: 700 }}>Grommets</div>
-
-            <label>
-              <input
-                type="checkbox"
-                checked={leaderMainGrommetEnabled || leaderMainGrommetRequired}
-                disabled={leaderMainGrommetRequired}
-                onChange={(e) => {
-                  const enabled = e.target.checked;
-                  setLeaderMainGrommetEnabled(enabled);
-                  if (enabled) {
-                    setLeaderHasGrommetBox(false);
-                    setLeaderReturnOutletCouplingEnabled(false);
-                  }
-                }}
-              />{' '}
-              Incluir en superficie principal
-            </label>
-
-            {leaderMainGrommetEnabled && (
-              <label>
-                <input
-                  type="checkbox"
-                  checked={leaderMainOutletCouplingEnabled}
-                  onChange={(e) => setLeaderMainOutletCouplingEnabled(e.target.checked)}
-                />{' '}
-                Incluir acople a pared en superficie principal
-              </label>
-            )}
-
-            <label>
-              <input
-                type="checkbox"
-                checked={leaderMainFloorDuctEnabled && !leaderCredenzaEnabled}
-                disabled={leaderCredenzaEnabled}
-                onChange={(e) => setLeaderMainFloorDuctEnabled(e.target.checked)}
-              />{' '}
-              Incluir ducto bajante bajo superficie principal
-            </label>
-
-            {(leaderMainGrommetEnabled || leaderMainFloorDuctEnabled) && (
-              <div>
-                <label>Posición en superficie principal</label>
-                <select
-                  value={leaderMainGrommetPosition}
-                  onChange={(e) => setLeaderMainGrommetPosition(e.target.value)}
-                  style={{ width: '100%' }}
-                >
-                  <option value="LEFT">Izquierda</option>
-                  <option value="CENTER">Centro</option>
-                  <option value="RIGHT">Derecha</option>
-                </select>
-              </div>
-            )}
-
-            {!leaderCredenzaEnabled && (
-              <>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={leaderHasGrommetBox}
-                    onChange={(e) => {
-                      const enabled = e.target.checked;
-                      setLeaderHasGrommetBox(enabled);
-                      if (enabled) {
-                        setLeaderMainGrommetEnabled(false);
-                        setLeaderMainOutletCouplingEnabled(false);
-                      }
-                    }}
-                  />{' '}
-                  Incluir en superficie de retorno
-                </label>
-
-                {leaderHasGrommetBox && (
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={leaderReturnOutletCouplingEnabled}
-                      onChange={(e) => setLeaderReturnOutletCouplingEnabled(e.target.checked)}
-                    />{' '}
-                    Incluir acople a pared en superficie de retorno
-                  </label>
-                )}
-
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={leaderReturnFloorDuctEnabled}
-                    onChange={(e) => setLeaderReturnFloorDuctEnabled(e.target.checked)}
-                  />{' '}
-                  Incluir ducto bajante bajo superficie de retorno
-                </label>
-
-                {(leaderHasGrommetBox || leaderReturnFloorDuctEnabled) && (
-                  <div>
-                    <label>Posición en superficie de retorno</label>
-                    <select
-                      value={leaderReturnGrommetPosition}
-                      onChange={(e) => setLeaderReturnGrommetPosition(e.target.value)}
-                      style={{ width: '100%' }}
-                    >
-                      <option value="LEFT">Izquierda</option>
-                      <option value="CENTER">Centro</option>
-                      <option value="RIGHT">Derecha</option>
-                    </select>
-                  </div>
-                )}
-              </>
-            )}
-
-            {(leaderMainGrommetEnabled || (!leaderCredenzaEnabled && leaderHasGrommetBox)) && (
-              <div>
-                <label>Acabado</label>
-                <select
-                  value={grommetFinish}
-                  onChange={(e) => setGrommetFinish(e.target.value)}
-                  style={{ width: '100%' }}
-                >
-                  <option value="ALUMINIUM">Aluminium</option>
-                  <option value="PAINTED">Painted</option>
-                  <option value="METALICO">Metálico</option>
-                </select>
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              padding: 10,
-              background: '#fff',
-              display: 'grid',
-              gap: 10,
-            }}
-          >
             <div style={{ fontWeight: 700 }}>Costados de la superficie principal</div>
 
             <div>
@@ -799,23 +665,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
               />{' '}
               Incluir caja de tomas en el costado junto al retorno
             </label>
-
-            {leaderJunctionHasOutletBox && !leaderCredenzaEnabled && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={leaderCostadoOutletCouplingEnabled}
-                  onChange={(e) => setLeaderCostadoOutletCouplingEnabled(e.target.checked)}
-                />{' '}
-                <img
-                  src="/assets/imagen/KoncisaPlusImagenes/acoplepuestolider.png"
-                  alt=""
-                  aria-hidden="true"
-                  style={{ width: 88, height: 58, objectFit: 'contain', flexShrink: 0 }}
-                />
-                <span>Incluir acople a pared para la caja del costado</span>
-              </label>
-            )}
           </div>
 
           <div
@@ -888,15 +737,6 @@ export default function KoncisaPlusPanel({ onCreate }) {
             <div>
               Material: {leaderMaterialType === 'FORMICA' ? 'Fórmica 30 mm' : 'Melamina 25 mm'}
             </div>
-
-            <div>Grommet principal: {leaderMainGrommetEnabled ? 'Sí' : 'No'}</div>
-            <div>Ducto a piso principal: {leaderMainFloorDuctEnabled ? 'Sí' : 'No'}</div>
-            {!leaderCredenzaEnabled && (
-              <>
-                <div>Grommet retorno: {leaderHasGrommetBox ? 'Sí' : 'No'}</div>
-                <div>Ducto a piso retorno: {leaderReturnFloorDuctEnabled ? 'Sí' : 'No'}</div>
-              </>
-            )}
           </div>
 
           <button type="button" onClick={handleCreate}>
@@ -978,6 +818,123 @@ export default function KoncisaPlusPanel({ onCreate }) {
               <option value={12}>12 puestos</option>
             </select>
           </div>
+          {tipoPuesto === 'sencillo' && (
+            <fieldset style={{ border: '1px solid #ddd' }}>
+              <legend>Superficie de retorno</legend>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={returnEnabled}
+                  onChange={(event) => setReturnEnabled(event.target.checked)}
+                />{' '}
+                Incluir retorno
+              </label>
+              {returnEnabled && (
+                <>
+                  <label>
+                    Medida{' '}
+                    <select
+                      value={returnWidthMm}
+                      onChange={(event) => setReturnWidthMm(Number(event.target.value))}
+                    >
+                      <option value={900}>900 mm — ESPECIAL</option>
+                      <option value={1000}>1000 mm</option>
+                    </select>
+                  </label>
+                  {puestos > 1 && (
+                    <label>
+                      Puesto propietario{' '}
+                      <select
+                        value={returnModuleIndex === 0 ? 0 : puestos - 1}
+                        onChange={(event) => setReturnModuleIndex(Number(event.target.value))}
+                      >
+                        <option value={0}>Inicial — puesto 0</option>
+                        <option value={puestos - 1}>Final — puesto {puestos - 1}</option>
+                      </select>
+                    </label>
+                  )}
+                  <label>
+                    Lado{' '}
+                    <select
+                      value={returnSide}
+                      onChange={(event) => setReturnSide(event.target.value)}
+                    >
+                      <option value="LEFT">LEFT</option>
+                      <option value="RIGHT">RIGHT</option>
+                    </select>
+                  </label>
+                  <label>
+                    Ubicación del retorno{' '}
+                    <select
+                      value={returnOrientation}
+                      onChange={(event) => setReturnOrientation(event.target.value)}
+                    >
+                      <option value="FRONT">Frente</option>
+                      <option value="BACK">Atrás</option>
+                    </select>
+                  </label>
+                  <label>
+                    Acceso{' '}
+                    <select
+                      value={returnAccess}
+                      onChange={(event) => {
+                        setReturnAccess(event.target.value);
+                        if (event.target.value === 'PASACABLE' && returnDuctType === 'INDIVIDUAL')
+                          setReturnDuctType('TERMINAL');
+                      }}
+                    >
+                      <option value="NONE">Ninguno</option>
+                      <option value="GROMMET">Grommet</option>
+                      <option value="PASACABLE">Pasacable central</option>
+                    </select>
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={returnDuct}
+                      onChange={(event) => setReturnDuct(event.target.checked)}
+                    />{' '}
+                    Ducto compatible con la medida
+                  </label>
+                  {returnDuct && (
+                    <label>
+                      Tipo de ducto{' '}
+                      <select
+                        value={returnDuctType}
+                        onChange={(event) => setReturnDuctType(event.target.value)}
+                      >
+                        <option value="TERMINAL">Terminal</option>
+                        <option value="INTERMEDIO">Intermedio</option>
+                        {returnAccess !== 'PASACABLE' && (
+                          <option value="INDIVIDUAL">Individual</option>
+                        )}
+                      </select>
+                    </label>
+                  )}
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={returnPedestal}
+                      onChange={(event) => setReturnPedestal(event.target.checked)}
+                    />{' '}
+                    Sustituir costado por pedestal
+                  </label>
+                  {returnPedestal && (
+                    <label>
+                      Posición del pedestal{' '}
+                      <select
+                        value={returnPedestalSide}
+                        onChange={(event) => setReturnPedestalSide(event.target.value)}
+                      >
+                        <option value="LEFT">Izquierda</option>
+                        <option value="RIGHT">Derecha</option>
+                      </select>
+                    </label>
+                  )}
+                </>
+              )}
+            </fieldset>
+          )}
           <div>
             <label>
               <input
@@ -1244,6 +1201,35 @@ export default function KoncisaPlusPanel({ onCreate }) {
               </select>
             </div>
           )}
+
+          <div
+            style={{
+              border: '1px solid #ddd',
+              borderRadius: 6,
+              padding: 10,
+              background: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <img
+              src="/assets/imagen/KoncisaPlusImagenes/2KAL003000.png"
+              alt="Cajonera móvil Koncisa Plus"
+              style={{ width: 68, height: 68, objectFit: 'contain', flexShrink: 0 }}
+            />
+            <div style={{ display: 'grid', gap: 6, minWidth: 0 }}>
+              <span style={{ fontSize: 12, lineHeight: 1.3 }}>Cajonera móvil Koncisa Plus</span>
+              <button type="button" disabled={addingDrawer} onClick={handleAddDrawer}>
+                {addingDrawer ? 'Agregando...' : 'Agregar cajonera'}
+              </button>
+              {drawerError && (
+                <span role="alert" style={{ color: '#b91c1c', fontSize: 11 }}>
+                  {drawerError}
+                </span>
+              )}
+            </div>
+          </div>
 
           <div
             style={{

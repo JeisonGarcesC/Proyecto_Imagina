@@ -8,6 +8,9 @@
 import {
   KUO_AV_TUNABLES,
   KUO_AV_CALIBRATION,
+  KUO_AV_LATERAL_VERTEBRA_ADJUSTMENT_MM,
+  KUO_AV_REMATE,
+  resolveKuoAVNominalWidth,
   resolveKuoAVVariantAsset,
   resolveKuoAVVariantMetrics,
 } from '../config/kuoAVTunables.js';
@@ -73,8 +76,15 @@ export function buildKuoAV(config = {}) {
   const elevarKitFIzquierdo = typeof config.elevarKitFIzquierdo === 'boolean' ? config.elevarKitFIzquierdo : false;
   const vertebraLateral =
     typeof config.vertebraLateral === 'boolean' ? config.vertebraLateral : false;
-  const ladoVertebra = config.ladoVertebra === 'der' ? 'der' : 'izq';
+  const ladoVertebra = vertebraLateral ? 'der' : config.ladoVertebra === 'der' ? 'der' : 'izq';
   const acabadoGrommet = config.acabadoGrommet || 'ALUMINIUM';
+
+  // Lote de puestos sencillos (mapa de producto pág. 8): bases terminales KUSO800000 solo en
+  // los extremos y una base intermedia KUSO810000 por unión, dibujada por el puesto derecho.
+  const batchSize = Math.max(1, Math.trunc(Number(config.kuoBatchSize) || 1));
+  const batchIndex = Math.min(batchSize - 1, Math.max(0, Math.trunc(Number(config.kuoBatchIndex) || 0)));
+  const leftIsIntermediate = batchSize > 1 && batchIndex > 0;
+  const rightIsShared = batchSize > 1 && batchIndex < batchSize - 1;
 
   // Determinismo estricto de groupId
   const groupId =
@@ -155,11 +165,22 @@ export function buildKuoAV(config = {}) {
       y: posY,
       z: posZ,
     });
+    if (leftIsIntermediate) {
+      // Base nativa de 60 cm, no rematable (mapa pág. 8), centrada en la unión.
+      leftColumnPart.model.src = `/assets/models/Kuo AV/Puesto Doble/${KUO_AV_TUNABLES.GLB_FILES.COSTADO_INTERMEDIO}`;
+      leftColumnPart.position.x = basePosX - 81;
+      leftColumnPart.code = 'KUSO810000';
+      leftColumnPart.logicalCode = 'KUSO810000';
+      leftColumnPart.rawCodigoPT = 'KUSO810000';
+      leftColumnPart.meta.codigoCET = 'KUSO810000';
+      leftColumnPart.name = 'Base Columna Intermedio Puesto Sencillo Kuo AV KUSO810000';
+      leftColumnPart.isIntermediate = true;
+    }
     parts.push(leftColumnPart);
   }
 
-  // 5. Costado Derecho con Base (KUSO800000_DER.glb)
-  if (baseRules.rightColumn) {
+  // 5. Costado Derecho con Base (KUSO800000_DER.glb); en un lote la unión es del puesto siguiente
+  if (baseRules.rightColumn && !rightIsShared) {
     const calDer = cal.costadoDerecho;
     const basePosX = widthMm / 2 - 76.0;
     const basePosY = calDer?.posicionMm?.y ?? 0.0;
@@ -182,11 +203,16 @@ export function buildKuoAV(config = {}) {
   }
 
   // 6. Viga Soporte de Superficie (Selección de variante automática KUSO420000_120/150/165)
+  // Remate: GLB de la nominal superior escalado en X a largo real = ancho - 0,4 cm.
   const vigaGlbName = resolveKuoAVVariantAsset({ component: 'vigaSoporte', anchoMm: widthMm });
   const vigaMetrics = resolveKuoAVVariantMetrics({ component: 'vigaSoporte', anchoMm: widthMm });
+  const isWidthRemate = widthMm !== resolveKuoAVNominalWidth(widthMm);
   if (baseRules.crossbar) {
     const calViga = cal.vigaSoporte;
-    const basePosX = vigaMetrics?.posX ?? -widthMm / 2;
+    const vigaRealMm = isWidthRemate
+      ? widthMm - KUO_AV_REMATE.vigaRealDeltaMm
+      : vigaMetrics?.widthRealMm || widthMm;
+    const basePosX = isWidthRemate ? -vigaRealMm / 2 : vigaMetrics?.posX ?? -widthMm / 2;
     const basePosY = calViga?.posicionMm?.y ?? 660.0;
     const basePosZ = calViga?.posicionMm?.z ?? 250.0;
     const posX = basePosX + (calViga?.offsetMm?.x || 0);
@@ -196,20 +222,27 @@ export function buildKuoAV(config = {}) {
     const crossbarPart = createKuoAVCrossbarPart({
       groupId,
       groupName,
-      widthMm: vigaMetrics?.widthRealMm || widthMm,
+      widthMm: vigaRealMm,
       modelSrc: vigaGlbName ? `${KUO_AV_TUNABLES.GLB_BASE}${vigaGlbName}` : null,
       x: posX,
       y: posY,
       z: posZ,
     });
+    if (isWidthRemate && vigaMetrics?.widthRealMm) {
+      crossbarPart.scale = { x: vigaRealMm / vigaMetrics.widthRealMm, y: 1, z: 1 };
+    }
     parts.push(crossbarPart);
   }
 
   // 7. Ducto de Cableado (Selección de variante automática KUSO860000_120/150/165)
+  // Remate: GLB de la nominal superior escalado en X a largo real = ancho - 9,1 cm.
   const ductoGlbName = resolveKuoAVVariantAsset({ component: 'ductoCableado', anchoMm: widthMm });
   const ductoMetrics = resolveKuoAVVariantMetrics({ component: 'ductoCableado', anchoMm: widthMm });
+  const ductoRealMm = isWidthRemate
+    ? widthMm - KUO_AV_REMATE.ductoRealDeltaMm
+    : ductoMetrics?.widthRealMm || widthMm;
   const calDucto = cal.ductoCableado;
-  const baseDuctoX = ductoMetrics?.posX ?? -widthMm / 2;
+  const baseDuctoX = isWidthRemate ? -ductoRealMm / 2 : ductoMetrics?.posX ?? -widthMm / 2;
   const baseDuctoY = calDucto?.posicionMm?.y ?? 303.0;
   const baseDuctoZ = calDucto?.posicionMm?.z ?? -149.0;
   const ductoX = baseDuctoX + (calDucto?.offsetMm?.x || 0);
@@ -224,6 +257,9 @@ export function buildKuoAV(config = {}) {
     y: ductoY,
     z: ductoZ,
   });
+  if (isWidthRemate && ductoMetrics?.widthRealMm) {
+    ductPart.scale = { x: ductoRealMm / ductoMetrics.widthRealMm, y: 1, z: 1 };
+  }
   parts.push(ductPart);
 
   // Registro en consola de variante seleccionada
@@ -325,9 +361,11 @@ export function buildKuoAV(config = {}) {
     calVert?.posicionMm ||
     calVert?.posicionImaginaCanonicaMm ||
     { x: -35.0, y: 25.0, z: -88.7 };
+  // The upper lateral terminal meets the centered socket box, not the moving side support.
   const vertX = baseVert.x + (calVert?.offsetMm?.x || 0);
   const vertY = (heightPlacement.useRaisedAsset && !vertebraLateral ? 205 : baseVert.y)
-    + (calVert?.offsetMm?.y || 0);
+    + (calVert?.offsetMm?.y || 0)
+    + (vertebraLateral ? KUO_AV_LATERAL_VERTEBRA_ADJUSTMENT_MM.y : 0);
   const vertZ = (heightPlacement.useRaisedAsset && !vertebraLateral ? -215 : baseVert.z)
     + (calVert?.offsetMm?.z || 0);
   const vertebraGlb = heightPlacement.useRaisedAsset
@@ -409,7 +447,7 @@ export function buildKuoAV(config = {}) {
   const pantallaAcabado = config.pantallaAcabado || (isPantallaVidrio ? '#a5f3fc' : '#dedede');
 
   if (hasPantalla) {
-    const panWidthMm = widthMm === 1500 ? 1425 : widthMm >= 1650 ? 1575 : 1125;
+    const panWidthMm = Math.min(widthMm, resolveKuoAVNominalWidth(widthMm)) - 75;
     const pantallaPart = createKuoAVPantallaPart({
       groupId,
       groupName,
@@ -425,6 +463,7 @@ export function buildKuoAV(config = {}) {
 
   // 13. Retorno de estructura completa serializable
   const normalizedConfig = {
+    surfaceFinishes: config.surfaceFinishes || {},
     anchoMm: widthMm,
     profundidadMm: depthMm,
     alturaMm: baseRules.alturaMm,
@@ -445,6 +484,9 @@ export function buildKuoAV(config = {}) {
     pantalla: hasPantalla,
     pantallaTipo,
     pantallaAcabado,
+    botoneraCode: config.botoneraCode || null,
+    ...(config.kuoBatchId ? { kuoBatchId: config.kuoBatchId } : {}),
+    ...(batchSize > 1 ? { kuoBatchIndex: batchIndex, kuoBatchSize: batchSize } : {}),
     instanceId: config.instanceId || null,
     groupId,
   };

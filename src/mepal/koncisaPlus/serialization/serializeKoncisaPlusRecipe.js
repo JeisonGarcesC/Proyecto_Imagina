@@ -114,7 +114,26 @@ export function resolveComponentKey(object) {
   const type = normalizeToken(userData.type || userData.kind);
   const subtype = normalizeToken(userData.subtype);
   const leaderRole = normalizeToken(meta.leaderRole || userData.leaderRole);
+  if (
+    normalizeToken(meta.category) === 'CAJAS_DE_TOMAS' &&
+    normalizeToken(meta.layoutType) === 'LEADER' &&
+    LEADER_ROLE_KEYS[leaderRole]
+  ) {
+    return LEADER_ROLE_KEYS[leaderRole];
+  }
   if (meta.componentKey) return String(meta.componentKey);
+  if (meta.targetSurfaceKey === 'SIMPLE_RETURN_SURFACE') {
+    const category = normalizeToken(meta.category);
+    if (category === 'COSTADOS') return 'SIMPLE_RETURN_COSTADO';
+    if (category === 'PEDESTALES') return 'SIMPLE_RETURN_PEDESTAL';
+    if (category === 'RETURN_UNION_SUPPORTS') {
+      const index = Number(meta.unionPlateIndex);
+      return Number.isInteger(index) && index >= 0 ? `SIMPLE_RETURN_UNION_${index + 1}` : null;
+    }
+    if (category === 'GROMMETS') return 'SIMPLE_RETURN_GROMMET';
+    if (category === 'PASACABLES') return 'SIMPLE_RETURN_PASACABLE';
+    if (category === 'DUCTOS') return 'SIMPLE_RETURN_DUCT';
+  }
 
   if (type === 'LEADERCREDENZABEAMDECORATION' || type === 'LEADER_CREDENZA_BEAM_DECORATION') {
     return 'CREDENZA_BEAM_DECORATION';
@@ -330,7 +349,9 @@ export function serializeKoncisaPlusRecipe({ assembly, physicalParts = [] } = {}
     };
     if (/PEDESTAL|INTEGRATION/.test(normalizeToken(component.type)) || signals.replaceKey) {
       replacements.push(record);
-    } else if (/ACCESSOR|GROMMET|COUPLING|SUPPORT/.test(`${category}_${normalizeToken(component.type)}`)) {
+    } else if (
+      /ACCESSOR|GROMMET|COUPLING|SUPPORT/.test(`${category}_${normalizeToken(component.type)}`)
+    ) {
       accessories.push(record);
     } else if (Object.keys(signals).length) {
       overrides.push(record);
@@ -339,7 +360,9 @@ export function serializeKoncisaPlusRecipe({ assembly, physicalParts = [] } = {}
 
   const warnings = [];
   if (missingComponentKeys.length) {
-    warnings.push(`${missingComponentKeys.length} componente(s) no tienen una clave lógica estable.`);
+    warnings.push(
+      `${missingComponentKeys.length} componente(s) no tienen una clave lógica estable.`
+    );
   }
   if (duplicatedComponentKeys.length) {
     warnings.push(`Hay claves lógicas duplicadas: ${duplicatedComponentKeys.join(', ')}.`);

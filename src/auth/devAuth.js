@@ -19,6 +19,12 @@ const DEV_USERS = Object.freeze({
   }),
 });
 
+const DEV_FINISH_PERMISSIONS = Object.freeze({
+  administrador: Object.freeze(['finishes.view', 'finishes.apply', 'finishes.create', 'finishes.delete']),
+  diseno: Object.freeze(['finishes.view', 'finishes.apply', 'finishes.create', 'finishes.delete']),
+  comercial: Object.freeze([]),
+});
+
 export const DEV_USER_OPTIONS = Object.freeze(
   Object.values(DEV_USERS).map(({ username, label }) => Object.freeze({ username, label }))
 );
@@ -35,6 +41,6 @@ export function createDevSession(username) {
       status: 'ACTIVE',
     },
     roles: [devUser.role],
-    permissions: [],
+    permissions: [...(DEV_FINISH_PERMISSIONS[devUser.role] || [])],
   };
 }

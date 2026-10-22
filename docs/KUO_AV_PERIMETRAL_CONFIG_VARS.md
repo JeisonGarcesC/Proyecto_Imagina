@@ -1,6 +1,30 @@
 # Variables de Configuración y Dirección: KUO AV - Superficie Perimetral
 
+## Vista detallada 2D
+
+Perimetral y doble utilizan el mismo boton Vista detallada 2D que Koncisa Plus.
+El snapshot incluye la huella local, el centro mundial y el giro mundial del
+ensamble para mantener alineados contornos, seleccion y exportaciones al rotar.
+El detalle se genera bajo demanda mediante extractDetailedFootprint2D y su
+cache existente, sin modificar geometria 3D ni crear entidades seleccionables.
+SVG/imagen/PDF y DXF consumen la misma seleccion de detalle del plano.
+El doble permite hasta 192 contornos y 4096 puntos (la variante elevada con
+vertebras laterales contiene 142 meshes proyectables) por contener dos puestos;
+los demas limites y la alternativa de huella normal permanecen vigentes.
+
 ## Opciones comerciales de creacion y edicion
+
+En creacion y propiedades, el doble ofrece dos familias: Pantalla
+Formica/Melamina/Tela y Pantalla Vidrio. La primera conserva un selector
+de material para resolver FORMICA/MELAMINA/TELA y su referencia BOM;
+la segunda usa VIDRIO (KUAC660000). No se instalan ambas a la vez.
+El frontal perimetral permanece exclusivo de la oferta del sencillo.
+
+La pantalla central del doble compensa el origen del GLB en profundidad:
+16 mm en Formica/Melamina/Tela (KUAC690000) y 12 mm en vidrio (KUAC660000).
+El plano medio del panel queda en Z=0, equidistante de las dos tapas, como
+en las pantallas independientes. No se mueven tapas ni soportes del puesto;
+el montaje especifico del frontal perimetral KUAC710000 no cambia.
 
 El formulario compartido [KuoAVOptions.jsx](../src/components/KuoAVOptions.jsx)
 mantiene ancho y profundidad, ademas de las opciones de la referencia original:
@@ -11,7 +35,29 @@ mantiene ancho y profundidad, ademas de las opciones de la referencia original:
 - Especial/Rematable, Aumentar Altura, Elevar kit F izquierdo y Colocar Vertebra Lateral.
 - Incluir pantalla y su material siguen disponibles.
 
-El doble agrega Baldosa Formica y Costado Intermedio KUSO820000. Su unico control
+En ambos puestos, Kit Fuente aplica Blanco/Negro/Gris solamente a las columnas
+elevables KUAC1040000; no repinta los costados fijos, bases, ductos ni accesorios.
+En el doble, kitFuenteColor tiene prioridad sobre el campo legado acabadoParales.
+Los colores se resuelven desde la configuracion de propiedades del puesto.
+Acabados permitidos se utiliza para las superficies, sin repintar la estructura.
+Con un puesto completo seleccionado se aplica a sus tapas; con una tapa
+individual seleccionada, Parte modifica solo esa tapa. Grupo/Todo aplica a
+las tapas del mismo puesto, nunca al kit ni a otros puestos.
+Los acabados se guardan por rol en config.surfaceFinishes y se restauran al
+reconstruir el puesto (por ejemplo, al cambiar medidas o color del kit).
+
+La oferta comercial Especial/Rematable, tanto al crear como al editar sencillo
+perimetral y doble, permite largos 120/130/140/150/160 cm y profundidades
+60/65/70/75 cm. Al activar especial se ajustan ambas medidas a la opcion
+permitida mas cercana (en empates, la menor); 165 cm pasa a 160 cm.
+Las nominales estandar siguen siendo 120/150/165 cm y fondos 60/75 cm.
+Esta restriccion de venta no altera automaticamente las recetas antiguas al
+cargarlas ni cambia la referencia nominal superior utilizada para facturar.
+
+El doble agrega Baldosa Formica y un selector de soporte intermedio
+KUSO840000/KUSO850000 para las uniones de lotes. El modo AUTO conserva la
+intermedio con ducto KUSO840000 en todas las uniones; KUSO850000 queda
+disponible para edicion explicita de cada union. Su unico control
 Colocar Vertebra Lateral cambia la ubicacion de ambas vertebras (central/lateral),
 sin eliminarlas ni cambiar su cantidad en el BOM;
 las configuraciones antiguas con controles independientes siguen siendo compatibles.
@@ -29,6 +75,23 @@ del export perimetral CET; no se escala verticalmente la columna completa.
 La vertebra central elevada usa KUAC650000_ALT y la lateral elevada usa
 KUAC650000_ALT_LAT 1, conservando una sola partida KUAC650000 en el BOM.
 Los dos estados de altura no activan automaticamente la casilla lateral.
+La vertebra lateral se orienta hacia la derecha local del puesto, tambien en
+perimetral (sin el giro anterior de 180 grados). Su montaje recibe un ajuste
+de +10 mm en Y. El doble conserva tambien su ajuste anterior de +10 mm en X.
+El perimetral conserva la franja de profundidad del montaje al invertir la
+orientacion. La lateral perimetral se fija en X=288.202892 mm para unir el
+extremo superior a la pared lateral de KUAC680000, cuya posicion no cambia
+con el ancho. Se elimina el seguimiento del ancho de la vertebra perimetral:
+ese seguimiento separaba el extremo de la caja centrada. Ambas alturas utilizan sus GLB
+nativos sin escalado; las vertebras centrales y las cantidades del BOM no cambian.
+Se retiraron, por indicacion del usuario, los ajustes manuales posteriores de
+50 mm y la bajada adicional de 10 mm en la lateral perimetral: alejaban las
+vertebras de sus soportes. La calibracion lateral perimetral posterior reduce
+X en 6.797108 mm respecto al montaje de 120 cm, hacia la derecha en vista
+trasera. Las pruebas contra triangulos del GLB comprueban una separacion
+inferior a 0.1 mm entre el extremo superior y la pared de la caja en ambos
+estados de altura y anchos 120/150/165 cm. Esto verifica ese contacto superior,
+no un puerto interno ni el montaje del extremo inferior contra el ducto.
 La pantalla del doble queda centrada de forma fija para todos sus materiales;
 el editor no muestra controles de ubicacion ni un selector separado de acabado
 de pantalla.
@@ -71,6 +134,33 @@ sin `physicalHeightMm`.
 No se han agregado precios ni referencias comerciales no confirmadas para Melamina.
 El BOM doble reutiliza el catalogo confirmado del perimetral para los mismos kits
 fuente blanco, negro y gris, manteniendo dos unidades y sus descripciones por color.
+Al mostrar el BOM, puestos Kuo con la misma configuracion comercial se consolidan
+en una tipologia y sus cantidades por componente se suman; configuraciones con
+medidas, opciones o acabados diferentes permanecen separadas.
+En lotes con varios puestos dobles, el BOM conserva dos costados terminales
+exteriores y agrega un costado intermedio por cada union entre puestos,
+segun la seleccion de soporte intermedio, salvo lotes separados por Baldosa Formica.
+Los GLB nativos KUSO840000 y KUSO850000 reemplazan los sustitutos visuales:
+Al editar Soporte intermedio, se reconstruye solo el puesto seleccionado:
+su union con el puesto anterior le pertenece (pie izquierdo). El primer
+puesto solo tiene un terminal y no tiene union intermedia propia.
+No se propagan soporte, medidas, altura ni acabados a los otros puestos,
+aunque compartan `kuoBatchId`. La creacion mantiene AUTO por defecto:
+en tres puestos, las uniones de indices 1 y 2 usan ambas KUSO840000.
+El editor envia solo las opciones modificadas a la API.
+El panel de creacion configura solo nuevas inserciones; no modifica mesas
+existentes. Para estas se utiliza el selector del editor de propiedades.
+no se estira el terminal ni se genera un portico de bloques. Se centran en
+la union mediante los origenes medidos de sus variantes 120/150, con escala 1:1.
+Segun la pagina 7, fondos de superficie 60 a 74 cm usan variante 120;
+75 cm usa variante 150. Estos soportes permanecen fijos al cambiar altura.
+En sencillos, KUSO810000 se carga desde Puesto Doble, donde fue suministrado,
+pero solo se utiliza en uniones de sencillos/perimetrales (pagina 8).
+Sus archivos sin sufijo, _60 y _75 son identicos: todos representan la base
+de 60 cm, no rematable, aplicable a superficies de 60 a 75 cm.
+El montaje conserva identificadores y relaciones del ensamble y el BOM
+mantiene una pieza intermedia por union. La botonera es exclusivamente DPBK06
+(22024327), sin selector de referencias alternativas.
 Las regresiones se ejecutan con `npm run test:kuo`.
 La referencia perimetral 1200x600 Melamina 30, especial y grommet pintado
 conserva la superficie KUO120060RECT2 a precio cero. Sus totales confirmados
@@ -97,6 +187,11 @@ Cada pulsacion de Crear inicia una configuracion independiente, separada por
 0.50 m de los limites reales de los ensambles KUO AV existentes, incluidos
 puestos movidos o rotados. Los puestos del mismo lote siguen unidos borde a
 borde y conservan su identificador de lote para las operaciones existentes.
+Al transformar un ensamble completo, todos los ensambles del mismo lote son
+objetivos de movimiento 3D/2D y rotacion, aun con alcance individual. Los
+componentes conservan su seleccion individual y edicion local de propiedades.
+El arrastre de un ensamble del lote no elimina sus relaciones de union;
+el historial captura todas las raices transformadas para Undo/Redo.
 La separacion se calcula despues de cargar el primer ensamble, sin alterar
 las posiciones de configuraciones anteriores ni posiciones explicitas.
 

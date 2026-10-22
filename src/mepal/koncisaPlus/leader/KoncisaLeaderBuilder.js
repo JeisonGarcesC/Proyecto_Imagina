@@ -4,7 +4,6 @@ import { createLeaderMainSurface, createLeaderReturnSurface } from './parts/lead
 import { createCostado } from '../parts/costados';
 import { createViga } from '../parts/vigas';
 import { createGrommet } from '../parts/grommets';
-import { createPasacable } from '../parts/pasacables';
 import { createLeaderCredenzaBeamDecoration, createLeaderMainBeam } from './parts/leaderBeams';
 import { createLeaderCredenza } from './parts/leaderCredenzas';
 import {
@@ -30,9 +29,10 @@ function resolveLeaderSurfaceAccessPosition({
     .trim()
     .toUpperCase();
   const localX = positionKey === 'LEFT' ? -widthMm / 4 : positionKey === 'RIGHT' ? widthMm / 4 : 0;
-  const localZ = depthMm <= 600 ? -190 : -255;
+  const localZ = 0; //depthMm <= 600 ? -224 : -255; //-224 : -255
   const cos = Math.cos(rotationY);
   const sin = Math.sin(rotationY);
+
   const x = centerX + localX * cos + localZ * sin;
   const z = centerZ - localX * sin + localZ * cos;
 
@@ -43,6 +43,13 @@ function resolveLeaderSurfaceAccessPosition({
     x,
     z,
   };
+}
+
+function suppressLeaderPasacable(componentConfig) {
+  if (componentConfig.cableAccessType !== 'PASACABLE' && !componentConfig.pasacable) {
+    return componentConfig;
+  }
+  return { ...componentConfig, cableAccessType: 'NONE', grommet: false, pasacable: false };
 }
 
 // Posición del grommet del puesto líder.
@@ -58,6 +65,7 @@ function createLeaderSurfaceGrommet({
   centerZ,
   rotationY = 0,
   positionOffsetMm = null,
+  componentConfig = {},
 }) {
   const resolvedPosition = resolveLeaderSurfaceAccessPosition({
     position,
@@ -71,62 +79,25 @@ function createLeaderSurfaceGrommet({
     groupId,
     groupName,
     finish,
+    layoutType: 'LEADER',
     diameterMm: 80,
     x: resolvedPosition.x + (Number(positionOffsetMm?.x) || 0),
     y: 740 + (Number(positionOffsetMm?.y) || 0),
     z: resolvedPosition.z + (Number(positionOffsetMm?.z) || 0),
     rotY: rotationY,
   });
-
   grommet.meta = {
     ...(grommet.meta || {}),
     layoutType: 'LEADER',
     leaderRole: `${surfaceRole}_GROMMET`,
     targetSurfaceRole: surfaceRole,
+    targetSurfaceKey: `${surfaceRole}_SURFACE`,
+    componentConfig,
     position: resolvedPosition.positionKey,
     localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
   };
 
   return grommet;
-}
-
-function createLeaderSurfacePasacable({
-  groupId,
-  groupName,
-  surfaceRole,
-  position = 'CENTER',
-  widthMm,
-  depthMm,
-  centerX,
-  centerZ,
-  rotationY = 0,
-  positionOffsetMm = null,
-}) {
-  const resolvedPosition = resolveLeaderSurfaceAccessPosition({
-    position,
-    widthMm,
-    depthMm,
-    centerX,
-    centerZ,
-    rotationY,
-  });
-  const pasacable = createPasacable({
-    groupId,
-    groupName,
-    x: resolvedPosition.x + (Number(positionOffsetMm?.x) || 0),
-    y: 740 + (Number(positionOffsetMm?.y) || 0),
-    z: resolvedPosition.z + (Number(positionOffsetMm?.z) || 0),
-    rotY: rotationY,
-  });
-  pasacable.meta = {
-    ...(pasacable.meta || {}),
-    layoutType: 'LEADER',
-    leaderRole: `${surfaceRole}_PASACABLE`,
-    targetSurfaceRole: surfaceRole,
-    position: resolvedPosition.positionKey,
-    localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
-  };
-  return pasacable;
 }
 
 function createLeaderGrommetOutletBox({
@@ -140,6 +111,7 @@ function createLeaderGrommetOutletBox({
   centerZ,
   rotationY = 0,
   placement = null,
+  componentConfig = null,
 }) {
   const resolvedPosition = resolveLeaderSurfaceAccessPosition({
     position,
@@ -193,6 +165,9 @@ function createLeaderGrommetOutletBox({
       layoutType: 'LEADER',
       leaderRole: `${surfaceRole}_GROMMET_OUTLET_BOX`,
       targetSurfaceRole: surfaceRole,
+      targetSurfaceKey: `${surfaceRole}_SURFACE`,
+      componentKey: `${surfaceRole}_SURFACE`,
+      componentConfig,
       position: resolvedPosition.positionKey,
       localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
       modelCode: 'CAJA_TOMAS_COSTADO',
@@ -244,6 +219,8 @@ function createLeaderOutletWallCoupling({ groupId, groupName, targetRole, placem
       layoutType: 'LEADER',
       leaderRole: `${targetRole}_OUTLET_WALL_COUPLING`,
       targetRole,
+      targetSurfaceRole: targetRole,
+      targetSurfaceKey: `${targetRole}_SURFACE`,
       pairedWithOutletBox: true,
       modelCode: '2KAC281000',
     },
@@ -313,6 +290,7 @@ function createLeaderFloorDuct({
       layoutType: 'LEADER',
       leaderRole: `${surfaceRole}_FLOOR_DUCT`,
       targetSurfaceRole: surfaceRole,
+      targetSurfaceKey: `${surfaceRole}_SURFACE`,
       position: resolvedPosition.positionKey,
       localPositionMm: { x: resolvedPosition.localX, z: resolvedPosition.localZ },
       modelCode: '22000104949',
@@ -342,13 +320,12 @@ export function buildKoncisaLeader(config = {}) {
     leaderMaterialType = 'FORMICA',
 
     leaderHasGrommetBox = false,
-    leaderMainGrommet = null,
-    leaderReturnGrommet = null,
     leaderMainFloorDuct = null,
     leaderReturnFloorDuct = null,
     leaderMainOutletCoupling = null,
     leaderReturnOutletCoupling = null,
     leaderCostadoOutletCoupling = null,
+    leaderCostadoFloorDuct = null,
 
     // Falda principal
     leaderHasSkirt = false,
@@ -361,21 +338,29 @@ export function buildKoncisaLeader(config = {}) {
   const parts = [];
   const leaderCredenzaEnabled = leaderCredenza?.enabled === true;
   const hasLeaderJunctionOutletBox = leaderJunctionHasOutletBox === true && !leaderCredenzaEnabled;
-  const mainGrommetRequired = hasLeaderJunctionOutletBox || leaderCredenzaEnabled;
   const surfaceFallback = fallbackFromConfig(config);
-  const mainComponentConfig = getKoncisaSurfaceComponentConfig(config, 'MAIN_SURFACE', {
-    ...surfaceFallback,
-    grommet: leaderMainGrommet?.enabled === true || mainGrommetRequired,
-    grommetFinish: leaderMainGrommet?.finish,
-    grommetPosition: leaderMainGrommet?.position,
-  });
-  if (mainGrommetRequired) mainComponentConfig.grommet = true;
-  const returnComponentConfig = getKoncisaSurfaceComponentConfig(config, 'RETURN_SURFACE', {
-    ...surfaceFallback,
-    grommet: leaderReturnGrommet?.enabled === true,
-    grommetFinish: leaderReturnGrommet?.finish,
-    grommetPosition: leaderReturnGrommet?.position,
-  });
+  if (surfaceFallback.cableAccessType === 'GROMMET') {
+    surfaceFallback.cableAccessType = 'NONE';
+    surfaceFallback.grommet = false;
+  }
+  const resolvedMainComponentConfig = suppressLeaderPasacable(
+    getKoncisaSurfaceComponentConfig(config, 'MAIN_SURFACE', {
+      ...surfaceFallback,
+      floorDuctEnabled: leaderMainFloorDuct?.enabled === true,
+      outletCouplingEnabled: leaderMainOutletCoupling?.enabled === true,
+    })
+  );
+  const mainComponentConfig = {
+    ...resolvedMainComponentConfig,
+    ...(leaderCredenzaEnabled ? {} : { cableAccessType: 'NONE', grommet: false, pasacable: false }),
+  };
+  const returnComponentConfig = suppressLeaderPasacable(
+    getKoncisaSurfaceComponentConfig(config, 'RETURN_SURFACE', {
+      ...surfaceFallback,
+      floorDuctEnabled: leaderReturnFloorDuct?.enabled === true,
+      outletCouplingEnabled: leaderReturnOutletCoupling?.enabled === true,
+    })
+  );
   const mainFinish = resolveKoncisaSurfaceFinishOption(mainComponentConfig, surfaceFallback);
   const materialTypeFor = (option) => (option.id.startsWith('FORM') ? 'FORMICA' : 'MELAMINA');
 
@@ -413,27 +398,36 @@ export function buildKoncisaLeader(config = {}) {
     ...(mainSurface.meta || {}),
     componentKey: 'MAIN_SURFACE',
     componentConfig: mainComponentConfig,
+    allowMainGrommet: leaderCredenzaEnabled,
   };
   mainSurface.componentKey = 'MAIN_SURFACE';
   mainSurface.componentConfig = mainComponentConfig;
 
   parts.push(mainSurface);
 
-  if (mainComponentConfig.grommet) {
+  const shouldCreateMainGrommet = leaderCredenzaEnabled
+    ? mainComponentConfig.grommet
+    : hasLeaderJunctionOutletBox;
+  if (shouldCreateMainGrommet) {
     parts.push(
       createLeaderSurfaceGrommet({
         groupId,
         groupName,
         surfaceRole: 'MAIN',
-        position: 'CENTER',
+        position: mainComponentConfig.grommetPosition,
         finish: mainComponentConfig.grommetFinish,
         widthMm: leaderMainWidthMm,
         depthMm: leaderMainDepthMm,
         centerX: mainSurface.position.x,
         centerZ: mainSurface.position.z,
         rotationY: mainSurface.rotation.y + Math.PI / 2, //Math.PI / 2 cambiar la rotacion
+        componentConfig: {
+          ...mainComponentConfig,
+          cableAccessType: 'GROMMET',
+          grommet: true,
+        },
         positionOffsetMm: {
-          x: 870, // mueve hacia los lados
+          x: sideKey === 'LEFT' ? -647 : 647, //870, // mueve hacia los lados
           y: 0, // sube o baja
           z: 0, // mueve hacia el frente o fondo
         },
@@ -452,16 +446,17 @@ export function buildKoncisaLeader(config = {}) {
           centerX: mainSurface.position.x,
           centerZ: mainSurface.position.z,
           rotationY: mainSurface.rotation.y,
+          componentConfig: mainComponentConfig,
           placement: {
             // Posición manual de la caja de tomas de la superficie principal.
             position: {
-              x: 0,
-              y: 0,
-              z: 0,
+              x: 738 - 184,
+              y: 558,
+              z: -223,
             },
             rotation: {
               x: 0,
-              y: 0,
+              y: -Math.PI / 2,
               z: 0,
             },
           },
@@ -469,7 +464,7 @@ export function buildKoncisaLeader(config = {}) {
       );
     }
 
-    if (leaderMainOutletCoupling?.enabled === true) {
+    if (mainComponentConfig.outletCouplingEnabled) {
       parts.push(
         createLeaderOutletWallCoupling({
           groupId,
@@ -493,31 +488,17 @@ export function buildKoncisaLeader(config = {}) {
     }
   }
 
-  if (mainComponentConfig.pasacable) {
-    parts.push(
-      createLeaderSurfacePasacable({
-        groupId,
-        groupName,
-        surfaceRole: 'MAIN',
-        position: mainComponentConfig.pasacablePosition,
-        widthMm: leaderMainWidthMm,
-        depthMm: leaderMainDepthMm,
-        centerX: mainSurface.position.x,
-        centerZ: mainSurface.position.z,
-        rotationY: mainSurface.rotation.y,
-      })
-    );
-  }
-
-  if (!leaderCredenzaEnabled && leaderMainFloorDuct?.enabled === true) {
+  if (
+    !leaderCredenzaEnabled &&
+    mainComponentConfig.grommet &&
+    mainComponentConfig.floorDuctEnabled
+  ) {
     parts.push(
       createLeaderFloorDuct({
         groupId,
         groupName,
         surfaceRole: 'MAIN',
-        position:
-          leaderMainFloorDuct.position ??
-          (mainComponentConfig.pasacable ? mainComponentConfig.pasacablePosition : 'CENTER'),
+        position: leaderMainFloorDuct?.position ?? mainComponentConfig.grommetPosition,
         widthMm: leaderMainWidthMm,
         depthMm: leaderMainDepthMm,
         centerX: mainSurface.position.x,
@@ -604,70 +585,87 @@ export function buildKoncisaLeader(config = {}) {
 
     const returnGrommetEnabled = returnComponentConfig.grommet;
     if (returnGrommetEnabled) {
+      const accessPosition = resolveLeaderSurfaceAccessPosition({
+        position: returnComponentConfig.grommetPosition,
+        widthMm: leaderReturnLengthMm,
+        depthMm: leaderReturnDepthMm,
+        centerX: returnSurface.position.x,
+        centerZ: returnSurface.position.z,
+        rotationY: returnSurface.rotation.y,
+      });
+      // Las ubicaciones manuales de caja y acople corresponden a CENTER.
+      // El mismo desplazamiento del grommet conserva su relación física.
+      const accessOffsetX = accessPosition.localX * Math.cos(returnSurface.rotation.y);
+      const accessOffsetZ = -accessPosition.localX * Math.sin(returnSurface.rotation.y);
+      const movimientoz = 189; //positionKey === 'LEFT' ? 189 : positionKey === 'RIGHT' ? -189 * 2 : 0;
       parts.push(
         createLeaderSurfaceGrommet({
           groupId,
           groupName,
           surfaceRole: 'RETURN',
-          position: 'CENTER',
-          finish: returnComponentConfig.grommetFinish,
+          position: returnComponentConfig.grommetPosition,
+          finish: Object.hasOwn(config.surfaceOverrides?.RETURN_SURFACE || {}, 'grommetFinish')
+            ? returnComponentConfig.grommetFinish
+            : null,
           widthMm: leaderReturnLengthMm,
           depthMm: leaderReturnDepthMm,
           centerX: returnSurface.position.x,
           centerZ: returnSurface.position.z,
           rotationY: returnSurface.rotation.y,
+          componentConfig: returnComponentConfig,
           positionOffsetMm: {
-            // Offset manual exclusivo del grommet de la superficie de retorno.
-            x: sideKey === 'RIGHT' ? 370 : -370,
+            // Cancela el desplazamiento lateral que la rotación ya aporta en Z.
+            x: sideKey === 'RIGHT' ? 177 : -177,
             y: 0,
-            z: 158,
+            z: movimientoz, //accessPosition.localX * Math.sin(returnSurface.rotation.y), //movimientoz, //
           },
         })
       );
 
-      parts.push(
-        createLeaderGrommetOutletBox({
-          groupId,
-          groupName,
-          surfaceRole: 'RETURN',
-          position: 'CENTER',
-          widthMm: leaderReturnLengthMm,
-          depthMm: leaderReturnDepthMm,
-          centerX: returnSurface.position.x,
-          centerZ: returnSurface.position.z,
-          rotationY: returnSurface.rotation.y,
-          placement: {
-            // Posición manual de la caja de tomas de la superficie de retorno.
-            position: {
-              x: sideKey === 'RIGHT' ? 707 : -550,
-              y: 550,
-              z: -400 + 64,
-            },
-            rotation: {
-              x: 0,
-              y: Math.PI / 2,
-              z: 0,
-            },
+      const returnOutletBox = createLeaderGrommetOutletBox({
+        groupId,
+        groupName,
+        surfaceRole: 'RETURN',
+        position: returnComponentConfig.grommetPosition,
+        widthMm: leaderReturnLengthMm,
+        depthMm: leaderReturnDepthMm,
+        centerX: returnSurface.position.x,
+        centerZ: returnSurface.position.z,
+        rotationY: returnSurface.rotation.y,
+        componentConfig: returnComponentConfig,
+        placement: {
+          // Posición manual de la caja de tomas de la superficie de retorno.
+          position: {
+            x: (sideKey === 'RIGHT' ? 707 : -550) + accessOffsetX,
+            y: 550,
+            z: -400 + 64 + accessOffsetZ,
           },
-        })
-      );
+          rotation: {
+            x: 0,
+            y: Math.PI / 2,
+            z: 0,
+          },
+        },
+      });
+      parts.push(returnOutletBox);
 
-      if (leaderReturnOutletCoupling?.enabled === true) {
+      if (returnComponentConfig.outletCouplingEnabled) {
         parts.push(
           createLeaderOutletWallCoupling({
             groupId,
             groupName,
             targetRole: 'RETURN',
             placement: {
-              // Posición manual del acople de la superficie de retorno.
+              // El acople girado 90° sale por el costado +X de la caja.
+              // Los orígenes de ambos GLB están en esquinas distintas.
               position: {
-                x: sideKey === 'RIGHT' ? 0 : -0,
-                y: 0,
-                z: 0,
+                x: returnOutletBox.position.x - 2.6,
+                y: returnOutletBox.position.y + 123,
+                z: returnOutletBox.position.z - 83.85,
               },
               rotation: {
                 x: 0,
-                y: sideKey === 'RIGHT' ? 0 : -0,
+                y: Math.PI / 2,
                 z: 0,
               },
             },
@@ -676,36 +674,13 @@ export function buildKoncisaLeader(config = {}) {
       }
     }
 
-    if (returnComponentConfig.pasacable) {
-      parts.push(
-        createLeaderSurfacePasacable({
-          groupId,
-          groupName,
-          surfaceRole: 'RETURN',
-          position: returnComponentConfig.pasacablePosition,
-          widthMm: leaderReturnLengthMm,
-          depthMm: leaderReturnDepthMm,
-          centerX: returnSurface.position.x,
-          centerZ: returnSurface.position.z,
-          rotationY: returnSurface.rotation.y,
-          positionOffsetMm: {
-            x: sideKey === 'RIGHT' ? 370 : -370,
-            y: 0,
-            z: 158,
-          },
-        })
-      );
-    }
-
-    if (leaderReturnFloorDuct?.enabled === true) {
+    if (returnComponentConfig.grommet && returnComponentConfig.floorDuctEnabled) {
       parts.push(
         createLeaderFloorDuct({
           groupId,
           groupName,
           surfaceRole: 'RETURN',
-          position:
-            leaderReturnFloorDuct.position ??
-            (returnComponentConfig.pasacable ? returnComponentConfig.pasacablePosition : 'CENTER'),
+          position: leaderReturnFloorDuct?.position ?? returnComponentConfig.grommetPosition,
           widthMm: leaderReturnLengthMm,
           depthMm: leaderReturnDepthMm,
           centerX: returnSurface.position.x,
@@ -874,6 +849,8 @@ export function buildKoncisaLeader(config = {}) {
     pedestalTarget: false,
 
     hasOutletBox: hasLeaderJunctionOutletBox,
+    outletCouplingEnabled: leaderCostadoOutletCoupling?.enabled === true,
+    floorDuctEnabled: leaderCostadoFloorDuct?.enabled === true,
 
     outletBoxSrc: '/assets/models/koncisaPlus/CAJA_TOMAS_COSTADO.glb',
 
@@ -948,6 +925,31 @@ export function buildKoncisaLeader(config = {}) {
           },
         })
       );
+    }
+
+    if (hasLeaderJunctionOutletBox && leaderCostadoFloorDuct?.enabled === true) {
+      const floorDuct = createLeaderFloorDuct({
+        groupId,
+        groupName,
+        surfaceRole: 'COSTADO',
+        position: 'CENTER',
+        widthMm: leaderMainDepthMm,
+        depthMm: leaderMainDepthMm,
+        centerX: junctionCostado.position.x,
+        centerZ: junctionCostado.position.z,
+        rotationY: Math.PI / 2,
+        placement: {
+          position: {
+            x: junctionCostado.position.x + (sideKey === 'RIGHT' ? -300 : 300),
+            y: 0,
+            z: sideKey === 'RIGHT' ? -leaderMainDepthMm / 2 + 105.1 : leaderMainDepthMm / 2 - 105.1,
+          },
+          rotation: { x: 0, y: Math.PI / 2, z: 0 },
+        },
+      });
+      floorDuct.meta.targetSurfaceRole = 'MAIN_RETURN_JUNCTION';
+      floorDuct.meta.targetSurfaceKey = 'MAIN_RETURN_JUNCTION';
+      parts.push(floorDuct);
     }
   }
 

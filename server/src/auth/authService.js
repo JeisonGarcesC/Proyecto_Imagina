@@ -105,8 +105,9 @@ export async function logoutUser({ db, refreshToken, auditContext = {} }) {
 
 export async function revokeAllUserSessions(db, userId, { incrementTokenVersion = true } = {}) {
   const now = new Date();
-  return db.$transaction([
+  const operations = [
     db.refreshSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } }),
     ...(incrementTokenVersion ? [db.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } })] : []),
-  ]);
+  ];
+  return typeof db.$transaction === 'function' ? db.$transaction(operations) : Promise.all(operations);
 }

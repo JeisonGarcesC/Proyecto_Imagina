@@ -24,8 +24,13 @@ import {
 
 //2d
 import Plan2DOverlay from './components/Plan2DOverlay';
-import { deleteShape2D, translateShape2D, updateShape2D } from './plan2d/geometry2D/shapeEditor2D';
+import { createShape2DId, deleteShape2D, translateShape2D, updateShape2D } from './plan2d/geometry2D/shapeEditor2D';
+import { createShape } from './plan2d/geometry2D/shapes2D';
+import { rotateShape2D } from './plan2d/geometry2D/shapeInteraction2D';
+import { createDimension2D } from './plan2d/dimension2D';
+import { HISTORY_ACTION_TYPES } from './history/historyManager';
 import { deleteText2D, updateText2D } from './plan2d/text2D/textEditor2D';
+import { createText2D } from './plan2d/text2D/text2D';
 import BOMWindow from './components/BOMWindow';
 import BOMView from './components/BOMView';
 import { catalogByCodigoPT } from './catalog/catalogData';
@@ -44,9 +49,12 @@ import { createDxfCalibration, resolveDxfUnitSelection } from './core/plans/util
 import DxfUnitSelector from './core/plans/components/DxfUnitSelector';
 import {
   normalizeWallDefinition,
+  resizeWallSegment,
   updateWallDefinition,
+  updateWallPoint,
 } from './core/architecture/walls/wallDefinition';
 import { deserializeWalls, serializeWalls } from './core/architecture/walls/wallPersistence';
+import { validateWallPointEdit } from './core/architecture/walls/wallEditValidation';
 import {
   COLUMN_SHAPES,
   normalizeColumnDefinition,
@@ -56,6 +64,11 @@ import {
   deserializeColumns,
   serializeColumns,
 } from './core/architecture/columns/columnPersistence';
+import {
+  COLUMN_HISTORY_TYPES,
+  createColumnHistoryAction,
+  replayColumnHistoryAction,
+} from './core/architecture/columns/columnHistory.js';
 import {
   createDoorDefinition,
   updateDoorDefinition,
@@ -70,9 +83,14 @@ import { deleteOpeningsForWall } from './core/architecture/openings/openingInter
 import { exportProjectPPT } from './exports/exportPPT';
 
 import { useAuth, getRolePermissions } from './auth/AuthContext.jsx';
+import { ADMIN_AUDIT_PATH, ADMIN_DEVICES_PATH, ADMIN_ROLES_PATH, ADMIN_USERS_PATH, navigateInApp } from './admin/adminNavigation.js';
 
 import LeftRail from './components/LeftRail';
 import LeftPanel from './components/LeftPanel';
+import { prepareSpecialFinishVisual } from './specialFinishes/specialFinishVisual.js';
+import { snapshotSpecialFinish } from './specialFinishes/specialFinishPersistence.js';
+import { ARCHITECTURE_FINISH_HISTORY_TYPE, findArchitectureFinish, restoreArchitectureFinishes, setArchitectureFinish } from './specialFinishes/architectureSpecialFinishes.js';
+import { getArchitectureTextureTileSize, normalizeArchitectureTextureScale } from './specialFinishes/architectureTextureUv.js';
 
 import { loadCategoriasIntranet } from './services/categoriasIntranet.js';
 
@@ -174,7 +192,7 @@ function _unionAllowedCodes(genericos = [], ptCodesByGenerico) {
 }
 
 export default function App() {
-  const { user, logout } = useAuth();
+  const { user, permissions, logout } = useAuth();
   const perms = getRolePermissions(user?.role);
   const readOnly = !perms.canEdit;
 
@@ -274,14 +292,35 @@ export default function App() {
     );
   };
 
+  const applyWallPointEdit = (candidate) => {
+    const result = validateWallPointEdit(candidate, walls, openings);
+    if (result.ok) setWalls(result.walls);
+    return result;
+  };
+
+  const handleWallSegmentLength = (segmentIndex, length) =>
+    applyWallPointEdit(resizeWallSegment(selectedWall, segmentIndex, length));
+
+  const handleWallPointChange = (pointIndex, axis, value) => {
+    const point = selectedWall?.points?.[pointIndex];
+    if (!point || !['x', 'z'].includes(axis)) return { ok: false, error: 'Punto inválido.' };
+    return applyWallPointEdit(updateWallPoint(selectedWall, pointIndex, { ...point, [axis]: value }));
+  };
+
   const handleDeleteWall = () => {
     if (!selectedWall || selectedWall.locked) return;
+    setArchitectureSpecialFinishes((current) => setArchitectureFinish(current, 'WALL', selectedWall.id, null));
     setWalls((currentWalls) => currentWalls.filter((wall) => wall.id !== selectedWall.id));
     setOpenings((current) => deleteOpeningsForWall(current, selectedWall.id));
     setSelectedOpeningId(null);
     setSelectedWallId(null);
   };
   const [columns, setColumns] = useState([]);
+  const [architectureSpecialFinishes, setArchitectureSpecialFinishes] = useState([]);
+  const architectureSpecialFinishesRef = useRef([]);
+  architectureSpecialFinishesRef.current = architectureSpecialFinishes;
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
   const [columnMode, setColumnMode] = useState('NONE');
   const [columnShape, setColumnShape] = useState(COLUMN_SHAPES.RECTANGLE);
   const [columnWidth, setColumnWidth] = useState(0.3);
@@ -293,6 +332,49 @@ export default function App() {
     () => columns.find((column) => column.id === selectedColumnId) || null,
     [columns, selectedColumnId]
   );
+  const selectedFinishTarget = wallMode === 'EDIT' && selectedWall
+    ? { entityType: 'WALL', entityId: selectedWall.id }
+    : columnMode === 'EDIT' && selectedColumn
+      ? { entityType: 'COLUMN', entityId: selectedColumn.id }
+      : null;
+  const selectedFinishTargetRef = useRef(selectedFinishTarget);
+  selectedFinishTargetRef.current = selectedFinishTarget;
+
+  useEffect(() => {
+    if (!threeApi?.setArchitectureFinishReplayHandler) return undefined;
+    threeApi.setArchitectureFinishReplayHandler((action, direction) => {
+      const entry = direction === 'undo' ? action.before : action.after;
+      const next = setArchitectureFinish(architectureSpecialFinishesRef.current,
+        action.entityType, action.entityId, entry);
+      architectureSpecialFinishesRef.current = next;
+      setArchitectureSpecialFinishes(next);
+      return true;
+    });
+    return () => threeApi.setArchitectureFinishReplayHandler(null);
+  }, [threeApi]);
+
+  useEffect(() => {
+    if (!threeApi?.setColumnHistoryReplayHandler) return undefined;
+    const replay = (action, direction) => {
+      const restored = replayColumnHistoryAction(action, direction);
+      if (!restored) return false;
+      columnsRef.current = restored;
+      setColumns(restored);
+      setSelectedColumnId((id) => restored.some((column) => column.id === id) ? id : null);
+      return true;
+    };
+    threeApi.setColumnHistoryReplayHandler(replay);
+    return () => threeApi.setColumnHistoryReplayHandler(null);
+  }, [threeApi]);
+
+  const commitColumns = (next, type) => {
+    const action = createColumnHistoryAction(type, columnsRef.current, next);
+    if (!action) return false;
+    columnsRef.current = action.after.columns;
+    setColumns(action.after.columns);
+    threeApiRef.current?.recordColumnHistoryAction?.(action);
+    return true;
+  };
 
   const handleColumnModeChange = (nextMode) => {
     setColumnMode(nextMode);
@@ -306,16 +388,16 @@ export default function App() {
 
   const handleColumnChange = (patch) => {
     if (!selectedColumnId) return;
-    setColumns((current) =>
-      current.map((column) =>
-        column.id === selectedColumnId ? updateColumnDefinition(column, patch) || column : column
-      )
+    const next = columnsRef.current.map((column) =>
+      column.id === selectedColumnId ? updateColumnDefinition(column, patch) || column : column
     );
+    commitColumns(next, COLUMN_HISTORY_TYPES.UPDATE);
   };
 
   const handleDeleteColumn = () => {
     if (!selectedColumn || selectedColumn.locked) return;
-    setColumns((current) => current.filter((column) => column.id !== selectedColumn.id));
+    setArchitectureSpecialFinishes((current) => setArchitectureFinish(current, 'COLUMN', selectedColumn.id, null));
+    commitColumns(columnsRef.current.filter((column) => column.id !== selectedColumn.id), COLUMN_HISTORY_TYPES.DELETE);
     setSelectedColumnId(null);
   };
   const [openings, setOpenings] = useState([]);
@@ -357,18 +439,45 @@ export default function App() {
   };
 
   const [shapes2D, setShapes2D] = useState([]);
+  const [dimensions, setDimensions] = useState([]);
   const [shapeTool2D, setShapeTool2D] = useState(null);
+  const [elevationDirection2D, setElevationDirection2D] = useState('front');
   const [selectedShape2DId, setSelectedShape2DId] = useState(null);
   const selectedShape2D = useMemo(
     () => shapes2D.find((shape) => shape.id === selectedShape2DId) || null,
     [shapes2D, selectedShape2DId]
   );
+  useEffect(() => {
+    if (!threeApi?.setShape2DHistoryReplayHandler) return undefined;
+    threeApi.setShape2DHistoryReplayHandler((action, direction) => {
+      const shape = (direction === 'undo' ? action.before : action.after)?.shape || null;
+      setShapes2D((current) => {
+        const without = current.filter((item) => item.id !== action.shapeId);
+        return shape ? [...without, createShape(shape)] : without;
+      });
+      setSelectedShape2DId(shape?.id || null);
+      return true;
+    });
+    return () => threeApi.setShape2DHistoryReplayHandler(null);
+  }, [threeApi]);
+  const recordAreaHistory = (type, before, after) => {
+    if (!(before || after)) return;
+    if (JSON.stringify(before) === JSON.stringify(after)) return;
+    threeApiRef.current?.recordShape2DHistoryAction?.({
+      type, shapeId: (before || after).id,
+      before: before ? { shape: before } : null,
+      after: after ? { shape: after } : null,
+    });
+  };
   const handleShape2DChange = (patch) => {
     if (!selectedShape2DId) return;
+    const after = updateShape2D(shapes2D, selectedShape2DId, patch).find((shape) => shape.id === selectedShape2DId);
+    recordAreaHistory(HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D, selectedShape2D, after);
     setShapes2D((current) => updateShape2D(current, selectedShape2DId, patch));
   };
   const handleDeleteShape2D = () => {
     if (!selectedShape2DId) return;
+    recordAreaHistory(HISTORY_ACTION_TYPES.DELETE_SHAPE_2D, selectedShape2D, null);
     setShapes2D((current) => deleteShape2D(current, selectedShape2DId));
     setSelectedShape2DId(null);
   };
@@ -456,7 +565,7 @@ export default function App() {
   const [byCode, setByCode] = useState(new Map());
   const [bomItems, setBomItems] = useState([]);
   const [bomOpen, setBomOpen] = useState(false);
-  const [detailed2DIds, setDetailed2DIds] = useState(() => new Set());
+  const [detailLevel, setDetailLevel] = useState(4);
 
   const bomTotal = useMemo(() => {
     return (bomItems || []).reduce((acc, it) => {
@@ -487,45 +596,47 @@ export default function App() {
   //console.log('[App] materials:', materials?.length, 'materialsByCode:', materialsByCode.size);
 
   const getPlanData = () => {
-    const detailIds = Array.from(detailed2DIds);
-    const parts = threeApiRef.current?.getPartsSnapshot2D?.({ detailed2DIds: detailIds }) || [];
-    return { parts, walls, columns, openings, detailed2DIds: detailIds };
+    const parts = threeApiRef.current?.getPartsSnapshot2D?.({ detailAll: detailLevel > 1 }) || [];
+    return { parts, walls, columns, openings };
   };
 
   const exportPlanSvg = () => {
-    const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
+    const { parts, walls, columns, openings } = getPlanData();
     const svg = generatePlanSvg({
       parts,
       walls,
       columns,
       openings,
-      detailed2DIds: detailIds,
+      detailLevel,
+      detailAll: true,
       title: 'Planta 2D (Piezas + Muros)',
     });
     downloadTextFile('planta_2d.svg', svg, 'image/svg+xml');
   };
 
   const exportPlanPng = async () => {
-    const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
+    const { parts, walls, columns, openings } = getPlanData();
     const svg = generatePlanSvg({
       parts,
       walls,
       columns,
       openings,
-      detailed2DIds: detailIds,
+      detailLevel,
+      detailAll: true,
       title: 'Planta 2D (Piezas + Muros)',
     });
     await exportSvgToPng(svg, { scale: 2, filename: 'planta_2d.png' });
   };
 
   const exportPlanPdf = () => {
-    const { parts, walls, columns, openings, detailed2DIds: detailIds } = getPlanData();
+    const { parts, walls, columns, openings } = getPlanData();
     const svg = generatePlanSvg({
       parts,
       walls,
       columns,
       openings,
-      detailed2DIds: detailIds,
+      detailLevel,
+      detailAll: true,
       title: 'Planta 2D (Piezas + Muros)',
     });
     printSvgAsPdf(svg, { title: 'Planta 2D' });
@@ -757,6 +868,13 @@ export default function App() {
 
     return {
       ...project,
+      specialFinishes: [
+        ...(project.specialFinishes || []).filter((entry) => !['WALL', 'COLUMN'].includes(entry?.entityType)),
+        ...architectureSpecialFinishes,
+      ],
+      shapes2D,
+      texts2D,
+      dimensions,
       plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
       architecture: {
         ...(project.architecture || {}),
@@ -853,11 +971,25 @@ export default function App() {
   };
 
   const loadProjectData = async (project) => {
-    setDetailed2DIds(new Set());
+    setDimensions(Array.isArray(project?.dimensions) ? project.dimensions.flatMap((dimension) => {
+      try { const restored = createDimension2D(dimension); return restored ? [restored] : []; } catch { return []; }
+    }) : []);
+    setShapes2D(Array.isArray(project?.shapes2D) ? project.shapes2D.flatMap((shape) => {
+      try { return [createShape(shape)]; } catch { return []; }
+    }) : []);
+    setTexts2D(Array.isArray(project?.texts2D) ? project.texts2D.flatMap((item) => {
+      try { return [createText2D(item)]; } catch { return []; }
+    }) : []);
+    setSelectedShape2DId(null);
+    setSelectedText2DId(null);
+    setDetailLevel(4);
     setSelectedWallId(null);
-    setWalls(deserializeWalls(project));
+    const restoredWalls = deserializeWalls(project);
+    const restoredColumns = deserializeColumns(project);
+    setWalls(restoredWalls);
     setSelectedColumnId(null);
-    setColumns(deserializeColumns(project));
+    setColumns(restoredColumns);
+    setArchitectureSpecialFinishes(restoreArchitectureFinishes(project, restoredWalls, restoredColumns));
     setSelectedOpeningId(null);
     setOpenings(deserializeOpenings(project));
     await restorePlan2DFromProject(project);
@@ -1169,6 +1301,14 @@ export default function App() {
       <TopMenuBar
         user={user}
         perms={perms}
+        canAdminUsers={permissions.includes('admin.users.read')}
+        onOpenAdminUsers={() => navigateInApp(ADMIN_USERS_PATH)}
+        canAdminRoles={permissions.includes('admin.roles.read')}
+        onOpenAdminRoles={() => navigateInApp(ADMIN_ROLES_PATH)}
+        canAdminDevices={permissions.includes('admin.devices.read')}
+        onOpenAdminDevices={() => navigateInApp(ADMIN_DEVICES_PATH)}
+        canAdminAudit={permissions.includes('admin.audit.read')}
+        onOpenAdminAudit={() => navigateInApp(ADMIN_AUDIT_PATH)}
         country={country}
         setCountry={setCountry}
         catalogCountries={CATALOG_COUNTRIES}
@@ -1180,11 +1320,17 @@ export default function App() {
         onMoveAsGroupChange={handleMoveAsGroupChange}
         onLogout={logout}
         onNewProject={() => {
-          setDetailed2DIds(new Set());
+          setDimensions([]);
+          setShapes2D([]);
+          setTexts2D([]);
+          setSelectedShape2DId(null);
+          setSelectedText2DId(null);
+          setDetailLevel(4);
           setSelectedWallId(null);
           setWalls([]);
           setSelectedColumnId(null);
           setColumns([]);
+          setArchitectureSpecialFinishes([]);
           threeApiRef.current?.clearProject?.();
         }}
         getProjectData={buildProjectData}
@@ -1199,7 +1345,7 @@ export default function App() {
         onExportPdf={exportPlanPdf}
         onExportGlb={() => threeApiRef.current?.exportGLTF?.()}
         onExportDxf={() =>
-          threeApiRef.current?.exportDXF?.({ detailed2DIds: Array.from(detailed2DIds) })
+          threeApiRef.current?.exportDXF?.({ detailLevel, detailAll: true })
         }
       />
 
@@ -1225,7 +1371,7 @@ export default function App() {
             zIndex: 2,
           }}
         >
-          <LeftRail active={leftSection} onChange={setLeftSection} />
+          <LeftRail active={leftSection} onChange={setLeftSection} canViewSpecialFinishes={permissions.includes('finishes.view')} />
           {/* CONTENEDOR VERTICAL */}
           <div
             style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}
@@ -1309,6 +1455,59 @@ export default function App() {
             {/* PANEL */}
             <LeftPanel
               section={leftSection}
+              specialFinishPermissions={permissions}
+              selectedFinishTarget={selectedFinishTarget}
+              onApplySpecialFinish={async (finish, scope, textureScaleInput) => {
+                if (!permissions.includes('finishes.view') || !permissions.includes('finishes.apply')) {
+                  throw new Error('No tienes permiso para aplicar acabados especiales.');
+                }
+                if (selectedFinishTarget) {
+                  if (!['RGB', 'TEXTURE'].includes(finish.type)) throw new Error('Tipo de acabado no admitido.');
+                  const { entityType, entityId } = selectedFinishTarget;
+                  const textureScale = finish.type === 'TEXTURE'
+                    ? normalizeArchitectureTextureScale(textureScaleInput) : null;
+                  if (finish.type === 'TEXTURE') {
+                    if (!textureScale) throw new Error('El ancho de repetición debe estar entre 0,01 y 10 m.');
+                    const prepared = await prepareSpecialFinishVisual(finish);
+                    getArchitectureTextureTileSize(prepared.definition.mapTexture, textureScale);
+                  }
+                  if (selectedFinishTargetRef.current?.entityType !== entityType ||
+                    selectedFinishTargetRef.current?.entityId !== entityId) {
+                    throw new Error('La selección cambió. Selecciona de nuevo el muro o la columna.');
+                  }
+                  const before = findArchitectureFinish(architectureSpecialFinishesRef.current, entityType, entityId);
+                  const snapshot = snapshotSpecialFinish(finish);
+                  const after = { source: 'SPECIAL_FINISH', entityType, entityId, scope: 'ENTITY',
+                    snapshot, specialFinishId: snapshot.specialFinishId, revision: snapshot.revision,
+                    ...(textureScale ? { textureScale } : {}) };
+                  const next = setArchitectureFinish(architectureSpecialFinishesRef.current, entityType, entityId, after);
+                  if (next === architectureSpecialFinishesRef.current) return;
+                  architectureSpecialFinishesRef.current = next;
+                  setArchitectureSpecialFinishes(next);
+                  threeApiRef.current?.recordArchitectureFinishHistoryAction?.({
+                    type: ARCHITECTURE_FINISH_HISTORY_TYPE, entityType, entityId, before, after,
+                  });
+                  return;
+                }
+                if (!selectedPart || !threeApiRef.current?.applyFinishToActivePart) {
+                  throw new Error('Selecciona primero una parte u objeto del modelo.');
+                }
+                let prepared;
+                try {
+                  prepared = await prepareSpecialFinishVisual(finish);
+                } catch (error) {
+                  if (error?.status) throw error;
+                  throw new Error(finish.type === 'TEXTURE'
+                    ? 'No se pudo cargar la textura de este acabado.'
+                    : 'No se pudo preparar el color de este acabado.');
+                }
+                const applied = threeApiRef.current.applyFinishToActivePart(
+                  null, prepared.definition, scope,
+                  { ...prepared.identity, snapshot: snapshotSpecialFinish(finish),
+                    expectedSelectionId: selectedPart.instanceId || null }
+                );
+                if (!applied) throw new Error('La selección cambió o esta parte no admite el acabado. Selecciónala de nuevo.');
+              }}
               threeApiRef={threeApiRef}
               readOnly={readOnly}
               catalogItems={catalogItems}
@@ -1384,13 +1583,17 @@ export default function App() {
               setWallThickness={setWallThickness}
               selectedWall={selectedWall}
               onWallChange={handleWallChange}
+              onWallSegmentLength={handleWallSegmentLength}
+              onWallPointChange={handleWallPointChange}
               onDeleteWall={handleDeleteWall}
               onCloseWallProperties={() => setSelectedWallId(null)}
               onUndoLastWall={() => {
                 setWalls((prev) => {
                   const removedWallId = prev.at(-1)?.id;
-                  if (removedWallId)
+                  if (removedWallId) {
                     setOpenings((current) => deleteOpeningsForWall(current, removedWallId));
+                    setArchitectureSpecialFinishes((current) => setArchitectureFinish(current, 'WALL', removedWallId, null));
+                  }
                   return prev.slice(0, -1);
                 });
                 setSelectedWallId(null);
@@ -1398,6 +1601,7 @@ export default function App() {
               }}
               onClearWalls={() => {
                 setWalls([]);
+                setArchitectureSpecialFinishes((current) => current.filter((entry) => entry.entityType !== 'WALL'));
                 setOpenings([]);
                 setSelectedWallId(null);
                 setSelectedOpeningId(null);
@@ -1419,7 +1623,8 @@ export default function App() {
               onDeleteColumn={handleDeleteColumn}
               onCloseColumnProperties={() => setSelectedColumnId(null)}
               onClearColumns={() => {
-                setColumns([]);
+                commitColumns([], COLUMN_HISTORY_TYPES.CLEAR);
+                setArchitectureSpecialFinishes((current) => current.filter((entry) => entry.entityType !== 'COLUMN'));
                 setSelectedColumnId(null);
               }}
               openingMode={openingMode}
@@ -1438,11 +1643,29 @@ export default function App() {
               }}
               shapeTool2D={shapeTool2D}
               setShapeTool2D={setShapeTool2D}
+              elevationDirection2D={elevationDirection2D}
+              setElevationDirection2D={setElevationDirection2D}
               selectedShape2D={selectedShape2D}
               onShape2DChange={handleShape2DChange}
+              onRotateShape2D={(degrees) => {
+                if (!selectedShape2D || !Number.isFinite(degrees)) return;
+                const radians = ((degrees % 360) + 360) % 360 * Math.PI / 180;
+                const after = rotateShape2D(selectedShape2D, radians);
+                if (after === selectedShape2D) return;
+                if (JSON.stringify(selectedShape2D) === JSON.stringify(after)) return;
+                threeApiRef.current?.recordShape2DHistoryAction?.({
+                  type: HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D,
+                  shapeId: selectedShape2D.id,
+                  before: { shape: selectedShape2D },
+                  after: { shape: after },
+                });
+                handleReplaceShape2D(after);
+              }}
               onDeleteShape2D={handleDeleteShape2D}
               onTranslateShape2D={(delta) => {
                 if (!selectedShape2DId) return;
+                const after = translateShape2D(shapes2D, selectedShape2DId, delta).find((shape) => shape.id === selectedShape2DId);
+                recordAreaHistory(HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D, selectedShape2D, after);
                 setShapes2D((current) => translateShape2D(current, selectedShape2DId, delta));
               }}
               textTool2D={textTool2D}
@@ -1488,7 +1711,12 @@ export default function App() {
 
           <ThreeCanvas
             walls={walls}
+            architectureSpecialFinishes={architectureSpecialFinishes}
+            wallMode={wallMode}
+            onSelectWall={setSelectedWallId}
             columns={columns}
+            columnMode={columnMode}
+            onSelectColumn={setSelectedColumnId}
             openings={openings}
             readOnly={readOnly}
             onHistoryChange={() => setCritteriumHistoryRevision((value) => value + 1)}
@@ -1497,6 +1725,8 @@ export default function App() {
             country={country}
             onApiReady={(api) => {
               threeApiRef.current = api;
+              // Console-only, opt-in diagnostic. No report is generated until called.
+              window.imaginaDiagnose2D = () => api.diagnoseDetail2D?.();
               api.setMoveAsGroup?.(moveAsGroup);
               setThreeApi(api);
               setIsReady(true);
@@ -1562,8 +1792,8 @@ export default function App() {
             historyApi={threeApi}
             getSnapshot={(options) => threeApiRef.current?.getPartsSnapshot2D?.(options) || []}
             selectedIds={selectedIds}
-            detailed2DIds={detailed2DIds}
-            onDetailed2DIdsChange={setDetailed2DIds}
+            detailLevel={detailLevel}
+            onDetailLevelChange={setDetailLevel}
             moveAsGroup={moveAsGroup}
             onPickIds={(ids) => setSelectedIds(Array.from(new Set(ids || [])))}
             resolveSelectionTargetIds={(ids, options) =>
@@ -1615,15 +1845,37 @@ export default function App() {
               threeApiRef.current?.getRotationState?.({ sourceId: id }) || null
             }
             shapes2D={shapes2D}
+            dimensions={dimensions}
+            setDimensions={setDimensions}
             shapeTool2D={shapeTool2D}
+            onCreateElevation2D={(point) => {
+              const source = threeApiRef.current?.getElevationSource2D?.(selectedIds);
+              if (!source) { window.alert('Selecciona una o más piezas 3D antes de crear el alzado.'); return false; }
+              const labels = shapes2D.filter((shape) => shape.type === 'elevation').map((shape) => shape.label);
+              let labelIndex = 0;
+              while (labels.includes(String.fromCharCode(65 + labelIndex))) labelIndex += 1;
+              const shape = createShape({
+                id: createShape2DId(), type: 'elevation', semanticType: 'elevation',
+                viewDirection: elevationDirection2D, label: String.fromCharCode(65 + labelIndex),
+                sourceSelection: source.sourceSelection, sourceBoxes: source.sourceBoxes,
+                geometry: { x: point.x, y: point.y }, style: { stroke: '#111827', strokeWidth: 1 },
+              });
+              recordAreaHistory(HISTORY_ACTION_TYPES.CREATE_SHAPE_2D, null, shape);
+              setShapes2D((current) => [...current, shape]);
+              setSelectedShape2DId(shape.id);
+              setShapeTool2D(null);
+              return true;
+            }}
             selectedShape2DId={selectedShape2DId}
             onAddShape2D={(shape) => {
+              recordAreaHistory(HISTORY_ACTION_TYPES.CREATE_SHAPE_2D, null, shape);
               setShapes2D((current) => [...current, shape]);
               setSelectedShape2DId(shape.id);
               setShapeTool2D(null);
             }}
             onSelectShape2D={setSelectedShape2DId}
             onReplaceShape2D={handleReplaceShape2D}
+            onCommitShape2DDrag={(before, after) => recordAreaHistory(HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D, before, after)}
             onDeleteSelectedShape2D={handleDeleteShape2D}
             texts2D={texts2D}
             textTool2D={textTool2D}
@@ -1646,6 +1898,7 @@ export default function App() {
             }}
             onDeleteSelectedText2D={handleDeleteText2D}
             walls={walls}
+            architectureSpecialFinishes={architectureSpecialFinishes}
             columns={columns}
             openings={openings}
             wallMode={wallMode}
@@ -1661,7 +1914,7 @@ export default function App() {
             onSelectColumn={setSelectedColumnId}
             onAddColumn={(column) => {
               const normalized = normalizeColumnDefinition(column);
-              if (normalized) setColumns((current) => [...current, normalized]);
+              if (normalized) commitColumns([...columnsRef.current, normalized], COLUMN_HISTORY_TYPES.CREATE);
             }}
             openingMode={openingMode}
             doorWidth={doorWidth}

@@ -27,6 +27,9 @@ function normalizeTileAssignment(tile, slot) {
     heightCm: Number(tile.heightCm ?? slot.heightCm),
     materialCode: tile.materialCode ?? null,
     finishCode: tile.finishCode ?? null,
+    ...(tile.commercialOptions && typeof tile.commercialOptions === 'object' && !Array.isArray(tile.commercialOptions)
+      ? { commercialOptions: { ...tile.commercialOptions } }
+      : {}),
     metadata: tile.metadata && typeof tile.metadata === 'object' ? { ...tile.metadata } : {},
   };
 }

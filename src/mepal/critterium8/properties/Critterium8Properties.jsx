@@ -1,9 +1,20 @@
 import { useState } from 'react';
 import Critterium8FrameProperties from './Critterium8FrameProperties.jsx';
-import { CRITTERIUM8_TILE_CATALOG } from '../catalog/tileCatalog.js';
+import { CRITTERIUM8_TILE_CATALOG, CRITTERIUM8_TILE_COMMERCIAL_CATALOG } from '../catalog/tileCatalog.js';
+import { resolveCritterium8TileCommercial } from '../parts/partCatalog.js';
 
 const sectionStyle = { padding: 12, border: '1px solid #e1e1e1', borderRadius: 10, background: '#fff', display: 'grid', gap: 10 };
 const selectStyle = { width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #d8d8d8', borderRadius: 8, background: '#fff' };
+const commercialFields = [
+  ['gama', 'Gama'], ['fabricType', 'Tipo de tela'], ['subtype', 'Subtipo'],
+  ['metalPattern', 'Patrón'], ['glassType', 'Tipo de vidrio'],
+  ['glassThicknessMm', 'Espesor del vidrio'], ['glassColor', 'Color del vidrio'], ['film', 'Película'],
+];
+const commercialValueLabel = (field, value) => {
+  if (field === 'gama') return `Gama ${value}`;
+  if (field === 'glassThicknessMm') return `${value} mm`;
+  return String(value).replaceAll('_', ' ').toLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+};
 
 export default function Critterium8Properties({ part, api, readOnly = false }) {
   const context = part?.critterium8;
@@ -62,7 +73,7 @@ export default function Critterium8Properties({ part, api, readOnly = false }) {
         <Critterium8FrameProperties
           config={config}
           disabled={readOnly || busy}
-          onChange={(patch) => run(() => api?.updateSelectedCritterium8?.(patch))}
+          onChange={(patch) => run(() => api?.updateSelectedCritterium8?.(patch, context.instanceId))}
         />
       </div>
 
@@ -70,19 +81,55 @@ export default function Critterium8Properties({ part, api, readOnly = false }) {
         <strong>{config.compositionMode === 'FULL_TILE' ? 'Baldosa plena' : 'Slots modulares'}</strong>
         {(composition?.tileSlots || []).map((slot) => {
           const focused = editablePart?.partType === 'TILE' && editablePart?.slotId === slot.id;
+          const tileType = slot.tile?.tileType || '';
+          const options = slot.tile?.commercialOptions || {};
+          const rows = CRITTERIUM8_TILE_COMMERCIAL_CATALOG.filter((row) =>
+            row.tileType === tileType && row.widthCm === Number(slot.widthCm ?? config.widthCm) && row.heightCm === Number(slot.heightCm)
+          );
+          const commercial = focused && tileType ? resolveCritterium8TileCommercial({
+            tileType, widthCm: slot.widthCm ?? config.widthCm, heightCm: slot.heightCm,
+            commercialOptions: options,
+          }) : null;
           return (
-            <label key={slot.id} style={{ display: 'grid', gap: 5, padding: focused ? 8 : 0, border: focused ? '1px solid #16a34a' : 'none', borderRadius: 8, fontSize: 12 }}>
-              Slot {slot.index + 1} — {slot.heightCm} cm
-              <select
-                style={selectStyle}
-                value={slot.tile?.tileType || ''}
-                disabled={readOnly || busy}
-                onChange={(event) => run(() => api?.updateSelectedCritterium8Tile?.(slot.id, { tileType: event.target.value }))}
-              >
-                <option value="">Ninguno</option>
-                {(slot.allowedTileTypes || []).map((type) => <option key={type} value={type}>{CRITTERIUM8_TILE_CATALOG[type]?.displayName || type}</option>)}
-              </select>
-            </label>
+            <div key={slot.id} style={{ display: 'grid', gap: 8, padding: focused ? 8 : 0, border: focused ? '1px solid #16a34a' : 'none', borderRadius: 8, fontSize: 12 }}>
+              <label style={{ display: 'grid', gap: 5 }}>Slot {slot.index + 1} — {slot.heightCm} cm
+                <select
+                  style={selectStyle}
+                  value={tileType}
+                  disabled={readOnly || busy}
+                  onChange={(event) => run(() => api?.updateSelectedCritterium8Tile?.(slot.id, { tileType: event.target.value }, context.instanceId))}
+                >
+                  <option value="">Ninguno</option>
+                  {(slot.allowedTileTypes || []).map((type) => <option key={type} value={type}>{CRITTERIUM8_TILE_CATALOG[type]?.displayName || type}</option>)}
+                </select>
+              </label>
+              {focused && tileType && <div style={{ display: 'grid', gap: 8 }}>
+                {commercialFields.map(([field, label]) => {
+                  const values = [...new Set(rows.map((row) => row.criteria[field]).filter((value) => value != null))];
+                  if (!values.length || (tileType === 'FORMICA' && field === 'subtype' && values.length === 1)) return null;
+                  return <label key={field} style={{ display: 'grid', gap: 5 }}>{label}
+                    <select
+                      style={selectStyle}
+                      value={options[field] ?? ''}
+                      disabled={readOnly || busy}
+                      onChange={(event) => run(() => api?.updateSelectedCritterium8Tile?.(
+                        slot.id,
+                        { commercialOptions: { [field]: field === 'glassThicknessMm' && event.target.value ? Number(event.target.value) : event.target.value || null } },
+                        context.instanceId
+                      ))}
+                    >
+                      <option value="">Seleccionar</option>
+                      {values.map((value) => <option key={value} value={value}>{commercialValueLabel(field, value)}</option>)}
+                    </select>
+                  </label>;
+                })}
+                <div><strong>Código comercial:</strong> {commercial?.status === 'RESOLVED' ? commercial.code : 'Pendiente'}</div>
+                {commercial?.status !== 'RESOLVED' && <div style={{ color: '#92400e' }}>
+                  {commercial?.status === 'AMBIGUOUS' ? 'Configuración comercial ambigua' : 'Configuración comercial pendiente'}
+                  {commercial?.diagnostics?.map((item, index) => <div key={`${item.code}-${index}`}>{item.message}</div>)}
+                </div>}
+              </div>}
+            </div>
           );
         })}
       </div>

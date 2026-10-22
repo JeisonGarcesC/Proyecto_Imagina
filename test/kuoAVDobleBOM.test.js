@@ -25,7 +25,7 @@ test('BOM doble reproduce los totales base CET de 1200, 1500 y 1650', () => {
   const expectedTotals = new Map([
     [1200, 14272650],
     [1500, 14710500],
-    [1650, 14464800],
+    [1650, 14464800 + 665700],
   ]);
 
   for (const [anchoMm, expectedTotal] of expectedTotals) {
@@ -39,7 +39,7 @@ test('BOM doble selecciona los SAP estructurales confirmados por ancho', () => {
   const cases = [
     [1200, '22000134915', '22000008989', '22000116693'],
     [1500, '22000134914', '22000008990', '22000116336'],
-    [1650, '22000134916', '22000114412', null],
+    [1650, '22000134916', '22000114412', '22000116694'],
   ];
 
   for (const [anchoMm, ductCode, surfaceCode, beamCode] of cases) {
@@ -99,18 +99,18 @@ test('BOM doble reproduce las variantes confirmadas de profundidad total 1500', 
   }
 });
 
-test('profundidad 1500 de ancho 1650 permanece sin matriz comercial hasta recibir CET', () => {
+test('profundidad 1500 de ancho 1650 usa los c?digos del mapa de producto', () => {
   const built = buildKuoAVDoble({
     ...BASE_CONFIG,
     anchoMm: 1650,
     profundidadMm: 750,
   });
+  const rows = byCode(built.bom);
 
-  assert.equal(
-    built.bom.some((item) => item.code === '22000114414' || item.code === '22000134919'),
-    false
-  );
-  assert.equal(built.bom.every((item) => item.unitPrice === 0), true);
+  assert.equal(rows.get('22000114414').unitPrice, 1176000);
+  assert.equal(rows.get('22000134919').unitPrice, 697200);
+  assert.equal(rows.get('22000116694').quantity, 2);
+  assert.equal(rows.get('22000116694').unitPrice, 332850);
 });
 
 test('acabado pintado reemplaza ambos grommets y suma el delta CET', () => {
@@ -132,7 +132,7 @@ test('opciones acumulativas reproducen los totales CET en los tres anchos', () =
   const cases = [
     [1200, 14362950, 13033650],
     [1500, 14800800, 13471500],
-    [1650, 14555100, 13225800],
+    [1650, 14555100 + 665700, 13225800 + 665700],
   ];
 
   for (const [anchoMm, paintedTotal, raisedTileTotal] of cases) {
@@ -224,6 +224,32 @@ test('builder publica el BOM oficial y no factura piezas visuales duplicadas', (
   assert.equal(rows.has('KUBAL01'), false);
 });
 
+test('lote doble factura dos terminales y un intermedio aunque la opción esté desmarcada', () => {
+  const first = buildKuoAVDoble({
+    ...BASE_CONFIG,
+    costadoIntermedio: false,
+    kuoBatchIndex: 0,
+    kuoBatchSize: 2,
+  }).bom;
+  const second = buildKuoAVDoble({
+    ...BASE_CONFIG,
+    costadoIntermedio: false,
+    kuoBatchIndex: 1,
+    kuoBatchSize: 2,
+  }).bom;
+  const rows = byCode([...first, ...second]);
+
+  assert.equal(rows.get('22000134918').quantity, 2);
+  assert.equal(rows.get('22000134920').quantity, 1);
+  assert.equal(rows.get('22000134920').lookupTag, 'KUOPAINTEDLEGINTERMEDIATE_16_120SENC');
+  assert.equal(rows.get('22000134918').category, 'SOPORTE');
+  assert.equal(rows.get('22000134920').category, 'SOPORTE');
+  assert.equal(
+    calculateKuoAVDobleTotal([...first, ...second]),
+    28250250
+  );
+});
+
 test('puesto doble factura las tres opciones de pantalla y centra la perimetral', () => {
   const cases = [
     ['FORMICA', '22000116713', 1203300, 15475950],
@@ -251,4 +277,126 @@ test('puesto doble factura las tres opciones de pantalla y centra la perimetral'
       assert.equal(built.config.pantallaPosicion, 'CENTRAL');
     }
   }
+});
+
+test('remate redondea a la nominal superior y describe la medida real', () => {
+  const bom = buildKuoAVDobleBOM({ ...BASE_CONFIG, anchoMm: 1400, profundidadMm: 700 });
+  const rows = byCode(bom);
+
+  assert.equal(rows.get('22000134914').lookupTag, '22000134914');
+  assert.match(rows.get('22000134914').description, /^SPECIAL: .*Largo: 140 cm$/);
+  assert.equal(rows.get('22000008993').unitPrice, 1018500);
+  assert.match(rows.get('22000008993').description, /Profundidad: 140 cm - Largo: 140 cm/);
+  assert.equal(rows.get('22000116336').quantity, 2);
+  assert.equal(rows.get('22000134918').unitPrice, 664650);
+});
+
+test('lote doble de 75 cm usa el intermedio 150 del mapa (22000134921)', () => {
+  const second = buildKuoAVDobleBOM({
+    ...BASE_CONFIG,
+    profundidadMm: 750,
+    kuoBatchIndex: 1,
+    kuoBatchSize: 2,
+  });
+  const intermediate = byCode(second).get('22000134921');
+
+  assert.equal(intermediate.unitPrice, 1017450);
+  assert.match(intermediate.description, /INTERMEDIO DOBLE 150CM/);
+  assert.equal(byCode(second).has('22000134920'), false);
+});
+
+function buildBatch(size, extra = {}) {
+  return Array.from({ length: size }, (_, kuoBatchIndex) => buildKuoAVDoble({
+    ...BASE_CONFIG,
+    ...extra,
+    kuoBatchIndex,
+    kuoBatchSize: size,
+  }));
+}
+
+function supportCount(builts) {
+  const counts = new Map();
+  for (const row of builts.flatMap((built) => built.bom)) {
+    if (row.type !== 'costado') continue;
+    counts.set(row.code, (counts.get(row.code) || 0) + row.quantity);
+  }
+  return Object.fromEntries(counts);
+}
+
+test('lote de 3 dobles: 2 terminales y todas las uniones AUTO con ducto KUSO840000', () => {
+  const batch = buildBatch(3);
+  assert.deepEqual(supportCount(batch), {
+    '22000134918': 2,
+    '22000134920': 2,
+  });
+  assert.ok(batch.every((built) => !built.bom.some((row) => row.code === '22000134922')));
+
+  const feet = batch.flatMap((built) => built.parts.filter((part) => part.partId.includes('_FOOT_')));
+  assert.equal(feet.length, 4);
+  assert.deepEqual(feet.map((part) => part.lookupTag), [
+    'KUSO820000', 'KUSO840000', 'KUSO840000', 'KUSO820000',
+  ]);
+});
+
+test('soporte intermedio seleccionado manualmente se aplica en todas las uniones', () => {
+  assert.deepEqual(supportCount(buildBatch(3, { soporteIntermedio: 'KUSO850000' })), {
+    '22000134918': 2,
+    '22000134922': 2,
+  });
+  assert.deepEqual(supportCount(buildBatch(3, { soporteIntermedio: 'KUSO840000' })), {
+    '22000134918': 2,
+    '22000134920': 2,
+  });
+});
+
+test('lote de 4 dobles de 75 cm usa intermedios con ducto 150 y conserva 2 terminales', () => {
+  const batch = buildBatch(4, { profundidadMm: 750 });
+  assert.deepEqual(supportCount(batch), {
+    '22000134919': 2,
+    '22000134921': 3,
+  });
+  assert.equal(
+    batch.flatMap((built) => built.parts.filter((part) => part.partId.includes('_FOOT_'))).length,
+    5
+  );
+});
+
+test('lote con baldosa formica no comparte costados (sin intermedios)', () => {
+  const batch = buildBatch(3, { baldosaFormica: true });
+  const codes = Object.keys(supportCount(batch));
+  assert.ok(!codes.some((code) => ['22000134920', '22000134922'].includes(code)));
+  assert.equal(
+    batch.flatMap((built) => built.parts.filter((part) => part.partId.includes('_FOOT_'))).length,
+    6
+  );
+});
+
+test('BOM doble melamina usa los códigos del mapa de producto en SUPERFICIE', () => {
+  const config = { ...BASE_CONFIG, anchoMm: 1500, profundidadMm: 750, espesorTipo: 'Melamina 30' };
+  const surface = buildKuoAVDobleBOM(config).find((item) => item.type === 'superficie');
+  assert.equal(surface.code, '22000114430');
+  assert.equal(surface.unitPrice, 695100);
+  assert.equal(surface.quantity, 2);
+  assert.equal(surface.category, 'SUPERFICIE');
+  assert.match(surface.description, /MELAMINA 150X75X3CM LINK LKSU010020/);
+});
+
+test('BOM doble siempre usa la botonera 22024327', () => {
+  const config = { ...BASE_CONFIG, anchoMm: 1200, botoneraCode: '22018775' };
+  const control = byCode(buildKuoAVDobleBOM(config)).get('22024327');
+  assert.equal(control.quantity, 2);
+  assert.equal(control.unitPrice, 77700);
+});
+
+test('los dos soportes intermedios usan sus GLB nativos sin escalado', () => {
+  const frame = buildBatch(2, { soporteIntermedio: 'KUSO850000' })[1].parts
+    .find((part) => part.partId.endsWith('_FOOT_LEFT'));
+  assert.equal(frame.modelKind, 'glb');
+  assert.ok(frame.glb.endsWith('/KUSO850000_120.glb'));
+  assert.deepEqual(frame.scale, [1, 1, 1]);
+  const column = buildBatch(2, { soporteIntermedio: 'KUSO840000' })[1].parts
+    .find((part) => part.partId.endsWith('_FOOT_LEFT'));
+  assert.equal(column.modelKind, 'glb');
+  assert.ok(column.glb.endsWith('/KUSO840000_120.glb'));
+  assert.deepEqual(column.scale, [1, 1, 1]);
 });

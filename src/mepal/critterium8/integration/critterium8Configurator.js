@@ -1,6 +1,7 @@
 import { validateCritterium8FrameDefinition } from '../definitions/frameDefinition.js';
 import { resolveCritterium8ConfigPatch } from './critterium8Config.js';
 import { buildCritterium8Sequences } from '../connectivity/frameSequenceResolver.js';
+import { resolveCritterium8SequenceJunctionParts } from '../junctions/junctionPartResolver.js';
 
 export const defaultCritteriumSequenceDraft = () => ({
   frames: [{ widthCm: 90, heightCm: 128, frameMode: 'HALF_HEIGHT', compositionMode: 'MODULAR', tiles: [], growthModules: [] },
@@ -13,12 +14,14 @@ export function validateCritteriumSequenceDraft(draft = {}) {
   const angle = Number(draft.orientationDeg || 0);
   if (![0, 90, 180, 270].includes(angle)) return { success: false, reason: 'Orientación no soportada.', field: 'orientationDeg' };
   const frames = [];
+  const physicalHeights = [];
   for (const [index, input] of draft.frames.entries()) {
     const config = resolveCritterium8ConfigPatch({ config: { ...input, tiles: input.tiles || [] }, frameId: `PREVIEW_${index}` });
     if (!config.success) return { success: false, reason: config.reason, field: `frames.${index}`, diagnostics: config.diagnostics };
     const dimensions = validateCritterium8FrameDefinition({ ...config.config, id: `PREVIEW_${index}` });
     if (!dimensions.valid || !dimensions.catalogCodeAvailable) return { success: false, reason: dimensions.errors[0] || 'COMBINACIÓN_COMERCIAL_NO_DISPONIBLE', field: `frames.${index}` };
     frames.push(config.config);
+    physicalHeights.push(config.composition.heightCm);
   }
   const radians = angle * Math.PI / 180;
   const axisX = Math.cos(radians); const axisZ = -Math.sin(radians);
@@ -29,13 +32,19 @@ export function validateCritteriumSequenceDraft(draft = {}) {
     cursor += width;
     return { frameId: `PREVIEW_${index}`, config: frame, position: [center * axisX, 0, center * axisZ], rotationY: radians };
   });
-  const components = buildCritterium8Sequences(placements.map((item) => ({ frameId: item.frameId, instanceId: item.frameId,
+  const components = buildCritterium8Sequences(placements.map((item, index) => ({ frameId: item.frameId, instanceId: item.frameId,
     position: { x: item.position[0], z: item.position[2] }, rotationY: item.rotationY,
-    widthCm: item.config.widthCm, heightCm: item.config.heightCm, frameMode: item.config.frameMode,
+    widthCm: item.config.widthCm, heightCm: physicalHeights[index], frameMode: item.config.frameMode,
     projectHeightCm: item.config.projectHeightCm })));
   if (components.length !== 1 || components[0].frameIds.length !== frames.length) return { success: false, reason: 'Los frames no forman una secuencia conectada.', field: 'frames' };
   const errors = components[0].diagnostics.filter((item) => item.code === 'UNSUPPORTED_JUNCTION_GEOMETRY');
   if (errors.length) return { success: false, reason: errors[0].code, field: 'frames', diagnostics: errors };
+  if (frames.some((frame) => frame.growthModules?.length)) {
+    const transition = components[0].diagnostics.find((item) => item.code === 'HEIGHT_TRANSITION_REQUIRED');
+    if (transition) return { success: false, reason: transition.code, field: 'frames', diagnostics: [transition] };
+    const junctions = resolveCritterium8SequenceJunctionParts({ sequence: components[0], frames: components[0].frames });
+    if (!junctions.valid) return { success: false, reason: junctions.diagnostics[0]?.code || 'UNSUPPORTED_JUNCTION_HEIGHT', field: 'frames', diagnostics: junctions.diagnostics };
+  }
   return { success: true, frames, placements, junctionCount: components[0].junctions.length, diagnostics: components[0].diagnostics };
 }
 

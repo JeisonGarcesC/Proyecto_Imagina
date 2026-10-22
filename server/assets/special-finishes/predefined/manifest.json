@@ -1,0 +1,871 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000001",
+      "name": "Ladrillo grande",
+      "category": "WALL",
+      "subcategory": "BRICK",
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.25,
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000001",
+          "assetVersion": 1,
+          "image": "walls/ladrillo-grande-v1.png",
+          "preview": "walls/ladrillo-grande-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000002",
+      "name": "Ladrillo pequeño",
+      "category": "WALL",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.12,
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000002",
+          "assetVersion": 1,
+          "image": "walls/ladrillo-pequeno-v1.png",
+          "preview": "walls/ladrillo-pequeno-v1-preview.png"
+        }
+      ],
+      "subcategory": "BRICK",
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original"
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000003",
+      "name": "Concreto",
+      "category": "WALL",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.75,
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000003",
+          "assetVersion": 1,
+          "image": "walls/concreto-v1.png",
+          "preview": "walls/concreto-v1-preview.png"
+        }
+      ],
+      "subcategory": "CONCRETE",
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original"
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000004",
+      "name": "Piedra",
+      "category": "WALL",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.5,
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000004",
+          "assetVersion": 1,
+          "image": "walls/piedra-v1.png",
+          "preview": "walls/piedra-v1-preview.png"
+        }
+      ],
+      "subcategory": "STONE",
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original"
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000005",
+      "name": "Madera",
+      "category": "FLOOR",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.48,
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000005",
+          "assetVersion": 1,
+          "image": "floors/madera-v1.png",
+          "preview": "floors/madera-v1-preview.png"
+        }
+      ],
+      "subcategory": "WOOD",
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original"
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000006",
+      "name": "Baldosa",
+      "category": "FLOOR",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.6,
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000006",
+          "assetVersion": 1,
+          "image": "floors/baldosa-v1.png",
+          "preview": "floors/baldosa-v1-preview.png"
+        }
+      ],
+      "subcategory": "TILE",
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original"
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000007",
+      "name": "Porcelanato",
+      "category": "FLOOR",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.6,
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000007",
+          "assetVersion": 1,
+          "image": "floors/porcelanato-v1.png",
+          "preview": "floors/porcelanato-v1-preview.png"
+        }
+      ],
+      "subcategory": "PORCELAIN",
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original"
+    },
+    {
+      "id": "6c4f0001-7a3b-4d2f-8b1c-000000000008",
+      "name": "Alfombra",
+      "category": "FLOOR",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.5,
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1001-7a3b-4d2f-8b1c-000000000008",
+          "assetVersion": 1,
+          "image": "floors/alfombra-v1.png",
+          "preview": "floors/alfombra-v1-preview.png"
+        }
+      ],
+      "subcategory": "CARPET",
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original"
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000001",
+      "name": "Ladrillo blanco",
+      "category": "WALL",
+      "subcategory": "BRICK",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.24,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000001",
+          "assetVersion": 1,
+          "image": "walls/ladrillo-blanco-v1.png",
+          "preview": "walls/ladrillo-blanco-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000002",
+      "name": "Ladrillo gris",
+      "category": "WALL",
+      "subcategory": "BRICK",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.24,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000002",
+          "assetVersion": 1,
+          "image": "walls/ladrillo-gris-v1.png",
+          "preview": "walls/ladrillo-gris-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000003",
+      "name": "Ladrillo industrial",
+      "category": "WALL",
+      "subcategory": "BRICK",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.28,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000003",
+          "assetVersion": 1,
+          "image": "walls/ladrillo-industrial-v1.png",
+          "preview": "walls/ladrillo-industrial-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000004",
+      "name": "Ladrillo envejecido",
+      "category": "WALL",
+      "subcategory": "BRICK",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.24,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000004",
+          "assetVersion": 1,
+          "image": "walls/ladrillo-envejecido-v1.png",
+          "preview": "walls/ladrillo-envejecido-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000005",
+      "name": "Piedra clara",
+      "category": "WALL",
+      "subcategory": "STONE",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.5,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000005",
+          "assetVersion": 1,
+          "image": "walls/piedra-clara-v1.png",
+          "preview": "walls/piedra-clara-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000006",
+      "name": "Piedra oscura",
+      "category": "WALL",
+      "subcategory": "STONE",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.5,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000006",
+          "assetVersion": 1,
+          "image": "walls/piedra-oscura-v1.png",
+          "preview": "walls/piedra-oscura-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000007",
+      "name": "Piedra tipo laja",
+      "category": "WALL",
+      "subcategory": "STONE",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.4,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000007",
+          "assetVersion": 1,
+          "image": "walls/piedra-laja-v1.png",
+          "preview": "walls/piedra-laja-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000008",
+      "name": "Piedra decorativa",
+      "category": "WALL",
+      "subcategory": "STONE",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.32,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000008",
+          "assetVersion": 1,
+          "image": "walls/piedra-decorativa-v1.png",
+          "preview": "walls/piedra-decorativa-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000009",
+      "name": "Concreto claro",
+      "category": "WALL",
+      "subcategory": "CONCRETE",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.75,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000009",
+          "assetVersion": 1,
+          "image": "walls/concreto-claro-v1.png",
+          "preview": "walls/concreto-claro-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000010",
+      "name": "Concreto oscuro",
+      "category": "WALL",
+      "subcategory": "CONCRETE",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.75,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000010",
+          "assetVersion": 1,
+          "image": "walls/concreto-oscuro-v1.png",
+          "preview": "walls/concreto-oscuro-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000011",
+      "name": "Concreto arquitectónico",
+      "category": "WALL",
+      "subcategory": "CONCRETE",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.75,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000011",
+          "assetVersion": 1,
+          "image": "walls/concreto-arquitectonico-v1.png",
+          "preview": "walls/concreto-arquitectonico-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000012",
+      "name": "Cerámica blanca",
+      "category": "WALL",
+      "subcategory": "CERAMIC",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.16,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000012",
+          "assetVersion": 1,
+          "image": "walls/ceramica-blanca-v1.png",
+          "preview": "walls/ceramica-blanca-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000013",
+      "name": "Cerámica gris",
+      "category": "WALL",
+      "subcategory": "CERAMIC",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.16,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000013",
+          "assetVersion": 1,
+          "image": "walls/ceramica-gris-v1.png",
+          "preview": "walls/ceramica-gris-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000014",
+      "name": "Revestimiento subway",
+      "category": "WALL",
+      "subcategory": "CERAMIC",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.24,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000014",
+          "assetVersion": 1,
+          "image": "walls/revestimiento-subway-v1.png",
+          "preview": "walls/revestimiento-subway-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000015",
+      "name": "Revestimiento geométrico",
+      "category": "WALL",
+      "subcategory": "CERAMIC",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.2,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000015",
+          "assetVersion": 1,
+          "image": "walls/revestimiento-geometrico-v1.png",
+          "preview": "walls/revestimiento-geometrico-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000016",
+      "name": "Roble claro",
+      "category": "WALL",
+      "subcategory": "WOOD",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.2,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000016",
+          "assetVersion": 1,
+          "image": "walls/roble-claro-v1.png",
+          "preview": "walls/roble-claro-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000017",
+      "name": "Nogal",
+      "category": "WALL",
+      "subcategory": "WOOD",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.25,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000017",
+          "assetVersion": 1,
+          "image": "walls/nogal-v1.png",
+          "preview": "walls/nogal-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000018",
+      "name": "Madera gris",
+      "category": "WALL",
+      "subcategory": "WOOD",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.22,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000018",
+          "assetVersion": 1,
+          "image": "walls/madera-gris-v1.png",
+          "preview": "walls/madera-gris-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000019",
+      "name": "Madera natural",
+      "category": "WALL",
+      "subcategory": "WOOD",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.25,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000019",
+          "assetVersion": 1,
+          "image": "walls/madera-natural-v1.png",
+          "preview": "walls/madera-natural-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000020",
+      "name": "Panel ranurado",
+      "category": "WALL",
+      "subcategory": "CLADDING",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.32,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000020",
+          "assetVersion": 1,
+          "image": "walls/panel-ranurado-v1.png",
+          "preview": "walls/panel-ranurado-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000021",
+      "name": "Panel acústico",
+      "category": "WALL",
+      "subcategory": "CLADDING",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.5,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000021",
+          "assetVersion": 1,
+          "image": "walls/panel-acustico-v1.png",
+          "preview": "walls/panel-acustico-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000022",
+      "name": "Estuco",
+      "category": "WALL",
+      "subcategory": "CLADDING",
+      "compatibleScopes": [
+        "WALL",
+        "COLUMN"
+      ],
+      "suggestedTileWidth": 0.7,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000022",
+          "assetVersion": 1,
+          "image": "walls/estuco-v1.png",
+          "preview": "walls/estuco-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000023",
+      "name": "Roble natural",
+      "category": "FLOOR",
+      "subcategory": "WOOD",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.25,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000023",
+          "assetVersion": 1,
+          "image": "floors/roble-natural-v1.png",
+          "preview": "floors/roble-natural-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000024",
+      "name": "Roble oscuro",
+      "category": "FLOOR",
+      "subcategory": "WOOD",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.24,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000024",
+          "assetVersion": 1,
+          "image": "floors/roble-oscuro-v1.png",
+          "preview": "floors/roble-oscuro-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000025",
+      "name": "Porcelanato gris oscuro",
+      "category": "FLOOR",
+      "subcategory": "PORCELAIN",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.6,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000025",
+          "assetVersion": 1,
+          "image": "floors/porcelanato-gris-oscuro-v1.png",
+          "preview": "floors/porcelanato-gris-oscuro-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000026",
+      "name": "Porcelanato beige",
+      "category": "FLOOR",
+      "subcategory": "PORCELAIN",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.6,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000026",
+          "assetVersion": 1,
+          "image": "floors/porcelanato-beige-v1.png",
+          "preview": "floors/porcelanato-beige-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000027",
+      "name": "Baldosa hidráulica",
+      "category": "FLOOR",
+      "subcategory": "TILE",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.2,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000027",
+          "assetVersion": 1,
+          "image": "floors/baldosa-hidraulica-v1.png",
+          "preview": "floors/baldosa-hidraulica-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000028",
+      "name": "Baldosa pequeña",
+      "category": "FLOOR",
+      "subcategory": "TILE",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.12,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000028",
+          "assetVersion": 1,
+          "image": "floors/baldosa-pequena-v1.png",
+          "preview": "floors/baldosa-pequena-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000029",
+      "name": "Alfombra gris",
+      "category": "FLOOR",
+      "subcategory": "CARPET",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.6,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000029",
+          "assetVersion": 1,
+          "image": "floors/alfombra-gris-v1.png",
+          "preview": "floors/alfombra-gris-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000030",
+      "name": "Alfombra modular",
+      "category": "FLOOR",
+      "subcategory": "CARPET",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.5,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000030",
+          "assetVersion": 1,
+          "image": "floors/alfombra-modular-v1.png",
+          "preview": "floors/alfombra-modular-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000031",
+      "name": "Travertino",
+      "category": "FLOOR",
+      "subcategory": "STONE",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.6,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000031",
+          "assetVersion": 1,
+          "image": "floors/travertino-v1.png",
+          "preview": "floors/travertino-v1-preview.png"
+        }
+      ]
+    },
+    {
+      "id": "6c4f0002-7a3b-4d2f-8b1c-000000000032",
+      "name": "Microcemento",
+      "category": "FLOOR",
+      "subcategory": "CONCRETE",
+      "compatibleScopes": [
+        "FLOOR"
+      ],
+      "suggestedTileWidth": 0.75,
+      "origin": "GENERATED_LOCALLY",
+      "license": "Proyecto Imagina original",
+      "revisions": [
+        {
+          "revision": 1,
+          "assetId": "6c4f1002-7a3b-4d2f-8b1c-000000000032",
+          "assetVersion": 1,
+          "image": "floors/microcemento-v1.png",
+          "preview": "floors/microcemento-v1-preview.png"
+        }
+      ]
+    }
+  ]
+}
