@@ -6,7 +6,7 @@ import {
   resolveSnapPoint,
   SNAP_LABELS,
 } from '../plan2d/geometrySnap2D';
-import { buildElevationSnapGeometry } from '../plan2d/geometry2D/elevation2D';
+import { buildElevationSnapGeometry, projectElevationBounds } from '../plan2d/geometry2D/elevation2D';
 import {
   createDimension2D,
   dimensionHitDistance,
@@ -34,6 +34,7 @@ import {
 import { drawVectorPlan2D } from '../core/plans/renderers/vectorPlanRenderer2D';
 import {
   getDuctCimbras,
+  getLeaderWallCimbras,
   pruneCimbraVisibility,
   resolveSelectedKoncisaPostId,
 } from '../plan2d/koncisaCimbraGeometry2D';
@@ -3158,7 +3159,30 @@ export default function Plan2DOverlay({
         drawShapes2D(ctx, cimbras, { toCanvas: toCanvasLocal, scale: s });
       }
 
-      drawShapes2D(ctx, shapes2D, { toCanvas: toCanvasLocal, scale: s });
+      const liveElevationSources = new Map();
+      const wallCimbras = cimbraVisiblePostIds.size
+        ? getLeaderWallCimbras(
+            snap,
+            shapes2D,
+            cimbraVisiblePostIds,
+            (ids) => {
+              const source = historyApi?.getElevationSource2D?.(ids);
+              if (source) liveElevationSources.set(ids, source);
+              return source;
+            }
+          )
+        : [];
+      const renderedShapes = shapes2D.map((shape) => {
+        const source = liveElevationSources.get(shape.sourceSelection);
+        const projection = source && projectElevationBounds(source.sourceBoxes, shape.viewDirection);
+        return projection
+          ? { ...shape, geometry: { ...shape.geometry, ...projection } }
+          : shape;
+      });
+      drawShapes2D(ctx, renderedShapes, { toCanvas: toCanvasLocal, scale: s });
+      if (cimbraVisiblePostIds.size) {
+        drawShapes2D(ctx, wallCimbras, { toCanvas: toCanvasLocal, scale: s });
+      }
       const selectedShape = shapes2D.find((shape) => shape.id === selectedShape2DId);
       if (selectedShape) {
         drawShapes2D(
@@ -3511,6 +3535,7 @@ export default function Plan2DOverlay({
     return () => cancelAnimationFrame(raf);
   }, [
     getSnapshot,
+    historyApi,
     selectedIds,
     walls,
     resolvedWallsGeometry,

@@ -6,6 +6,14 @@ import { loadDxfPlan } from '../core/plans/loaders/dxfPlanLoader.js';
 
 export const MAX_IMPORTED_MODEL_SIZE = 50 * 1024 * 1024;
 
+export function validateImportedModelSize(size, maxSize = MAX_IMPORTED_MODEL_SIZE) {
+  if (!Number.isFinite(size) || size < 0) throw new TypeError('Tamaño de archivo inválido.');
+  if (size <= maxSize) return true;
+  const sizeMiB = (size / (1024 * 1024)).toFixed(1);
+  const limitMiB = maxSize / (1024 * 1024);
+  throw new Error(`El archivo (${sizeMiB} MiB) supera el límite permitido de ${limitMiB} MiB.`);
+}
+
 export function detectImportedModelFormat(fileName = '') {
   const extension = String(fileName).split('.').pop()?.trim().toLowerCase();
   return ['glb', 'gltf', 'stl', 'obj', 'dxf', 'dwg'].includes(extension) ? extension : null;
@@ -100,13 +108,15 @@ function buildDxfObject(normalized, scale) {
   return group;
 }
 
-export async function createImportedModelObject({ dataUrl, format, unit = 'mm', fileName = '' }) {
+export async function createImportedModelObject({ dataUrl, sourceUrl, format, unit = 'mm', fileName = '' }) {
   const normalizedFormat = String(format || '').toLowerCase();
   const scale = resolveImportedModelUnitScale(unit, normalizedFormat);
   let object;
 
   if (normalizedFormat === 'glb' || normalizedFormat === 'gltf') {
-    object = await parseGltf(dataUrl, normalizedFormat);
+    object = sourceUrl && normalizedFormat === 'glb'
+      ? (await new GLTFLoader().loadAsync(sourceUrl)).scene
+      : await parseGltf(dataUrl, normalizedFormat);
   } else if (normalizedFormat === 'stl') {
     const geometry = new STLLoader().parse(dataUrlToArrayBuffer(dataUrl));
     geometry.computeVertexNormals();

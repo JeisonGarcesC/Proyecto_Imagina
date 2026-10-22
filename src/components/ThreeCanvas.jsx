@@ -125,10 +125,11 @@ import { buildColumnGeometry3D } from '../core/architecture/columns/columnGeomet
 import { COLUMN_HISTORY_TYPES } from '../core/architecture/columns/columnHistory.js';
 import { buildDoorGeometry2D } from '../core/architecture/openings/doorGeometry2D';
 import {
-  MAX_IMPORTED_MODEL_SIZE,
   createImportedModelObject,
   detectImportedModelFormat,
   fileToDataUrl,
+  MAX_IMPORTED_MODEL_SIZE,
+  validateImportedModelSize,
 } from '../importers/importedModelLoader.js';
 
 import { getTipologiaDetalle, loadTipologiasDetalle } from '../services/tipologiasDetalle';
@@ -2991,6 +2992,9 @@ function ThreeCanvas({
             subtype: obj.userData?.subtype || null,
             line: obj.userData?.line || null,
             meta: obj.userData?.meta || null,
+            ...(obj.userData?.subtype === 'leader-outlet-wall-coupling'
+              ? { cimbraWorldCenter: new THREE.Box3().setFromObject(obj).getCenter(new THREE.Vector3()) }
+              : {}),
             ...finishSnapshot,
           };
           const attachDetailed = (snapshot) => {
@@ -11661,6 +11665,10 @@ function ThreeCanvas({
 
     async function createImportedModel({
       dataUrl,
+      assetRef,
+      assetMimeType,
+      assetSize,
+      assetSha256,
       format,
       unit = 'mm',
       fileName = 'Objeto importado',
@@ -11668,8 +11676,10 @@ function ThreeCanvas({
       position = null,
       recordHistory = false,
     } = {}) {
-      if (!dataUrl) throw new Error('El objeto importado no contiene el archivo original.');
-      const content = await createImportedModelObject({ dataUrl, format, unit, fileName });
+      if (!dataUrl && !assetRef) throw new Error('El objeto importado no contiene el archivo original.');
+      const sourceUrl = assetRef ? window.electronAPI?.getModelAssetUrl?.(assetRef) : undefined;
+      if (assetRef && !sourceUrl) throw new Error('Este proyecto necesita acceso a sus assets de modelos. Ábrelo como proyecto completo en Electron.');
+      const content = await createImportedModelObject({ dataUrl, sourceUrl, format, unit, fileName });
       const root = new THREE.Group();
       const id = instanceId || `IMPORTED_${Date.now()}_${Math.random().toString(16).slice(2)}`;
       root.name = fileName;
@@ -11685,6 +11695,10 @@ function ThreeCanvas({
         format,
         unit,
         assetDataUrl: dataUrl,
+        assetRef,
+        assetMimeType,
+        assetSize,
+        assetSha256,
       };
       root.add(content);
       root.position.fromArray(
@@ -11728,9 +11742,6 @@ function ThreeCanvas({
     async function importModelFile(file, { unit = 'mm' } = {}) {
       if (readOnly) return null;
       if (!(file instanceof Blob)) throw new TypeError('Selecciona un archivo válido.');
-      if (file.size > MAX_IMPORTED_MODEL_SIZE) {
-        throw new Error('El archivo supera el límite de 50 MB. Optimízalo antes de importarlo.');
-      }
       const format = detectImportedModelFormat(file.name);
       if (!format || format === 'dwg') {
         throw new Error(
@@ -11739,8 +11750,14 @@ function ThreeCanvas({
             : 'Formato no soportado. Usa GLB, GLTF, STL, OBJ o DXF.'
         );
       }
+      const largeGlb = format === 'glb' && file.size > MAX_IMPORTED_MODEL_SIZE;
+      if (!largeGlb) validateImportedModelSize(file.size);
+      if (largeGlb && !window.electronAPI?.importModelAsset) {
+        throw new Error('Los GLB de más de 50 MiB requieren la importación de assets en Electron.');
+      }
+      const asset = largeGlb ? await window.electronAPI.importModelAsset(file) : null;
       const object = await createImportedModel({
-        dataUrl: await fileToDataUrl(file),
+        ...(asset || { dataUrl: await fileToDataUrl(file) }),
         format,
         unit,
         fileName: file.name,

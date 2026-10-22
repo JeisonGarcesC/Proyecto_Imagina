@@ -387,6 +387,8 @@ export default function LeftPanel({
   ImportedModelUploader,
   handleLoadPlan2D,
   handleImportModel,
+  handleImportXmlBom,
+  xmlBomCatalog,
   planDefinition,
   planEditMode,
   onPlanEditModeChange,
@@ -2123,7 +2125,8 @@ export default function LeftPanel({
       {section === 'importedModels' && ImportedModelUploader && (
         <>
           <h3 style={{ margin: '0 0 12px 0' }}>Importar objeto</h3>
-          <ImportedModelUploader disabled={readOnly} onImport={handleImportModel} />
+          <ImportedModelUploader disabled={readOnly} onImport={handleImportModel}
+            onImportXmlBom={handleImportXmlBom} xmlBomCatalog={xmlBomCatalog} />
         </>
       )}
 
