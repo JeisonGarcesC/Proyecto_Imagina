@@ -11,7 +11,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getModelAssetUrl: (assetRef) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(String(assetRef)))
       throw new Error('Referencia de modelo inválida.');
-    return `imagina-asset://model/${assetRef}.glb`;
+    return ipcRenderer.invoke('model-asset:load-url', assetRef).catch((error) => {
+      if (/No handler registered for 'model-asset:load-url'/.test(String(error?.message || error))) {
+        throw new Error('El proceso principal de Electron no está actualizado. Cierra Electron por completo y vuelve a iniciarlo.');
+      }
+      throw error;
+    });
+  },
+  discardImportedModelAsset: (assetRef) => {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(String(assetRef)))
+      throw new Error('Referencia de modelo inválida.');
+    return ipcRenderer.invoke('model-asset:discard-import', assetRef);
   },
   saveCompleteProject: (project) => ipcRenderer.invoke('project:save-complete', project),
   openCompleteProject: () => ipcRenderer.invoke('project:open-complete'),

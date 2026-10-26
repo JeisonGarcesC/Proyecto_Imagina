@@ -3,6 +3,7 @@ import './App.css';
 import { useEffect, useRef, useState, useMemo } from 'react';
 
 import ThreeCanvas from './components/ThreeCanvas.jsx';
+import ImportedModelGroupInspector from './components/ImportedModelGroupInspector.jsx';
 import { pasteClipboard } from './clipboard/pasteClipboard';
 import CatalogPanel from './components/CatalogPanel';
 import PropertiesPanel from './components/PropertiesPanel';
@@ -1721,6 +1722,9 @@ export default function App() {
             )*/}
           </div>
 
+          {import.meta.env.VITE_GROUP_INSPECTOR === '1' && window.electronAPI && (
+            <ImportedModelGroupInspector api={threeApi} />
+          )}
           <ThreeCanvas
             walls={walls}
             architectureSpecialFinishes={architectureSpecialFinishes}

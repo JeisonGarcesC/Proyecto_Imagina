@@ -128,9 +128,12 @@ import {
   createImportedModelObject,
   detectImportedModelFormat,
   fileToDataUrl,
+  ImportedModelImportCancelled,
   MAX_IMPORTED_MODEL_SIZE,
   validateImportedModelSize,
 } from '../importers/importedModelLoader.js';
+import { createImportedModelGroupInspector } from '../importers/importedModelGroupInspector.js';
+import { createImportedModelGroupSelectionIndex } from '../importers/importedModelGroupSelection.js';
 
 import { getTipologiaDetalle, loadTipologiasDetalle } from '../services/tipologiasDetalle';
 import { getChairDetail } from '../services/chairsLoader';
@@ -1008,6 +1011,98 @@ function ThreeCanvas({
 
     // Piezas en escena
     const parts = []; // { code, obj }
+    const groupInspectorCache = new WeakMap();
+    const groupSelectionCache = new WeakMap();
+    let groupSelectionTestModelId = null;
+    let groupSelectionResult = null;
+    let groupInspectorHelper = null;
+    let groupInspectorCandidateHelpers = [];
+    function clearGroupInspectorHighlight() {
+      if (!groupInspectorHelper) return;
+      scene.remove(groupInspectorHelper);
+      groupInspectorHelper.geometry.dispose();
+      groupInspectorHelper.material.dispose();
+      groupInspectorHelper = null;
+    }
+    function clearGroupInspectorCandidateMap() {
+      for (const helper of groupInspectorCandidateHelpers) {
+        scene.remove(helper);
+        helper.geometry.dispose();
+        helper.material.dispose();
+      }
+      groupInspectorCandidateHelpers = [];
+    }
+    function listImportedModelsForInspector() {
+      return parts.filter(({ obj }) => obj?.userData?.kind === 'IMPORTED_MODEL')
+        .map(({ obj }) => ({ id: obj.userData.instanceId, name: obj.userData.fileName }));
+    }
+    function getImportedModelInspector(modelId) {
+      const root = parts.find(({ obj }) => obj?.userData?.kind === 'IMPORTED_MODEL' && obj.userData.instanceId === modelId)?.obj;
+      if (!root) return null;
+      if (!groupInspectorCache.has(root)) groupInspectorCache.set(root, createImportedModelGroupInspector(root));
+      return groupInspectorCache.get(root);
+    }
+    function getImportedModelGroupSelection(modelId) {
+      const root = parts.find(({ obj }) => obj?.userData?.kind === 'IMPORTED_MODEL' && obj.userData.instanceId === modelId)?.obj;
+      if (!root) return null;
+      if (!groupSelectionCache.has(root)) {
+        const inspector = getImportedModelInspector(modelId);
+        if (!inspector) return null;
+        groupSelectionCache.set(root, createImportedModelGroupSelectionIndex(inspector, {
+          importedModelId: modelId, assetRef: root.userData.assetRef || null,
+        }));
+      }
+      return groupSelectionCache.get(root);
+    }
+    function markImportedModelGroup(modelId, nodeId, status, wholeFamily = false) {
+      const index = getImportedModelGroupSelection(modelId);
+      if (!index) return 0;
+      return wholeFamily ? index.markFamily(nodeId, status) : Number(index.mark(nodeId, status));
+    }
+    function setImportedModelGroupSelectionTest(modelId, enabled) {
+      if (import.meta.env.VITE_GROUP_INSPECTOR !== '1') return false;
+      if (enabled && !getImportedModelGroupSelection(modelId)) return false;
+      groupSelectionTestModelId = enabled ? modelId : null;
+      groupSelectionResult = null;
+      if (!enabled) clearGroupInspectorHighlight();
+      return true;
+    }
+    function getImportedModelGroupSelectionState(modelId, nodeId) {
+      const index = getImportedModelGroupSelection(modelId);
+      return { enabled: groupSelectionTestModelId === modelId, selected: groupSelectionResult,
+        unit: index?.get(nodeId) || null, indexedMeshes: index?.meshCount || 0 };
+    }
+    function highlightImportedModelGroup(modelId, nodeId) {
+      const startedAt = performance.now();
+      clearGroupInspectorHighlight();
+      const detail = getImportedModelInspector(modelId)?.get(nodeId);
+      if (!detail?.bounds) return false;
+      const box = new THREE.Box3(new THREE.Vector3(...detail.bounds.min), new THREE.Vector3(...detail.bounds.max));
+      groupInspectorHelper = new THREE.Box3Helper(box, 0xff1b5b);
+      groupInspectorHelper.raycast = () => {};
+      scene.add(groupInspectorHelper);
+      return Number((performance.now() - startedAt).toFixed(2));
+    }
+    function showGroupInspectorCandidateMap(modelId, enabled, groupIds = null) {
+      clearGroupInspectorCandidateMap();
+      if (!enabled) return 0;
+      const inspector = getImportedModelInspector(modelId);
+      const wanted = Array.isArray(groupIds) ? new Set(groupIds) : null;
+      for (const group of inspector?.groups.filter((item) => wanted ? wanted.has(item.id) : item.candidateScore === 'Alto').slice(0, 80) || []) {
+        if (!group.bounds) continue;
+        const box = new THREE.Box3(new THREE.Vector3(...group.bounds.min), new THREE.Vector3(...group.bounds.max));
+        const helper = new THREE.Box3Helper(box, wanted ? 0x7655c9 : 0x11a7a0);
+        helper.raycast = () => {};
+        scene.add(helper);
+        groupInspectorCandidateHelpers.push(helper);
+      }
+      return groupInspectorCandidateHelpers.length;
+    }
+    function getImportedModelInspectorPerformance() {
+      return { calls: renderer.info.render.calls, renderedTriangles: renderer.info.render.triangles,
+        rendererGeometries: renderer.info.memory.geometries, rendererTextures: renderer.info.memory.textures,
+        jsHeapBytes: performance.memory?.usedJSHeapSize ?? null };
+    }
     let activePart = null;
     let activeEditablePart = null;
     let activeSubMesh = null; // ✅ NUEVO: parte exacta del GLB clickeada (Mesh)
@@ -11669,17 +11764,22 @@ function ThreeCanvas({
       assetMimeType,
       assetSize,
       assetSha256,
+      preparedRepresentation,
       format,
       unit = 'mm',
       fileName = 'Objeto importado',
       instanceId = null,
       position = null,
       recordHistory = false,
+      confirmAmbiguous,
+      restoring = false,
     } = {}) {
       if (!dataUrl && !assetRef) throw new Error('El objeto importado no contiene el archivo original.');
-      const sourceUrl = assetRef ? window.electronAPI?.getModelAssetUrl?.(assetRef) : undefined;
+      const sourceUrl = assetRef ? await window.electronAPI?.getModelAssetUrl?.(assetRef) : undefined;
       if (assetRef && !sourceUrl) throw new Error('Este proyecto necesita acceso a sus assets de modelos. Ábrelo como proyecto completo en Electron.');
-      const content = await createImportedModelObject({ dataUrl, sourceUrl, format, unit, fileName });
+      const content = await createImportedModelObject({
+        dataUrl, sourceUrl, format, unit, fileName, assetRef, confirmAmbiguous, restoring,
+      });
       const root = new THREE.Group();
       const id = instanceId || `IMPORTED_${Date.now()}_${Math.random().toString(16).slice(2)}`;
       root.name = fileName;
@@ -11699,6 +11799,7 @@ function ThreeCanvas({
         assetMimeType,
         assetSize,
         assetSha256,
+        preparedRepresentation,
       };
       root.add(content);
       root.position.fromArray(
@@ -11739,7 +11840,7 @@ function ThreeCanvas({
       return root;
     }
 
-    async function importModelFile(file, { unit = 'mm' } = {}) {
+    async function importModelFile(file, { unit = 'mm', onStatus, confirmAmbiguous } = {}) {
       if (readOnly) return null;
       if (!(file instanceof Blob)) throw new TypeError('Selecciona un archivo válido.');
       const format = detectImportedModelFormat(file.name);
@@ -11755,14 +11856,29 @@ function ThreeCanvas({
       if (largeGlb && !window.electronAPI?.importModelAsset) {
         throw new Error('Los GLB de más de 50 MiB requieren la importación de assets en Electron.');
       }
+      if (largeGlb && file.size > 1536 * 1024 * 1024) onStatus?.('Preparando modelo grande...');
       const asset = largeGlb ? await window.electronAPI.importModelAsset(file) : null;
-      const object = await createImportedModel({
-        ...(asset || { dataUrl: await fileToDataUrl(file) }),
-        format,
-        unit,
-        fileName: file.name,
-        recordHistory: true,
-      });
+      if (asset?.preparedRepresentation) onStatus?.('Modelo preparado. Cargando...');
+      let object;
+      try {
+        object = await createImportedModel({
+          ...(asset || { dataUrl: await fileToDataUrl(file) }),
+          format,
+          unit,
+          fileName: file.name,
+          recordHistory: true,
+          confirmAmbiguous,
+        });
+      } catch (error) {
+        if (error instanceof ImportedModelImportCancelled && asset?.assetRef) {
+          try {
+            await window.electronAPI?.discardImportedModelAsset?.(asset.assetRef);
+          } catch (cleanupError) {
+            console.warn('No se pudo retirar el asset de la importación cancelada.', cleanupError);
+          }
+        }
+        throw error;
+      }
       frameToObject(object);
       return object;
     }
@@ -12234,6 +12350,7 @@ function ThreeCanvas({
               ...(entity.metadata || {}),
               instanceId: entity.instanceId,
               recordHistory: false,
+              restoring: true,
             }),
         };
 
@@ -13073,6 +13190,16 @@ function ThreeCanvas({
     }
 
     onApiReady?.({
+      getImportedModelGroupSelectionState,
+      markImportedModelGroup,
+      setImportedModelGroupSelectionTest,
+      listImportedModelsForInspector,
+      getImportedModelInspector,
+      highlightImportedModelGroup,
+      clearGroupInspectorHighlight,
+      showGroupInspectorCandidateMap,
+      clearGroupInspectorCandidateMap,
+      getImportedModelInspectorPerformance,
       addPart,
       addPartFromGlb,
       addSurface,
@@ -18509,6 +18636,23 @@ function ThreeCanvas({
         }
       }
       if (['WALL', 'DOOR', 'COLUMN'].includes(firstHit.object.userData?.kind)) return;
+
+      if (groupSelectionTestModelId && import.meta.env.VITE_GROUP_INSPECTOR === '1') {
+        const hitModelId = firstHit.object.userData?.parentImportedModelId;
+        if (hitModelId === groupSelectionTestModelId) {
+          const unit = getImportedModelGroupSelection(hitModelId)?.resolveMesh(firstHit.object);
+          if (unit?.selectable) {
+            const startedAt = performance.now();
+            highlightImportedModelGroup(hitModelId, unit.group.id);
+            groupSelectionResult = { modelId: hitModelId, groupId: unit.group.id,
+              familyId: unit.familyId, status: unit.status,
+              lookupMs: Number((performance.now() - startedAt).toFixed(2)) };
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+        }
+      }
 
       let hitObj = firstHit.object; // Mesh real clickeado
       const multipleSystemProduct = getMultipleSystemProductFromHit(hitObj);
@@ -24161,6 +24305,8 @@ function ThreeCanvas({
       scene.remove(milaConnectorHandleGroup);
       scene.remove(clakConnectorHandleGroup);
       renderer.domElement.style.cursor = '';
+      clearGroupInspectorHighlight();
+      clearGroupInspectorCandidateMap();
       renderer.dispose();
       if (renderer.domElement?.parentNode === container) {
         container.removeChild(renderer.domElement);

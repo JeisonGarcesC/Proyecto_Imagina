@@ -42,7 +42,7 @@ const METADATA_FIELDS = {
     'almacenVariants',
   ],
   OFFICE_ACCESSORY: ['accessoryName'],
-  IMPORTED_MODEL: ['fileName', 'format', 'unit', 'assetDataUrl', 'assetRef', 'assetMimeType', 'assetSize', 'assetSha256', 'bounds2d'],
+  IMPORTED_MODEL: ['fileName', 'format', 'unit', 'assetDataUrl', 'assetRef', 'assetMimeType', 'assetSize', 'assetSha256', 'preparedRepresentation', 'bounds2d'],
 };
 
 function cloneSerializable(value) {

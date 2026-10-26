@@ -3,8 +3,21 @@ import { GLTFLoader } from 'three-stdlib';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { loadDxfPlan } from '../core/plans/loaders/dxfPlanLoader.js';
+import { registerImportedGltfNodes } from './importedModelGroupInspector.js';
+import {
+  analyzeImportedModelBounds,
+  MAX_IMPORTED_MODEL_DIMENSION,
+  resolveImportedModelBoundsDecision,
+} from './importedModelBounds.js';
 
 export const MAX_IMPORTED_MODEL_SIZE = 50 * 1024 * 1024;
+
+export class ImportedModelImportCancelled extends Error {
+  constructor() {
+    super('Importación cancelada.');
+    this.name = 'ImportedModelImportCancelled';
+  }
+}
 
 export function validateImportedModelSize(size, maxSize = MAX_IMPORTED_MODEL_SIZE) {
   if (!Number.isFinite(size) || size < 0) throw new TypeError('Tamaño de archivo inválido.');
@@ -52,7 +65,10 @@ function dataUrlToText(dataUrl) {
 function parseGltf(dataUrl, format) {
   const source = format === 'glb' ? dataUrlToArrayBuffer(dataUrl) : dataUrlToText(dataUrl);
   return new Promise((resolve, reject) => {
-    new GLTFLoader().parse(source, '', (gltf) => resolve(gltf.scene), reject);
+    new GLTFLoader().parse(source, '', (gltf) => {
+      if (import.meta.env?.VITE_GROUP_INSPECTOR === '1') registerImportedGltfNodes(gltf);
+      resolve(gltf.scene);
+    }, reject);
   });
 }
 
@@ -108,14 +124,20 @@ function buildDxfObject(normalized, scale) {
   return group;
 }
 
-export async function createImportedModelObject({ dataUrl, sourceUrl, format, unit = 'mm', fileName = '' }) {
+export async function createImportedModelObject({
+  dataUrl, sourceUrl, format, unit = 'mm', fileName = '', assetRef = null,
+  confirmAmbiguous, restoring = false,
+}) {
   const normalizedFormat = String(format || '').toLowerCase();
   const scale = resolveImportedModelUnitScale(unit, normalizedFormat);
   let object;
 
   if (normalizedFormat === 'glb' || normalizedFormat === 'gltf') {
     object = sourceUrl && normalizedFormat === 'glb'
-      ? (await new GLTFLoader().loadAsync(sourceUrl)).scene
+      ? await new GLTFLoader().loadAsync(sourceUrl).then((gltf) => {
+        if (import.meta.env?.VITE_GROUP_INSPECTOR === '1') registerImportedGltfNodes(gltf);
+        return gltf.scene;
+      })
       : await parseGltf(dataUrl, normalizedFormat);
   } else if (normalizedFormat === 'stl') {
     const geometry = new STLLoader().parse(dataUrlToArrayBuffer(dataUrl));
@@ -143,7 +165,46 @@ export async function createImportedModelObject({ dataUrl, sourceUrl, format, un
   const bounds = new THREE.Box3().setFromObject(object);
   if (bounds.isEmpty()) throw new Error('El archivo no contiene geometría compatible.');
   const size = bounds.getSize(new THREE.Vector3());
-  if (![size.x, size.y, size.z].every(Number.isFinite) || Math.max(size.x, size.y, size.z) > 1000) {
+  if (normalizedFormat === 'glb' || normalizedFormat === 'gltf') {
+    if (![size.x, size.y, size.z].every(Number.isFinite) || Math.max(size.x, size.y, size.z) > MAX_IMPORTED_MODEL_DIMENSION) {
+      const analysis = analyzeImportedModelBounds(object);
+      console.info('[IMPORTED_MODEL_BOUNDS]', {
+        format: normalizedFormat, unit, calculatedScale: scale, assetRef,
+        preparedModel: Boolean(sourceUrl?.endsWith('/model.gltf')),
+        totalBounds: analysis.total, validatedBounds: analysis.principal,
+        estimatedPrincipalBounds: analysis.estimatedPrincipal,
+        renderableCount: analysis.renderableCount,
+        contextCount: analysis.context.length, ambiguousCount: analysis.ambiguous.length,
+        context: analysis.context, ambiguous: analysis.ambiguous, decision: analysis.decision,
+      });
+      const decision = await resolveImportedModelBoundsDecision(analysis, {
+        confirm: confirmAmbiguous, restoring,
+      });
+      if (decision !== analysis.decision) {
+        console.info('[IMPORTED_MODEL_BOUNDS]', { assetRef, decision });
+      }
+      if (decision === 'cancelled') throw new ImportedModelImportCancelled();
+      if (decision === 'requires_confirmation') {
+        throw new Error('El modelo supera el límite de 1000 m y contiene superficies extensas cuya función no pudo determinarse con seguridad.');
+      }
+      if (!['accept', 'confirmed', 'restored'].includes(decision)) {
+        throw new Error('La escala del objeto no es válida. El modelo supera el límite máximo de 1000 m.');
+      }
+    }
+  } else if (![size.x, size.y, size.z].every(Number.isFinite) || Math.max(size.x, size.y, size.z) > MAX_IMPORTED_MODEL_DIMENSION) {
+    console.warn('[IMPORTED_MODEL_BOUNDS]', {
+      format: normalizedFormat,
+      unit,
+      min: bounds.min.toArray(),
+      max: bounds.max.toArray(),
+      width: size.x,
+      height: size.y,
+      depth: size.z,
+      calculatedScale: scale,
+      invalidNumber: ![size.x, size.y, size.z, ...bounds.min.toArray(), ...bounds.max.toArray()].every(Number.isFinite),
+      assetRef,
+      preparedModel: Boolean(sourceUrl?.endsWith('/model.gltf')),
+    });
     throw new Error('La escala del objeto no es válida. Revisa la unidad seleccionada.');
   }
   const center = bounds.getCenter(new THREE.Vector3());

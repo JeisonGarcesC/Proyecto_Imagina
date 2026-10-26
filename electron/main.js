@@ -3,7 +3,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { access, writeFile } from 'fs/promises';
 import { pathToFileURL } from 'node:url';
-import { ModelAssetStore, isModelAssetRef } from './modelAssetStore.js';
+import { ModelAssetStore } from './modelAssetStore.js';
+import { parseModelAssetRequestUrl } from './modelAssetRequest.js';
+import { registerModelAssetIpcHandlers } from './modelAssetIpc.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,9 +16,7 @@ protocol.registerSchemesAsPrivileged([{
   privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
 }]);
 
-ipcMain.handle('model-asset:import', async (_event, { sourcePath, fileName } = {}) =>
-  modelAssets.importGlb(sourcePath, fileName));
-ipcMain.handle('model-asset:clear-project', () => modelAssets.clearProject());
+registerModelAssetIpcHandlers(ipcMain, modelAssets);
 ipcMain.handle('project:save-complete', async (_event, project) => {
   const result = await dialog.showOpenDialog({ title: 'Carpeta del proyecto completo',
     properties: ['openDirectory', 'createDirectory'] });
@@ -83,12 +83,15 @@ function createWindow() {
 
 app.whenReady().then(() => {
   protocol.handle('imagina-asset', async (request) => {
-    const url = new URL(request.url);
-    const match = /^\/([0-9a-f-]{36})\.glb$/.exec(url.pathname);
-    if (url.hostname !== 'model' || !match || !isModelAssetRef(match[1]))
+    const asset = parseModelAssetRequestUrl(request.url);
+    if (!asset)
       return new Response('Asset inválido.', { status: 400 });
+    if (!asset.prepared && modelAssets.isPrepared(asset.assetRef))
+      return new Response('Usa la representación preparada.', { status: 409 });
     try {
-      const filePath = await modelAssets.resolvePath(match[1]);
+      const filePath = asset.prepared
+        ? await modelAssets.resolvePreparedPath(asset.assetRef, asset.fileName)
+        : await modelAssets.resolvePath(asset.assetRef);
       return net.fetch(pathToFileURL(filePath).toString());
     } catch {
       return new Response('Asset no disponible.', { status: 404 });
