@@ -44,7 +44,15 @@ export function resolveCritteriumConnectionPoints(sequence) {
 }
 
 export function findCritteriumSequence(system, sequenceId) {
-  return system?.children?.find((child) => isSequence(child) && child.userData.sequenceId === sequenceId) || null;
+  const local = system?.children?.find((child) => isSequence(child) && child.userData.sequenceId === sequenceId);
+  if (local) return local;
+  const scene = system?.parent;
+  for (const other of scene?.children || []) {
+    if (other.userData?.kind !== 'CRITERIUM_SYSTEM') continue;
+    const external = other.children.find((child) => isSequence(child) && child.userData.sequenceId === sequenceId);
+    if (external) return external;
+  }
+  return scene?.children?.find((child) => isSequence(child) && child.userData.sequenceId === sequenceId) || null;
 }
 
 export function validateCritteriumSpatialConnection(system, connection) {
@@ -54,6 +62,8 @@ export function validateCritteriumSpatialConnection(system, connection) {
   const target = resolveCritteriumConnectionPoints(findCritteriumSequence(system, connection.targetSequenceId))
     .find((point) => point.connectionId === connection.targetPointId);
   if (!source || !target) return { valid: false, reason: 'CRITERIUM_SPATIAL_POINT_MISSING' };
+  if (connection.targetSystemId && findCritteriumSequence(system, connection.targetSequenceId)?.userData?.parentSystemId !== connection.targetSystemId)
+    return { valid: false, reason: 'CRITERIUM_SYSTEM_TARGET_OWNER_MISMATCH' };
   const rule = classifyCritteriumConnection(source, target);
   if (!rule.valid || rule.type !== connection.type) return { valid: false, reason: rule.reason || 'CRITERIUM_SPATIAL_TYPE_MISMATCH' };
   const distanceM = Math.hypot(source.position[0] - target.position[0], source.position[2] - target.position[2]);
@@ -62,7 +72,11 @@ export function validateCritteriumSpatialConnection(system, connection) {
 }
 
 export function collectCritteriumSpatialDiagnostics(system) {
-  return (system?.userData?.connections || []).flatMap((connection) => {
+  const incoming = (system?.parent?.children || [])
+    .filter((other) => other !== system && other.userData?.kind === 'CRITERIUM_SYSTEM')
+    .flatMap((other) => other.userData.connections || [])
+    .filter((connection) => connection.targetSystemId === system.userData.systemId);
+  return [...(system?.userData?.connections || []), ...incoming].flatMap((connection) => {
     const validation = validateCritteriumSpatialConnection(system, connection);
     return validation.valid ? [] : [{ connectionId: connection.connectionId, code: validation.reason, distanceM: validation.distanceM ?? null }];
   });

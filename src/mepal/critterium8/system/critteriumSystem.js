@@ -95,20 +95,31 @@ function hasPoint(sequence, pointId) {
   return (sequence.userData.junctionIds || []).includes(pointId);
 }
 
-export function connectCritteriumSystemSequences(system, connection) {
+export function connectCritteriumSystemSequences(system, connection, { findSequence } = {}) {
   if (!isSystem(system)) throw new Error('CRITERIUM_SYSTEM_REQUIRED');
   if (['T_JUNCTION', 'CROSS'].includes(connection?.type))
     throw new Error(`UNSUPPORTED_SPATIAL_TOPOLOGY: ${connection.type} requiere un anclaje físico lateral o intermedio; ninguna pieza CRITERIUM actual lo documenta.`);
   if (connection?.type && !['LINEAR', 'DEG_90', 'RELATION'].includes(connection.type)) throw new Error('CRITERIUM_SYSTEM_INVALID_CONNECTION_TYPE');
   const { sourceSequenceId, sourcePointId, targetSequenceId, targetPointId } = connection || {};
+  if (connection?.sourceSystemId && connection.sourceSystemId !== system.userData.systemId)
+    throw new Error('CRITERIUM_SYSTEM_SOURCE_OWNER_MISMATCH');
   if (!sourceSequenceId || !targetSequenceId || sourceSequenceId === targetSequenceId) throw new Error('CRITERIUM_SYSTEM_INVALID_CONNECTION');
   const source = system.children.find((child) => child.userData?.sequenceId === sourceSequenceId);
-  const target = system.children.find((child) => child.userData?.sequenceId === targetSequenceId);
+  const target = system.children.find((child) => child.userData?.sequenceId === targetSequenceId)
+    || findSequence?.(targetSequenceId);
+  const targetSystemId = target?.userData?.parentSystemId || connection?.targetSystemId || null;
+  if (target && target.parent !== system && (!targetSystemId || targetSystemId === system.userData.systemId ||
+    (connection?.targetSystemId && connection.targetSystemId !== targetSystemId)))
+    throw new Error('CRITERIUM_SYSTEM_TARGET_OWNER_MISMATCH');
   if (!source || !target || !hasPoint(source, sourcePointId) || !hasPoint(target, targetPointId)) throw new Error('CRITERIUM_SYSTEM_INVALID_CONNECTION_POINT');
   const pairKey = [sourceSequenceId, targetSequenceId].sort().join('|');
   if (system.userData.connections.some((item) => [item.sourceSequenceId, item.targetSequenceId].sort().join('|') === pairKey)) {
     throw new Error('CRITERIUM_SYSTEM_DUPLICATE_CONNECTION');
   }
+  if (system.parent?.children.some((otherSystem) => otherSystem !== system && isSystem(otherSystem) &&
+    otherSystem.userData.connections?.some((item) =>
+      [item.sourceSequenceId, item.targetSequenceId].sort().join('|') === pairKey)))
+    throw new Error('CRITERIUM_SYSTEM_DUPLICATE_CONNECTION');
   if (['LINEAR', 'DEG_90'].includes(connection.type) && system.userData.connections.some((item) =>
     ['LINEAR', 'DEG_90'].includes(item.type) &&
     ((item.sourceSequenceId === sourceSequenceId && item.sourcePointId === sourcePointId) ||
@@ -117,9 +128,17 @@ export function connectCritteriumSystemSequences(system, connection) {
       (item.targetSequenceId === targetSequenceId && item.targetPointId === targetPointId)))) {
     throw new Error('CRITERIUM_SYSTEM_CONNECTION_POINT_OCCUPIED');
   }
+  if (['LINEAR', 'DEG_90'].includes(connection.type) && system.parent?.children.some((otherSystem) =>
+    otherSystem !== system && isSystem(otherSystem) && otherSystem.userData.connections?.some((item) =>
+      ['LINEAR', 'DEG_90'].includes(item.type) && [
+        [item.sourceSequenceId, item.sourcePointId], [item.targetSequenceId, item.targetPointId],
+      ].some(([id, pointId]) => (id === sourceSequenceId && pointId === sourcePointId) ||
+        (id === targetSequenceId && pointId === targetPointId)))))
+    throw new Error('CRITERIUM_SYSTEM_CONNECTION_POINT_OCCUPIED');
   const item = { connectionId: connection.connectionId || MathUtils.generateUUID(), sourceSequenceId, sourcePointId, targetSequenceId, targetPointId,
     sequenceAId: sourceSequenceId, pointAId: sourcePointId, sequenceBId: targetSequenceId, pointBId: targetPointId,
-    type: connection.type || 'RELATION' };
+    type: connection.type || 'RELATION',
+    ...(target.parent !== system ? { sourceSystemId: system.userData.systemId, targetSystemId } : {}) };
   system.userData.connections.push(item);
   return item;
 }

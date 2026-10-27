@@ -1010,6 +1010,13 @@ export default function Plan2DOverlay({
   const getSelectionTargetIds = useCallback(
     (part, snapshot) => {
       if (!part?.id) return [];
+      if (
+        part.kind === 'CRITERIUM_SYSTEM' ||
+        part.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' ||
+        part.kind === 'CRITTERIUM_8_ASSEMBLY'
+      ) {
+        return resolveSelectionTargetIds?.([part.id], { connectedCritterium2D: true }) || [part.id];
+      }
       const groupId = String(part.groupId || '').trim();
       if (!moveAsGroup || !groupId) return [part.id];
 
@@ -1022,7 +1029,7 @@ export default function Plan2DOverlay({
         )
       );
     },
-    [moveAsGroup]
+    [moveAsGroup, resolveSelectionTargetIds]
   );
 
   const resolvePositionSnap = useCallback(
@@ -1664,6 +1671,7 @@ export default function Plan2DOverlay({
         const resolvedCandidates =
           resolveSelectionTargetIds?.(candidates, {
             asGroup: moveAsGroup,
+            connectedCritterium2D: true,
           }) || candidates;
         onPickIds?.(
           applySelectionOperation(selectedIds, resolvedCandidates, completedSelection.operation)
@@ -1701,7 +1709,7 @@ export default function Plan2DOverlay({
         suppressNextClickRef.current = pieceDrag.hasMoved;
         dragPieceRef.current = null;
         setDragPieceId(null);
-        onEndMove2D?.();
+        onEndMove2D?.({ skipSnap: pieceDrag.skipSnap === true });
       }
 
       dragRef.current.isDown = false;
@@ -2153,6 +2161,11 @@ export default function Plan2DOverlay({
       dragPieceRef.current = {
         id: picked.id,
         selectionIds,
+        skipSnap: selectionIds.length > 1 && (
+          picked.kind === 'CRITERIUM_SYSTEM' ||
+          picked.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' ||
+          picked.kind === 'CRITTERIUM_8_ASSEMBLY'
+        ),
         initialPositions,
         startWorldX: world.x,
         startWorldZ: world.z,

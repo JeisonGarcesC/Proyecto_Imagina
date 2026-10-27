@@ -38,7 +38,8 @@ export function restoreCritteriumSystem(entity, { scene, partsRegistry, findSequ
   scene.add(system);
   try {
     sequences.forEach((sequence) => addSequenceToCritteriumSystem(system, sequence));
-    (entity.connections || []).forEach((connection) => connectCritteriumSystemSequences(system, connection));
+    (entity.connections || []).forEach((connection) =>
+      connectCritteriumSystemSequences(system, connection, { findSequence }));
     system.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(system);
     registerCritteriumSystem({ system, scene, partsRegistry });
     return system;
