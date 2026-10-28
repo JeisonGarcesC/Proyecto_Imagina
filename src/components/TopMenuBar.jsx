@@ -22,9 +22,6 @@ export default function TopMenuBar({
   onOpenAdminDevices,
   canAdminAudit = false,
   onOpenAdminAudit,
-  country,
-  setCountry,
-  catalogCountries = [],
   materialsByCode,
   threeApiRef,
   transformTool = 'move',
@@ -270,18 +267,6 @@ export default function TopMenuBar({
             disabled={!canLoadSave}
           />
         </div>
-
-        <select
-          value={country}
-          onChange={(e) => setCountry(e.target.value)}
-          className="topbar-country"
-        >
-          {catalogCountries.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className="topbar-center">

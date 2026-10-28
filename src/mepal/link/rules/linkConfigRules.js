@@ -17,9 +17,11 @@ export function normalizeLinkConfig(input = {}) {
     const credenzaLengthMm = Number(c.credenzaLengthMm);
     if (!LINK_CREDENZA_EXE_LENGTHS.includes(credenzaLengthMm)) throw new Error('Largo de credenza LINK no válido.');
     if (!LINK_CREDENZA_EXE_MODELS.some(m => m.value === c.credenzaModel)) throw new Error('Modelo de credenza LINK no válido.');
-    Object.assign(c, { credenzaLengthMm, widthMm: credenzaLengthMm, depthMm: 600, puestos: 1, modoEspecial: false, surfaceMode: 'principal',
+    Object.assign(c, {
+      credenzaLengthMm, widthMm: credenzaLengthMm, depthMm: 600, puestos: 1, modoEspecial: false, surfaceMode: 'principal',
       hasDuct: false, hasPantallaFrontal: false, hasPantallaLateral: false, hasPantallaFalda: false, integracionType: 'ninguna',
-      leaderCredenza: false, leaderReturnGrommet: false });
+      leaderCredenza: false, leaderReturnGrommet: false
+    });
   }
   if (c.type === 'puesto120') {
     const depthMm = [600, 750].includes(Number(c.depthMm)) ? Number(c.depthMm) : 600;
@@ -62,8 +64,8 @@ export function normalizeLinkConfig(input = {}) {
   if (!getLinkFinishOptions(c.type).some(f => f.id === c.finishId)) throw new Error('Acabado LINK no disponible.');
   if (leader && c.leaderCredenza && c.finishId !== 'FORMICA_30') throw new Error('La superficie a credenza LINK disponible usa fórmica de 30 mm.');
   if (!LINK_SUPPORT_SHAPES.some(s => s.value === c.tipoCostado)) throw new Error('Tipo de costado no disponible.');
-  if (!['PINTADO','CROMADO'].includes(c.supportFinish)) throw new Error('Acabado de costado inválido.');
-  if (!['none','grommet'].includes(c.cableAccess) || !['ALUMINIUM','PAINTED'].includes(c.grommetFinish)) throw new Error('Grommet LINK no válido.');
+  if (!['PINTADO', 'CROMADO'].includes(c.supportFinish)) throw new Error('Acabado de costado inválido.');
+  if (!['none', 'grommet'].includes(c.cableAccess) || !['ALUMINIUM', 'PAINTED'].includes(c.grommetFinish)) throw new Error('Grommet LINK no válido.');
   if (!['ninguna', 'individual', 'recta', 'redonda', 'curva', '120'].includes(c.integracionType)) throw new Error('Superficie de integración LINK no válida.');
   if (!['ambas', 'izquierda', 'derecha'].includes(c.integracionSide)) throw new Error('Lado de integración LINK no válido.');
   if (!['izquierda', 'derecha'].includes(c.integracionHoleSide)) throw new Error('Lado del orificio LINK no válido.');
@@ -78,24 +80,26 @@ export function normalizeLinkConfig(input = {}) {
     if (!LINK_CREDENZA_EXE_LENGTHS.includes(Number(c.credenzaLengthMm))) throw new Error('Largo de credenza LINK no válido.');
     if (!LINK_CREDENZA_EXE_MODELS.some(m => m.value === c.credenzaModel)) throw new Error('Modelo de credenza LINK no válido.');
   }
-  for (const key of ['surfaceColor','structureColor','pedestalColor']) if (!/^#[\da-f]{6}$/i.test(c[key])) throw new Error('Color LINK inválido.');
+  for (const key of ['surfaceColor', 'structureColor', 'pedestalColor']) if (!/^#[\da-f]{6}$/i.test(c[key])) throw new Error('Color LINK inválido.');
   if (!leader && input.pedestal) throw new Error('Sencillo y doble no llevan pedestal.');
   const finishAssignments = {};
-  for (const [key,value] of Object.entries(c.finishAssignments || {})) if (typeof value === 'string' && /^(?:\*|role:[A-Z_]+|component:[\w-]+)$/.test(key)) finishAssignments[key] = value.trim();
-  return { type:c.type, widthMm, depthMm, surfaceMode:c.surfaceMode, returnLengthMm, returnDepthMm, side:c.side,
-    puestos, modoEspecial:c.modoEspecial === true, finishId:c.finishId, tipoCostado:c.tipoCostado, supportFinish:c.supportFinish,
-    hasDuct:c.hasDuct, cableAccess:c.cableAccess, grommetFinish:c.grommetFinish, finishAssignments,
-    componentTransforms:normalizeLinkComponentTransforms(c.componentTransforms),
-    components:normalizeLinkComponents(c.components,c.type), leaderReturnGrommet:c.leaderReturnGrommet,
-    leaderCredenza:c.leaderCredenza, credenzaLengthMm:Number(c.credenzaLengthMm), credenzaModel:c.credenzaModel,
-    surfaceColor:c.surfaceColor, structureColor:c.structureColor, pedestalColor:c.pedestalColor,
-    hasPantallaFrontal:c.type==='doble' && c.hasPantallaFrontal, pantallaFrontalMaterial:c.pantallaFrontalMaterial,
-    hasPantallaLateral:c.hasPantallaLateral, pantallaLateralMaterial:c.pantallaLateralMaterial,
-    pantallaLateralSide:['ambos','ambas','izquierda','derecha'].includes(c.pantallaLateralSide)?(c.pantallaLateralSide==='ambas'?'ambos':c.pantallaLateralSide):'ambos',
-    hasPantallaFalda:c.hasPantallaFalda, pantallaFaldaMaterial:c.pantallaFaldaMaterial,
-    integracionType:c.integracionType, integracionSide:c.integracionSide, integracionHoleSide:c.integracionHoleSide,
+  for (const [key, value] of Object.entries(c.finishAssignments || {})) if (typeof value === 'string' && /^(?:\*|role:[A-Z_]+|component:[\w-]+)$/.test(key)) finishAssignments[key] = value.trim();
+  return {
+    type: c.type, widthMm, depthMm, surfaceMode: c.surfaceMode, returnLengthMm, returnDepthMm, side: c.side,
+    puestos, modoEspecial: c.modoEspecial === true, finishId: c.finishId, tipoCostado: c.tipoCostado, supportFinish: c.supportFinish,
+    hasDuct: c.hasDuct, cableAccess: c.cableAccess, grommetFinish: c.grommetFinish, finishAssignments,
+    componentTransforms: normalizeLinkComponentTransforms(c.componentTransforms),
+    components: normalizeLinkComponents(c.components, c.type), leaderReturnGrommet: c.leaderReturnGrommet,
+    leaderCredenza: c.leaderCredenza, credenzaLengthMm: Number(c.credenzaLengthMm), credenzaModel: c.credenzaModel,
+    surfaceColor: c.surfaceColor, structureColor: c.structureColor, pedestalColor: c.pedestalColor,
+    hasPantallaFrontal: c.type === 'doble' && c.hasPantallaFrontal, pantallaFrontalMaterial: c.pantallaFrontalMaterial,
+    hasPantallaLateral: c.hasPantallaLateral, pantallaLateralMaterial: c.pantallaLateralMaterial,
+    pantallaLateralSide: ['ambos', 'ambas', 'izquierda', 'derecha'].includes(c.pantallaLateralSide) ? (c.pantallaLateralSide === 'ambas' ? 'ambos' : c.pantallaLateralSide) : 'ambos',
+    hasPantallaFalda: c.hasPantallaFalda, pantallaFaldaMaterial: c.pantallaFaldaMaterial,
+    integracionType: c.integracionType, integracionSide: c.integracionSide, integracionHoleSide: c.integracionHoleSide,
     disposicion120: ['individual', 'doble', '360'].includes(c.disposicion120) ? c.disposicion120 : 'individual',
     side120: ['derecha', 'izquierda'].includes(c.side120) ? c.side120 : 'derecha',
     grommetSide120: ['izquierda', 'derecha', 'ambos'].includes(c.grommetSide120) ? c.grommetSide120 : 'izquierda',
-    integracion120Wing: ['ambas', 'izquierda', 'derecha'].includes(c.integracion120Wing) ? c.integracion120Wing : 'ambas' };
+    integracion120Wing: ['ambas', 'izquierda', 'derecha'].includes(c.integracion120Wing) ? c.integracion120Wing : 'ambas'
+  };
 }

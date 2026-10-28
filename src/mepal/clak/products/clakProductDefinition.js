@@ -7,10 +7,10 @@ export async function getClakProductDefinition(codigoPT, options = {}) {
     .toUpperCase();
   const [detailCO, detailEUC, detailUSD] = code
     ? await Promise.all([
-        getClakDetail(code, 'CO'),
-        getClakDetail(code, 'EUC'),
-        getClakDetail(code, 'USD'),
-      ])
+      getClakDetail(code, 'CO'),
+      getClakDetail(code, 'EUC'),
+      getClakDetail(code, 'USD'),
+    ])
     : [null, null, null];
   const detail =
     (country === 'EUC' && detailEUC) ||

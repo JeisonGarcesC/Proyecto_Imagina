@@ -159,127 +159,127 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
       </div>
       <div style={{ padding: '0 12px 12px 12px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
-      <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
-        {part.description || part.code || 'Elemento'}
-      </div>
-
-      {part.code && (
-        <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Código: {part.code}</div>
-      )}
-
-      <div style={{ marginTop: 6, fontSize: 11, color: '#888' }}>
-        kind: {String(part?.kind || '')}
-      </div>
-
-      <LinkProperties part={part} api={api} onClose={onClose} />
-      <MultipleProperties part={part} api={api} onClose={onClose} />
-      <KoncisaPlusProperties part={part} api={api} onClose={onClose} />
-
-      <MepalSaludProperties part={part} api={api} onClose={onClose} />
-
-      <ClakProperties part={part} api={api} onClose={onClose} />
-
-      <AlmacenamientoProperties part={part} api={api} onClose={onClose} />
-
-      <EdukProperties part={part} api={api} onClose={onClose} />
-
-      <KuoGoProperties part={part} api={api} onClose={onClose} />
-
-      <KuoAVProperties part={part} api={api} onClose={onClose} />
-
-      <KuoAVDobleProperties part={part} api={api} onClose={onClose} />
-
-      <GiroSurfaceProperties part={part} api={api} onClose={onClose} />
-
-      <MoreaProperties part={part} api={api} onClose={onClose} />
-
-      {!isMoreaEditablePart(part) && <MilaProperties part={part} api={api} onClose={onClose} />}
-
-      <LockerPopupProperties part={part} api={api} onClose={onClose} />
-
-      {showGenericIntegrationButton && (
-        <div style={sectionStyle}>
-          <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.75, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
-            Esta pieza pertenece a un puesto de integración.
-          </div>
-          <button
-            type="button"
-            style={{
-              marginTop: 10,
-              width: '100%',
-              padding: '6px 12px',
-              background: '#b91c1c',
-              color: '#fff',
-              border: '1px solid #b91c1c',
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-            onClick={async () => {
-              await api?.removeSelectedIntegrationAndRestoreCostado?.();
-            }}
-          >
-            Quitar puesto de integración
-          </button>
+        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+          {part.description || part.code || 'Elemento'}
         </div>
-      )}
 
-      {isFloor && (
-        <div style={sectionStyle}>
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={part?.showGrid !== false}
-              onChange={(e) => {
-                api?.updateFloorVisualOptions?.({
-                  showGrid: e.target.checked,
-                });
+        {part.code && (
+          <div style={{ marginTop: 4, fontSize: 11, opacity: 0.6 }}>Código: {part.code}</div>
+        )}
+
+        <div style={{ marginTop: 6, fontSize: 11, color: '#888' }}>
+          kind: {String(part?.kind || '')}
+        </div>
+
+        <LinkProperties part={part} api={api} onClose={onClose} />
+        <MultipleProperties part={part} api={api} onClose={onClose} />
+        <KoncisaPlusProperties part={part} api={api} onClose={onClose} />
+
+        <MepalSaludProperties part={part} api={api} onClose={onClose} />
+
+        <ClakProperties part={part} api={api} onClose={onClose} />
+
+        <AlmacenamientoProperties part={part} api={api} onClose={onClose} />
+
+        <EdukProperties part={part} api={api} onClose={onClose} />
+
+        <KuoGoProperties part={part} api={api} onClose={onClose} />
+
+        <KuoAVProperties part={part} api={api} onClose={onClose} />
+
+        <KuoAVDobleProperties part={part} api={api} onClose={onClose} />
+
+        <GiroSurfaceProperties part={part} api={api} onClose={onClose} />
+
+        <MoreaProperties part={part} api={api} onClose={onClose} />
+
+        {!isMoreaEditablePart(part) && <MilaProperties part={part} api={api} onClose={onClose} />}
+
+        <LockerPopupProperties part={part} api={api} onClose={onClose} />
+
+        {showGenericIntegrationButton && (
+          <div style={sectionStyle}>
+            <div style={{ fontSize: 11, lineHeight: 1.4, opacity: 0.75, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+              Esta pieza pertenece a un puesto de integración.
+            </div>
+            <button
+              type="button"
+              style={{
+                marginTop: 10,
+                width: '100%',
+                padding: '6px 12px',
+                background: '#b91c1c',
+                color: '#fff',
+                border: '1px solid #b91c1c',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
               }}
-            />
-            Mostrar cuadrícula
-          </label>
-
-          <label
-            style={{
-              display: 'grid',
-              gap: 6,
-              marginTop: 12,
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            Tamaño de cuadrícula
-            <select
-              value={String(part?.gridSize || 0.1)}
-              onChange={(e) => {
-                api?.updateFloorVisualOptions?.({
-                  gridSize: Number(e.target.value),
-                });
+              onClick={async () => {
+                await api?.removeSelectedIntegrationAndRestoreCostado?.();
               }}
             >
-              <option value="0.1">0.10 m</option>
-              <option value="0.25">0.25 m</option>
-              <option value="0.5">0.50 m</option>
-              <option value="1">1.00 m</option>
-            </select>
-          </label>
-        </div>
-      )}
+              Quitar puesto de integración
+            </button>
+          </div>
+        )}
 
-      {!hasEditableProperties && (
-        <div style={{ marginTop: 12, fontSize: 12, opacity: 0.65 }}>
-          Este elemento aún no tiene propiedades editables desde el popup.
-        </div>
-      )}
+        {isFloor && (
+          <div style={sectionStyle}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={part?.showGrid !== false}
+                onChange={(e) => {
+                  api?.updateFloorVisualOptions?.({
+                    showGrid: e.target.checked,
+                  });
+                }}
+              />
+              Mostrar cuadrícula
+            </label>
+
+            <label
+              style={{
+                display: 'grid',
+                gap: 6,
+                marginTop: 12,
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              Tamaño de cuadrícula
+              <select
+                value={String(part?.gridSize || 0.1)}
+                onChange={(e) => {
+                  api?.updateFloorVisualOptions?.({
+                    gridSize: Number(e.target.value),
+                  });
+                }}
+              >
+                <option value="0.1">0.10 m</option>
+                <option value="0.25">0.25 m</option>
+                <option value="0.5">0.50 m</option>
+                <option value="1">1.00 m</option>
+              </select>
+            </label>
+          </div>
+        )}
+
+        {!hasEditableProperties && (
+          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.65 }}>
+            Este elemento aún no tiene propiedades editables desde el popup.
+          </div>
+        )}
       </div>
     </div>
   );

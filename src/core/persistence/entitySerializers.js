@@ -29,8 +29,8 @@ const METADATA_FIELDS = {
   PART: ['generico'],
   CATALOG_PRODUCT: ['family', 'legacyKind', 'generico'],
   TYPOLOGY: [],
-  CLAK: ['clakVariant'],
-  EDUK: ['edukVariant', 'edukSelection', 'edukHeight', 'edukWidth'],
+  CLAK: ['clakVariant', 'isSpecial', 'specialLength', 'billingCode'],
+  EDUK: ['edukVariant', 'edukSelection', 'edukHeight', 'edukWidth', 'edukAbatible'],
   ARES: [],
   MEPAL_SALUD: ['mepalVariant'],
   MEPAL_TEK_SOCIAL: [],
@@ -40,6 +40,10 @@ const METADATA_FIELDS = {
     'almacenVariant',
     'almacenCategory',
     'almacenVariants',
+    'isSpecial',
+    'specialLength',
+    'billingCode',
+    'almacenLength',
   ],
   OFFICE_ACCESSORY: ['accessoryName'],
   IMPORTED_MODEL: ['fileName', 'format', 'unit', 'assetDataUrl', 'bounds2d'],
@@ -52,9 +56,8 @@ function cloneSerializable(value) {
 
 export function isKoncisaPersistenceObject(object) {
   const data = object?.userData || {};
-  const discriminator = `${data.kind || ''} ${data.type || ''} ${data.family || ''} ${
-    data.parentAssemblyId || ''
-  } ${data.groupId || ''} ${data.groupName || ''}`.toUpperCase();
+  const discriminator = `${data.kind || ''} ${data.type || ''} ${data.family || ''} ${data.parentAssemblyId || ''
+    } ${data.groupId || ''} ${data.groupName || ''}`.toUpperCase();
   return discriminator.includes('KONCISA');
 }
 

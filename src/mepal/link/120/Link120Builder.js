@@ -133,10 +133,11 @@ export function buildLink120(config) {
       }));
 
     // Soporte central 360° en el vértice de bifurcación que conecta los 3 grommets (ELSO110000 / LKSO110000 / 22000011409)
+    // Girado -90° (-Math.PI / 2) para que las 3 bocas apunten directamente a las bocas de los 3 ductos cableados (180°, +60°, -60°)
     parts.push(linkPart('SUPPORT', 'central-support-360', [360, 710, 310],
       [baseX + L, 355, 0], sup360.code, sup360.description,
       {
-        rotationY: 0,
+        rotationY: -Math.PI / 2,
         is120: true,
         logicalCode: sup360.logicalCode,
         model: { kind: 'glb', src: sup360.modelSrc, exactSize: true },
@@ -144,7 +145,7 @@ export function buildLink120(config) {
       }));
 
     // Costados dobles en los 3 extremos del conjunto (cada extremo mide depthMm * 2 + 26):
-    // 1. Costado base del puesto doble (retranqueado 32 mm si terminal, 0 mm si intermedio)
+    // 1. Costado base del puesto doble (retranqueado para que la tapa ducto quede a ras con la superficie)
     const isTerminalBase360 = config.components?.['support-360-base']?.terminal !== undefined
       ? Boolean(config.components['support-360-base'].terminal)
       : true;
@@ -155,20 +156,21 @@ export function buildLink120(config) {
             ? Boolean(config.components['support-360-base'].hasTapa)
             : true)
     );
+    const baseInset360 = isTerminalBase360 ? 57.5 : 0;
     const baseCostado360 = createCostado({
       config: { ...config, type: 'doble' },
       key: 'support-360-base',
       terminal: isTerminalBase360,
       depthMm: depthMm * 2 + 26,
       ruleDepthMm: depthMm,
-      position: [isTerminalBase360 ? (baseX + 32) : baseX, 355, 0],
+      position: [baseX + baseInset360, 355, 0],
       rotationY: Math.PI / 2, // Soportes de viga hacia adentro (+X) y tapa del ducto hacia afuera (-X)
       lengthScale,
       hasTapa: hasBaseTapa360,
     });
     if (baseCostado360) parts.push(baseCostado360);
 
-    // 2. Costado doble en el extremo del ala derecha (soporte de viga hacia adentro al centro 240°)
+    // 2. Costado doble en el extremo del ala derecha (soporte de viga hacia adentro al centro -120° y tapa cubriendo el ducto hacia afuera +60°)
     const isTerminalWingDer360 = config.components?.['support-360-wing-der']?.terminal !== undefined
       ? Boolean(config.components['support-360-wing-der'].terminal)
       : true;
@@ -179,7 +181,8 @@ export function buildLink120(config) {
             ? Boolean(config.components['support-360-wing-der'].hasTapa)
             : true)
     );
-    const wingEndDistDer = isTerminalWingDer360 ? (L_wing - 32) : L_wing;
+    const wingInsetDer360 = isTerminalWingDer360 ? 57.5 : 0;
+    const wingEndDistDer = L_wing - wingInsetDer360;
     const wingDerMidX = baseX + L + wingEndDistDer * 0.5;
     const wingDerMidZ = wingEndDistDer * (Math.sqrt(3) / 2);
     const wingDerCostado360 = createCostado({
@@ -189,13 +192,13 @@ export function buildLink120(config) {
       depthMm: depthMm * 2 + 26,
       ruleDepthMm: depthMm,
       position: [wingDerMidX, 355, wingDerMidZ],
-      rotationY: -Math.PI / 6, // Soportes de viga apuntando hacia el centro
+      rotationY: -5 * Math.PI / 6, // Orientado con los soportes de viga hacia adentro al centro y tapa cubriendo el ducto hacia afuera
       lengthScale,
       hasTapa: hasWingDerTapa360,
     });
     if (wingDerCostado360) parts.push(wingDerCostado360);
 
-    // 3. Costado doble en el extremo del ala izquierda (soporte de viga hacia adentro al centro 120°)
+    // 3. Costado doble en el extremo del ala izquierda (soporte de viga hacia adentro al centro +120° y tapa cubriendo el ducto hacia afuera -60°)
     const isTerminalWingIzq360 = config.components?.['support-360-wing-izq']?.terminal !== undefined
       ? Boolean(config.components['support-360-wing-izq'].terminal)
       : true;
@@ -206,7 +209,8 @@ export function buildLink120(config) {
             ? Boolean(config.components['support-360-wing-izq'].hasTapa)
             : true)
     );
-    const wingEndDistIzq = isTerminalWingIzq360 ? (L_wing - 32) : L_wing;
+    const wingInsetIzq360 = isTerminalWingIzq360 ? 57.5 : 0;
+    const wingEndDistIzq = L_wing - wingInsetIzq360;
     const wingIzqMidX = baseX + L + wingEndDistIzq * 0.5;
     const wingIzqMidZ = -wingEndDistIzq * (Math.sqrt(3) / 2);
     const wingIzqCostado360 = createCostado({
@@ -216,7 +220,7 @@ export function buildLink120(config) {
       depthMm: depthMm * 2 + 26,
       ruleDepthMm: depthMm,
       position: [wingIzqMidX, 355, wingIzqMidZ],
-      rotationY: -5 * Math.PI / 6, // Soportes de viga apuntando hacia el centro
+      rotationY: -Math.PI / 6, // Orientado con los soportes de viga hacia adentro al centro y tapa cubriendo el ducto hacia afuera
       lengthScale,
       hasTapa: hasWingIzqTapa360,
     });
@@ -335,31 +339,36 @@ export function buildLink120(config) {
         }));
     }
 
-    // Ductos cableados: 3 ductos dobles que llegan exactamente a las bocas de integración de LKSO110000 sin traspasarlo
+    // Ductos cableados: 3 ductos dobles que llegan al centro para juntarse completamente entre si (0 gap en LKSO110000)
+    // y llegan a la costura exacta en baseX / L_wing cuando sale un costado intermedio (0 gap con puestos conectados)
     if (hasDuct) {
-      const ductLen360 = 1150;
-      const centerDuctDist = 115 + ductLen360 / 2; // 690 mm
-      const arm2CenterX = baseX + L + centerDuctDist * 0.5;
-      const arm2CenterZ = centerDuctDist * (Math.sqrt(3) / 2);
-      const arm3CenterX = baseX + L + centerDuctDist * 0.5;
-      const arm3CenterZ = -centerDuctDist * (Math.sqrt(3) / 2);
-
-      // Ducto 1: Espina base (hacia -X) desde el costado base hasta la boca de integración de LKSO110000
+      // Ducto 1: Espina base (hacia -X). Llega al centro (baseX + L) para juntarse con los otros dos ductos.
+      // Cuando el costado es intermedio (salida de costado intermedio), llega a la costura exacta en baseX.
+      // Cuando es terminal, termina dentro de la tapa a baseX + 25.
+      const duct1Len = isTerminalBase360 ? (L - 25) : L;
+      const duct1StartX = isTerminalBase360 ? (baseX + 25) : baseX;
+      const duct1CenterX = duct1StartX + duct1Len / 2;
       const duct1 = createDucto({
-        config: { ...config, type: 'doble', widthMm: ductLen360 },
+        config: { ...config, type: 'doble', widthMm: duct1Len },
         moduleIndex: 0,
-        x: baseX + 32 + ductLen360 / 2,
+        x: duct1CenterX,
         z: 0,
         key: 'duct-0',
         rotationY: 0,
       });
       if (duct1) {
-        parts.push(duct1, ...createDuctAccessories({ ...config, type: 'doble', widthMm: ductLen360 }, duct1));
+        parts.push(duct1, ...createDuctAccessories({ ...config, type: 'doble', widthMm: duct1Len }, duct1));
       }
 
-      // Ducto 2: Brazo a +60°
+      // Ducto 2: Brazo a +60°. Llega al centro para juntarse con ducto 1 y ducto 3.
+      // Cuando el costado es intermedio, llega a la costura exacta en L_wing.
+      // Cuando es terminal, termina dentro de la tapa a L_wing - 25.
+      const duct2Len = isTerminalWingDer360 ? (L_wing - 25) : L_wing;
+      const duct2CenterDist = duct2Len / 2;
+      const arm2CenterX = baseX + L + duct2CenterDist * 0.5;
+      const arm2CenterZ = duct2CenterDist * (Math.sqrt(3) / 2);
       const duct2 = createDucto({
-        config: { ...config, type: 'doble', widthMm: ductLen360 },
+        config: { ...config, type: 'doble', widthMm: duct2Len },
         moduleIndex: 1,
         x: arm2CenterX,
         z: arm2CenterZ,
@@ -367,12 +376,18 @@ export function buildLink120(config) {
         rotationY: -Math.PI / 3,
       });
       if (duct2) {
-        parts.push(duct2);
+        parts.push(duct2, ...createDuctAccessories({ ...config, type: 'doble', widthMm: duct2Len }, duct2));
       }
 
-      // Ducto 3: Brazo a -60°
+      // Ducto 3: Brazo a -60°. Llega al centro para juntarse con ducto 1 y ducto 2.
+      // Cuando el costado es intermedio, llega a la costura exacta en L_wing.
+      // Cuando es terminal, termina dentro de la tapa a L_wing - 25.
+      const duct3Len = isTerminalWingIzq360 ? (L_wing - 25) : L_wing;
+      const duct3CenterDist = duct3Len / 2;
+      const arm3CenterX = baseX + L + duct3CenterDist * 0.5;
+      const arm3CenterZ = -duct3CenterDist * (Math.sqrt(3) / 2);
       const duct3 = createDucto({
-        config: { ...config, type: 'doble', widthMm: ductLen360 },
+        config: { ...config, type: 'doble', widthMm: duct3Len },
         moduleIndex: 2,
         x: arm3CenterX,
         z: arm3CenterZ,
@@ -380,7 +395,7 @@ export function buildLink120(config) {
         rotationY: Math.PI / 3,
       });
       if (duct3) {
-        parts.push(duct3);
+        parts.push(duct3, ...createDuctAccessories({ ...config, type: 'doble', widthMm: duct3Len }, duct3));
       }
     }
 
@@ -459,7 +474,7 @@ export function buildLink120(config) {
         meta: { category: 'superficies' },
       }));
 
-    // Costado doble en la base X = baseX (retranqueado 30 mm si terminal, 0 mm si intermedio)
+    // Costado doble en la base X = baseX (retranqueado para que la tapa o el tubo queden a ras con la superficie)
     const isTerminalBase = config.components?.['support-120-base']?.terminal !== undefined
       ? Boolean(config.components['support-120-base'].terminal)
       : true;
@@ -470,14 +485,15 @@ export function buildLink120(config) {
             ? Boolean(config.components['support-120-base'].hasTapa)
             : true)
     );
+    const baseInset = isTerminalBase ? 57.5 : 0;
     const baseCostado120 = createCostado({
       config: { ...config, type: 'doble' },
       key: 'support-120-base',
       terminal: isTerminalBase,
       depthMm: depthMm * 2 + 26,
       ruleDepthMm: depthMm,
-      position: [isTerminalBase ? (baseX + 32) : baseX, 355, 0],
-      rotationY: Math.PI / 2, // Soportes de viga hacia adentro (+X) y tapa del ducto hacia afuera
+      position: [baseX + baseInset, 355, 0],
+      rotationY: Math.PI / 2, // Soportes de viga hacia adentro (+X) y tapa del ducto hacia afuera (-X)
       lengthScale,
       hasTapa: hasBaseTapa,
     });
@@ -494,7 +510,7 @@ export function buildLink120(config) {
         meta: { category: 'soportes' },
       }));
 
-    // Costados sencillos en los extremos exteriores de las alas
+    // Costados sencillos en los extremos exteriores de las alas (con retranqueo estándar 57.5 mm)
     const isTerminalWingDer = config.components?.['support-120-wing-der']?.terminal !== undefined
       ? Boolean(config.components['support-120-wing-der'].terminal)
       : true;
@@ -505,9 +521,10 @@ export function buildLink120(config) {
     const layoutDer = getLink120WingLayout(depthMm, 'derecha', 26, L, L_wing);
     const layoutIzq = getLink120WingLayout(depthMm, 'izquierda', 26, L, L_wing);
 
-    // Costado ala derecha (soporte de viga hacia adentro bajo la mesa)
-    const offsetDerX = isTerminalWingDer ? 16 : 0;
-    const offsetDerZ = isTerminalWingDer ? 27.7 : 0;
+    // Costado ala derecha (soporte de viga hacia adentro bajo la mesa, retranqueo estándar 57.5 mm)
+    const wingInsetDer = isTerminalWingDer ? 57.5 : 0;
+    const offsetDerX = wingInsetDer * 0.5;
+    const offsetDerZ = wingInsetDer * (Math.sqrt(3) / 2);
     const wingDerX = baseX + layoutDer.wingMidpoint[0] - offsetDerX;
     const wingDerZ = layoutDer.wingMidpoint[1] - offsetDerZ;
     const wingDerCostado120 = createCostado({
@@ -522,9 +539,10 @@ export function buildLink120(config) {
     });
     if (wingDerCostado120) parts.push(wingDerCostado120);
 
-    // Costado ala izquierda (soporte de viga hacia adentro bajo la mesa)
-    const offsetIzqX = isTerminalWingIzq ? 16 : 0;
-    const offsetIzqZ = isTerminalWingIzq ? 27.7 : 0;
+    // Costado ala izquierda (soporte de viga hacia adentro bajo la mesa, retranqueo estándar 57.5 mm)
+    const wingInsetIzq = isTerminalWingIzq ? 57.5 : 0;
+    const offsetIzqX = wingInsetIzq * 0.5;
+    const offsetIzqZ = wingInsetIzq * (Math.sqrt(3) / 2);
     const wingIzqX = baseX + layoutIzq.wingMidpoint[0] - offsetIzqX;
     const wingIzqZ = layoutIzq.wingMidpoint[1] + offsetIzqZ;
     const wingIzqCostado120 = createCostado({
@@ -600,13 +618,17 @@ export function buildLink120(config) {
     }
 
     // Ducto cableado en la espina central del puesto doble:
-    // Conecta desde el costado base (baseX + 32) hasta la boca del costado intermedio ELSO740000 en baseX + L
+    // Conecta desde el costado base (baseX) hasta entrar en la boca del soporte intermedio ELSO740000 en baseX + L.
+    // Cuando el costado base es intermedio (salida de costado intermedio), llega a la costura exacta en baseX (0 gap para juntarse con otro puesto).
+    // Cuando es terminal, termina dentro de la tapa a baseX + 25.
     if (hasDuct) {
-      const ductLenDoble120 = 1240;
+      const ductLenDoble120 = isTerminalBase ? (L - 25) : L;
+      const ductStartXDoble120 = isTerminalBase ? (baseX + 25) : baseX;
+      const ductCenterXDoble120 = ductStartXDoble120 + ductLenDoble120 / 2;
       const duct = createDucto({
         config: { ...config, type: 'doble', widthMm: ductLenDoble120 },
         moduleIndex: 0,
-        x: baseX + 32 + ductLenDoble120 / 2,
+        x: ductCenterXDoble120,
         z: 0,
         key: 'duct-0',
       });
@@ -666,28 +688,32 @@ export function buildLink120(config) {
 
   const layout = getLink120WingLayout(depthMm, side, 0, L, L_wing);
 
-  // Costado base sencillo de 60 cm (o 75 cm), alineado a 36 mm bajo la superficie (0 mm si intermedio)
+  // Costado base sencillo de 60 cm (o 75 cm), alineado con retranqueo estándar Link bajo la superficie
   const isTerminalIndivBase = config.components?.['support-120-base']?.terminal !== undefined
     ? Boolean(config.components['support-120-base'].terminal)
     : true;
+  const baseOffsetIndiv = isTerminalIndivBase ? 57.5 : 0;
   const indivBaseCostado = createCostado({
     config: { ...config, type: 'sencillo' },
     key: 'support-120-base',
     terminal: isTerminalIndivBase,
     depthMm,
-    position: [isTerminalIndivBase ? (baseX + 36) : baseX, 355, signZ * (depthMm / 2)],
-    rotationY: -Math.PI / 2, // Orientado con los soportes de viga hacia adentro (+X)
+    position: [baseX + baseOffsetIndiv, 355, signZ * (depthMm / 2)],
+    rotationY: isDer ? -Math.PI / 2 : Math.PI / 2, // Orientado con los soportes de viga hacia adentro (+X) y el frente hacia el usuario
     lengthScale,
     hasTapa: false,
   });
   if (indivBaseCostado) parts.push(indivBaseCostado);
 
-  // Costado sencillo en el extremo exterior del ala alineado a 36 mm (soporte de viga hacia adentro)
+  // Costado sencillo en el extremo exterior del ala con retranqueo estándar Link (57.5 mm hacia adentro)
   const isTerminalIndivWing = config.components?.['support-120-wing']?.terminal !== undefined
     ? Boolean(config.components['support-120-wing'].terminal)
     : true;
-  const wingLegX = baseX + layout.wingMidpoint[0] - (isTerminalIndivWing ? 18 : 0);
-  const wingLegZ = layout.wingMidpoint[1] - signZ * (isTerminalIndivWing ? 31.2 : 0);
+  const insetWingIndiv = isTerminalIndivWing ? 57.5 : 0;
+  const wingOffsetIndivX = insetWingIndiv * 0.5;
+  const wingOffsetIndivZ = insetWingIndiv * (Math.sqrt(3) / 2);
+  const wingLegX = baseX + layout.wingMidpoint[0] - wingOffsetIndivX;
+  const wingLegZ = layout.wingMidpoint[1] - signZ * wingOffsetIndivZ;
   const wingRotY = isDer ? (Math.PI / 6) : (5 * Math.PI / 6);
   const indivWingCostado = createCostado({
     config: { ...config, type: 'sencillo' },
@@ -736,6 +762,26 @@ export function buildLink120(config) {
           is120: true,
           meta: { category: 'accesorios' },
         }));
+    }
+  }
+
+  // Ducto cableado sencillo en la espina central del puesto individual:
+  // Conecta desde el costado base (baseX) hasta el final de la espina en baseX + L.
+  // Cuando el costado base es intermedio (salida de costado intermedio), llega a la costura exacta en baseX (0 gap para juntarse con otro puesto).
+  // Cuando es terminal, termina dentro de la tapa a baseX + 25.
+  if (hasDuct) {
+    const ductLenIndiv120 = isTerminalIndivBase ? (L - 25) : L;
+    const ductStartXIndiv120 = isTerminalIndivBase ? (baseX + 25) : baseX;
+    const ductCenterXIndiv120 = ductStartXIndiv120 + ductLenIndiv120 / 2;
+    const duct = createDucto({
+      config: { ...config, type: 'sencillo', widthMm: ductLenIndiv120 },
+      moduleIndex: 0,
+      x: ductCenterXIndiv120,
+      z: signZ * 70,
+      key: 'duct-0',
+    });
+    if (duct) {
+      parts.push(duct, ...createDuctAccessories({ ...config, type: 'sencillo', widthMm: ductLenIndiv120 }, duct));
     }
   }
 

@@ -21,13 +21,13 @@ export const KONCISA_CEILING_DUCT_OFFSETS = {
     LEFT: {
       x: 0,
       y: 0,
-      z: 0,
+      z: -230,
       rotY: 0,
     },
     RIGHT: {
       x: 0,
       y: 0,
-      z: 0,
+      z: -230,
       rotY: Math.PI,
     },
   },

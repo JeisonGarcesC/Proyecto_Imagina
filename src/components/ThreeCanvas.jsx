@@ -47,8 +47,10 @@ import {
 // ✅ También corregí: applyFinishToActivePart (materialDef no estaba definido) y cleanup de listeners.
 
 import { useEffect, useRef } from 'react';
-import { ARCHITECTURE_FINISH_HISTORY_TYPE, findArchitectureFinish,
-  paintArchitectureFinishes, paintArchitectureFinishTarget } from '../specialFinishes/architectureSpecialFinishes.js';
+import {
+  ARCHITECTURE_FINISH_HISTORY_TYPE, findArchitectureFinish,
+  paintArchitectureFinishes, paintArchitectureFinishTarget
+} from '../specialFinishes/architectureSpecialFinishes.js';
 import { resolveKuoAVDobleSupportUpdates } from '../mepal/kuoAVDoble/config/kuoAVDobleSupportUpdates.js';
 import {
   expandKuoAVBatchTargets,
@@ -92,6 +94,7 @@ import {
   getVisualFinishIdentity,
   setVisualFinishIdentity,
 } from '../materials/applyMaterial';
+import { applyDuctVisualMaterials, isDuctObject } from '../materials/ductFinishes.js';
 import { resolveSpecialVisualTargets } from '../specialFinishes/resolveSpecialVisualTargets.js';
 import { getMeshPathKey } from '../specialFinishes/meshPathKey.js';
 import {
@@ -137,7 +140,7 @@ import { getPlantDetail } from '../services/plantsLoader';
 import { getOfficeAccessoryDetail } from '../services/officeAccessoriesLoader';
 import { createAresInstance } from '../mepal/ares/factories/createAresInstance';
 import { getAresProductDefinition } from '../mepal/ares/products/aresProductDefinition';
-import { createClakInstance } from '../mepal/clak/factories/createClakInstance';
+import { createClakInstance, buildClakParts } from '../mepal/clak/factories/createClakInstance';
 import { createEdukInstance } from '../mepal/eduk/factories/createEdukInstance';
 import { createKuoGoInstance } from '../mepal/kuoGo/factories/createKuoGoInstance';
 import { createKuoAVInstance } from '../mepal/kuoAV/factory/createKuoAVInstance';
@@ -242,6 +245,9 @@ import {
 import {
   getZenVariantOptionsByCode,
   normalizeZenVariantCode,
+  getZenBibliotecaFamily,
+  resolveZenBillingTier,
+  isZenBibliotecaCode,
 } from '../mepal/zen/products/zenVariantDefinition.js';
 
 import {
@@ -305,15 +311,18 @@ import {
   defaultCeilingDuctState,
   normalizeCeilingDuctState,
   resolveKoncisaCeilingDuct,
+  KONCISA_CEILING_DUCT_OFFSETS,
 } from '../mepal/koncisaPlus/rules/koncisaCeilingDuctRules';
 import {
   CLAK_SWAP_ALLOWED_CODES,
   getClakVariantOptionsByCode,
-} from './properties/clakPuffVariants';
-import {
   isSeatCode as isClakSeatCode,
   isModuleCode as isClakModuleCode,
   normalizeClakPuffCode,
+  getClakScalableFamily,
+  getClakStandardLengthByCode,
+  resolveClakBillingTier,
+  resolveClak3DBaseModel,
 } from './properties/clakPuffVariants';
 import {
   getEdukShelfHeightInfoByCode,
@@ -321,6 +330,11 @@ import {
   getEdukWidthInfoByCode,
   resolveEdukCodeBySelection,
 } from '../mepal/eduk/products/edukShelfHeightDefinition';
+import {
+  isEdukAbatible,
+  applyEdukAbatibleGeometry,
+  getEdukAbatibleBOMParts,
+} from '../mepal/eduk/products/edukAbatibleDefinition';
 import {
   MILA_ACCESSORY_CATALOG,
   MILA_ACCESSORY_OFFSETS_MM,
@@ -797,7 +811,7 @@ function ThreeCanvas({
   const gridHelperRef = useRef(null);
   const sceneRef = useRef(null);
 
-  const refreshFloorAndGridRef = useRef(() => {});
+  const refreshFloorAndGridRef = useRef(() => { });
 
   // ✅ (opcional) guardar refs de scene para debug
   // const sceneRef = useRef(null);
@@ -1030,7 +1044,6 @@ function ThreeCanvas({
     let isDragging = false;
     let hasMoved3D = false;
     let dragSession3D = null;
-    let edukHandleDragSession = null;
     let selectedIds3D = [];
 
     let selectionHelper = null;
@@ -1076,45 +1089,6 @@ function ThreeCanvas({
     const rotationHandle = new THREE.Group();
     rotationHandle.name = 'ROTATION_HANDLE';
     rotationHandle.visible = false;
-
-    const edukTableHandleGroup = new THREE.Group();
-    edukTableHandleGroup.name = 'EDUK_TABLE_WIDTH_HANDLES';
-    edukTableHandleGroup.visible = false;
-
-    const edukHandleGeometry = new THREE.ConeGeometry(0.08, 0.18, 14);
-    const edukHandleMaterial = new THREE.MeshBasicMaterial({
-      color: 0x2563eb,
-      depthTest: false,
-      transparent: true,
-      opacity: 0.92,
-    });
-
-    const edukWidthHandlePrev = new THREE.Mesh(edukHandleGeometry, edukHandleMaterial);
-    edukWidthHandlePrev.rotation.z = Math.PI / 2;
-    edukWidthHandlePrev.renderOrder = 1004;
-    edukWidthHandlePrev.userData.edukVariantHandleDir = -1;
-
-    const edukWidthHandleNext = new THREE.Mesh(edukHandleGeometry, edukHandleMaterial.clone());
-    edukWidthHandleNext.rotation.z = -Math.PI / 2;
-    edukWidthHandleNext.renderOrder = 1004;
-    edukWidthHandleNext.userData.edukVariantHandleDir = 1;
-
-    const edukHeightHandlePrev = new THREE.Mesh(edukHandleGeometry, edukHandleMaterial.clone());
-    edukHeightHandlePrev.rotation.x = Math.PI;
-    edukHeightHandlePrev.renderOrder = 1004;
-    edukHeightHandlePrev.userData.edukVariantHandleDir = -1;
-
-    const edukHeightHandleNext = new THREE.Mesh(edukHandleGeometry, edukHandleMaterial.clone());
-    edukHeightHandleNext.renderOrder = 1004;
-    edukHeightHandleNext.userData.edukVariantHandleDir = 1;
-
-    edukTableHandleGroup.add(
-      edukWidthHandlePrev,
-      edukWidthHandleNext,
-      edukHeightHandlePrev,
-      edukHeightHandleNext
-    );
-    scene.add(edukTableHandleGroup);
 
     const milaConnectorHandleGroup = new THREE.Group();
     milaConnectorHandleGroup.name = 'MILA_CONNECTOR_HANDLES';
@@ -1225,41 +1199,6 @@ function ThreeCanvas({
       rotationHandle.updateMatrixWorld(true);
     }
 
-    function resolveActiveEdukVariantContext() {
-      if (!activePart || activePart.userData?.kind !== 'EDUK') return null;
-
-      const code = String(activePart.userData?.codigoPT || activePart.userData?.code || '').trim();
-      if (!code) return null;
-
-      const widthInfo = getEdukWidthInfoByCode(code);
-      if (widthInfo) {
-        return {
-          type: 'EDUK_WIDTH',
-          code,
-          instanceId: activePart.userData?.instanceId || activePart.uuid,
-          options: [...widthInfo.widthOptions],
-          currentIndex: widthInfo.currentIndex,
-          propertyKey: 'width',
-          dragAxis: 'x',
-        };
-      }
-
-      const heightInfo = getEdukHeightInfoByCode(code);
-      if (heightInfo) {
-        return {
-          type: 'EDUK_HEIGHT',
-          code,
-          instanceId: activePart.userData?.instanceId || activePart.uuid,
-          options: [...heightInfo.heightOptions],
-          currentIndex: heightInfo.currentIndex,
-          propertyKey: 'height',
-          dragAxis: 'y',
-        };
-      }
-
-      return null;
-    }
-
     function setCanvasCursor(cursor) {
       renderer.domElement.style.cursor = cursor || '';
     }
@@ -1309,7 +1248,7 @@ function ThreeCanvas({
     function updateKuoAVSnapMarkers() {
       const assembly =
         activePart?.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-        activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
+          activePart?.userData?.kind === 'KUO_AV_ASSEMBLY'
           ? activePart
           : getKoncisaAssemblyObject(activePart);
 
@@ -1339,174 +1278,6 @@ function ThreeCanvas({
 
       kuoAVSnapMarkersGroup.visible = true;
       kuoAVSnapMarkersGroup.updateMatrixWorld(true);
-    }
-
-    function updateEdukTableHandles() {
-      const context = resolveActiveEdukVariantContext();
-      if (!context || isRotating3D) {
-        edukTableHandleGroup.visible = false;
-        return;
-      }
-
-      const box = new THREE.Box3().setFromObject(activePart);
-      if (box.isEmpty()) {
-        edukTableHandleGroup.visible = false;
-        return;
-      }
-
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      const yOffset = Math.max(0.08, size.y * 0.08);
-      const handleScale = THREE.MathUtils.clamp(Math.max(size.x, size.z) * 0.14, 0.7, 1.15);
-      const spanX = Math.max(0.28, size.x * 0.5 + 0.08);
-      const spanY = Math.max(0.24, size.y * 0.5 + 0.08);
-
-      const worldQuaternion = activePart.getWorldQuaternion(new THREE.Quaternion());
-      const yaw = new THREE.Euler().setFromQuaternion(worldQuaternion, 'YXZ').y;
-
-      const useVertical = context.type === 'EDUK_HEIGHT';
-      edukTableHandleGroup.position.set(
-        center.x,
-        useVertical ? center.y : box.max.y + yOffset,
-        center.z
-      );
-      edukTableHandleGroup.rotation.set(0, yaw, 0);
-
-      edukWidthHandlePrev.visible = context.type === 'EDUK_WIDTH';
-      edukWidthHandleNext.visible = context.type === 'EDUK_WIDTH';
-      edukHeightHandlePrev.visible = context.type === 'EDUK_HEIGHT';
-      edukHeightHandleNext.visible = context.type === 'EDUK_HEIGHT';
-
-      if (context.type === 'EDUK_WIDTH') {
-        edukWidthHandlePrev.position.set(-spanX, 0, 0);
-        edukWidthHandleNext.position.set(spanX, 0, 0);
-      } else if (context.type === 'EDUK_HEIGHT') {
-        edukHeightHandlePrev.position.set(0, -spanY, 0);
-        edukHeightHandleNext.position.set(0, spanY, 0);
-      }
-
-      edukWidthHandlePrev.scale.setScalar(handleScale);
-      edukWidthHandleNext.scale.setScalar(handleScale);
-      edukHeightHandlePrev.scale.setScalar(handleScale);
-      edukHeightHandleNext.scale.setScalar(handleScale);
-
-      edukTableHandleGroup.visible = true;
-      edukTableHandleGroup.updateMatrixWorld(true);
-    }
-
-    function resolveEdukHandleDirection(object) {
-      let node = object;
-      while (node) {
-        if (typeof node.userData?.edukVariantHandleDir === 'number') {
-          return Number(node.userData.edukVariantHandleDir);
-        }
-        if (node === edukTableHandleGroup) break;
-        node = node.parent;
-      }
-      return 0;
-    }
-
-    function resolveEdukDragTargetIndex(startIndex, deltaPx, optionCount) {
-      const STEP_PX = 28;
-      const deltaSteps = Math.round(deltaPx / STEP_PX);
-      return THREE.MathUtils.clamp(startIndex + deltaSteps, 0, Math.max(optionCount - 1, 0));
-    }
-
-    async function processEdukHandleDragQueue() {
-      const session = edukHandleDragSession;
-      if (!session || session.isApplying) return;
-      if (session.targetIndex === session.currentIndex) return;
-
-      session.isApplying = true;
-
-      const targetValue = session.options[session.targetIndex];
-      const context = resolveActiveEdukVariantContext();
-      if (context && targetValue) {
-        await swapEdukVariant(context.instanceId, context.code, {
-          [context.propertyKey]: targetValue,
-        });
-      }
-
-      const updatedContext = resolveActiveEdukVariantContext();
-      if (updatedContext) {
-        session.currentIndex = updatedContext.currentIndex;
-        session.options = [...updatedContext.options];
-        session.propertyKey = updatedContext.propertyKey;
-      }
-
-      session.isApplying = false;
-
-      if (session.targetIndex !== session.currentIndex) {
-        void processEdukHandleDragQueue();
-      }
-    }
-
-    function startEdukHandleDrag(pointerEvent, direction) {
-      const context = resolveActiveEdukVariantContext();
-      if (!context) return false;
-
-      edukHandleDragSession = {
-        pointerId: pointerEvent.pointerId,
-        pointerStartX: pointerEvent.clientX,
-        pointerStartY: pointerEvent.clientY,
-        dragDir: direction,
-        dragAxis: context.dragAxis,
-        startIndex: context.currentIndex,
-        currentIndex: context.currentIndex,
-        targetIndex: context.currentIndex,
-        options: [...context.options],
-        propertyKey: context.propertyKey,
-        isApplying: false,
-      };
-
-      const initialTarget = resolveEdukDragTargetIndex(
-        context.currentIndex,
-        direction > 0 ? 28 : -28,
-        context.options.length
-      );
-      edukHandleDragSession.targetIndex = initialTarget;
-
-      controls.enabled = false;
-      renderer.domElement.setPointerCapture?.(pointerEvent.pointerId);
-      setCanvasCursor('grabbing');
-      void processEdukHandleDragQueue();
-      return true;
-    }
-
-    function updateEdukHandleDrag(pointerEvent) {
-      if (!edukHandleDragSession) return;
-      if (pointerEvent.pointerId !== edukHandleDragSession.pointerId) return;
-
-      const deltaPxRaw =
-        edukHandleDragSession.dragAxis === 'y'
-          ? edukHandleDragSession.pointerStartY - pointerEvent.clientY
-          : pointerEvent.clientX - edukHandleDragSession.pointerStartX;
-
-      const nextIndex = resolveEdukDragTargetIndex(
-        edukHandleDragSession.startIndex,
-        deltaPxRaw * (edukHandleDragSession.dragDir || 1),
-        edukHandleDragSession.options.length
-      );
-
-      if (nextIndex === edukHandleDragSession.targetIndex) return;
-      edukHandleDragSession.targetIndex = nextIndex;
-      void processEdukHandleDragQueue();
-    }
-
-    function endEdukHandleDrag(pointerId = null) {
-      if (!edukHandleDragSession) return false;
-      if (pointerId !== null && pointerId !== edukHandleDragSession.pointerId) return false;
-
-      try {
-        renderer.domElement.releasePointerCapture?.(edukHandleDragSession.pointerId);
-      } catch (err) {
-        void err;
-      }
-
-      edukHandleDragSession = null;
-      if (!isDragging && !isRotating3D) controls.enabled = true;
-      setCanvasCursor('');
-      return true;
     }
 
     function setConnectorMeshColor(connectorMesh, color, coreColor) {
@@ -2209,8 +1980,8 @@ function ThreeCanvas({
           } else {
             activeMesh =
               snapResult.activeSide === 'left' ||
-              snapResult.activeSide === 'center' ||
-              snapResult.activeSide === 'screen'
+                snapResult.activeSide === 'center' ||
+                snapResult.activeSide === 'screen'
                 ? milaLeftConnector
                 : milaRightConnector;
           }
@@ -2608,8 +2379,8 @@ function ThreeCanvas({
       activeEditablePart =
         selectionContext?.propertiesTarget ||
         (isKoncisaAssemblyRoot(obj) ||
-        isCritterium8AssemblyRoot(obj) ||
-        isCritterium8SequenceRoot(obj)
+          isCritterium8AssemblyRoot(obj) ||
+          isCritterium8SequenceRoot(obj)
           ? null
           : getEditableKoncisaPartObject(obj) || getCritterium8EditableTarget(obj));
       obj = activeEditablePart || obj;
@@ -2650,7 +2421,6 @@ function ThreeCanvas({
         selectionHelper.update();
       }
       updateRotationHandle();
-      updateEdukTableHandles();
       updateKuoAVSnapMarkers();
       updateMilaConnectors();
 
@@ -2705,26 +2475,26 @@ function ThreeCanvas({
         ...(obj.userData?.kind === 'LINK_PRODUCT' ? getLinkSelectionInfo(obj, activeSubMesh) : {}),
         ...(obj.userData?.kind === 'MULTIPLE_PRODUCT'
           ? {
-              multiple: {
-                component: (() => {
-                  const component = getMultipleComponent(activeSubMesh);
-                  return component
-                    ? {
-                        componentKey: component.userData.componentKey,
-                        componentRole: component.userData.componentRole,
-                        description: component.userData.description,
-                        tileType: component.userData.tileType,
-                        materialRole: component.userData.materialRole,
-                        finishId: component.userData.finishId,
-                        codigoPT: component.userData.codigoPT,
-                        reference: component.userData.commercialReference,
-                        commercialStatus: component.userData.commercialStatus,
-                        diagnostics: component.userData.commercialDiagnostics,
-                      }
-                    : null;
-                })(),
-              },
-            }
+            multiple: {
+              component: (() => {
+                const component = getMultipleComponent(activeSubMesh);
+                return component
+                  ? {
+                    componentKey: component.userData.componentKey,
+                    componentRole: component.userData.componentRole,
+                    description: component.userData.description,
+                    tileType: component.userData.tileType,
+                    materialRole: component.userData.materialRole,
+                    finishId: component.userData.finishId,
+                    codigoPT: component.userData.codigoPT,
+                    reference: component.userData.commercialReference,
+                    commercialStatus: component.userData.commercialStatus,
+                    diagnostics: component.userData.commercialDiagnostics,
+                  }
+                  : null;
+              })(),
+            },
+          }
           : {}),
         ...(obj.userData?.kind === 'LOCKER_PRODUCT'
           ? getLockerSelectionInfo(obj, activeSubMesh)
@@ -2736,46 +2506,47 @@ function ThreeCanvas({
         ductCovers: obj.userData?.ductCovers || null,
         edukWidth: edukWidthContext?.currentWidth || null,
         edukToma: edukWidthContext?.toma || null,
+        edukAbatible: obj.userData?.edukAbatible || null,
 
         showGrid: obj.userData?.isFloor ? obj.userData?.showGrid !== false : undefined,
         gridSize: obj.userData?.isFloor ? obj.userData?.gridSize || 0.1 : undefined,
         critterium8: critteriumAssembly
           ? {
-              assemblyId: critteriumAssembly.userData?.assemblyId,
-              instanceId: critteriumAssembly.userData?.instanceId,
-              frameId: critteriumAssembly.userData?.frameId,
-              config: critteriumAssembly.userData?.config,
-              composition: critteriumAssembly.userData?.composition,
-              diagnostics: critteriumAssembly.userData?.renderReport?.diagnostics || [],
-              editablePart: critteriumEditablePart
-                ? {
-                    instanceId: critteriumEditablePart.userData?.instanceId,
-                    partId: critteriumEditablePart.userData?.partId,
-                    partType: critteriumEditablePart.userData?.partType,
-                    slotId: critteriumEditablePart.userData?.slotId,
-                    code: critteriumEditablePart.userData?.code,
-                    provisionalGeometry:
-                      critteriumEditablePart.userData?.provisionalGeometry === true,
-                  }
-                : null,
-            }
+            assemblyId: critteriumAssembly.userData?.assemblyId,
+            instanceId: critteriumAssembly.userData?.instanceId,
+            frameId: critteriumAssembly.userData?.frameId,
+            config: critteriumAssembly.userData?.config,
+            composition: critteriumAssembly.userData?.composition,
+            diagnostics: critteriumAssembly.userData?.renderReport?.diagnostics || [],
+            editablePart: critteriumEditablePart
+              ? {
+                instanceId: critteriumEditablePart.userData?.instanceId,
+                partId: critteriumEditablePart.userData?.partId,
+                partType: critteriumEditablePart.userData?.partType,
+                slotId: critteriumEditablePart.userData?.slotId,
+                code: critteriumEditablePart.userData?.code,
+                provisionalGeometry:
+                  critteriumEditablePart.userData?.provisionalGeometry === true,
+              }
+              : null,
+          }
           : null,
         critterium8Sequence: critteriumSequence
           ? {
-              sequenceId: critteriumSequence.userData?.sequenceId,
-              frameIds: [...(critteriumSequence.userData?.frameIds || [])],
-              junctionIds: [...(critteriumSequence.userData?.junctionIds || [])],
-              metadata: { ...(critteriumSequence.userData?.metadata || {}) },
-            }
+            sequenceId: critteriumSequence.userData?.sequenceId,
+            frameIds: [...(critteriumSequence.userData?.frameIds || [])],
+            junctionIds: [...(critteriumSequence.userData?.junctionIds || [])],
+            metadata: { ...(critteriumSequence.userData?.metadata || {}) },
+          }
           : null,
         critteriumSystem:
           obj.userData?.kind === 'CRITERIUM_SYSTEM'
             ? {
-                systemId: obj.userData.systemId,
-                sequenceIds: [...obj.userData.sequenceIds],
-                position: obj.position.toArray(),
-                rotationY: obj.rotation.y,
-              }
+              systemId: obj.userData.systemId,
+              sequenceIds: [...obj.userData.sequenceIds],
+              position: obj.position.toArray(),
+              rotationY: obj.rotation.y,
+            }
             : null,
       });
     }
@@ -3059,9 +2830,9 @@ function ThreeCanvas({
           if (isSurface) {
             let localBounds = obj.userData?.bounds2d
               ? {
-                  localCenter: new THREE.Vector3().fromArray(obj.userData.bounds2d.localCenter),
-                  sizeLocal: new THREE.Vector3().fromArray(obj.userData.bounds2d.sizeLocal),
-                }
+                localCenter: new THREE.Vector3().fromArray(obj.userData.bounds2d.localCenter),
+                sizeLocal: new THREE.Vector3().fromArray(obj.userData.bounds2d.sizeLocal),
+              }
               : null;
             if (!localBounds) {
               localBounds = computeBounds2D(obj);
@@ -3356,10 +3127,10 @@ function ThreeCanvas({
           : null;
         const catalogDescription = normalizeText(
           item?.ui?.title ||
-            item?.ui?.subtitle ||
-            item?.raw?.descripcion ||
-            item?.raw?.description ||
-            item?.raw?.DESCRIPCION_LARGA
+          item?.ui?.subtitle ||
+          item?.raw?.descripcion ||
+          item?.raw?.description ||
+          item?.raw?.DESCRIPCION_LARGA
         );
         const fallback = normalizeText(fallbackDescription);
         if (!catalogDescription) return fallback || normalizedCode;
@@ -3405,10 +3176,10 @@ function ThreeCanvas({
         const normalizedGroupId = normalizeText(groupId);
         const variantKey = commercialVariant
           ? JSON.stringify([
-              commercialVariant.reference ?? null,
-              commercialVariant.materialCode ?? null,
-              commercialVariant.finishCode ?? null,
-            ])
+            commercialVariant.reference ?? null,
+            commercialVariant.materialCode ?? null,
+            commercialVariant.finishCode ?? null,
+          ])
           : '';
         const rowKey =
           (bomGroupKeyOverride || normalizedGroupId
@@ -3453,10 +3224,10 @@ function ThreeCanvas({
           ...(typologyCodeOverride !== undefined ? { typologyCode: typologyCodeOverride } : {}),
           ...(commercialVariant
             ? {
-                reference: commercialVariant.reference ?? null,
-                materialCode: commercialVariant.materialCode ?? null,
-                finishCode: commercialVariant.finishCode ?? null,
-              }
+              reference: commercialVariant.reference ?? null,
+              materialCode: commercialVariant.materialCode ?? null,
+              finishCode: commercialVariant.finishCode ?? null,
+            }
             : {}),
           _groupInstanceIds: new Set(),
         };
@@ -3540,9 +3311,9 @@ function ThreeCanvas({
 
             const line = String(
               candidate.userData?.line ||
-                candidate.userData?.meta?.line ||
-                candidate.userData?.meta?.category ||
-                ''
+              candidate.userData?.meta?.line ||
+              candidate.userData?.meta?.category ||
+              ''
             )
               .trim()
               .toUpperCase();
@@ -3550,8 +3321,8 @@ function ThreeCanvas({
 
             const parentAssemblyId = normalizeText(
               candidate.userData?.parentAssemblyId ||
-                candidate.userData?.meta?.parentAssemblyId ||
-                ''
+              candidate.userData?.meta?.parentAssemblyId ||
+              ''
             );
             const candidateGroupId = normalizeText(
               candidate.userData?.groupId || candidate.userData?.meta?.groupId || ''
@@ -3606,8 +3377,8 @@ function ThreeCanvas({
 
         const moreaVariant = String(
           assemblyRoot.userData?.meta?.moreaVariant ||
-            assemblyRoot.userData?.config?.variant ||
-            'single'
+          assemblyRoot.userData?.config?.variant ||
+          'single'
         )
           .trim()
           .toLowerCase();
@@ -3625,12 +3396,12 @@ function ThreeCanvas({
           breakdown ||
           (Array.isArray(detail?.hijos)
             ? detail.hijos
-                .map((child) => ({
-                  code: String(child?.producto?.codigo || '').trim(),
-                  qty: Number(child?.cantidad || 0),
-                  description: child?.producto?.descripcion || '',
-                }))
-                .filter((child) => child.code && child.qty > 0)
+              .map((child) => ({
+                code: String(child?.producto?.codigo || '').trim(),
+                qty: Number(child?.cantidad || 0),
+                description: child?.producto?.descripcion || '',
+              }))
+              .filter((child) => child.code && child.qty > 0)
             : []);
 
         if (!rowsToEmit.length) {
@@ -4178,21 +3949,43 @@ function ThreeCanvas({
         }
 
         if (obj.userData?.kind === 'CLAK') {
-          const parentCode = normalizeText(
+          const isSpecial = Boolean(obj.userData?.isSpecial);
+          const specialLength = obj.userData?.specialLength;
+          const billingCode = obj.userData?.billingCode;
+
+          const baseParentCode = normalizeText(
             obj.userData?.codigoPT || obj.userData?.code || p.code || ''
           );
-          const label =
+          const parentCode = isSpecial && billingCode ? normalizeText(billingCode) : baseParentCode;
+
+          let label =
             obj.userData?.name || obj.userData?.clakMeta?.descripcion || `Clak ${parentCode}`;
+          if (isSpecial && specialLength) {
+            if (!label.toUpperCase().includes('ESPECIAL')) {
+              label = `ESPECIAL (${specialLength}cm) - ${label}`;
+            }
+          }
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
 
           const list = obj.userData?.clakParts || [];
 
           if (Array.isArray(list) && list.length) {
             for (const it of list) {
+              let itDesc = it.description;
+              if (isSpecial && specialLength) {
+                const regexDim = /(\b\d+X)\d+(X\d+.*?CM\b)/i;
+                if (regexDim.test(itDesc)) {
+                  itDesc = itDesc.replace(regexDim, `$1${specialLength}$2`);
+                }
+                if (!itDesc.toUpperCase().includes('ESPECIAL')) {
+                  itDesc = `ESPECIAL (${specialLength}cm) - ${itDesc}`;
+                }
+              }
+
               addRow(
-                String(it.code),
+                String(isSpecial && billingCode ? billingCode : it.code),
                 Number(it.qty || 0),
-                it.description,
+                itDesc,
                 it.unitPrice,
                 parentCode,
                 label,
@@ -4240,24 +4033,50 @@ function ThreeCanvas({
         }
 
         if (obj.userData?.kind === 'ALMACENAMIENTO') {
-          const parentCode = normalizeText(
+          const isSpecial = Boolean(obj.userData?.isSpecial);
+          const specialLength = obj.userData?.specialLength;
+          const almacenLength = obj.userData?.almacenLength || (isSpecial ? specialLength : 60);
+          const billingCode = obj.userData?.billingCode;
+
+          const baseParentCode = normalizeText(
             obj.userData?.codigoPT || obj.userData?.code || p.code || ''
           );
-          const label =
-            obj.userData?.name ||
+          const parentCode = billingCode ? normalizeText(billingCode) : baseParentCode;
+
+          let rawDesc =
             obj.userData?.description ||
+            obj.userData?.name ||
+            catalogByCodeRef.current?.get?.(parentCode)?.raw?.descripcion ||
+            catalogByCodeRef.current?.get?.(baseParentCode)?.raw?.descripcion ||
             obj.userData?.almacenCategory ||
             `Zen Almacenamiento ${parentCode}`;
+
+          // Reemplazo de dimensión en la descripción (ej: 71X60X50CM -> 71X70X50CM o 71X90X50CM)
+          const targetLengthCm = isSpecial ? specialLength : almacenLength;
+          if (targetLengthCm) {
+            const regexDim = /(\b\d+X)\d+(X\d+.*?CM\b)/i;
+            if (regexDim.test(rawDesc)) {
+              rawDesc = rawDesc.replace(regexDim, `$1${targetLengthCm}$2`);
+            }
+          }
+
+          if (isSpecial && targetLengthCm) {
+            if (!rawDesc.toUpperCase().includes('ESPECIAL')) {
+              rawDesc = `ESPECIAL (${targetLengthCm}cm) - ${rawDesc}`;
+            }
+          }
+
+          const label = rawDesc;
           const groupInstanceId = obj.userData?.instanceId || obj.uuid || p.id;
 
           addRow(
             String(parentCode),
             1,
-            obj.userData?.description || label,
+            label,
             obj.userData?.unitPrice || 0,
             parentCode,
             label,
-            obj.userData?.prices || undefined,
+            billingCode && billingCode !== baseParentCode ? undefined : (obj.userData?.prices || undefined),
             null,
             groupInstanceId
           );
@@ -4527,10 +4346,10 @@ function ThreeCanvas({
           obj.userData?.meta?.layoutType === 'LEADER';
         const bomCode = isLeaderGrommet
           ? resolveKoncisaCableAccessCodigoPT({
-              tipo: 'grommet',
-              layoutType: 'LEADER',
-              finish: obj.userData?.meta?.finish || null,
-            }).codigoPT
+            tipo: 'grommet',
+            layoutType: 'LEADER',
+            finish: obj.userData?.meta?.finish || null,
+          }).codigoPT
           : code;
 
         const koncisaAssembly = getKoncisaPlusAssembly(obj);
@@ -4911,10 +4730,10 @@ function ThreeCanvas({
               : countryRef.current === 'USD'
                 ? detUSD?.precio
                 : detCO?.precio) ||
-              detCO?.precio ||
-              detEUC?.precio ||
-              detUSD?.precio ||
-              0
+            detCO?.precio ||
+            detEUC?.precio ||
+            detUSD?.precio ||
+            0
           ),
           prices: {
             CO: Number(detCO?.precio || 0),
@@ -5843,18 +5662,18 @@ function ThreeCanvas({
       const plantParts =
         det && det.codigo
           ? [
-              {
-                code: det.codigo,
-                description: det.descripcion,
-                qty: 1,
-                unitPrice: Number(det.precio || 0),
-                prices: {
-                  CO: detCO?.precio || 0,
-                  EUC: detEUC?.precio || 0,
-                  USD: detUSD?.precio || 0,
-                },
+            {
+              code: det.codigo,
+              description: det.descripcion,
+              qty: 1,
+              unitPrice: Number(det.precio || 0),
+              prices: {
+                CO: detCO?.precio || 0,
+                EUC: detEUC?.precio || 0,
+                USD: detUSD?.precio || 0,
               },
-            ]
+            },
+          ]
           : [];
 
       obj.userData = {
@@ -5957,18 +5776,18 @@ function ThreeCanvas({
       const accParts =
         det && det.codigo
           ? [
-              {
-                code: det.codigo,
-                description: det.descripcion,
-                qty: 1,
-                unitPrice: Number(det.precio || 0),
-                prices: {
-                  CO: detCO?.precio || 0,
-                  EUC: detEUC?.precio || 0,
-                  USD: detUSD?.precio || 0,
-                },
+            {
+              code: det.codigo,
+              description: det.descripcion,
+              qty: 1,
+              unitPrice: Number(det.precio || 0),
+              prices: {
+                CO: detCO?.precio || 0,
+                EUC: detEUC?.precio || 0,
+                USD: detUSD?.precio || 0,
               },
-            ]
+            },
+          ]
           : [];
 
       obj.userData = {
@@ -6023,10 +5842,10 @@ function ThreeCanvas({
       const position = sceneBounds.isEmpty()
         ? { x: 0, y: 0, z: 0 }
         : {
-            x: (sceneBounds.max.x + 0.65) * 1000,
-            y: 0,
-            z: sceneBounds.getCenter(sceneCenter).z * 1000,
-          };
+          x: (sceneBounds.max.x + 0.65) * 1000,
+          y: 0,
+          z: sceneBounds.getCenter(sceneCenter).z * 1000,
+        };
       return addExternalGlbPart(createKoncisaPlusDrawerPart(position));
     }
 
@@ -6120,6 +5939,9 @@ function ThreeCanvas({
           codigoPT: codigoClak,
           country: countryRef.current,
           loadGlb: loadExistingGlb,
+          isSpecial: options?.isSpecial || false,
+          specialLength: options?.specialLength || null,
+          billingCode: options?.billingCode || null,
         });
       } catch (error) {
         console.error(`No se pudo crear el producto Clak ${codigo}`, error);
@@ -6127,6 +5949,19 @@ function ThreeCanvas({
       }
 
       const { object: obj, partRecord } = result;
+
+      if (options?.isSpecial && options?.specialLength) {
+        const family = getClakScalableFamily(codigoClak);
+        if (family) {
+          const baseModelInfo = resolveClak3DBaseModel(family, options.specialLength);
+          obj.scale.set(baseModelInfo.scaleFactor, 1, 1);
+          obj.userData.isSpecial = true;
+          obj.userData.specialLength = options.specialLength;
+          obj.userData.billingCode =
+            options.billingCode || resolveClakBillingTier(family, options.specialLength).code;
+          alignClakRootToFloor(obj);
+        }
+      }
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -6166,6 +6001,20 @@ function ThreeCanvas({
       }
 
       const { object: obj, partRecord } = result;
+
+      if (isEdukAbatible(codigo)) {
+        const savedAbatible = options?.edukAbatible || options?.metadata?.edukAbatible;
+        obj.userData.edukAbatible = {
+          width: savedAbatible?.width || '120cm',
+          depth: savedAbatible?.depth || '60cm',
+          corners: savedAbatible?.corners || 'curvas',
+        };
+        applyEdukAbatibleGeometry(obj, obj.userData.edukAbatible);
+        obj.userData.edukParts = getEdukAbatibleBOMParts(
+          obj.userData.edukAbatible,
+          countryRef.current
+        );
+      }
 
       // 4) posición inicial
       obj.position.set(Math.max(0, parts.length * 0.9), 0, 0);
@@ -6212,6 +6061,21 @@ function ThreeCanvas({
         materialBase: object.userData?.materialBase ?? options?.materialBase ?? null,
         materialCode: object.userData?.materialCode ?? options?.materialCode ?? null,
       };
+
+      if (options?.isSpecial) {
+        const len = Number(options.specialLength || 60);
+        object.scale.set(len / 60, 1, 1);
+        object.userData.isSpecial = true;
+        object.userData.specialLength = len;
+        object.userData.almacenLength = len;
+        object.userData.billingCode = options.billingCode;
+        delete object.userData.prices;
+      } else if (options?.almacenLength && Number(options.almacenLength) === 90) {
+        object.scale.set(1.5, 1, 1);
+        object.userData.almacenLength = 90;
+        object.userData.billingCode = options.billingCode;
+        delete object.userData.prices;
+      }
 
       const bounds2d = computeBounds2D(object);
       if (bounds2d) {
@@ -6509,15 +6373,15 @@ function ThreeCanvas({
           ...composition,
           slots: composition.slots.map((slot, index) =>
             slot.componentKey === componentKey ||
-            slot.slotKey === componentKey ||
-            index === tileIndex
+              slot.slotKey === componentKey ||
+              index === tileIndex
               ? {
-                  ...slot,
-                  tileType: patch.tileType,
-                  codigoPT: null,
-                  reference: null,
-                  commercialStatus: 'PENDING',
-                }
+                ...slot,
+                tileType: patch.tileType,
+                codigoPT: null,
+                reference: null,
+                commercialStatus: 'PENDING',
+              }
               : slot
           ),
         };
@@ -8035,7 +7899,7 @@ function ThreeCanvas({
           frame.position.fromArray(slot.transformOverride?.position || slot.position);
           frame.quaternion.fromArray(
             slot.transformOverride?.quaternion ||
-              new THREE.Quaternion().setFromEuler(new THREE.Euler(0, slot.orientation, 0)).toArray()
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(0, slot.orientation, 0)).toArray()
           );
           frame.updateMatrixWorld(true);
         }
@@ -8070,8 +7934,8 @@ function ThreeCanvas({
           if (newInvalid)
             throw new Error(
               `No se puede ${describeCritteriumModuleEditVerb(operation)} el módulo: la conexión ` +
-                `${newInvalid.connectionId} quedaría físicamente inválida (${newInvalid.code}). ` +
-                'Desconecte primero ese extremo.'
+              `${newInvalid.connectionId} quedaría físicamente inválida (${newInvalid.code}). ` +
+              'Desconecte primero ese extremo.'
             );
           before.system.userData.spatialDiagnostics = diagnostics;
         }
@@ -9319,17 +9183,17 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
       const nextPrices = catalogItem?.prices ||
         catalogItem?.raw?.prices || {
-          CO: nextUnitPrice,
-        };
+        CO: nextUnitPrice,
+      };
 
       newObj.userData = {
         ...savedUserData,
@@ -9608,17 +9472,17 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
       const nextPrices = catalogItem?.prices ||
         catalogItem?.raw?.prices || {
-          CO: nextUnitPrice,
-        };
+        CO: nextUnitPrice,
+      };
 
       const nextBackrestRotated180 = Boolean(savedUserData?.meta?.backrestRotated180);
 
@@ -9831,10 +9695,10 @@ function ThreeCanvas({
       const woodOutwardOffsetMm =
         moreaVariant === 'double'
           ? Number(
-              MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
-                MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
-                12
-            )
+            MOREA_DOUBLE_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+            MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM ??
+            12
+          )
           : Number(MOREA_BUILDER_TUNE.WOOD_PEDESTAL_OUTWARD_OFFSET_MM || 12);
 
       const sideTargets = [];
@@ -9977,17 +9841,17 @@ function ThreeCanvas({
       const nextUnitPriceBase =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
       const nextPricesBase = catalogItem?.prices ||
         catalogItem?.raw?.prices || {
-          CO: nextUnitPriceBase,
-        };
+        CO: nextUnitPriceBase,
+      };
 
       const replacementIdMap = new Map();
       for (const oldObj of sideTargets) {
@@ -10177,10 +10041,10 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           nextPrices?.[countryRef.current] ??
-            catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            0
+          catalogItem?.prices?.[countryRef.current] ??
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          0
         ) || 0;
 
       newObj.position.copy(savedPos);
@@ -10343,10 +10207,10 @@ function ThreeCanvas({
       const nextUnitPrice =
         Number(
           nextPrices?.[countryRef.current] ??
-            catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            0
+          catalogItem?.prices?.[countryRef.current] ??
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          0
         ) || 0;
 
       newObj.position.copy(savedPos);
@@ -10763,13 +10627,13 @@ function ThreeCanvas({
           const centerLiftM =
             role === 'armrest-center'
               ? Math.max(
-                  0,
-                  Number(
-                    (isMoreaDouble
-                      ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM
-                      : MOREA_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM) || 0
-                  )
-                ) / 1000
+                0,
+                Number(
+                  (isMoreaDouble
+                    ? MOREA_DOUBLE_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM
+                    : MOREA_BUILDER_TUNE.ARMREST_CENTER_LIFT_MM) || 0
+                )
+              ) / 1000
               : 0;
           const targetTopY =
             Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) -
@@ -10972,22 +10836,32 @@ function ThreeCanvas({
         }
       }
 
-      if (currentCode === nextCode) return;
+      if (currentCode === nextCode) return null;
 
-      const found = parts.find(({ obj }) => {
-        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      let found = parts.find(({ obj }) => {
+        return (
+          (instanceId && (obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId)) ||
+          obj === activePart
+        );
       });
+      if (!found && activePart && activePart.userData?.kind === 'CLAK') {
+        found = { obj: activePart };
+      }
 
       if (!found?.obj) {
         console.warn('[swapClakVariant] No se encontró la pieza:', instanceId);
-        return;
+        return null;
       }
 
       const oldObj = found.obj;
+      const stableInstanceId = oldObj.userData?.instanceId || oldObj.uuid || instanceId;
       const oldMinY = getObjectWorldMinY(oldObj);
       const savedPos = oldObj.position.clone();
       const savedRot = oldObj.rotation.clone();
       const savedUserData = { ...oldObj.userData };
+      delete savedUserData.isSpecial;
+      delete savedUserData.specialLength;
+      delete savedUserData.billingCode;
       const parentGroup = oldObj.parent && oldObj.parent !== scene ? oldObj.parent : null;
 
       let result;
@@ -10999,14 +10873,20 @@ function ThreeCanvas({
         });
       } catch (error) {
         console.error(`[swapClakVariant] No se pudo crear la variante ${nextCode}`, error);
-        return;
+        return null;
       }
 
       const { object: newObj, partRecord } = result;
       newObj.userData = {
         ...savedUserData,
         ...newObj.userData,
+        instanceId: stableInstanceId,
+        codigoPT: nextCode,
+        code: nextCode,
       };
+      if (partRecord) {
+        partRecord.id = stableInstanceId;
+      }
 
       removePartObject(oldObj);
 
@@ -11047,6 +10927,157 @@ function ThreeCanvas({
       setActivePart(newObj);
       emitBOM();
       refreshFloorAndGrid();
+      return newObj;
+    }
+
+    async function swapClakSpecial(
+      instanceId,
+      { isSpecial = true, specialLengthCm = null, targetCode = null } = {}
+    ) {
+      if (readOnly) return null;
+
+      let found = parts.find(({ obj }) => {
+        return (
+          (instanceId && (obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId)) ||
+          obj === activePart
+        );
+      });
+      if (!found && activePart && activePart.userData?.kind === 'CLAK') {
+        found = { obj: activePart };
+      }
+
+      if (!found?.obj) {
+        console.warn('[swapClakSpecial] No se encontró la pieza:', instanceId);
+        return null;
+      }
+
+      const oldObj = found.obj;
+      const stableInstanceId = oldObj.userData?.instanceId || oldObj.uuid || instanceId;
+      const currentCode = normalizeClakPuffCode(oldObj.userData?.codigoPT || oldObj.userData?.code);
+      const family = getClakScalableFamily(currentCode);
+      if (!family) {
+        console.warn('[swapClakSpecial] La pieza no pertenece a una familia escalable Clak:', currentCode);
+        return null;
+      }
+
+      if (!isSpecial) {
+        // Revertir a tamaño estándar
+        oldObj.scale.set(1, 1, 1);
+        oldObj.userData.isSpecial = false;
+        delete oldObj.userData.specialLength;
+        delete oldObj.userData.billingCode;
+
+        const standardCode = targetCode ? normalizeClakPuffCode(targetCode) : currentCode;
+        try {
+          const standardParts = await buildClakParts(standardCode, countryRef.current);
+          if (Array.isArray(standardParts) && standardParts.length) {
+            oldObj.userData.clakParts = standardParts;
+          }
+        } catch (e) {
+          console.warn('[swapClakSpecial] No se pudieron restaurar clakParts estándar:', e);
+        }
+
+        oldObj.updateMatrixWorld(true);
+        alignClakRootToFloor(oldObj);
+        setActivePart(oldObj);
+        emitBOM();
+        refreshFloorAndGrid();
+
+        onFloatingEditorRequest?.((prev) => ({
+          ...(prev || {}),
+          open: true,
+          part: {
+            code: oldObj.userData?.codigoPT || oldObj.userData?.code || null,
+            kind: oldObj.userData?.kind || 'CLAK',
+            instanceId: stableInstanceId,
+            description: oldObj.userData?.name || oldObj.userData?.description || null,
+            userData: oldObj.userData,
+            isSpecial: false,
+            specialLength: null,
+            billingCode: null,
+          },
+        }));
+        return oldObj;
+      }
+
+      // Modo especial activado
+      const lenCm = Number(
+        specialLengthCm || getClakStandardLengthByCode(currentCode) || family.min || 60
+      );
+      const billingTier = resolveClakBillingTier(family, lenCm);
+      const baseModelInfo = resolveClak3DBaseModel(family, lenCm);
+
+      let targetObj = oldObj;
+
+      // Si el modelo base 3D que minimiza la distorsión es diferente al actual, hacemos swap del GLB
+      if (normalizeClakPuffCode(oldObj.userData?.codigoPT) !== baseModelInfo.baseCode) {
+        const swappedObj = await swapClakVariant(stableInstanceId, currentCode, baseModelInfo.baseCode);
+        if (swappedObj) {
+          targetObj = swappedObj;
+        } else {
+          const updatedFound = parts.find(({ obj }) => {
+            return (
+              (stableInstanceId && (obj?.userData?.instanceId === stableInstanceId || obj?.uuid === stableInstanceId)) ||
+              obj === activePart
+            );
+          });
+          if (updatedFound?.obj) {
+            targetObj = updatedFound.obj;
+          }
+        }
+      }
+
+      // Aplicar escala proporcional al largo (eje X)
+      targetObj.scale.set(baseModelInfo.scaleFactor, 1, 1);
+      targetObj.userData.isSpecial = true;
+      targetObj.userData.specialLength = lenCm;
+      targetObj.userData.billingCode = billingTier.code;
+
+      // Actualizar clakParts para facturación con precio máximo de rango y descripción especial
+      try {
+        const billingParts = await buildClakParts(billingTier.code, countryRef.current);
+        if (Array.isArray(billingParts) && billingParts.length) {
+          targetObj.userData.clakParts = billingParts.map((p) => {
+            let desc = p.description || '';
+            const regexDim = /(\b\d+X)\d+(X\d+.*?CM\b)/i;
+            if (regexDim.test(desc)) {
+              desc = desc.replace(regexDim, `$1${lenCm}$2`);
+            }
+            if (!desc.toUpperCase().includes('ESPECIAL')) {
+              desc = `ESPECIAL (${lenCm}CM) - ${desc}`;
+            }
+            return {
+              ...p,
+              description: desc,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[swapClakSpecial] Error obteniendo partes de facturación:', err);
+      }
+
+      targetObj.updateMatrixWorld(true);
+      alignClakRootToFloor(targetObj);
+      setActivePart(targetObj);
+      emitBOM();
+      refreshFloorAndGrid();
+
+      onFloatingEditorRequest?.((prev) => ({
+        ...(prev || {}),
+        open: true,
+        part: {
+          code: targetObj.userData?.codigoPT || targetObj.userData?.code || null,
+          kind: targetObj.userData?.kind || 'CLAK',
+          instanceId: stableInstanceId,
+          description: targetObj.userData?.name || targetObj.userData?.description || null,
+          userData: targetObj.userData,
+          isSpecial: true,
+          specialLength: lenCm,
+          billingCode: billingTier.code,
+        },
+      }));
+
+      return targetObj;
     }
 
     async function swapAlmacenamientoVariant(instanceId, codigo, targetVariant = 'base') {
@@ -11161,6 +11192,135 @@ function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function swapZenSpecial(
+      instanceId,
+      { isSpecial = true, lengthCm = 60 } = {}
+    ) {
+      if (readOnly) return null;
+
+      let found = parts.find(({ obj }) => {
+        return (
+          (instanceId && (obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId)) ||
+          obj === activePart
+        );
+      });
+      if (!found && activePart && activePart.userData?.kind === 'ALMACENAMIENTO') {
+        found = { obj: activePart };
+      }
+
+      if (!found?.obj) {
+        console.warn('[swapZenSpecial] No se encontró la pieza:', instanceId);
+        return null;
+      }
+
+      const oldObj = found.obj;
+      const stableInstanceId = oldObj.userData?.instanceId || oldObj.uuid || instanceId;
+      const currentCode = normalizeZenVariantCode(oldObj.userData?.codigoPT || oldObj.userData?.code);
+      const family = getZenBibliotecaFamily(currentCode);
+      if (!family) {
+        console.warn('[swapZenSpecial] La pieza no pertenece a una biblioteca Zen:', currentCode);
+        return null;
+      }
+
+      const len = Number(lengthCm || 60);
+
+      if (!isSpecial) {
+        // Modo estándar: 60cm o 90cm
+        const is90 = len >= 90;
+        const targetLen = is90 ? 90 : 60;
+        const scaleX = is90 ? 1.5 : 1.0;
+        const billingCode = is90 ? family.code90 : family.code60;
+
+        oldObj.scale.set(scaleX, 1, 1);
+        oldObj.userData.isSpecial = false;
+        oldObj.userData.specialLength = null;
+        oldObj.userData.almacenLength = targetLen;
+        oldObj.userData.billingCode = billingCode;
+        delete oldObj.userData.prices;
+
+        oldObj.updateMatrixWorld(true);
+
+        const bounds2d = computeBounds2D(oldObj);
+        if (bounds2d) {
+          oldObj.userData.bounds2d = {
+            localCenter: bounds2d.localCenter.toArray(),
+            sizeLocal: bounds2d.sizeLocal.toArray(),
+          };
+        }
+
+        setActivePart(oldObj);
+        emitBOM();
+        refreshFloorAndGrid();
+
+        onFloatingEditorRequest?.((prev) => ({
+          ...(prev || {}),
+          open: true,
+          part: {
+            code: oldObj.userData?.codigoPT || oldObj.userData?.code || null,
+            kind: oldObj.userData?.kind || 'ALMACENAMIENTO',
+            instanceId: stableInstanceId,
+            description: oldObj.userData?.name || oldObj.userData?.description || null,
+            userData: oldObj.userData,
+            almacenCategory: oldObj.userData?.almacenCategory || null,
+            almacenVariant: oldObj.userData?.almacenVariant || null,
+            almacenVariants: oldObj.userData?.almacenVariants || null,
+            isSpecial: false,
+            specialLength: null,
+            almacenLength: targetLen,
+            billingCode,
+          },
+        }));
+
+        return oldObj;
+      }
+
+      // Modo especial
+      const billingTier = resolveZenBillingTier(family, len);
+      const scaleX = len / 60;
+
+      oldObj.scale.set(scaleX, 1, 1);
+      oldObj.userData.isSpecial = true;
+      oldObj.userData.specialLength = len;
+      oldObj.userData.almacenLength = len;
+      oldObj.userData.billingCode = billingTier.code;
+      delete oldObj.userData.prices;
+
+      oldObj.updateMatrixWorld(true);
+
+      const bounds2d = computeBounds2D(oldObj);
+      if (bounds2d) {
+        oldObj.userData.bounds2d = {
+          localCenter: bounds2d.localCenter.toArray(),
+          sizeLocal: bounds2d.sizeLocal.toArray(),
+        };
+      }
+
+      setActivePart(oldObj);
+      emitBOM();
+      refreshFloorAndGrid();
+
+      onFloatingEditorRequest?.((prev) => ({
+        ...(prev || {}),
+        open: true,
+        part: {
+          code: oldObj.userData?.codigoPT || oldObj.userData?.code || null,
+          kind: oldObj.userData?.kind || 'ALMACENAMIENTO',
+          instanceId: stableInstanceId,
+          description: oldObj.userData?.name || oldObj.userData?.description || null,
+          userData: oldObj.userData,
+          almacenCategory: oldObj.userData?.almacenCategory || null,
+          almacenVariant: oldObj.userData?.almacenVariant || null,
+          almacenVariants: oldObj.userData?.almacenVariants || null,
+          isSpecial: true,
+          specialLength: len,
+          almacenLength: len,
+          billingCode: billingTier.code,
+        },
+      }));
+
+      return oldObj;
+    }
+
     async function swapEdukShelfHeight(instanceId, codigo, targetHeight = '114cm') {
       const currentInfo = getEdukShelfHeightInfoByCode(codigo);
       if (!currentInfo) {
@@ -11239,6 +11399,49 @@ function ThreeCanvas({
       newObj.updateMatrixWorld(true);
 
       setActivePart(newObj);
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
+    async function updateEdukAbatible(instanceId, nextConfig = {}) {
+      if (readOnly) return;
+      const found = parts.find(({ obj }) => {
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      });
+      if (!found?.obj) {
+        console.warn('[updateEdukAbatible] No se encontró la pieza:', instanceId);
+        return;
+      }
+      const obj = found.obj;
+      obj.userData.edukAbatible = {
+        ...(obj.userData.edukAbatible || {}),
+        ...nextConfig,
+      };
+      applyEdukAbatibleGeometry(obj, obj.userData.edukAbatible);
+      obj.userData.edukParts = getEdukAbatibleBOMParts(
+        obj.userData.edukAbatible,
+        countryRef.current
+      );
+      obj.updateMatrixWorld(true);
+      invalidateFootprint2D(obj);
+      invalidateDetailedFootprint2D(obj);
+      if (activePart === obj) {
+        setActivePart(obj);
+      }
+      onFloatingEditorRequest?.((prev) => {
+        if (!prev?.open) return prev;
+        return {
+          ...prev,
+          part: {
+            ...(prev.part || {}),
+            edukAbatible: { ...(obj.userData.edukAbatible || {}) },
+            userData: {
+              ...(prev.part?.userData || {}),
+              edukAbatible: { ...(obj.userData.edukAbatible || {}) },
+            },
+          },
+        };
+      });
       emitBOM();
       refreshFloorAndGrid();
     }
@@ -11618,7 +11821,6 @@ function ThreeCanvas({
         }
 
         onSelectionChange?.(null);
-        updateEdukTableHandles();
         updateMilaConnectors();
       }
 
@@ -12142,7 +12344,7 @@ function ThreeCanvas({
             return createdAssembly;
           },
           addExternalGlbPart,
-          selectObject: () => {},
+          selectObject: () => { },
         };
 
         try {
@@ -12829,9 +13031,8 @@ function ThreeCanvas({
       root.userData.typologyParts = [
         {
           code: root.userData.code,
-          description: `Pantalla ${tipo} ${material} ${root.userData.dim?.lengthMm || ''}x${
-            root.userData.dim?.heightMm || ''
-          }`,
+          description: `Pantalla ${tipo} ${material} ${root.userData.dim?.lengthMm || ''}x${root.userData.dim?.heightMm || ''
+            }`,
           qty: 1,
           unitPrice: 0,
         },
@@ -13072,7 +13273,7 @@ function ThreeCanvas({
         if (obj) setActivePart(obj);
       },
       addCatalogItem,
-      addClipboardCatalogItem: async (kind, code) => {
+      addClipboardCatalogItem: async (kind, code, options = {}) => {
         const normalizedKind = String(kind || '').toUpperCase();
         const previousLength = parts.length;
         const creators = {
@@ -13084,7 +13285,7 @@ function ThreeCanvas({
           MEPAL_SALUD: addMepalSalud,
           MEPAL_TEK_SOCIAL: addMepalTekSocial,
           CLAK: addClak,
-          EDUK: addEduk,
+          EDUK: (edukCode) => addEduk(edukCode, options),
           KUO_AV: addKuoAV,
           KUO_AV_ASSEMBLY: addKuoAV,
         };
@@ -13376,9 +13577,12 @@ function ThreeCanvas({
       toggleMilaAccessory,
       swapMepalSaludVariant,
       swapClakVariant,
+      swapClakSpecial,
       swapAlmacenamientoVariant,
+      swapZenSpecial,
       swapEdukShelfHeight,
       swapEdukVariant,
+      updateEdukAbatible,
       exportGLTF: () => exportSceneToGLTF(scene, { filename: 'proyecto.glb' }),
       exportDXF: ({ detailed2DIds = [], detailLevel = 3, detailAll = false } = {}) => {
         const snap = getPartsSnapshot2D({ detailed2DIds, detailAll: detailAll && detailLevel > 1 });
@@ -14971,15 +15175,15 @@ function ThreeCanvas({
       });
       const originalVigaSnapshots = shouldReplaceVigas
         ? await replaceVigasWithPedestalReinforcement({
-            parentGroup,
-            moduleIndex,
-            pedestalSetId,
-            costadoPositionMm: {
-              x: basePos.x * 1000,
-              y: basePos.y * 1000,
-              z: basePos.z * 1000,
-            },
-          })
+          parentGroup,
+          moduleIndex,
+          pedestalSetId,
+          costadoPositionMm: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
+        })
         : [];
 
       const originalCostadoSnapshot = {
@@ -15310,10 +15514,10 @@ function ThreeCanvas({
       const material = existingMaterial
         ? existingMaterial.clone()
         : new THREE.MeshStandardMaterial({
-            color: '#333333',
-            roughness: 0.45,
-            metalness: 0.3,
-          });
+          color: '#333333',
+          roughness: 0.45,
+          metalness: 0.3,
+        });
 
       model.traverse((node) => {
         node.userData = {};
@@ -15698,123 +15902,123 @@ function ThreeCanvas({
         );
         newIntegrationLegObj = costadoObj;
       } else if (integrationLeg?.assembly) {
-          newIntegrationLegObj = await addKoncisaCostadoAssemblyPart({
-            type: 'costado',
-            line: 'KONCISA.PLUS',
-            code: integrationLeg.codigoPT,
-            logicalCode: integrationLeg.logicalCode,
-            name: integrationLeg.name,
-            groupId,
-            groupName,
-            parentGroup,
-            dimMm: { depthMm: normalizedWidthMm, realDepthMm: normalizedWidthMm },
-            position: {
-              x: basePos.x * 1000,
-              y: basePos.y * 1000,
-              z: basePos.z * 1000,
-            },
-            rotation: { x: baseRot.x, y: baseRot.y, z: baseRot.z },
-            meta: {
-              category: 'costados',
-              tipoPuesto: 'doble',
-              tipoModulo: 'terminal',
-              moduleIndex,
-              replaceZone,
-              integrationSetId,
-              isIntegrationLeg: true,
-              replacesCostado: true,
-              costadoAssembly: integrationLeg.assembly,
-              realDepthMm: normalizedWidthMm,
-              originalCostadoSnapshot,
-              originalCostadoCode: costadoObj.userData?.code || null,
-            },
-          });
-        } else if (integrationLeg?.modelSrc) {
-          newIntegrationLegObj = await addExternalGlbPart({
-            type: 'costado',
-            line: 'KONCISA.PLUS',
-            code: integrationLeg.codigoPT,
-            logicalCode: integrationLeg.logicalCode,
-            name: integrationLeg.name,
+        newIntegrationLegObj = await addKoncisaCostadoAssemblyPart({
+          type: 'costado',
+          line: 'KONCISA.PLUS',
+          code: integrationLeg.codigoPT,
+          logicalCode: integrationLeg.logicalCode,
+          name: integrationLeg.name,
+          groupId,
+          groupName,
+          parentGroup,
+          dimMm: { depthMm: normalizedWidthMm, realDepthMm: normalizedWidthMm },
+          position: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
+          rotation: { x: baseRot.x, y: baseRot.y, z: baseRot.z },
+          meta: {
+            category: 'costados',
+            tipoPuesto: 'doble',
+            tipoModulo: 'terminal',
+            moduleIndex,
+            replaceZone,
+            integrationSetId,
+            isIntegrationLeg: true,
+            replacesCostado: true,
+            costadoAssembly: integrationLeg.assembly,
+            realDepthMm: normalizedWidthMm,
+            originalCostadoSnapshot,
+            originalCostadoCode: costadoObj.userData?.code || null,
+          },
+        });
+      } else if (integrationLeg?.modelSrc) {
+        newIntegrationLegObj = await addExternalGlbPart({
+          type: 'costado',
+          line: 'KONCISA.PLUS',
+          code: integrationLeg.codigoPT,
+          logicalCode: integrationLeg.logicalCode,
+          name: integrationLeg.name,
 
-            groupId,
-            groupName,
-            parentGroup,
+          groupId,
+          groupName,
+          parentGroup,
 
-            position: {
-              x: basePos.x * 1000,
-              y: basePos.y * 1000,
-              z: basePos.z * 1000,
-            },
+          position: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
 
-            rotation: {
-              x: baseRot.x,
-              y: baseRot.y,
-              z: baseRot.z,
-            },
+          rotation: {
+            x: baseRot.x,
+            y: baseRot.y,
+            z: baseRot.z,
+          },
 
-            model: {
-              kind: 'glb',
-              src: integrationLeg.modelSrc,
-            },
+          model: {
+            kind: 'glb',
+            src: integrationLeg.modelSrc,
+          },
 
-            meta: {
-              category: 'costados',
-              tipoPuesto: 'doble',
-              tipoModulo: 'terminal',
-              moduleIndex,
-              replaceZone,
-              integrationSetId,
-              isIntegrationLeg: true,
-              replacesCostado: true,
-              originalCostadoSnapshot,
-              originalCostadoCode: costadoObj.userData?.code || null,
-            },
-          });
-        } else {
-          newIntegrationLegObj = addNativeBlockPart({
-            type: 'costado',
-            line: 'KONCISA.PLUS',
-            code: integrationLeg.codigoPT,
-            logicalCode: integrationLeg.logicalCode,
-            name: integrationLeg.name,
+          meta: {
+            category: 'costados',
+            tipoPuesto: 'doble',
+            tipoModulo: 'terminal',
+            moduleIndex,
+            replaceZone,
+            integrationSetId,
+            isIntegrationLeg: true,
+            replacesCostado: true,
+            originalCostadoSnapshot,
+            originalCostadoCode: costadoObj.userData?.code || null,
+          },
+        });
+      } else {
+        newIntegrationLegObj = addNativeBlockPart({
+          type: 'costado',
+          line: 'KONCISA.PLUS',
+          code: integrationLeg.codigoPT,
+          logicalCode: integrationLeg.logicalCode,
+          name: integrationLeg.name,
 
-            groupId,
-            groupName,
-            parentGroup,
+          groupId,
+          groupName,
+          parentGroup,
 
-            dimMm: {
-              widthMm: 35,
-              heightMm: 710,
-              depthMm: normalizedWidthMm,
-            },
+          dimMm: {
+            widthMm: 35,
+            heightMm: 710,
+            depthMm: normalizedWidthMm,
+          },
 
-            position: {
-              x: basePos.x * 1000,
-              y: basePos.y * 1000,
-              z: basePos.z * 1000,
-            },
+          position: {
+            x: basePos.x * 1000,
+            y: basePos.y * 1000,
+            z: basePos.z * 1000,
+          },
 
-            rotation: {
-              x: baseRot.x,
-              y: baseRot.y,
-              z: baseRot.z,
-            },
+          rotation: {
+            x: baseRot.x,
+            y: baseRot.y,
+            z: baseRot.z,
+          },
 
-            meta: {
-              category: 'costados',
-              tipoPuesto: 'doble',
-              tipoModulo: 'terminal',
-              moduleIndex,
-              replaceZone,
-              integrationSetId,
-              isIntegrationLeg: true,
-              replacesCostado: true,
-              originalCostadoSnapshot,
-              originalCostadoCode: costadoObj.userData?.code || null,
-            },
-          });
-        }
+          meta: {
+            category: 'costados',
+            tipoPuesto: 'doble',
+            tipoModulo: 'terminal',
+            moduleIndex,
+            replaceZone,
+            integrationSetId,
+            isIntegrationLeg: true,
+            replacesCostado: true,
+            originalCostadoSnapshot,
+            originalCostadoCode: costadoObj.userData?.code || null,
+          },
+        });
+      }
 
       // =====================================================
       // 2. Superficie sencilla de integración
@@ -16024,11 +16228,11 @@ function ThreeCanvas({
       // Link: el ducto de integración es el LKSO090000 (22000009100); Koncisa conserva el suyo.
       const individualDuct = isLinkComponent
         ? {
-            codigoPT: '22000009100',
-            logicalCode: 'LKSO090000',
-            modelSrc: '/assets/models/Link/LKSO090000_1.glb',
-            name: 'DUCTO DE CABLEADO DE INTEGRACION 10X50X10CM LINK LKSO090000',
-          }
+          codigoPT: '22000009100',
+          logicalCode: 'LKSO090000',
+          modelSrc: '/assets/models/Link/LKSO090000_1.glb',
+          name: 'DUCTO DE CABLEADO DE INTEGRACION 10X50X10CM LINK LKSO090000',
+        }
         : pkg.individualDuct;
       let referenceDoubleDuct = null;
       parentGroup?.traverse((node) => {
@@ -16290,12 +16494,12 @@ function ThreeCanvas({
           const INTEGRATION_DUCT_MOUTH_OVERLAP_MM = 50;
           const mouthX = tableDuctEndBox
             ? (tableSideSign > 0 ? tableDuctEndBox.min.x : tableDuctEndBox.max.x) +
-              (tableSideSign * INTEGRATION_DUCT_MOUTH_OVERLAP_MM) / 1000
+            (tableSideSign * INTEGRATION_DUCT_MOUTH_OVERLAP_MM) / 1000
             : grommetEdgeX;
           const targetCenterY = tableDuctBox
             ? tableDuctBox.getCenter(new THREE.Vector3()).y
             : (surfaceBox && !surfaceBox.isEmpty() ? surfaceBox.min.y : 0.71) -
-              (ductBox.max.y - ductBox.min.y) / 2;
+            (ductBox.max.y - ductBox.min.y) / 2;
 
           integrationDuctObj.position.x +=
             tableSideSign > 0 ? mouthX - ductBox.max.x : mouthX - ductBox.min.x;
@@ -16944,18 +17148,18 @@ function ThreeCanvas({
       return false;
     }
 
-    function getCeilingDuctLocalTransform(duct, ceilingDuct, sideValue) {
-      const side = String(sideValue || 'LEFT').toUpperCase() === 'RIGHT' ? 'RIGHT' : 'LEFT';
+    function getCeilingDuctLocalTransform(duct, ceilingDuct, sideValue, meta = null) {
+      const side = String(sideValue || meta?.side || 'LEFT').toUpperCase() === 'RIGHT' ? 'RIGHT' : 'LEFT';
       const OUTSIDE_OFFSET_M = 0.07;
       const DEPTH_OFFSET_M = -0.028;
       const ductBounds = computeBounds2D(duct, {
         exclude: (node) => isDuctAttachmentDescendant(duct, node),
       });
       const ceilingBounds = computeBounds2D(ceilingDuct);
-      const rotationY = side === 'RIGHT' ? Math.PI : 0;
+      const defaultRotationY = side === 'RIGHT' ? Math.PI : 0;
 
       if (!ductBounds || !ceilingBounds) {
-        return { position: new THREE.Vector3(), rotationY };
+        return { position: new THREE.Vector3(), rotationY: defaultRotationY };
       }
 
       const ductMin = ductBounds.localCenter.clone().addScaledVector(ductBounds.sizeLocal, -0.5);
@@ -16971,15 +17175,32 @@ function ThreeCanvas({
       const rotatedMaxX = side === 'RIGHT' ? -ceilingMin.x : ceilingMax.x;
       const rotatedMaxZ = side === 'RIGHT' ? -ceilingMin.z : ceilingMax.z;
 
+      const tipoPuesto = String(
+        meta?.tipoPuesto ||
+        ceilingDuct?.userData?.meta?.tipoPuesto ||
+        duct?.userData?.meta?.tipoPuesto ||
+        'sencillo'
+      ).toLowerCase() === 'doble' ? 'doble' : 'sencillo';
+
+      const configuredOffset =
+        meta?.offsetFromReferenceMm ||
+        ceilingDuct?.userData?.meta?.offsetFromReferenceMm ||
+        KONCISA_CEILING_DUCT_OFFSETS?.[tipoPuesto]?.[side] ||
+        {};
+
+      const extraOffsetX = Number(configuredOffset.x ?? 0) / 1000;
+      const extraOffsetY = Number(configuredOffset.y ?? 0) / 1000;
+      const extraOffsetZ = Number(configuredOffset.z ?? 0) / 1000;
+
       return {
         position: new THREE.Vector3(
-          side === 'RIGHT'
+          (side === 'RIGHT'
             ? ductMax.x - rotatedMaxX + OUTSIDE_OFFSET_M
-            : ductMin.x - rotatedMinX - OUTSIDE_OFFSET_M,
-          ductMin.y - ceilingMin.y,
-          ductMax.z - rotatedMaxZ + DEPTH_OFFSET_M
+            : ductMin.x - rotatedMinX - OUTSIDE_OFFSET_M) + extraOffsetX,
+          ductMin.y - ceilingMin.y + extraOffsetY,
+          ductMax.z - rotatedMaxZ + DEPTH_OFFSET_M + extraOffsetZ
         ),
-        rotationY,
+        rotationY: Number.isFinite(configuredOffset.rotY) ? configuredOffset.rotY : defaultRotationY,
       };
     }
 
@@ -17098,9 +17319,9 @@ function ThreeCanvas({
         const initialBoundsX = getBoundsXInParent();
         const surfaceWidthMm = Number(
           root.userData?.meta?.realWidthMm ||
-            root.userData?.meta?.nominalWidthMm ||
-            root.userData?.dim?.widthMm ||
-            0
+          root.userData?.meta?.nominalWidthMm ||
+          root.userData?.dim?.widthMm ||
+          0
         );
         const oppositeSurfaceStartX = initialBoundsX.maxX - surfaceWidthMm / 1000;
 
@@ -17238,15 +17459,15 @@ function ThreeCanvas({
         const sideModels = isSpecialNativeTerminal
           ? oldMeta
           : resolveKoncisaDuctSideModels(
-              resolveKoncisaDucto({
-                tipoPuesto: oldMeta.tipoPuesto,
-                tipoModulo: oldMeta.tipoModulo,
-                nominalWidthMm: oldMeta.nominalWidthMm,
-                accesoCableado: oldMeta.accesoCableado,
-              }),
-              oldMeta.tipoPuesto,
-              oldMeta.tipoModulo
-            );
+            resolveKoncisaDucto({
+              tipoPuesto: oldMeta.tipoPuesto,
+              tipoModulo: oldMeta.tipoModulo,
+              nominalWidthMm: oldMeta.nominalWidthMm,
+              accesoCableado: oldMeta.accesoCableado,
+            }),
+            oldMeta.tipoPuesto,
+            oldMeta.tipoModulo
+          );
         const nextModelSrc =
           nextSide === 'LEFT' ? sideModels.modelSrcLeft : sideModels.modelSrcRight;
         let replacement;
@@ -17432,7 +17653,18 @@ function ThreeCanvas({
     async function addCeilingDuctChild(root, side, asset) {
       const base = await loadDuctCoverModel(asset.modelSrc);
       const child = base.clone(true);
-      const transform = getCeilingDuctLocalTransform(root, child, side);
+      const tipoPuesto = root.userData?.meta?.tipoPuesto || 'sencillo';
+      const offsetRule = KONCISA_CEILING_DUCT_OFFSETS?.[tipoPuesto]?.[side.toUpperCase()] || {};
+      const ductMeta = {
+        category: 'ductos-a-techo',
+        attachmentKind: 'KONCISA_CEILING_DUCT',
+        side: side.toUpperCase(),
+        tipoPuesto,
+        referenceDuctCode: root.userData?.code || null,
+        referenceDuctType: root.userData?.meta?.tipoModulo || null,
+        offsetFromReferenceMm: offsetRule,
+      };
+      const transform = getCeilingDuctLocalTransform(root, child, side, ductMeta);
       const catalogItem = catalogByCodeRef.current?.get?.(String(asset.code)) || null;
 
       child.position.copy(transform.position);
@@ -17440,6 +17672,7 @@ function ThreeCanvas({
       child.name = `CEILING_DUCT_${side.toUpperCase()}`;
       child.userData = {
         isPartRoot: true,
+        isDuctProtectedPart: true,
         code: asset.code,
         codigoPT: asset.code,
         kind: 'ductoTecho',
@@ -17448,9 +17681,9 @@ function ThreeCanvas({
         unitPrice:
           Number(
             catalogItem?.prices?.[countryRef.current] ??
-              catalogItem?.prices?.CO ??
-              catalogItem?.raw?.price ??
-              0
+            catalogItem?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
           ) || 0,
         prices: catalogItem?.prices || undefined,
         logicalCode: asset.logicalCode,
@@ -17460,14 +17693,7 @@ function ThreeCanvas({
         groupId: root.userData?.groupId || null,
         groupName: root.userData?.groupName || null,
         parentAssemblyId: root.userData?.instanceId || root.userData?.code || null,
-        meta: {
-          category: 'ductos-a-techo',
-          attachmentKind: 'KONCISA_CEILING_DUCT',
-          side: side.toUpperCase(),
-          tipoPuesto: root.userData?.meta?.tipoPuesto || 'sencillo',
-          referenceDuctCode: root.userData?.code || null,
-          referenceDuctType: root.userData?.meta?.tipoModulo || null,
-        },
+        meta: ductMeta,
       };
 
       child.traverse((node) => {
@@ -17476,10 +17702,14 @@ function ThreeCanvas({
           parentAssemblyId: child.userData.parentAssemblyId,
           groupId: child.userData.groupId,
           groupName: child.userData.groupName,
+          isDuctProtectedPart: true,
         };
         if (node.isMesh) {
           node.castShadow = true;
           node.receiveShadow = true;
+          if (!node.userData.__origMaterial) {
+            node.userData.__origMaterial = node.material;
+          }
         }
       });
 
@@ -17820,13 +18050,13 @@ function ThreeCanvas({
       const accesoCableado =
         String(
           oldMeta.accesoCableado ||
-            oldMeta.tipoCanal ||
-            inferDuctChannelType({
-              logicalCode: oldObj.userData?.logicalCode,
-              description: oldObj.userData?.description,
-              codigoPT: oldObj.userData?.codigoPT,
-              code: oldObj.userData?.code,
-            })
+          oldMeta.tipoCanal ||
+          inferDuctChannelType({
+            logicalCode: oldObj.userData?.logicalCode,
+            description: oldObj.userData?.description,
+            codigoPT: oldObj.userData?.codigoPT,
+            code: oldObj.userData?.code,
+          })
         ).toUpperCase() === 'PASACABLE'
           ? 'PASACABLE'
           : 'GROMMET';
@@ -18104,7 +18334,7 @@ function ThreeCanvas({
         return false;
       }
 
-      const nextTransform = getCeilingDuctLocalTransform(referenceDuct, root, side);
+      const nextTransform = getCeilingDuctLocalTransform(referenceDuct, root, side, root.userData?.meta);
       root.position.copy(nextTransform.position);
       root.rotation.set(0, nextTransform.rotationY, 0);
 
@@ -18361,19 +18591,6 @@ function ThreeCanvas({
       updateMouseFromEvent(e);
       raycaster.setFromCamera(mouse, camera);
 
-      if (edukTableHandleGroup.visible) {
-        const edukHandleHits = raycaster.intersectObjects(edukTableHandleGroup.children, true);
-        if (edukHandleHits.length) {
-          const direction = resolveEdukHandleDirection(edukHandleHits[0].object);
-          if (direction !== 0) {
-            startEdukHandleDrag(e, direction);
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-        }
-      }
-
       if (transformToolRef.current === 'rotate' && rotationHandle.visible) {
         const handleHits = raycaster.intersectObjects(rotationHandle.children, true);
         if (handleHits.length && beginRotation({})) {
@@ -18402,7 +18619,7 @@ function ThreeCanvas({
           const snapType = hitMarker.userData?.snapType;
           const assembly =
             activePart.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY' ||
-            activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
+              activePart.userData?.kind === 'KUO_AV_ASSEMBLY'
               ? activePart
               : getKoncisaAssemblyObject(activePart) || activePart;
           if (assembly.userData?.kind !== 'KUO_AV_DOBLE_ASSEMBLY') {
@@ -18482,7 +18699,7 @@ function ThreeCanvas({
         }
       }
       if (wallModeRef.current === 'EDIT' &&
-          (firstHit.object.userData?.kind === 'WALL' || firstHit.object.userData?.kind === 'DOOR')) {
+        (firstHit.object.userData?.kind === 'WALL' || firstHit.object.userData?.kind === 'DOOR')) {
         const wallId = resolveWallIdFrom3DHit(firstHit, architectureWallsRef.current);
         if (wallId) {
           onSelectWallRef.current?.(wallId);
@@ -18514,7 +18731,7 @@ function ThreeCanvas({
 
       const selectedCritteriumSystem =
         activePart?.userData?.kind === 'CRITERIUM_SYSTEM' &&
-        getCritteriumSystemRoot(hitObj) === activePart
+          getCritteriumSystemRoot(hitObj) === activePart
           ? activePart
           : null;
       const critteriumSequence = getCritterium8SequenceRoot(hitObj);
@@ -18631,9 +18848,9 @@ function ThreeCanvas({
           code: node.userData?.codigoPT || node.userData?.code,
           seatMode: isMoreaRoot
             ? node.userData?.meta?.seatMode ||
-              resolveMoreaSeatModeByCode(node.userData?.codigoPT || node.userData?.code)
+            resolveMoreaSeatModeByCode(node.userData?.codigoPT || node.userData?.code)
             : node.userData?.meta?.seatMode ||
-              resolveMilaSeatModeByCode(node.userData?.codigoPT || node.userData?.code),
+            resolveMilaSeatModeByCode(node.userData?.codigoPT || node.userData?.code),
           backrestRotated180: Boolean(node.userData?.meta?.backrestRotated180),
           label: `Puesto ${idx + 1}`,
           index: idx,
@@ -18734,29 +18951,33 @@ function ThreeCanvas({
             null,
           config: propertiesTarget.userData?.config || root.userData?.config || null,
           userData: propertiesTarget.userData || root.userData || null,
+          isSpecial: Boolean(propertiesTarget.userData?.isSpecial ?? root.userData?.isSpecial),
+          specialLength: propertiesTarget.userData?.specialLength ?? root.userData?.specialLength ?? null,
+          billingCode: propertiesTarget.userData?.billingCode ?? root.userData?.billingCode ?? null,
+          edukAbatible: propertiesTarget.userData?.edukAbatible || root.userData?.edukAbatible || null,
           ...(root.userData?.kind === 'LINK_PRODUCT' ? getLinkSelectionInfo(root, hitObj) : {}),
           ...(root.userData?.kind === 'MULTIPLE_PRODUCT'
             ? {
-                multiple: {
-                  component: (() => {
-                    const component = getMultipleComponent(hitObj);
-                    return component
-                      ? {
-                          componentKey: component.userData.componentKey,
-                          componentRole: component.userData.componentRole,
-                          description: component.userData.description,
-                          tileType: component.userData.tileType,
-                          materialRole: component.userData.materialRole,
-                          finishId: component.userData.finishId,
-                          codigoPT: component.userData.codigoPT,
-                          reference: component.userData.commercialReference,
-                          commercialStatus: component.userData.commercialStatus,
-                          diagnostics: component.userData.commercialDiagnostics,
-                        }
-                      : null;
-                  })(),
-                },
-              }
+              multiple: {
+                component: (() => {
+                  const component = getMultipleComponent(hitObj);
+                  return component
+                    ? {
+                      componentKey: component.userData.componentKey,
+                      componentRole: component.userData.componentRole,
+                      description: component.userData.description,
+                      tileType: component.userData.tileType,
+                      materialRole: component.userData.materialRole,
+                      finishId: component.userData.finishId,
+                      codigoPT: component.userData.codigoPT,
+                      reference: component.userData.commercialReference,
+                      commercialStatus: component.userData.commercialStatus,
+                      diagnostics: component.userData.commercialDiagnostics,
+                    }
+                    : null;
+                })(),
+              },
+            }
             : {}),
           parentAssemblyId:
             propertiesTarget.userData?.parentAssemblyId || root.userData?.parentAssemblyId || null,
@@ -18769,6 +18990,7 @@ function ThreeCanvas({
           almacenVariant: propertiesTarget.userData?.almacenVariant || null,
           almacenCategory: propertiesTarget.userData?.almacenCategory || null,
           almacenVariants: propertiesTarget.userData?.almacenVariants || null,
+          almacenLength: propertiesTarget.userData?.almacenLength ?? root.userData?.almacenLength ?? 60,
           seats: popupSeats,
           clickedSeatIndex: clickedPopupSeatIndex,
           armrestLeft: popupSeats ? root.userData?._milaArmrestLeft || false : undefined,
@@ -18777,11 +18999,11 @@ function ThreeCanvas({
           hasScreen: popupSeats ? root.userData?._milaHasScreen || false : undefined,
           backrestRotated180: popupSeats
             ? Boolean(
-                popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
-                popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
-                root.userData?.meta?.backrestRotated180 ||
-                root.userData?._moreaBackrestRotated180
-              )
+              popupSeats?.[clickedPopupSeatIndex]?.backrestRotated180 ||
+              popupSeats?.[clickedPopupSeatIndex]?.meta?.backrestRotated180 ||
+              root.userData?.meta?.backrestRotated180 ||
+              root.userData?._moreaBackrestRotated180
+            )
             : undefined,
           quantity: popupSeats
             ? root.userData?._milaQuantity || (popupSeats?.length ?? 1)
@@ -18818,11 +19040,11 @@ function ThreeCanvas({
           const clusterAssemblies = new Set(
             batchId
               ? physicalObjects.filter(
-                  (candidate) =>
-                    candidate.userData?.kuoBatchId === batchId &&
-                    (candidate.userData?.kind === 'KUO_AV_ASSEMBLY' ||
-                      candidate.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY')
-                )
+                (candidate) =>
+                  candidate.userData?.kuoBatchId === batchId &&
+                  (candidate.userData?.kind === 'KUO_AV_ASSEMBLY' ||
+                    candidate.userData?.kind === 'KUO_AV_DOBLE_ASSEMBLY')
+              )
               : [assembly]
           );
           if (!clusterAssemblies.has(assembly)) clusterAssemblies.add(assembly);
@@ -18862,11 +19084,11 @@ function ThreeCanvas({
           const members = batchId
             ? [...clusterAssemblies]
             : physicalObjects.filter(
-                (candidate) =>
-                  clusterAssemblies.has(candidate) ||
-                  [...clusterAssemblies].some((ass) => isDescendantOf(candidate, ass)) ||
-                  assemblyIds.has(candidate.userData?.parentAssemblyId)
-              );
+              (candidate) =>
+                clusterAssemblies.has(candidate) ||
+                [...clusterAssemblies].some((ass) => isDescendantOf(candidate, ass)) ||
+                assemblyIds.has(candidate.userData?.parentAssemblyId)
+            );
           dragGroupStartRef.current = members.map((obj) => ({
             obj,
             position: obj.position.clone(),
@@ -18978,14 +19200,14 @@ function ThreeCanvas({
         })),
         standaloneSpatialBefore:
           dragTargets.length === 1 &&
-          dragTargets[0].userData?.kind === 'MULTIPLE_PRODUCT' &&
-          !dragTargets[0].userData?.systemId
+            dragTargets[0].userData?.kind === 'MULTIPLE_PRODUCT' &&
+            !dragTargets[0].userData?.systemId
             ? getStandaloneMultipleProducts(scene).map((obj) => createMoveSnapshot(obj))
             : null,
         critteriumSpatialBefore:
           dragTargets.length === 1 &&
-          dragTargets[0].userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' &&
-          dragTargets[0].parent?.userData?.kind === 'CRITERIUM_SYSTEM'
+            dragTargets[0].userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' &&
+            dragTargets[0].parent?.userData?.kind === 'CRITERIUM_SYSTEM'
             ? captureCritteriumSystemState(dragTargets[0].parent)
             : null,
         critteriumSystemBefore:
@@ -19051,20 +19273,7 @@ function ThreeCanvas({
       updateMouseFromEvent(e);
       raycaster.setFromCamera(mouse, camera);
 
-      if (edukHandleDragSession) {
-        updateEdukHandleDrag(e);
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
-      if (edukTableHandleGroup.visible && !isDragging && !isRotating3D) {
-        const edukHandleHits = raycaster.intersectObjects(edukTableHandleGroup.children, true);
-        const direction = edukHandleHits.length
-          ? resolveEdukHandleDirection(edukHandleHits[0].object)
-          : 0;
-        setCanvasCursor(direction !== 0 ? 'pointer' : '');
-      } else if (!isDragging && !isRotating3D) {
+      if (!isDragging && !isRotating3D) {
         setCanvasCursor('');
       }
 
@@ -19170,7 +19379,7 @@ function ThreeCanvas({
             }
             const preview =
               moved.userData?.kind === 'MULTIPLE_PRODUCT' &&
-              moved.parent?.userData?.kind === 'MULTIPLE_SYSTEM'
+                moved.parent?.userData?.kind === 'MULTIPLE_SYSTEM'
                 ? previewMultipleProductDrag(moved)
                 : moved.userData?.kind === 'MULTIPLE_PRODUCT'
                   ? previewMultipleStandardSnap(moved, getStandaloneMultipleProducts(scene))
@@ -19404,8 +19613,8 @@ function ThreeCanvas({
           const targetTopY = Number.isFinite(sideArmrestReferenceTopY)
             ? sideArmrestReferenceTopY
             : Math.min(leftSeatBounds.max.y, rightSeatBounds.max.y) -
-              armrestTopDropM +
-              sideArmrestOffsetY;
+            armrestTopDropM +
+            sideArmrestOffsetY;
           const desiredMinY = targetTopY - armrestHeight;
           const deltaY = desiredMinY - armrestBounds.min.y;
           const targetBackZ = Math.min(leftSeatBounds.max.z, rightSeatBounds.max.z);
@@ -19658,8 +19867,8 @@ function ThreeCanvas({
           ).toLowerCase();
           const targetRole = String(
             snapResult?.targetObj?.userData?.meta?.role ||
-              snapResult?.targetObj?.userData?.role ||
-              ''
+            snapResult?.targetObj?.userData?.role ||
+            ''
           ).toLowerCase();
           const targetSeamIndex = resolveSeamIndexFromSnapResult(snapResult);
           const armrestRoles = new Set(['armrest-left', 'armrest-right', 'armrest-center']);
@@ -20100,11 +20309,6 @@ function ThreeCanvas({
     }
 
     async function onPointerUp(e) {
-      if (endEdukHandleDrag(e.pointerId)) {
-        e.preventDefault();
-        return;
-      }
-
       if (isRotating3D) {
         isRotating3D = false;
         endRotation();
@@ -20249,7 +20453,7 @@ function ThreeCanvas({
                 const offsetZ = -halfDepthM;
                 const offsetY = resolveKuoAVPerimetralScreenHeight(
                   nearestDesk.userData?.config?.physicalHeightMm ||
-                    nearestDesk.userData?.config?.alturaMm,
+                  nearestDesk.userData?.config?.alturaMm,
                   nearestDesk.userData?.config?.thickMm
                 );
 
@@ -20276,10 +20480,10 @@ function ThreeCanvas({
                 let offsetZ = 0;
                 const offsetY = isPerimetralScreen
                   ? resolveKuoAVPerimetralScreenHeight(
-                      nearestDesk.userData?.config?.physicalHeightMm ||
-                        nearestDesk.userData?.config?.alturaMm,
-                      nearestDesk.userData?.config?.thickMm
-                    )
+                    nearestDesk.userData?.config?.physicalHeightMm ||
+                    nearestDesk.userData?.config?.alturaMm,
+                    nearestDesk.userData?.config?.thickMm
+                  )
                   : 0.452;
 
                 if (!isPerimetralScreen && localZ > 0.2) {
@@ -20374,7 +20578,7 @@ function ThreeCanvas({
             );
           const movedSystemRoot =
             completedDragSession.initialPositions.length === 1 &&
-            completedDragSession.initialPositions[0].obj.userData?.kind === 'MULTIPLE_SYSTEM'
+              completedDragSession.initialPositions[0].obj.userData?.kind === 'MULTIPLE_SYSTEM'
               ? completedDragSession.initialPositions[0]
               : null;
           if (movedSystemRoot) {
@@ -20445,7 +20649,7 @@ function ThreeCanvas({
             completedDragSession.critteriumSpatialBefore &&
             completedDragSession.initialPositions.length === 1 &&
             completedDragSession.initialPositions[0].obj.userData?.kind ===
-              'CRITTERIUM_8_SEQUENCE_ASSEMBLY'
+            'CRITTERIUM_8_SEQUENCE_ASSEMBLY'
           ) {
             const sequence = completedDragSession.initialPositions[0].obj;
             const system = sequence.parent;
@@ -20497,9 +20701,9 @@ function ThreeCanvas({
           } else if (
             completedDragSession.initialPositions.length === 1 &&
             completedDragSession.initialPositions[0].obj.userData?.kind ===
-              'CRITTERIUM_8_ASSEMBLY' &&
+            'CRITTERIUM_8_ASSEMBLY' &&
             completedDragSession.initialPositions[0].obj.parent?.userData?.kind ===
-              'CRITTERIUM_8_SEQUENCE_ASSEMBLY'
+            'CRITTERIUM_8_SEQUENCE_ASSEMBLY'
           ) {
             const frame = completedDragSession.initialPositions[0].obj;
             const sequence = frame.parent;
@@ -20553,7 +20757,6 @@ function ThreeCanvas({
     }
 
     function onPointerCancel(e) {
-      endEdukHandleDrag(e.pointerId);
       if (isRotating3D) {
         cancelRotation();
         isRotating3D = false;
@@ -20570,12 +20773,10 @@ function ThreeCanvas({
 
     window.addEventListener('pointerup', onPointerUp);
     function onWindowPointerCancel(e) {
-      endEdukHandleDrag(e.pointerId);
       if (rotationSession) cancelRotation();
       cancelDragSession(e.pointerId);
     }
     function onWindowBlur() {
-      endEdukHandleDrag();
       if (rotationSession) cancelRotation();
       cancelDragSession();
     }
@@ -20602,7 +20803,6 @@ function ThreeCanvas({
       if (selectionHelper) selectionHelper.update();
       additionalSelectionHelpers.forEach((helper) => helper.update());
       updateRotationHandle();
-      updateEdukTableHandles();
       updateKuoAVSnapMarkers();
       updateMilaConnectors();
 
@@ -20917,9 +21117,8 @@ function ThreeCanvas({
       const descriptionSuffix = String(incomingItem?.meta?.descriptionSuffix || '').trim();
 
       const description = isSpecial
-        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
-            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
-          }`
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+        }`
         : catalogDescription;
 
       const rawPrice =
@@ -21146,20 +21345,19 @@ function ThreeCanvas({
       //const description = descriptionNote ? `${catalogDescription} - ${descriptionNote}`: catalogDescription;
 
       const description = isSpecial
-        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${
-            descriptionSuffix ? ` - ${descriptionSuffix}` : ''
-          }`
+        ? `${descriptionPrefix ? `${descriptionPrefix} ` : ''}${catalogDescription}${descriptionSuffix ? ` - ${descriptionSuffix}` : ''
+        }`
         : catalogDescription;
 
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
 
       mesh.userData = {
@@ -21542,22 +21740,32 @@ function ThreeCanvas({
       const isSpecialTerminal =
         part?.meta?.isSpecial === true &&
         String(part?.meta?.tipoModulo || part?.subtype || '').toUpperCase() === 'TERMINAL';
-      if (isSpecialTerminal) return createNativeKoncisaSpecialTerminalDuctMesh(part);
-      const isSpecialSingleIntermediate =
-        part?.meta?.isSpecial === true &&
-        String(part?.meta?.tipoModulo || part?.subtype || '').toUpperCase() === 'INTERMEDIO' &&
-        String(part?.meta?.tipoPuesto || '').toUpperCase() === 'SENCILLO';
-      if (isSpecialSingleIntermediate)
-        return createNativeKoncisaSpecialSingleIntermediateDuctMesh(part);
-      const tipoPuesto = String(part?.meta?.tipoPuesto || '')
-        .trim()
-        .toUpperCase();
+      let root;
+      if (isSpecialTerminal) {
+        root = createNativeKoncisaSpecialTerminalDuctMesh(part);
+      } else {
+        const isSpecialSingleIntermediate =
+          part?.meta?.isSpecial === true &&
+          String(part?.meta?.tipoModulo || part?.subtype || '').toUpperCase() === 'INTERMEDIO' &&
+          String(part?.meta?.tipoPuesto || '').toUpperCase() === 'SENCILLO';
+        if (isSpecialSingleIntermediate) {
+          root = createNativeKoncisaSpecialSingleIntermediateDuctMesh(part);
+        } else {
+          const tipoPuesto = String(part?.meta?.tipoPuesto || '')
+            .trim()
+            .toUpperCase();
 
-      if (tipoPuesto === 'DOBLE') {
-        return createNativeKoncisaDoubleDuctMesh(part);
+          if (tipoPuesto === 'DOBLE') {
+            root = createNativeKoncisaDoubleDuctMesh(part);
+          } else {
+            root = createNativeKoncisaSingleDuctMesh(part);
+          }
+        }
       }
-
-      return createNativeKoncisaSingleDuctMesh(part);
+      if (root) {
+        applyDuctVisualMaterials(root, part?.meta);
+      }
+      return root;
     }
 
     function createNativeKoncisaSpecialSingleIntermediateDuctMesh(part = {}) {
@@ -22053,12 +22261,12 @@ function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
 
       const ductModuleType = part?.meta?.tipoModulo || 'terminal';
@@ -22578,12 +22786,12 @@ function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
 
       const instanceId = `${code || 'leader-skirt'}__${Date.now()}__${Math.random()
@@ -22647,18 +22855,18 @@ function ThreeCanvas({
           supportPositionsMm: {
             left: supportLeft
               ? {
-                  x: supportLeft.position.x * 1000,
-                  y: supportLeft.position.y * 1000,
-                  z: supportLeft.position.z * 1000,
-                }
+                x: supportLeft.position.x * 1000,
+                y: supportLeft.position.y * 1000,
+                z: supportLeft.position.z * 1000,
+              }
               : null,
 
             right: supportRight
               ? {
-                  x: supportRight.position.x * 1000,
-                  y: supportRight.position.y * 1000,
-                  z: supportRight.position.z * 1000,
-                }
+                x: supportRight.position.x * 1000,
+                y: supportRight.position.y * 1000,
+                z: supportRight.position.z * 1000,
+              }
               : null,
           },
         },
@@ -22789,10 +22997,10 @@ function ThreeCanvas({
 
       const realDepthMm = Number(
         part?.meta?.realDepthMm ??
-          part?.dimMm?.realDepthMm ??
-          part?.dimMm?.depthMm ??
-          part?.meta?.depthMm ??
-          600
+        part?.dimMm?.realDepthMm ??
+        part?.dimMm?.depthMm ??
+        part?.meta?.depthMm ??
+        600
       );
 
       if (!Number.isFinite(realDepthMm) || realDepthMm <= 0) {
@@ -23340,12 +23548,12 @@ function ThreeCanvas({
       const unitPrice =
         Number(
           catalogItem?.prices?.[countryRef.current] ??
-            catalogItem?.prices?.CO ??
-            catalogItem?.prices?.co ??
-            catalogItem?.raw?.prices?.[countryRef.current] ??
-            catalogItem?.raw?.prices?.CO ??
-            catalogItem?.raw?.price ??
-            0
+          catalogItem?.prices?.CO ??
+          catalogItem?.prices?.co ??
+          catalogItem?.raw?.prices?.[countryRef.current] ??
+          catalogItem?.raw?.prices?.CO ??
+          catalogItem?.raw?.price ??
+          0
         ) || 0;
 
       const instanceId = `${code || 'costado'}__${Date.now()}__${Math.random()
@@ -23515,14 +23723,14 @@ function ThreeCanvas({
         const unitPrice =
           Number(
             part.prices?.[countryRef.current] ??
-              part.unitPrice ??
-              catalogItem?.prices?.[countryRef.current] ??
-              catalogItem?.prices?.CO ??
-              catalogItem?.prices?.co ??
-              catalogItem?.raw?.prices?.[countryRef.current] ??
-              catalogItem?.raw?.prices?.CO ??
-              catalogItem?.raw?.price ??
-              0
+            part.unitPrice ??
+            catalogItem?.prices?.[countryRef.current] ??
+            catalogItem?.prices?.CO ??
+            catalogItem?.prices?.co ??
+            catalogItem?.raw?.prices?.[countryRef.current] ??
+            catalogItem?.raw?.prices?.CO ??
+            catalogItem?.raw?.price ??
+            0
           ) || 0;
 
         const ductModuleType = part?.meta?.tipoModulo || 'terminal';
@@ -23589,6 +23797,44 @@ function ThreeCanvas({
           }
         });
 
+        const isFloorOrCeilingDuct =
+          part.type === 'ductoPiso' ||
+          part.type === 'ductoTecho' ||
+          part.kind === 'ductoPiso' ||
+          part.kind === 'ductoTecho' ||
+          part?.meta?.category === 'ductos-a-piso' ||
+          part?.meta?.category === 'ductos-a-techo' ||
+          part?.meta?.category === 'ductos_a_piso' ||
+          part?.meta?.category === 'ductos_a_techo';
+
+        const isHorizontalDuct =
+          part.type === 'ducto' ||
+          part.kind === 'ducto' ||
+          part?.meta?.category === 'ductos';
+
+        if (isFloorOrCeilingDuct) {
+          obj.userData.isDuctProtectedPart = true;
+          obj.traverse((node) => {
+            if (node.isMesh) {
+              node.userData.isDuctProtectedPart = true;
+              if (!node.userData.__origMaterial) {
+                node.userData.__origMaterial = node.material;
+              }
+            }
+          });
+        } else if (isHorizontalDuct || isDuctObject(obj, part?.meta)) {
+          obj.userData.isDuctProtectedPart = true;
+          obj.traverse((node) => {
+            if (node.isMesh) {
+              node.userData.isDuctProtectedPart = true;
+              if (!node.userData.__origMaterial) {
+                node.userData.__origMaterial = node.material;
+              }
+            }
+          });
+          applyDuctVisualMaterials(obj, part?.meta);
+        }
+
         if (
           part?.meta?.attachmentKind === 'KONCISA_CEILING_DUCT' &&
           parentGroup?.userData?.kind === 'ducto'
@@ -23596,7 +23842,8 @@ function ThreeCanvas({
           const attachmentTransform = getCeilingDuctLocalTransform(
             parentGroup,
             obj,
-            part?.meta?.side
+            part?.meta?.side,
+            part?.meta
           );
           obj.position.copy(attachmentTransform.position);
           obj.rotation.set(0, attachmentTransform.rotationY, 0);
@@ -24039,6 +24286,23 @@ function ThreeCanvas({
           entry.procedural = obj.userData.procedural;
         }
 
+        if (obj.userData?.kind === 'CLAK' && obj.userData?.isSpecial) {
+          entry.isSpecial = true;
+          entry.specialLength = obj.userData.specialLength;
+          entry.billingCode = obj.userData.billingCode;
+        }
+
+        if (obj.userData?.kind === 'ALMACENAMIENTO') {
+          if (obj.userData?.isSpecial) {
+            entry.isSpecial = true;
+            entry.specialLength = obj.userData.specialLength;
+            entry.billingCode = obj.userData.billingCode;
+          }
+          if (obj.userData?.almacenLength) {
+            entry.almacenLength = obj.userData.almacenLength;
+          }
+        }
+
         // Material global (si se aplicó al objeto completo)
         entry.materialBase = obj.userData?.materialBase ?? null;
         entry.materialCode = obj.userData?.materialCode ?? null;
@@ -24093,7 +24357,6 @@ function ThreeCanvas({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerCancel);
       window.removeEventListener('blur', onWindowBlur);
-      endEdukHandleDrag();
 
       clearAdditionalSelectionHelpers();
 
@@ -24135,12 +24398,6 @@ function ThreeCanvas({
       multipleSnapFinal.material.dispose();
       multipleSnapLine.geometry.dispose();
       multipleSnapLine.material.dispose();
-      edukHandleGeometry.dispose();
-      edukHandleMaterial.dispose();
-      edukWidthHandleNext.material.dispose();
-      edukHeightHandlePrev.material.dispose();
-      edukHeightHandleNext.material.dispose();
-      scene.remove(edukTableHandleGroup);
       scene.remove(milaConnectorHandleGroup);
       scene.remove(clakConnectorHandleGroup);
       renderer.domElement.style.cursor = '';
@@ -24204,8 +24461,8 @@ function ThreeCanvas({
       mesh.position.set(
         (doorGeometry.hinge.x + doorGeometry.openEnd.x) / 2,
         (walls.find((wall) => wall.id === opening.wallId)?.baseElevation || 0) +
-          opening.sillHeight +
-          opening.height / 2,
+        opening.sillHeight +
+        opening.height / 2,
         (doorGeometry.hinge.z + doorGeometry.openEnd.z) / 2
       );
       mesh.rotation.y = Math.atan2(dz, dx);
@@ -24216,10 +24473,10 @@ function ThreeCanvas({
     }
     paintArchitectureFinishes(group, null, architectureSpecialFinishesRef.current,
       architectureWallsRef.current, architectureColumnsRef.current, {
-        isCurrent: (entry) => isArchitecturePaintCurrent(entry,
-          architectureSpecialFinishesRef.current, architectureWallsRef.current,
-          architectureColumnsRef.current, walls, columns),
-      }).catch((error) => console.warn('No se pudo restaurar la textura del muro:', error));
+      isCurrent: (entry) => isArchitecturePaintCurrent(entry,
+        architectureSpecialFinishesRef.current, architectureWallsRef.current,
+        architectureColumnsRef.current, walls, columns),
+    }).catch((error) => console.warn('No se pudo restaurar la textura del muro:', error));
     refreshFloorAndGridRef.current?.();
   }, [walls, openings, columns]);
 
@@ -24239,11 +24496,11 @@ function ThreeCanvas({
       const geometry =
         descriptor.geometryType === 'CYLINDER'
           ? new THREE.CylinderGeometry(
-              descriptor.diameter / 2,
-              descriptor.diameter / 2,
-              descriptor.height,
-              32
-            )
+            descriptor.diameter / 2,
+            descriptor.diameter / 2,
+            descriptor.height,
+            32
+          )
           : new THREE.BoxGeometry(descriptor.width, descriptor.height, descriptor.depth);
       const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xb7b7b7 }));
       mesh.name = `COLUMN_${column.id}`;
@@ -24255,10 +24512,10 @@ function ThreeCanvas({
     }
     paintArchitectureFinishes(null, group, architectureSpecialFinishesRef.current,
       architectureWallsRef.current, architectureColumnsRef.current, {
-        isCurrent: (entry) => isArchitecturePaintCurrent(entry,
-          architectureSpecialFinishesRef.current, architectureWallsRef.current,
-          architectureColumnsRef.current, walls, columns),
-      }).catch((error) => console.warn('No se pudo restaurar la textura de la columna:', error));
+      isCurrent: (entry) => isArchitecturePaintCurrent(entry,
+        architectureSpecialFinishesRef.current, architectureWallsRef.current,
+        architectureColumnsRef.current, walls, columns),
+    }).catch((error) => console.warn('No se pudo restaurar la textura de la columna:', error));
     refreshFloorAndGridRef.current?.();
   }, [columns]);
 
@@ -24274,10 +24531,10 @@ function ThreeCanvas({
       if (JSON.stringify(previous) !== JSON.stringify(current)) {
         paintArchitectureFinishTarget(wallsGroupRef.current, columnsGroupRef.current,
           after, entityType, entityId, architectureWallsRef.current, architectureColumnsRef.current, {
-            isCurrent: (entry) => isArchitecturePaintCurrent(entry,
-              architectureSpecialFinishesRef.current, architectureWallsRef.current,
-              architectureColumnsRef.current, walls, columns),
-          }).catch((error) => console.warn('No se pudo aplicar el acabado arquitectónico:', error));
+          isCurrent: (entry) => isArchitecturePaintCurrent(entry,
+            architectureSpecialFinishesRef.current, architectureWallsRef.current,
+            architectureColumnsRef.current, walls, columns),
+        }).catch((error) => console.warn('No se pudo aplicar el acabado arquitectónico:', error));
       }
     }
     previousArchitectureFinishesRef.current = after;

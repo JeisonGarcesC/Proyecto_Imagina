@@ -40,7 +40,6 @@
 }
 
 .topbar-file-btn,
-.topbar-country,
 .topbar-bom-btn,
 .topbar-segment,
 .topbar-menu-item {
@@ -71,13 +70,6 @@
   border-color: #262626;
 }
 
-.topbar-country {
-  height: 36px;
-  min-width: 82px;
-  padding: 0 12px;
-  cursor: pointer;
-  outline: none;
-}
 
 .topbar-menu-panel,
 .topbar-submenu-panel {

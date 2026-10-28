@@ -729,9 +729,9 @@ export default function App() {
       replacing
         ? { ...current, metersPerPixel: calibration.metersPerDocumentUnit, scale: 1 }
         : {
-            ...createDefaultPlanTransform(),
-            metersPerPixel: calibration.metersPerDocumentUnit,
-          }
+          ...createDefaultPlanTransform(),
+          metersPerPixel: calibration.metersPerDocumentUnit,
+        }
     );
     if (!replacing) setPlan2DLocked(true);
     setPlan2DKind(type);
@@ -1309,9 +1309,6 @@ export default function App() {
         onOpenAdminDevices={() => navigateInApp(ADMIN_DEVICES_PATH)}
         canAdminAudit={permissions.includes('admin.audit.read')}
         onOpenAdminAudit={() => navigateInApp(ADMIN_AUDIT_PATH)}
-        country={country}
-        setCountry={setCountry}
-        catalogCountries={CATALOG_COUNTRIES}
         materialsByCode={materialsByCode}
         threeApiRef={threeApiRef}
         transformTool={transformTool}
@@ -1477,9 +1474,11 @@ export default function App() {
                   }
                   const before = findArchitectureFinish(architectureSpecialFinishesRef.current, entityType, entityId);
                   const snapshot = snapshotSpecialFinish(finish);
-                  const after = { source: 'SPECIAL_FINISH', entityType, entityId, scope: 'ENTITY',
+                  const after = {
+                    source: 'SPECIAL_FINISH', entityType, entityId, scope: 'ENTITY',
                     snapshot, specialFinishId: snapshot.specialFinishId, revision: snapshot.revision,
-                    ...(textureScale ? { textureScale } : {}) };
+                    ...(textureScale ? { textureScale } : {})
+                  };
                   const next = setArchitectureFinish(architectureSpecialFinishesRef.current, entityType, entityId, after);
                   if (next === architectureSpecialFinishesRef.current) return;
                   architectureSpecialFinishesRef.current = next;
@@ -1503,8 +1502,10 @@ export default function App() {
                 }
                 const applied = threeApiRef.current.applyFinishToActivePart(
                   null, prepared.definition, scope,
-                  { ...prepared.identity, snapshot: snapshotSpecialFinish(finish),
-                    expectedSelectionId: selectedPart.instanceId || null }
+                  {
+                    ...prepared.identity, snapshot: snapshotSpecialFinish(finish),
+                    expectedSelectionId: selectedPart.instanceId || null
+                  }
                 );
                 if (!applied) throw new Error('La selección cambió o esta parte no admite el acabado. Selecciónala de nuevo.');
               }}
@@ -1749,9 +1750,9 @@ export default function App() {
                 ? resolvedTargetIds
                 : moveAsGroup && groupId
                   ? snapshot
-                      .filter((candidate) => String(candidate?.groupId || '').trim() === groupId)
-                      .map((candidate) => candidate.id)
-                      .filter(Boolean)
+                    .filter((candidate) => String(candidate?.groupId || '').trim() === groupId)
+                    .map((candidate) => candidate.id)
+                    .filter(Boolean)
                   : [part.instanceId];
               const normalizedTargetIds = Array.from(new Set(targetIds));
 

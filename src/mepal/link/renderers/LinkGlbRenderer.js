@@ -1,20 +1,78 @@
 import { Box3, Group, MeshStandardMaterial, Vector3 } from 'three';
 import { getLinkPartDimensions } from '../parts/linkParts.js';
+import { applyDuctVisualMaterials } from '../../../materials/ductFinishes.js';
+
+function isPreservedLinkDuct(part) {
+  if (!part) return false;
+  const role = String(part.role || '').toUpperCase();
+  const category = String(part.meta?.category || '').toLowerCase();
+  const kind = String(part.kind || part.type || '').toLowerCase();
+  const code = String(part.code || part.logicalCode || '').toUpperCase();
+  const modelSrc = String(part.model?.src || '').toLowerCase();
+  return (
+    role === 'FLOOR_DUCT' ||
+    role === 'CEILING_DUCT' ||
+    role === 'DUCT' ||
+    category === 'ductos-a-piso' ||
+    category === 'ductos-a-techo' ||
+    category === 'ductos_a_piso' ||
+    category === 'ductos_a_techo' ||
+    category === 'ductos' ||
+    kind === 'ducto' ||
+    kind === 'ductopiso' ||
+    kind === 'ductotecho' ||
+    code.includes('LKSO140000') ||
+    code.includes('LKSO150000') ||
+    modelSrc.includes('lkso140000') ||
+    modelSrc.includes('lkso150000')
+  );
+}
+
+function isHorizontalLinkDuct(part) {
+  if (!part) return false;
+  const role = String(part.role || '').toUpperCase();
+  const category = String(part.meta?.category || '').toLowerCase();
+  const kind = String(part.kind || part.type || '').toLowerCase();
+  const code = String(part.code || part.logicalCode || '').toUpperCase();
+  const modelSrc = String(part.model?.src || '').toLowerCase();
+  return (
+    role === 'DUCT' ||
+    category === 'ductos' ||
+    kind === 'ducto' ||
+    code.includes('LKSO140000') ||
+    code.includes('LKSO150000') ||
+    modelSrc.includes('lkso140000') ||
+    modelSrc.includes('lkso150000')
+  );
+}
 
 // Geometry-only adaptation: the component keeps all LINK identifiers and BOM metadata.
 // The caller supplies the existing application's GLB loader/cache.
 function createVisual(source, part, material) {
   const visual = new Group(), model = source.clone(true);
   visual.add(model);
+  const preserveOriginal = isPreservedLinkDuct(part);
   model.traverse(node => {
     node.userData = {};
     if (node.isMesh) {
       node.geometry = node.geometry.clone();
-      node.material = material.clone();
+      if (preserveOriginal) {
+        node.material = Array.isArray(node.material)
+          ? node.material.map(m => (m?.clone ? m.clone() : m))
+          : (node.material?.clone ? node.material.clone() : node.material);
+        node.userData.isDuctProtectedPart = true;
+        node.userData.__origMaterial = node.material;
+      } else {
+        node.material = material.clone();
+      }
       node.castShadow = true;
       node.receiveShadow = true;
     }
   });
+
+  if (isHorizontalLinkDuct(part)) {
+    applyDuctVisualMaterials(model, part.meta);
+  }
   let box = new Box3().setFromObject(model), size = box.getSize(new Vector3());
   if (size.toArray().some(value => !Number.isFinite(value) || value <= 0)) {
     model.traverse(node => { if (node.isMesh) { node.geometry.dispose(); node.material.dispose(); } });
@@ -42,20 +100,31 @@ function createVisual(source, part, material) {
   // Normalizar orientación de los ductos bajantes a piso y techo de Link:
   // Deben ser 100% VERTICALES (como un poste/palo mirando hacia arriba, con la altura en Y).
   if ((part.role === 'FLOOR_DUCT' || part.role === 'CEILING_DUCT') && part.model?.src?.includes('/Link/Ductos/')) {
+    let rotatedDuct = false;
     // Si el largo (tubo) viene acostado en X: rotar 90° en Z para que quede vertical en Y
     if (size.x > size.y && size.x > size.z) {
       model.traverse(node => {
         if (node.isMesh && node.geometry) {
           node.geometry.rotateZ(Math.PI / 2);
+          node.geometry.computeBoundingBox?.();
+          node.geometry.computeBoundingSphere?.();
         }
       });
+      rotatedDuct = true;
     } else if (size.z > size.y && size.z > size.x) {
       // Si el largo (tubo) viene acostado en Z: rotar 90° en X para que quede vertical en Y
       model.traverse(node => {
         if (node.isMesh && node.geometry) {
           node.geometry.rotateX(-Math.PI / 2);
+          node.geometry.computeBoundingBox?.();
+          node.geometry.computeBoundingSphere?.();
         }
       });
+      rotatedDuct = true;
+    }
+    if (rotatedDuct) {
+      box = new Box3().setFromObject(model);
+      size = box.getSize(new Vector3());
     }
   }
 
@@ -155,12 +224,32 @@ export async function hydrateLinkGlbParts(object, product, { loadAsset, onVisual
         if (node.geometry) fallbackGeometries.add(node.geometry);
         for (const item of [].concat(node.material || [], node.userData.__origMaterial || [])) fallbackMaterials.add(item);
       });
-      fallbackGeometries.forEach(geometry => geometry.dispose());
       component.clear();
-      component.userData.__origMaterial = [...fallbackMaterials];
+      const preserveOriginal = isPreservedLinkDuct(part);
+      if (preserveOriginal) {
+        component.userData.isDuctProtectedPart = true;
+        visual.traverse(node => {
+          if (node.isMesh) {
+            node.userData.isDuctProtectedPart = true;
+            if (!node.userData.__origMaterial) node.userData.__origMaterial = node.material;
+          }
+        });
+      } else {
+        component.userData.__origMaterial = [...fallbackMaterials];
+      }
       component.userData.visualSource = 'GLB';
       visual.traverse(node => {
-        node.userData = { ...component.userData };
+        const wasCimbra = node.userData?.isDuctCimbra;
+        const wasPlate = node.userData?.isDuctPlate;
+        const wasProtected = node.userData?.isDuctProtectedPart;
+        const orig = node.userData?.__origMaterial;
+        node.userData = {
+          ...component.userData,
+          ...(wasCimbra ? { isDuctCimbra: true } : {}),
+          ...(wasPlate ? { isDuctPlate: true } : {}),
+          ...(wasProtected ? { isDuctProtectedPart: true } : {}),
+        };
+        if (orig) node.userData.__origMaterial = orig;
         delete node.userData.isPartRoot;
         if (node.isMesh) node.name = part.description;
       });
@@ -176,3 +265,4 @@ export async function hydrateLinkGlbParts(object, product, { loadAsset, onVisual
   for (const root of updatedRoots) onVisualReady?.(root);
   return results;
 }
+

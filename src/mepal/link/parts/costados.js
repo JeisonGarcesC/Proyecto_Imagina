@@ -3,12 +3,13 @@ import { resolveLinkCostado } from '../rules/linkCostadoRules.js';
 import { resolveLeaderCostadoOutlet } from '../leader/rules/leaderCostadoOutletRules.js';
 
 export function createCostado({config,key,terminal=true,replaceZone=null,depthMm,position,moduleIndex=0,rotationY=0,leaderRole=null,lengthScale=1,integracion=false,ruleDepthMm=config.depthMm,hasTapa=true}) {
-  const component=linkComponentConfig(config,key,{shape:config.tipoCostado,supportFinish:config.supportFinish,hasOutletBox:false,pedestal:false,hasTapa,removed:false});
+  const component=linkComponentConfig(config,key,{shape:config.tipoCostado,supportFinish:config.supportFinish,hasOutletBox:false,pedestal:false,hasTapa,removed:false,terminal});
   if (component.removed) return null;
-  const rule=resolveLinkCostado({type:config.type,depthMm:ruleDepthMm,terminal,shape:component.shape,supportFinish:component.supportFinish,integracion});
+  const effectiveTerminal = component.terminal !== undefined ? Boolean(component.terminal) : terminal;
+  const rule=resolveLinkCostado({type:config.type,depthMm:ruleDepthMm,terminal:effectiveTerminal,shape:component.shape,supportFinish:component.supportFinish,integracion});
   if(leaderRole==='MAIN_RETURN_JUNCTION'&&component.hasOutletBox)rule.code=resolveLeaderCostadoOutlet(config.depthMm,component.shape,component.supportFinish).code;
-  const subtype=terminal?'terminal':'intermedio';
-  const description=rule.logicalCode ? `LINK costado ${rule.logicalCode} ${integracion&&terminal?'integración':subtype} ${component.shape} ${component.supportFinish}` : `LINK costado ${integracion&&terminal?'integración':subtype} ${component.shape} ${component.supportFinish}`;
+  const subtype=effectiveTerminal?'terminal':'intermedio';
+  const description=rule.logicalCode ? `LINK costado ${rule.logicalCode} ${integracion&&effectiveTerminal?'integración':subtype} ${component.shape} ${component.supportFinish}` : `LINK costado ${integracion&&effectiveTerminal?'integración':subtype} ${component.shape} ${component.supportFinish}`;
   const [x=0,y=0,z=0]=position || [];
   const effectiveHasTapa = component.hasTapa !== undefined ? component.hasTapa : hasTapa;
 
@@ -36,14 +37,14 @@ export function createCostado({config,key,terminal=true,replaceZone=null,depthMm
     supportFinish:component.supportFinish,
     provisional:!rule.code,
     hasTapa: effectiveHasTapa,
-    componentConfig:{ ...component, hasTapa: effectiveHasTapa },
+    componentConfig:{ ...component, terminal: effectiveTerminal, hasTapa: effectiveHasTapa },
     leaderRole,
     meta:{
       category:'costados',
       tipo:subtype,
       tipoPuesto:config.type,
-      integracion:integracion&&terminal,
-      terminal,
+      integracion:integracion&&effectiveTerminal,
+      terminal: effectiveTerminal,
       hasTapa: effectiveHasTapa,
       shape:component.shape,
       supportFinish:component.supportFinish,

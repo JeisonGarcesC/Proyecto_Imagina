@@ -627,6 +627,7 @@ export function buildKoncisaPlus(config = {}) {
         referenceDuctIndex,
         attachmentKind: 'KONCISA_CEILING_DUCT',
         onePerIsland: true,
+        offsetFromReferenceMm: ceilingDuct.offsetFromReferenceMm,
       },
     });
   }

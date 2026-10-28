@@ -99,7 +99,8 @@ async function executeInstruction(api, instruction) {
     case CLIPBOARD_CONSTRUCTORS.ADD_CATALOG_ITEM:
       return api.addClipboardCatalogItem?.(
         instruction.source?.kind,
-        instruction.payload?.codigoPT || instruction.payload?.code
+        instruction.payload?.codigoPT || instruction.payload?.code,
+        instruction.source?.metadata || instruction.payload
       );
     default:
       throw new RangeError(`Constructor de pegado no soportado: ${instruction.constructor}.`);

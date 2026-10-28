@@ -1,5 +1,5 @@
 import { LINK_SUPPORT_SHAPES, getLinkFinishOptions } from './linkSurfaceFinishOptions.js';
-const booleans=['grommet','hasOutletBox','floorDuct','coverLeft','coverRight','removed','pedestal','hasTapa'];
+const booleans=['grommet','hasOutletBox','floorDuct','coverLeft','coverRight','removed','pedestal','hasTapa','terminal'];
 const sides=['LEFT','CENTER','RIGHT'];
 export function normalizeLinkComponentConfig(value={},type='sencillo') {
   if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Propiedades LINK inválidas.');

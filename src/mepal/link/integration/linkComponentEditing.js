@@ -25,7 +25,7 @@ export function createLinkComponentPatch(object,componentKey,patch){
   const target=buildLink(config).parts.find(p=>p.key===targetKey)||part;
   const role=target.role;
   const allowed=role==='SURFACE'?['finishId','grommet','grommetFinish','grommetPosition','grommetSide120',...(config.type==='lider'?['floorDuct','floorSide']:[])]:
-    role==='SUPPORT'?['shape','supportFinish','hasTapa',...(target.leaderRole==='MAIN_RETURN_JUNCTION'?['hasOutletBox']:[]),...(target.leaderRole==='RETURN_END'||targetKey==='return-support'?['pedestal','pedestalModel','pedestalOffsetMm']:[])]:
+    role==='SUPPORT'?['shape','supportFinish','hasTapa','terminal',...(target.leaderRole==='MAIN_RETURN_JUNCTION'?['hasOutletBox']:[]),...(target.leaderRole==='RETURN_END'||targetKey==='return-support'?['pedestal','pedestalModel','pedestalOffsetMm']:[])]:
     role==='DUCT'?['coverLeft','coverRight','floorDuct','floorSide','ceilingSide','supportFinish','removed']:
     role==='PEDESTAL'?['pedestal','pedestalModel','pedestalOffsetMm']:
     role==='PANTALLA_FRONTAL_BOARD'||role==='PANTALLA_LATERAL_BOARD'?['heightMm']:[];

@@ -1036,59 +1036,9 @@ export default function Plan2DOverlay({
     };
   }, [transformTool, selectedIds, getAllBounds, getRotationState2D, toCanvas]);
 
-  const resolveActiveVariantControl2D = useCallback(
-    (snapList = null) => {
-      if (transformTool !== 'move') return null;
-      if (measureMode || scaleMode || isWallDrawMode) return null;
-
-      const sourceId = selectedIds?.[selectedIds.length - 1];
-      if (!sourceId) return null;
-
-      const snap = snapList || getAllBounds()?.snap || [];
-      const source = snap.find((part) => part.id === sourceId);
-      if (!source || source.kind !== 'EDUK') return null;
-
-      const widthInfo = getEdukWidthInfoByCode(source.codigoPT);
-      if (!widthInfo) return null;
-
-      const [cx, cy] = toCanvas(source.x, source.z);
-      const { s } = viewRef.current;
-      const halfWidthPx = Math.max(8, (source.w * s) / 2);
-      const spanPx = halfWidthPx + 16;
-
-      const angle = -(source.rotY || 0);
-      const axisX = Math.cos(angle);
-      const axisY = Math.sin(angle);
-
-      const left = {
-        x: cx - axisX * spanPx,
-        y: cy - axisY * spanPx,
-        dir: -1,
-      };
-      const right = {
-        x: cx + axisX * spanPx,
-        y: cy + axisY * spanPx,
-        dir: 1,
-      };
-
-      return {
-        type: 'EDUK_WIDTH',
-        source,
-        sourceId,
-        code: source.codigoPT,
-        instanceId: source.id,
-        options: [...widthInfo.widthOptions],
-        currentIndex: widthInfo.currentIndex,
-        propertyKey: 'width',
-        center: { x: cx, y: cy },
-        axis: { x: axisX, y: axisY },
-        dragAxis: { x: axisX, y: axisY },
-        handles: [left, right],
-        family: source.kind,
-      };
-    },
-    [transformTool, measureMode, scaleMode, isWallDrawMode, selectedIds, getAllBounds, toCanvas]
-  );
+  const resolveActiveVariantControl2D = useCallback(() => {
+    return null;
+  }, []);
 
   const pickVariantHandleDirection = useCallback((mx, my, control) => {
     if (!control?.handles?.length) return 0;

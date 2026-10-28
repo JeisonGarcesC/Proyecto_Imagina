@@ -230,3 +230,157 @@ export const CLAK_SWAP_ALLOWED_CODES = new Set([
   ...Object.keys(SEAT_VARIANTS),
   ...Object.keys(MODULE_VARIANTS),
 ]);
+
+// ==========================================
+// FAMILIAS ESCALABLES (Bancas y Poltronas)
+// ==========================================
+
+export const CLAK_SCALABLE_FAMILIES = {
+  // Grupo 1: Bancas Rectas (profundidad 55cm)
+  BANCA_RECTA: {
+    id: 'BANCA_RECTA',
+    type: 'BANCA',
+    label: 'Banca especial',
+    min: 60,
+    max: 180,
+    step: 10,
+    tiers: [
+      { code: '22000034855', lengthCm: 60, label: '60cm' },
+      { code: '22000035387', lengthCm: 120, label: '120cm' },
+      { code: '22000035388', lengthCm: 180, label: '180cm' },
+    ],
+  },
+  // Grupo 2: Bancas Giro 60 Grados
+  BANCA_GIRO_60: {
+    id: 'BANCA_GIRO_60',
+    type: 'BANCA',
+    label: 'Banca especial',
+    min: 120,
+    max: 180,
+    step: 10,
+    tiers: [
+      { code: '22000035912', lengthCm: 120, label: '120cm' },
+      { code: '22000035913', lengthCm: 180, label: '180cm' },
+    ],
+  },
+  // Grupo 3: Poltronas Rectas (profundidad 77cm)
+  POLTRONA_RECTA: {
+    id: 'POLTRONA_RECTA',
+    type: 'POLTRONA',
+    label: 'Poltrona especial',
+    min: 60,
+    max: 180,
+    step: 10,
+    tiers: [
+      { code: '22000035909', lengthCm: 60, label: '60cm' },
+      { code: '22000035910', lengthCm: 120, label: '120cm' },
+      { code: '22000035911', lengthCm: 180, label: '180cm' },
+    ],
+  },
+  // Grupo 4: Poltronas Giro 60 Grados
+  POLTRONA_GIRO_60: {
+    id: 'POLTRONA_GIRO_60',
+    type: 'POLTRONA',
+    label: 'Poltrona especial',
+    min: 120,
+    max: 180,
+    step: 10,
+    tiers: [
+      { code: '22000035996', lengthCm: 120, label: '120cm' },
+      { code: '22000035997', lengthCm: 180, label: '180cm' },
+    ],
+  },
+};
+
+const CODE_TO_SCALABLE_FAMILY = new Map();
+for (const family of Object.values(CLAK_SCALABLE_FAMILIES)) {
+  for (const tier of family.tiers) {
+    CODE_TO_SCALABLE_FAMILY.set(tier.code, family);
+  }
+}
+
+export function getClakScalableFamily(code) {
+  const norm = normalizeClakPuffCode(code);
+  return CODE_TO_SCALABLE_FAMILY.get(norm) || null;
+}
+
+export function isScalableClakCode(code) {
+  return getClakScalableFamily(code) !== null;
+}
+
+export function isScalableClakPart(part) {
+  if (part?.kind !== 'CLAK') return false;
+  const code = part?.code || part?.userData?.codigoPT;
+  return isScalableClakCode(code);
+}
+
+export function getClakStandardLengthByCode(code) {
+  const norm = normalizeClakPuffCode(code);
+  const family = getClakScalableFamily(norm);
+  if (!family) return null;
+  const tier = family.tiers.find((t) => t.code === norm);
+  return tier ? tier.lengthCm : null;
+}
+
+/**
+ * Resuelve el tier de facturación según la regla de techo (precio máximo del rango):
+ * Si la medida solicitada está entre dos tiers, se factura con el precio del siguiente tier estándar.
+ */
+export function resolveClakBillingTier(family, lengthCm) {
+  if (!family || !Array.isArray(family.tiers)) return null;
+  const len = Number(lengthCm || 0);
+  for (const tier of family.tiers) {
+    if (tier.lengthCm >= len) return tier;
+  }
+  return family.tiers[family.tiers.length - 1];
+}
+
+/**
+ * Resuelve el modelo base 3D que minimiza la distorsión geométrica (modelo más cercano)
+ * y el factor de escala sobre el eje X.
+ */
+export function resolveClak3DBaseModel(family, lengthCm) {
+  if (!family || !Array.isArray(family.tiers)) return null;
+  const len = Number(lengthCm || 0);
+  let bestTier = family.tiers[0];
+  let minDiff = Math.abs(bestTier.lengthCm - len);
+  for (let i = 1; i < family.tiers.length; i++) {
+    const diff = Math.abs(family.tiers[i].lengthCm - len);
+    if (diff < minDiff) {
+      minDiff = diff;
+      bestTier = family.tiers[i];
+    }
+  }
+  const scaleFactor = bestTier.lengthCm > 0 ? len / bestTier.lengthCm : 1;
+  return {
+    baseCode: bestTier.code,
+    baseLengthCm: bestTier.lengthCm,
+    scaleFactor,
+  };
+}
+
+/**
+ * Retorna las opciones de medida especial de 10 en 10 cm con la indicación
+ * del rango de facturación correspondiente.
+ */
+export function getClakSpecialDimensionOptions(code) {
+  const family = getClakScalableFamily(code);
+  if (!family) return [];
+  const options = [];
+  for (let l = family.min; l <= family.max; l += family.step) {
+    const billing = resolveClakBillingTier(family, l);
+    const isStandard = family.tiers.some((t) => t.lengthCm === l);
+    const label = isStandard
+      ? `${l} cm`
+      : `${l} cm (Precio: ${billing.lengthCm} cm)`;
+    options.push({
+      value: l,
+      label,
+      billingCode: billing.code,
+      billingLengthCm: billing.lengthCm,
+      isStandard,
+    });
+  }
+  return options;
+}
+

@@ -10,14 +10,26 @@ const LOADERS = {
   VETRO_PRODUCT: (entity, context) => context.createVetro(entity),
   MILA: (entity, context) => context.createMila(entity),
   SURFACE: (entity, context) => context.createSurface(entity),
-  CLAK: (entity, context) => context.addClak(entity.codigoPT, { variant: entity.metadata?.clakVariant }),
+  CLAK: (entity, context) =>
+    context.addClak(entity.codigoPT, {
+      variant: entity.metadata?.clakVariant,
+      isSpecial: entity.metadata?.isSpecial,
+      specialLength: entity.metadata?.specialLength,
+      billingCode: entity.metadata?.billingCode,
+    }),
   EDUK: (entity, context) => context.addEduk(entity.codigoPT, { variant: entity.metadata?.edukVariant }),
   ARES: (entity, context) => context.addAres(entity.codigoPT),
   MEPAL_SALUD: (entity, context) =>
     context.addMepalSalud(entity.codigoPT, { variant: entity.metadata?.mepalVariant }),
   MEPAL_TEK_SOCIAL: (entity, context) => context.addMepalTekSocial(entity.codigoPT),
   ALMACENAMIENTO: (entity, context) =>
-    context.addZen(entity.codigoPT, { variant: entity.metadata?.almacenVariant || 'base' }),
+    context.addZen(entity.codigoPT, {
+      variant: entity.metadata?.almacenVariant || 'base',
+      isSpecial: entity.metadata?.isSpecial,
+      specialLength: entity.metadata?.specialLength,
+      billingCode: entity.metadata?.billingCode,
+      almacenLength: entity.metadata?.almacenLength,
+    }),
   OFFICE_ACCESSORY: (entity, context) =>
     context.addOfficeAccessory(entity.metadata?.accessoryName || entity.codigoPT),
   IMPORTED_MODEL: (entity, context) => context.createImportedModel(entity),

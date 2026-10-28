@@ -130,7 +130,7 @@ function buildClakConnectorMeta(object, codigoPT) {
   };
 }
 
-async function buildClakParts(codigoPT, country) {
+export async function buildClakParts(codigoPT, country) {
   const countryKey = normalizeCountry(country);
   const variantBomCodes = resolveVariantBomCodes(codigoPT);
 
@@ -183,7 +183,12 @@ async function buildClakParts(codigoPT, country) {
   return partDetails;
 }
 
-async function createClakMetadata(definition, object, country) {
+async function createClakMetadata(
+  definition,
+  object,
+  country,
+  { isSpecial = false, specialLength = null, billingCode = null } = {}
+) {
   const codigoPT = String(definition?.codigoPT || '').trim();
   const commercialData = definition?.commercialData || {};
   const countryKey = normalizeCountry(country);
@@ -193,14 +198,35 @@ async function createClakMetadata(definition, object, country) {
     USD: Number(commercialData.prices?.USD || 0),
   };
   const description = commercialData.descripcion || codigoPT;
-  const clakParts = await buildClakParts(codigoPT, countryKey);
+  const effectiveBomCode = isSpecial && billingCode ? billingCode : codigoPT;
+  let clakParts = await buildClakParts(effectiveBomCode, countryKey);
+
+  if (isSpecial && specialLength && Array.isArray(clakParts)) {
+    clakParts = clakParts.map((p) => {
+      let desc = p.description || '';
+      const regexDim = /(\b\d+X)\d+(X\d+.*?CM\b)/i;
+      if (regexDim.test(desc)) {
+        desc = desc.replace(regexDim, `$1${specialLength}$2`);
+      }
+      if (!desc.toUpperCase().includes('ESPECIAL')) {
+        desc = `ESPECIAL (${specialLength}CM) - ${desc}`;
+      }
+      return {
+        ...p,
+        description: desc,
+      };
+    });
+  }
 
   return {
     kind: 'CLAK',
     codigoPT,
     code: codigoPT,
-    name: description,
+    name: isSpecial && specialLength ? `ESPECIAL (${specialLength}CM) - ${description}` : description,
     instanceId: object.uuid,
+    isSpecial: Boolean(isSpecial),
+    specialLength: isSpecial ? specialLength : null,
+    billingCode: isSpecial ? billingCode : null,
     clakParts,
     clakMeta: {
       descripcion: description,
@@ -216,6 +242,9 @@ export async function createClakInstance({
   parent: _parent = null,
   getProductDefinition = getClakProductDefinition,
   loadGlb,
+  isSpecial = false,
+  specialLength = null,
+  billingCode = null,
 } = {}) {
   if (typeof getProductDefinition !== 'function') {
     throw new TypeError('createClakInstance requires getProductDefinition.');
@@ -236,7 +265,11 @@ export async function createClakInstance({
     throw new Error(`Unable to load Clak product ${definition?.codigoPT || codigoPT || ''}.`);
   }
 
-  const metadata = await createClakMetadata(definition, object, country);
+  const metadata = await createClakMetadata(definition, object, country, {
+    isSpecial,
+    specialLength,
+    billingCode,
+  });
   const connectorMeta = buildClakConnectorMeta(object, metadata.codigoPT);
   object.userData = {
     ...(object.userData || {}),

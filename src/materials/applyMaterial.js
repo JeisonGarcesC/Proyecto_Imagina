@@ -111,8 +111,33 @@ function resolveMaterial(materialDef) {
   );
 }
 
+function isPreservedDuctNode(obj) {
+  if (!obj) return false;
+  if (obj.userData?.isDuctCimbra || obj.userData?.isDuctPlate || obj.userData?.isDuctProtectedPart) return true;
+  const kind = String(obj.userData?.kind || obj.type || '').trim().toLowerCase();
+  const category = String(obj.userData?.meta?.category || '').trim().toLowerCase();
+  const role = String(obj.userData?.role || obj.userData?.componentRole || '').trim().toUpperCase();
+  const name = String(obj.name || '').trim().toUpperCase();
+  if (kind === 'ductopiso' || kind === 'ductotecho' || kind === 'ducto') return true;
+  if (
+    category === 'ductos-a-piso' ||
+    category === 'ductos-a-techo' ||
+    category === 'ductos_a_piso' ||
+    category === 'ductos_a_techo' ||
+    category === 'ductos'
+  ) return true;
+  if (role === 'FLOOR_DUCT' || role === 'CEILING_DUCT' || role === 'DUCT') return true;
+  if (
+    name.startsWith('FLOOR_DUCT_') ||
+    name.startsWith('CEILING_DUCT_') ||
+    name.startsWith('KONCISA_DUCT_') ||
+    name.startsWith('DUCTO_')
+  ) return true;
+  return false;
+}
+
 export function applyMaterialToObject3D(root, materialCode, materialDef, options = {}) {
-  if (!root) return;
+  if (!root || isPreservedDuctNode(root)) return;
 
   const code = materialCode ? String(materialCode) : null;
   const visualOnly = options.visualOnly === true;
@@ -126,6 +151,7 @@ export function applyMaterialToObject3D(root, materialCode, materialDef, options
   if (!code && !visualOnly) {
     root.traverse((obj) => {
       if (!obj?.isMesh) return;
+      if (isPreservedDuctNode(obj)) return;
       visualFinishIdentity.delete(obj);
       restoreMeshMaterial(obj);
     });
@@ -136,6 +162,7 @@ export function applyMaterialToObject3D(root, materialCode, materialDef, options
 
   root.traverse((obj) => {
     if (!obj?.isMesh) return;
+    if (isPreservedDuctNode(obj)) return;
     if (visualOnly) visualFinishIdentity.set(obj, options.identity);
     else visualFinishIdentity.delete(obj);
 
@@ -156,7 +183,7 @@ export function applyMaterialToObject3D(root, materialCode, materialDef, options
 }
 
 export function applyMaterialToMesh(mesh, materialCode, materialDef, options = {}) {
-  if (!mesh?.isMesh) return;
+  if (!mesh?.isMesh || isPreservedDuctNode(mesh)) return;
 
   const code = materialCode ? String(materialCode) : null;
   const visualOnly = options.visualOnly === true;

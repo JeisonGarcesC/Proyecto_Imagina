@@ -116,3 +116,156 @@ export function getZenVariantOptionsByCode(code) {
 export function isZenVariantCode(code) {
   return getZenVariantByCode(code) !== null;
 }
+
+// ==========================================
+// FAMILIAS ESCALABLES (Zen Almacenamiento - Bibliotecas)
+// ==========================================
+
+export const ZEN_BIBLIOTECA_FAMILIES = Object.freeze([
+  {
+    id: 'ALM_LATERAL_FORMICA_MANIJA',
+    name: 'Archivador lateral 2 gavetas frente formica con manija',
+    min: 60,
+    max: 90,
+    step: 10,
+    code60: '22000020026',
+    code90: '22000020025',
+    dimensionPattern: '71X{LEN}X50CM',
+  },
+  {
+    id: 'ALM_LATERAL_METALICO_MANIJA',
+    name: 'Archivador lateral 2 gavetas frente metálico con manija',
+    min: 60,
+    max: 90,
+    step: 10,
+    code60: '22000020028',
+    code90: '22000020027',
+    dimensionPattern: '71X{LEN}X50CM',
+  },
+  {
+    id: 'ALM_LATERAL_METALICO_EMBEBIDA',
+    name: 'Archivador lateral 2 gavetas frente metálico manija embebida',
+    min: 60,
+    max: 90,
+    step: 10,
+    code60: '22000020029',
+    code90: '22000020030',
+    dimensionPattern: '71X{LEN}X50CM',
+  },
+  {
+    id: 'ALM_BIBLIOTECA_1E_PUERTA_FORMICA_MANIJA',
+    name: 'Biblioteca metálica 1 entrepaño con puerta formica con manija',
+    min: 60,
+    max: 90,
+    step: 10,
+    code60: '22000020051',
+    code90: '22000020052',
+    dimensionPattern: '71X{LEN}X50CM',
+  },
+  {
+    id: 'ALM_BIBLIOTECA_1E_PUERTA_METALICO_MANIJA',
+    name: 'Biblioteca metálica 1 entrepaño con puerta metálico con manija',
+    min: 60,
+    max: 90,
+    step: 10,
+    code60: '22000020055',
+    code90: '22000020056',
+    dimensionPattern: '71X{LEN}X50CM',
+  },
+  {
+    id: 'ALM_BIBLIOTECA_1E_PUERTA_METALICA',
+    name: 'Biblioteca metálica 1 entrepaño con puerta metálica',
+    min: 60,
+    max: 90,
+    step: 10,
+    code60: '22000020059',
+    code90: '22000020060',
+    dimensionPattern: '71X{LEN}X50CM',
+  },
+  {
+    id: 'ALM_BIBLIOTECA_2E_SIN_PUERTA',
+    name: 'Biblioteca metálica 2 entrepaños sin puerta',
+    min: 60,
+    max: 90,
+    step: 10,
+    code60: '22000020067',
+    code90: '22000020068',
+    dimensionPattern: '101X{LEN}X50CM',
+  },
+  {
+    id: 'ALM_BIBLIOTECA_1E_SIN_PUERTA',
+    name: 'Biblioteca metálica 1 entrepaño sin puerta',
+    min: 60,
+    max: 90,
+    step: 10,
+    code60: '22000020069',
+    code90: '22000020070',
+    dimensionPattern: '71X{LEN}X50CM',
+  },
+]);
+
+const BIBLIOTECA_CODE_MAP = new Map();
+for (const family of ZEN_BIBLIOTECA_FAMILIES) {
+  BIBLIOTECA_CODE_MAP.set(family.code60, family);
+  BIBLIOTECA_CODE_MAP.set(family.code90, family);
+}
+
+export function getZenBibliotecaFamily(code) {
+  const norm = normalizeZenVariantCode(code);
+  return BIBLIOTECA_CODE_MAP.get(norm) || null;
+}
+
+export function isZenBibliotecaCode(code) {
+  return getZenBibliotecaFamily(code) !== null;
+}
+
+export const ZEN_STANDARD_DIMENSION_OPTIONS = Object.freeze([
+  { value: 60, label: '0.60 m' },
+  { value: 90, label: '0.90 m' },
+]);
+
+/**
+ * Resuelve el tier de facturación según la regla de techo (precio máximo del rango):
+ * 60 cm se factura con el precio de 60 cm.
+ * A partir de 70 cm (70, 80, 90 cm), se factura al precio de 90 cm.
+ */
+export function resolveZenBillingTier(family, lengthCm) {
+  if (!family) return null;
+  const len = Number(lengthCm || 60);
+  if (len <= 60) {
+    return {
+      code: family.code60,
+      lengthCm: 60,
+    };
+  }
+  return {
+    code: family.code90,
+    lengthCm: 90,
+  };
+}
+
+/**
+ * Retorna las opciones de medida especial de 10 en 10 cm (60, 70, 80, 90 cm)
+ * con la indicación del rango de facturación correspondiente.
+ */
+export function getZenSpecialDimensionOptions(code) {
+  const family = getZenBibliotecaFamily(code);
+  if (!family) return [];
+  const options = [];
+  for (let l = family.min; l <= family.max; l += family.step) {
+    const billing = resolveZenBillingTier(family, l);
+    const isStandard = l === 60 || l === 90;
+    const label = isStandard
+      ? `${l} cm`
+      : `${l} cm (Precio: ${billing.lengthCm} cm)`;
+    options.push({
+      value: l,
+      label,
+      billingCode: billing.code,
+      billingLengthCm: billing.lengthCm,
+      isStandard,
+    });
+  }
+  return options;
+}
+

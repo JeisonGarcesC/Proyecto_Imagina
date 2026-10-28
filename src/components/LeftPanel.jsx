@@ -444,13 +444,13 @@ export default function LeftPanel({
   const [qClak, setQClak] = useState('');
   const [clakItems, setClakItems] = useState([]);
   const [clakReady, setClakReady] = useState(false);
-  const [showClakVariants, setShowClakVariants] = useState(false);
+  const [showClakVariants, setShowClakVariants] = useState(true);
 
   // EDUK states
   const [qEduk, setQEduk] = useState('');
   const [edukItems, setEdukItems] = useState([]);
   const [edukReady, setEdukReady] = useState(false);
-  const [showEdukVariants, setShowEdukVariants] = useState(false);
+  const [showEdukVariants, setShowEdukVariants] = useState(true);
 
   // MOREA states
   const [qMorea, setQMorea] = useState('');
@@ -1264,9 +1264,9 @@ export default function LeftPanel({
           } else {
             const mod = getModuleVariantByCode(codeNorm);
             if (mod) {
-                // Mostrar un solo representante para toda la familia de modulos
-                // (36396/36397/36398/36399). Las variaciones se resuelven en propiedades.
-                key = 'mod_family_video_conference';
+              // Mostrar un solo representante para toda la familia de modulos
+              // (36396/36397/36398/36399). Las variaciones se resuelven en propiedades.
+              key = 'mod_family_video_conference';
             }
           }
         }
@@ -1891,8 +1891,8 @@ export default function LeftPanel({
       {section === 'specialFinishes' && (
         specialFinishPermissions.includes('finishes.view')
           ? <SpecialFinishesPanel canCreate={specialFinishPermissions.includes('finishes.create')}
-              canApply={specialFinishPermissions.includes('finishes.apply')}
-              selectedPart={selectedPart} selectedFinishTarget={selectedFinishTarget} onApply={onApplySpecialFinish} />
+            canApply={specialFinishPermissions.includes('finishes.apply')}
+            selectedPart={selectedPart} selectedFinishTarget={selectedFinishTarget} onApply={onApplySpecialFinish} />
           : <div role="alert">No tienes permiso para consultar Acabados Especiales.</div>
       )}
 
