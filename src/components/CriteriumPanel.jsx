@@ -24,6 +24,7 @@ import {
 } from '../mepal/critterium8/commercial/critteriumQuotation.js';
 import { describeCritteriumDiagnostic } from '../mepal/critterium8/ui/critteriumDiagnostics.js';
 import CritteriumCompositionPanel from '../mepal/critterium8/ui/CritteriumCompositionPanel.jsx';
+import CritteriumBasicSystemPanel from '../mepal/critterium8/ui/CritteriumBasicSystemPanel.jsx';
 import { getCritterium8GrowthOptions } from '../mepal/critterium8/rules/frameCompositionRules.js';
 import { resolveCritterium8ConfigPatch } from '../mepal/critterium8/integration/critterium8Config.js';
 
@@ -350,6 +351,10 @@ export default function CriteriumPanel({
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12,
       minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
       <h3 style={{ margin: 0 }}>CRITERIUM 8</h3>
+      <CritteriumBasicSystemPanel threeApiRef={threeApiRef} readOnly={readOnly} onCreated={refresh} />
+      <details>
+        <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Configuración avanzada y sistemas existentes</summary>
+        <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
       <nav style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
         {['FRAME', 'SEQUENCE', 'SYSTEM'].map((value) => (
           <button
@@ -1220,7 +1225,7 @@ export default function CriteriumPanel({
                 Agregar {item.sequenceId}
               </button>
             ))}
-          {currentSystem.sequenceIds.length > 1 && (
+          {currentSystem.sequenceIds.length > 0 && (
             <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
               <strong>Organización espacial</strong>
               <details>
@@ -1315,9 +1320,9 @@ export default function CriteriumPanel({
                   onChange={(event) => setTargetSequenceId(event.target.value)}
                 >
                   <option value="">Seleccionar</option>
-                  {currentSystem.sequenceIds.map((id) => (
-                    <option key={id} value={id}>
-                      {id}
+                  {structure.sequences.filter((item) => item.parentSystemId).map((item) => (
+                    <option key={item.sequenceId} value={item.sequenceId}>
+                      {item.sequenceId}{item.parentSystemId === systemId ? '' : ` · sistema ${item.parentSystemId}`}
                     </option>
                   ))}
                 </select>
@@ -1549,6 +1554,8 @@ export default function CriteriumPanel({
           )}
         </details>
       )}
+        </div>
+      </details>
       {message && (
         <div
           role="status"

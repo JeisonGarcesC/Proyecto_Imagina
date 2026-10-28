@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
+import { readFile } from 'node:fs/promises';
+import { GLTFLoader } from 'three-stdlib';
 
 import { buildCritterium8Junction3D, disposeCritterium8Junction3D } from '../src/mepal/critterium8/junctions/renderers/Critterium8JunctionRenderer3D.js';
 import { getCritterium8JunctionGeometryCacheSize } from '../src/mepal/critterium8/junctions/renderers/proceduralJunctionRenderer.js';
@@ -124,4 +126,71 @@ test('geometrías y materiales compartidos se liberan por referencia', () => {
   disposeCritterium8Junction3D(second);
   assert.equal(getCritterium8JunctionGeometryCacheSize(), 0);
   assert.equal(getCritterium8JunctionMaterialCacheSize(), 0);
+});
+
+test('los dos accesorios GLB de 90 cm se colocan arriba, a escala natural y con selección de kit', async () => {
+  for (const [type, kitCode, fileName] of [
+    ['DEG_180', '22000014319', 'CRAC070100.glb'],
+    ['TERMINAL', '22191900126', 'CRAC070010.glb'],
+  ]) {
+    const input = fixture(type, { includesTip: true });
+    input.layout.position = { x: 0, y: 0, z: 0 };
+    input.layout.rotationY = 0;
+    input.resolution.parts[0].code = kitCode;
+    input.resolution.kitCode = kitCode;
+    const bytes = await readFile(new URL(`../public/assets/models/CriterriumModels/${fileName}`, import.meta.url));
+    const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), '');
+    const originalSize = new THREE.Box3().setFromObject(gltf.scene).getSize(new THREE.Vector3());
+    const group = buildCritterium8Junction3D({ ...input, loadAccessory: async () => gltf.scene });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const visual = group.children[0];
+    const accessory = visual.children.find((child) => child.name === `CRITTERIUM_8_ACCESSORY_${kitCode}`);
+    assert.ok(accessory);
+    assert.equal(group.userData.accessoryVisualSource, 'GLB');
+    assert.equal(visual.children.some((child) => child.userData.critterium8JunctionRole === 'TIP'), false);
+    const bounds = new THREE.Box3().setFromObject(accessory);
+    const size = bounds.getSize(new THREE.Vector3());
+    assert.ok(size.distanceTo(originalSize) < 1e-6);
+    assert.ok(Math.abs(bounds.min.y - input.layout.bounds.maxY) < 1e-6);
+    assert.ok(Math.abs(bounds.getCenter(new THREE.Vector3()).x) < 1e-6);
+    assert.ok(Math.abs(bounds.getCenter(new THREE.Vector3()).z) < 1e-6);
+    accessory.traverse((child) => {
+      if (child.isMesh) {
+        assert.equal(child.userData.junctionId, input.junction.id);
+        assert.equal(child.userData.isPartRoot, false);
+      }
+    });
+    disposeCritterium8Junction3D(group);
+  }
+});
+
+test('el accesorio mantiene el remate nativo si falla la carga', async () => {
+  const input = fixture('TERMINAL', { includesTip: true });
+  input.resolution.parts[0].code = '22191900126';
+  const group = buildCritterium8Junction3D({ ...input, loadAccessory: async () => { throw new Error('LOAD_FAILED'); } });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(group.userData.accessoryVisualSource, 'NATIVE');
+  assert.equal(group.children[0].children.some((child) => child.userData.critterium8JunctionRole === 'TIP'), true);
+  disposeCritterium8Junction3D(group);
+});
+
+test('el accesorio sigue la rotación del kit y una copia conserva su propia geometría', async () => {
+  const input = fixture('DEG_180', { includesTip: true });
+  input.resolution.parts[0].code = '22000014319';
+  const loadAccessory = async () => new THREE.Mesh(new THREE.BoxGeometry(0.089, 0.011, 0.065), new THREE.MeshStandardMaterial());
+  const first = buildCritterium8Junction3D({ ...input, loadAccessory });
+  const second = buildCritterium8Junction3D({ ...input, loadAccessory });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const accessory = first.children[0].children.find((child) => child.name.startsWith('CRITTERIUM_8_ACCESSORY_'));
+  const duplicate = second.children[0].children.find((child) => child.name.startsWith('CRITTERIUM_8_ACCESSORY_'));
+  assert.ok(accessory && duplicate);
+  assert.notEqual(accessory, duplicate);
+  assert.equal(first.rotation.y, input.layout.rotationY);
+  first.rotation.y += Math.PI / 2;
+  first.updateMatrixWorld(true);
+  second.updateMatrixWorld(true);
+  assert.notDeepEqual(accessory.getWorldQuaternion(new THREE.Quaternion()).toArray(), duplicate.getWorldQuaternion(new THREE.Quaternion()).toArray());
+  disposeCritterium8Junction3D(first);
+  assert.ok(duplicate.parent);
+  disposeCritterium8Junction3D(second);
 });

@@ -58,7 +58,7 @@ function resolveDimensions(part, asset) {
   if (asset.rendererKey === 'FRAME_POST') return [provisional.FRAME_POST_WIDTH, part.heightCm, part.depthCm || 8];
   if (asset.rendererKey === 'TOP_BEVEL') return [part.widthCm, provisional.TOP_BEVEL_HEIGHT, part.depthCm || 8];
   if (asset.rendererKey === 'CEILING_U') return [part.widthCm, provisional.CEILING_U_HEIGHT, part.depthCm || 8];
-  if (asset.rendererKey === 'TILE') return [part.widthCm, part.heightCm, part.depthCm || 1.5];
+  if (asset.rendererKey === 'TILE') return [part.widthCm - 1.1, part.heightCm - 0.2, part.depthCm || 1.5];
   if (asset.rendererKey === 'PLACEHOLDER') return [provisional.PLACEHOLDER_SIZE, provisional.PLACEHOLDER_SIZE, provisional.PLACEHOLDER_SIZE];
   return [part.widthCm, part.heightCm, part.depthCm];
 }

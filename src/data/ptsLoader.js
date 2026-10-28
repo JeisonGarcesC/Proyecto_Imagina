@@ -13,13 +13,15 @@ export async function loadPts(url = '/data/xml/ptsinbom_4.xml') {
     const activo = text(r, 'ACTIVO')?.toUpperCase();
     if (activo && activo !== 'VERDADERO') continue;
 
-    // ✅ AQUÍ ESTABA EL PROBLEMA
-    const generico =
-      r.querySelector('RecordsGenericos > Genericos > Generico')?.textContent?.trim() || null;
+    const genericos = Array.from(
+      r.querySelectorAll('RecordsGenericos > Genericos > Generico'),
+      (node) => node.textContent?.trim()
+    ).filter(Boolean);
 
     map.set(codigoPT, {
       codigoPT,
-      generico, // 🔑 FUNDAMENTAL
+      generico: genericos[0] || null,
+      genericos,
       descLarga: text(r, 'DESCRIPCION_LARGA'),
       tipo: text(r, 'TIPO'),
       subTipo: text(r, 'SUBTIPO'),

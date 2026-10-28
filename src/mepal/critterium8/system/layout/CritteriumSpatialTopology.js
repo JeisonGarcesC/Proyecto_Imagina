@@ -1,4 +1,4 @@
-import { resolveCritteriumConnectionPoints, validateCritteriumSpatialConnection } from './CritteriumConnectionResolver.js';
+import { findCritteriumSequence, resolveCritteriumConnectionPoints, validateCritteriumSpatialConnection } from './CritteriumConnectionResolver.js';
 import { classifyCritteriumSystemProximity } from './CritteriumSpatialUtils.js';
 
 const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -12,7 +12,22 @@ export function analyzeCritteriumSpatialTopology(system) {
   const sequences = system.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY');
   const points = sequences.flatMap(resolveCritteriumConnectionPoints);
   const byPoint = new Map(points.map((point) => [`${point.sequenceId}|${point.connectionId}`, point]));
-  const connections = system.userData.connections || [];
+  const incoming = (system.parent?.children || [])
+    .filter((other) => other !== system && other.userData?.kind === 'CRITERIUM_SYSTEM')
+    .flatMap((other) => other.userData.connections || [])
+    .filter((item) => item.targetSystemId === system.userData.systemId);
+  const connections = [...(system.userData.connections || []), ...incoming];
+  for (const item of connections) {
+    if (!byPoint.has(`${item.sourceSequenceId}|${item.sourcePointId}`)) {
+      const externalSource = findCritteriumSequence(system, item.sourceSequenceId);
+      for (const point of resolveCritteriumConnectionPoints(externalSource))
+        byPoint.set(`${point.sequenceId}|${point.connectionId}`, point);
+    }
+    if (byPoint.has(`${item.targetSequenceId}|${item.targetPointId}`)) continue;
+    const external = findCritteriumSequence(system, item.targetSequenceId);
+    for (const point of resolveCritteriumConnectionPoints(external))
+      byPoint.set(`${point.sequenceId}|${point.connectionId}`, point);
+  }
   const nodes = points.map((point) => ({ nodeId: `${point.sequenceId}|${point.connectionId}`,
     systemId: system.userData.systemId, sequenceId: point.sequenceId, position: point.position.map(round),
     orientation: round(point.orientation), connectionPoint: point.connectionId,

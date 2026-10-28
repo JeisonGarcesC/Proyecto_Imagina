@@ -3,6 +3,7 @@ import './App.css';
 import { useEffect, useRef, useState, useMemo } from 'react';
 
 import ThreeCanvas from './components/ThreeCanvas.jsx';
+import ImportedModelGroupInspector from './components/ImportedModelGroupInspector.jsx';
 import { pasteClipboard } from './clipboard/pasteClipboard';
 import CatalogPanel from './components/CatalogPanel';
 import PropertiesPanel from './components/PropertiesPanel';
@@ -37,6 +38,7 @@ import { catalogByCodigoPT } from './catalog/catalogData';
 
 import Plan2DUploader from './components/Plan2DUploader';
 import ImportedModelUploader from './components/ImportedModelUploader';
+import { xmlBomRows } from './importers/xmlBomImporter.js';
 import {
   createPlanDefinition,
   legacyPlanStateToDefinition,
@@ -563,7 +565,11 @@ export default function App() {
   const [country, setCountry] = useState('CO');
   const [catalogItems, setCatalogItems] = useState([]);
   const [byCode, setByCode] = useState(new Map());
-  const [bomItems, setBomItems] = useState([]);
+  const [sceneBomItems, setSceneBomItems] = useState([]);
+  const [xmlBomProjects, setXmlBomProjects] = useState([]);
+  const bomItems = useMemo(() => [
+    ...sceneBomItems, ...xmlBomRows(xmlBomProjects, byCode, country),
+  ], [sceneBomItems, xmlBomProjects, byCode, country]);
   const [bomOpen, setBomOpen] = useState(false);
   const [detailLevel, setDetailLevel] = useState(4);
 
@@ -578,7 +584,7 @@ export default function App() {
 
   const handleBOMChange = (items) => {
     //console.log('BOM rows:', items);
-    setBomItems(items || []);
+    setSceneBomItems(items || []);
   };
 
   const [materials, setMaterials] = useState([]);
@@ -875,6 +881,7 @@ export default function App() {
       shapes2D,
       texts2D,
       dimensions,
+      xmlBomProjects,
       plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
       architecture: {
         ...(project.architecture || {}),
@@ -971,6 +978,7 @@ export default function App() {
   };
 
   const loadProjectData = async (project) => {
+    setXmlBomProjects(Array.isArray(project?.xmlBomProjects) ? project.xmlBomProjects : []);
     setDimensions(Array.isArray(project?.dimensions) ? project.dimensions.flatMap((dimension) => {
       try { const restored = createDimension2D(dimension); return restored ? [restored] : []; } catch { return []; }
     }) : []);
@@ -1317,6 +1325,7 @@ export default function App() {
         onMoveAsGroupChange={handleMoveAsGroupChange}
         onLogout={logout}
         onNewProject={() => {
+          setXmlBomProjects([]);
           setDimensions([]);
           setShapes2D([]);
           setTexts2D([]);
@@ -1563,6 +1572,10 @@ export default function App() {
               handleImportModel={(file, options) =>
                 threeApiRef.current?.importModelFile?.(file, options)
               }
+              handleImportXmlBom={(parsed) => setXmlBomProjects((current) => [
+                ...current, { ...parsed, id: crypto.randomUUID() },
+              ])}
+              xmlBomCatalog={byCode}
               handleLoadPlan2D={handleLoadPlan2D}
               planDefinition={activePlanDefinition}
               planEditMode={planEditMode}
@@ -1710,6 +1723,9 @@ export default function App() {
             )*/}
           </div>
 
+          {import.meta.env.VITE_GROUP_INSPECTOR === '1' && window.electronAPI && (
+            <ImportedModelGroupInspector api={threeApi} />
+          )}
           <ThreeCanvas
             walls={walls}
             architectureSpecialFinishes={architectureSpecialFinishes}
@@ -1809,8 +1825,8 @@ export default function App() {
               }
             }}
             onMovePart2D={(id, x, z) => {
-              if (readOnly) return;
-              threeApiRef.current?.movePartToXZ?.(id, x, z);
+              if (readOnly) return false;
+              return threeApiRef.current?.movePartToXZ?.(id, x, z) === true;
             }}
             onMoveParts2D={(updates) => {
               if (readOnly || !updates?.length) return false;
@@ -1830,7 +1846,7 @@ export default function App() {
             onBeginMove2D={(ids, individualTargets) =>
               threeApiRef.current?.beginMove2D?.({ ids, individualTargets })
             }
-            onEndMove2D={() => threeApiRef.current?.endMove2D?.()}
+            onEndMove2D={(options) => threeApiRef.current?.endMove2D?.(options)}
             onCancelMove2D={() => threeApiRef.current?.cancelMove2D?.()}
             isPartMovementLocked2D={(id) =>
               readOnly || threeApiRef.current?.isPartMovementLocked?.(id) === true

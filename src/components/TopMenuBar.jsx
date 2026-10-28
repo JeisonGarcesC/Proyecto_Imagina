@@ -98,6 +98,10 @@ export default function TopMenuBar({
   const doSave = () => {
     const data = getProjectData?.() ?? threeApiRef.current?.exportProject?.();
     if (!data) return;
+    if (data.entities?.some((entity) => entity.kind === 'IMPORTED_MODEL' && entity.metadata?.assetRef)) {
+      alert('Este proyecto contiene modelos externos. Usa «Guardar proyecto completo».');
+      return;
+    }
 
     if (debugSaveAlert) {
       alert(
@@ -124,6 +128,24 @@ export default function TopMenuBar({
     a.click();
   };
 
+  const doSaveComplete = async () => {
+    try {
+      const data = getProjectData?.() ?? threeApiRef.current?.exportProject?.();
+      if (data) await window.electronAPI.saveCompleteProject(data);
+    } catch (error) {
+      alert(`No se pudo guardar el proyecto completo: ${error.message}`);
+    } finally { setOpen(false); }
+  };
+
+  const doOpenComplete = async () => {
+    try {
+      const result = await window.electronAPI.openCompleteProject();
+      if (!result?.canceled) await onLoadProject(result.project);
+    } catch (error) {
+      alert(`No se pudo abrir el proyecto completo: ${error.message}`);
+    } finally { setOpen(false); }
+  };
+
   const doOpen = () => {
     if (!canLoadSave) return;
     fileRef.current?.click();
@@ -138,6 +160,9 @@ export default function TopMenuBar({
 
       const text = await file.text();
       const json = JSON.parse(text);
+      if (json.entities?.some((entity) => entity.kind === 'IMPORTED_MODEL' && entity.metadata?.assetRef)) {
+        throw new Error('Este JSON contiene modelos externos. Usa «Abrir proyecto completo».');
+      }
 
       if (!materialsByCode || materialsByCode.size === 0) {
         alert('Aún no se han cargado los materiales. Espera un momento y vuelve a intentar.');
@@ -148,7 +173,7 @@ export default function TopMenuBar({
       else await threeApiRef.current?.loadProject?.(json);
     } catch (err) {
       console.error('Error cargando JSON:', err);
-      alert('No pude cargar el proyecto. Revisa que sea un JSON válido.');
+      alert(`No pude cargar el proyecto: ${err.message}`);
     } finally {
       e.target.value = '';
       setOpen(false);
@@ -158,6 +183,7 @@ export default function TopMenuBar({
 
   const doNew = () => {
     if (!canLoadSave) return;
+    window.electronAPI?.clearProjectAssets?.();
     onNewProject?.();
     setOpen(false);
     setExportOpen(false);
@@ -222,6 +248,8 @@ export default function TopMenuBar({
               <MenuItem label="Nuevo" disabled={!canLoadSave} onClick={doNew} />
               <MenuItem label="Abrir..." disabled={!canLoadSave} onClick={doOpen} />
               <MenuItem label="Guardar" disabled={!canLoadSave} onClick={doSave} />
+              {window.electronAPI?.saveCompleteProject && <MenuItem label="Guardar proyecto completo" disabled={!canLoadSave} onClick={doSaveComplete} />}
+              {window.electronAPI?.openCompleteProject && <MenuItem label="Abrir proyecto completo" disabled={!canLoadSave} onClick={doOpenComplete} />}
 
               <div className="topbar-submenu-wrap">
                 <button

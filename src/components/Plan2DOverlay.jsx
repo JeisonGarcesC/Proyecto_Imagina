@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { buildSnapGeometry, resolveDimensionAxisAssist, resolveSnapPoint, SNAP_LABELS } from '../plan2d/geometrySnap2D';
-import { buildElevationSnapGeometry } from '../plan2d/geometry2D/elevation2D';
+import {
+  buildSnapGeometry,
+  computePointToPointPlacement,
+  resolveDimensionAxisAssist,
+  resolveSnapPoint,
+  SNAP_LABELS,
+} from '../plan2d/geometrySnap2D';
+import { buildElevationSnapGeometry, projectElevationBounds } from '../plan2d/geometry2D/elevation2D';
 import {
   createDimension2D,
   dimensionHitDistance,
@@ -28,6 +34,7 @@ import {
 import { drawVectorPlan2D } from '../core/plans/renderers/vectorPlanRenderer2D';
 import {
   getDuctCimbras,
+  getLeaderWallCimbras,
   pruneCimbraVisibility,
   resolveSelectedKoncisaPostId,
 } from '../plan2d/koncisaCimbraGeometry2D';
@@ -56,10 +63,12 @@ import { resolveWallAngularSnap } from '../core/architecture/walls/wallAngularSn
 import { selectWallAtPoint } from '../core/architecture/walls/wallInteraction2D';
 import { buildResolvedWallFootprint } from '../core/architecture/walls/wallResolvedFootprint.js';
 import { buildResolvedWallColumnFootprint } from '../core/architecture/columns/wallColumnIntersection.js';
-import { architectureFinish2dCss, buildExclusiveWallFinishFootprints, findArchitectureFinish } from '../specialFinishes/architectureSpecialFinishes.js';
 import {
-  buildJoinedWallsGeometry2D,
-} from '../core/architecture/walls/wallJoins2D';
+  architectureFinish2dCss,
+  buildExclusiveWallFinishFootprints,
+  findArchitectureFinish,
+} from '../specialFinishes/architectureSpecialFinishes.js';
+import { buildJoinedWallsGeometry2D } from '../core/architecture/walls/wallJoins2D';
 import {
   createColumnDefinition,
   COLUMN_SHAPES,
@@ -320,6 +329,10 @@ export default function Plan2DOverlay({
   const [measureStart, setMeasureStart] = useState(null);
   const [measureHover, setMeasureHover] = useState(null);
   const [measureSnap, setMeasureSnap] = useState(null);
+  const [positionMode, setPositionMode] = useState(false);
+  const [positionDraft, setPositionDraft] = useState(null);
+  const [positionHover, setPositionHover] = useState(null);
+  const [positionError, setPositionError] = useState('');
   const getDimensionSnapGeometry = useCallback(() => {
     const plant = buildSnapGeometry(getSnapshot?.() || []);
     const elevations = buildElevationSnapGeometry(shapes2D, { invertZ });
@@ -808,7 +821,9 @@ export default function Plan2DOverlay({
         geometry: getDimensionSnapGeometry(),
         tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
       });
-      return measureStart ? resolveDimensionAxisAssist(measureStart, resolved, viewRef.current.s) : resolved;
+      return measureStart
+        ? resolveDimensionAxisAssist(measureStart, resolved, viewRef.current.s)
+        : resolved;
     },
     [canvasToWorld, getDimensionSnapGeometry, measureStart]
   );
@@ -901,14 +916,16 @@ export default function Plan2DOverlay({
     [walls, columns, getSnapshot, selectedIds]
   );
   const resolvedWallsGeometry = useMemo(
-    () => columns.length
-      ? buildResolvedWallColumnFootprint(walls, columns, { openings })
-      : buildResolvedWallFootprint(walls, { openings }),
+    () =>
+      columns.length
+        ? buildResolvedWallColumnFootprint(walls, columns, { openings })
+        : buildResolvedWallFootprint(walls, { openings }),
     [walls, columns, openings]
   );
-  const exclusiveWallRgbFootprints = useMemo(() =>
-    buildExclusiveWallFinishFootprints(resolvedWallsGeometry, architectureSpecialFinishes),
-  [resolvedWallsGeometry, architectureSpecialFinishes]);
+  const exclusiveWallRgbFootprints = useMemo(
+    () => buildExclusiveWallFinishFootprints(resolvedWallsGeometry, architectureSpecialFinishes),
+    [resolvedWallsGeometry, architectureSpecialFinishes]
+  );
 
   const resolveArchitectureSnap = useCallback(
     (mx, my) => {
@@ -925,11 +942,14 @@ export default function Plan2DOverlay({
     [architectureSnapGeometry, canvasToWorld]
   );
 
-  const resolveWallDraftPoint = useCallback((resolved, points) =>
-    resolveWallAngularSnap(points.at(-1), resolved.point, {
-      pointSnapped: resolved.snapped,
-      scale: viewRef.current.s,
-    }), []);
+  const resolveWallDraftPoint = useCallback(
+    (resolved, points) =>
+      resolveWallAngularSnap(points.at(-1), resolved.point, {
+        pointSnapped: resolved.snapped,
+        scale: viewRef.current.s,
+      }),
+    []
+  );
 
   const resolveDoorAtCanvasPoint = useCallback(
     (mx, my) => {
@@ -990,6 +1010,13 @@ export default function Plan2DOverlay({
   const getSelectionTargetIds = useCallback(
     (part, snapshot) => {
       if (!part?.id) return [];
+      if (
+        part.kind === 'CRITERIUM_SYSTEM' ||
+        part.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' ||
+        part.kind === 'CRITTERIUM_8_ASSEMBLY'
+      ) {
+        return resolveSelectionTargetIds?.([part.id], { connectedCritterium2D: true }) || [part.id];
+      }
       const groupId = String(part.groupId || '').trim();
       if (!moveAsGroup || !groupId) return [part.id];
 
@@ -1002,7 +1029,27 @@ export default function Plan2DOverlay({
         )
       );
     },
-    [moveAsGroup]
+    [moveAsGroup, resolveSelectionTargetIds]
+  );
+
+  const resolvePositionSnap = useCallback(
+    (mx, my, draft = positionDraft) => {
+      if (!draft?.sourceId) return null;
+      const worldPoint = canvasToWorld(mx, my);
+      if (!worldPoint) return null;
+      const movableIds = new Set(draft.ids);
+      const candidates = (getSnapshot?.() || []).filter((part) =>
+        draft.origin ? !movableIds.has(part?.id) : part?.id === draft.sourceId
+      );
+      const geometry = buildSnapGeometry(candidates);
+      return resolveSnapPoint({
+        worldPoint,
+        scale: viewRef.current.s,
+        geometry: { points: geometry.points, segments: [] },
+        tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
+      });
+    },
+    [canvasToWorld, getSnapshot, positionDraft]
   );
 
   const getRotationHandle = useCallback(() => {
@@ -1378,6 +1425,10 @@ export default function Plan2DOverlay({
         return;
       }
 
+      if (positionMode) {
+        setPositionHover(positionDraft?.sourceId ? resolvePositionSnap(mx, my) : null);
+        return;
+      }
       if (measureMode) {
         const resolved = resolveMeasureSnap(mx, my);
         if (!resolved) return;
@@ -1414,6 +1465,9 @@ export default function Plan2DOverlay({
       }
     },
     [
+      positionMode,
+      positionDraft,
+      resolvePositionSnap,
       measureMode,
       measureStart,
       resolveMeasureSnap,
@@ -1567,6 +1621,7 @@ export default function Plan2DOverlay({
         const resolvedCandidates =
           resolveSelectionTargetIds?.(candidates, {
             asGroup: moveAsGroup,
+            connectedCritterium2D: true,
           }) || candidates;
         onPickIds?.(
           applySelectionOperation(selectedIds, resolvedCandidates, completedSelection.operation)
@@ -1604,7 +1659,7 @@ export default function Plan2DOverlay({
         suppressNextClickRef.current = pieceDrag.hasMoved;
         dragPieceRef.current = null;
         setDragPieceId(null);
-        onEndMove2D?.();
+        onEndMove2D?.({ skipSnap: pieceDrag.skipSnap === true });
       }
 
       dragRef.current.isDown = false;
@@ -1718,7 +1773,7 @@ export default function Plan2DOverlay({
       if (e.button !== 0) return;
 
       // La cota se inicia y termina en handleClick; no capturar sus clics como arrastres 2D.
-      if (measureMode) return;
+      if (measureMode || positionMode) return;
 
       const shapeWorld = canvasToWorld(mx, my);
       if (textTool2D && shapeWorld) {
@@ -2056,6 +2111,11 @@ export default function Plan2DOverlay({
       dragPieceRef.current = {
         id: picked.id,
         selectionIds,
+        skipSnap: selectionIds.length > 1 && (
+          picked.kind === 'CRITERIUM_SYSTEM' ||
+          picked.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' ||
+          picked.kind === 'CRITTERIUM_8_ASSEMBLY'
+        ),
         initialPositions,
         startWorldX: world.x,
         startWorldZ: world.z,
@@ -2070,6 +2130,7 @@ export default function Plan2DOverlay({
       e.preventDefault();
     },
     [
+      positionMode,
       measureMode,
       scaleMode,
       isWallDrawMode,
@@ -2167,6 +2228,33 @@ export default function Plan2DOverlay({
     }
   }, [transformTool, measureMode, scaleMode, isWallDrawMode, cancelVariantHandleDrag]);
 
+  useEffect(() => {
+    if (
+      !positionMode ||
+      (transformTool === 'move' &&
+        !scaleMode &&
+        !isWallDrawMode &&
+        !shapeTool2D &&
+        !textTool2D &&
+        openingMode !== 'PLACE' &&
+        columnMode !== 'PLACE')
+    )
+      return;
+    setPositionMode(false);
+    setPositionDraft(null);
+    setPositionHover(null);
+    setPositionError('');
+  }, [
+    positionMode,
+    transformTool,
+    scaleMode,
+    isWallDrawMode,
+    shapeTool2D,
+    textTool2D,
+    openingMode,
+    columnMode,
+  ]);
+
   const handleClick = useCallback(
     (e) => {
       if (suppressNextClickRef.current) {
@@ -2180,6 +2268,81 @@ export default function Plan2DOverlay({
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+
+      if (positionMode) {
+        if (!positionDraft?.sourceId) {
+          const part = pickPartAtCanvasPoint(mx, my);
+          const snapshot = getSnapshot?.() || [];
+          const ids = part ? getSelectionTargetIds(part, snapshot) : [];
+          if (
+            !ids.length ||
+            ids.some((id) => isPartMovementLocked2D?.(id)) ||
+            !buildSnapGeometry([part]).points.length
+          ) {
+            setPositionError('Selecciona un elemento móvil con puntos de referencia.');
+            return;
+          }
+          onPickId?.(part.id);
+          if (ids.length > 1) onPickIds?.(ids);
+          setPositionDraft({ sourceId: part.id, ids, origin: null });
+          setPositionHover(null);
+          setPositionError('');
+          return;
+        }
+        const snap = resolvePositionSnap(mx, my);
+        if (!snap?.snapped || !snap.sourceId) {
+          setPositionError(
+            positionDraft.origin
+              ? 'Selecciona un punto de otro elemento.'
+              : 'Selecciona un punto del elemento que se moverá.'
+          );
+          return;
+        }
+        if (!positionDraft.origin) {
+          setPositionDraft((current) => ({ ...current, origin: snap.point }));
+          setPositionHover(null);
+          setPositionError('');
+          return;
+        }
+        const parts = (getSnapshot?.() || []).filter((part) =>
+          positionDraft.ids.includes(part?.id)
+        );
+        const placement = computePointToPointPlacement(positionDraft.origin, snap.point, parts);
+        if (
+          !placement ||
+          parts.length !== positionDraft.ids.length ||
+          parts.some((part) => isPartMovementLocked2D?.(part.id))
+        ) {
+          setPositionError('El elemento ya no está disponible para mover.');
+          return;
+        }
+        if (Math.hypot(placement.delta.x, placement.delta.z) > 1e-9) {
+          if (onBeginMove2D?.(positionDraft.ids, positionDraft.ids.length > 1) !== true) {
+            setPositionError('No se pudo iniciar el movimiento.');
+            return;
+          }
+          const moved =
+            placement.updates.length > 1
+              ? onMoveParts2D?.(placement.updates)
+              : onMovePart2D?.(
+                  placement.updates[0].id,
+                  placement.updates[0].x,
+                  placement.updates[0].z
+                );
+          if (moved !== true) {
+            if (parts.length > 1) onMoveParts2D?.(parts.map(({ id, x, z }) => ({ id, x, z })));
+            else onMovePart2D?.(parts[0].id, parts[0].x, parts[0].z);
+            onCancelMove2D?.();
+            setPositionError('No se pudo completar el movimiento.');
+            return;
+          }
+          onEndMove2D?.({ skipSnap: true });
+        }
+        setPositionDraft(null);
+        setPositionHover(null);
+        setPositionError('');
+        return;
+      }
 
       // CALIBRAR ESCALA
       if (scaleMode) {
@@ -2238,9 +2401,12 @@ export default function Plan2DOverlay({
 
         if (len > 0.001) {
           const dimension = createDimension2D({
-            type: resolved.axis === 'HORIZONTAL' ? DIMENSION_TYPES.LINEAR_HORIZONTAL
-              : resolved.axis === 'VERTICAL' ? DIMENSION_TYPES.LINEAR_VERTICAL
-                : DIMENSION_TYPES.ALIGNED,
+            type:
+              resolved.axis === 'HORIZONTAL'
+                ? DIMENSION_TYPES.LINEAR_HORIZONTAL
+                : resolved.axis === 'VERTICAL'
+                  ? DIMENSION_TYPES.LINEAR_VERTICAL
+                  : DIMENSION_TYPES.ALIGNED,
             startPoint: measureStart,
             endPoint: wpt,
             references: {
@@ -2332,6 +2498,20 @@ export default function Plan2DOverlay({
       onPickIds?.(arr);
     },
     [
+      positionMode,
+      positionDraft,
+      pickPartAtCanvasPoint,
+      getSnapshot,
+      getSelectionTargetIds,
+      isPartMovementLocked2D,
+      onPickIds,
+      onPickId,
+      resolvePositionSnap,
+      onBeginMove2D,
+      onMovePart2D,
+      onMoveParts2D,
+      onCancelMove2D,
+      onEndMove2D,
       measureMode,
       measureStart,
       isWallDrawMode,
@@ -2390,6 +2570,13 @@ export default function Plan2DOverlay({
       const key = ev.key?.toLowerCase?.();
 
       if (ev.key === 'Escape') {
+        if (positionMode) {
+          setPositionMode(false);
+          setPositionDraft(null);
+          setPositionHover(null);
+          setPositionError('');
+          return;
+        }
         if (scaleMode || calibrationDraft) {
           setScaleMode(false);
           setScaleStartPx(null);
@@ -2412,6 +2599,9 @@ export default function Plan2DOverlay({
       if (key === 'f') fitView();
 
       if (key === 'r') {
+        setPositionMode(false);
+        setPositionDraft(null);
+        setPositionHover(null);
         setMeasureMode((prev) => {
           const next = !prev;
           if (!next) {
@@ -2460,6 +2650,7 @@ export default function Plan2DOverlay({
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [
+    positionMode,
     measureMode,
     measureStart,
     isWallDrawMode,
@@ -2710,9 +2901,16 @@ export default function Plan2DOverlay({
           });
           ctx.closePath();
         }
-        const columnFinish = findArchitectureFinish(architectureSpecialFinishes, 'COLUMN', column.id);
-        ctx.fillStyle = columnFinish ? architectureFinish2dCss(columnFinish)
-          : isSelected ? 'rgba(168,92,0,0.32)' : 'rgba(70,70,70,0.28)';
+        const columnFinish = findArchitectureFinish(
+          architectureSpecialFinishes,
+          'COLUMN',
+          column.id
+        );
+        ctx.fillStyle = columnFinish
+          ? architectureFinish2dCss(columnFinish)
+          : isSelected
+            ? 'rgba(168,92,0,0.32)'
+            : 'rgba(70,70,70,0.28)';
         ctx.strokeStyle = isSelected ? 'rgba(190,100,0,0.95)' : 'rgba(35,35,35,0.82)';
         ctx.lineWidth = isSelected ? 3 : 1;
         ctx.fill();
@@ -2808,7 +3006,11 @@ export default function Plan2DOverlay({
             ctx.setLineDash([]);
             ctx.fillStyle = 'rgba(21, 128, 61, 1)';
             ctx.font = '12px sans-serif';
-            ctx.fillText(wallAngleGuide === 'HORIZONTAL' ? 'Horizontal' : 'Vertical', x2 + 10, y2 - 10);
+            ctx.fillText(
+              wallAngleGuide === 'HORIZONTAL' ? 'Horizontal' : 'Vertical',
+              x2 + 10,
+              y2 - 10
+            );
             ctx.restore();
           }
 
@@ -2920,7 +3122,30 @@ export default function Plan2DOverlay({
         drawShapes2D(ctx, cimbras, { toCanvas: toCanvasLocal, scale: s });
       }
 
-      drawShapes2D(ctx, shapes2D, { toCanvas: toCanvasLocal, scale: s });
+      const liveElevationSources = new Map();
+      const wallCimbras = cimbraVisiblePostIds.size
+        ? getLeaderWallCimbras(
+            snap,
+            shapes2D,
+            cimbraVisiblePostIds,
+            (ids) => {
+              const source = historyApi?.getElevationSource2D?.(ids);
+              if (source) liveElevationSources.set(ids, source);
+              return source;
+            }
+          )
+        : [];
+      const renderedShapes = shapes2D.map((shape) => {
+        const source = liveElevationSources.get(shape.sourceSelection);
+        const projection = source && projectElevationBounds(source.sourceBoxes, shape.viewDirection);
+        return projection
+          ? { ...shape, geometry: { ...shape.geometry, ...projection } }
+          : shape;
+      });
+      drawShapes2D(ctx, renderedShapes, { toCanvas: toCanvasLocal, scale: s });
+      if (cimbraVisiblePostIds.size) {
+        drawShapes2D(ctx, wallCimbras, { toCanvas: toCanvasLocal, scale: s });
+      }
       const selectedShape = shapes2D.find((shape) => shape.id === selectedShape2DId);
       if (selectedShape) {
         drawShapes2D(
@@ -3121,12 +3346,57 @@ export default function Plan2DOverlay({
         const len = Math.hypot(measureHover.x - measureStart.x, measureHover.z - measureStart.z);
 
         if (len > 0.001) {
-          const axisLabel = measureSnap?.axis === 'HORIZONTAL' ? ' · Horizontal'
-            : measureSnap?.axis === 'VERTICAL' ? ' · Vertical' : '';
+          const axisLabel =
+            measureSnap?.axis === 'HORIZONTAL'
+              ? ' · Horizontal'
+              : measureSnap?.axis === 'VERTICAL'
+                ? ' · Vertical'
+                : '';
           drawMeasureLine(ctx, x1, y1, x2, y2, `${fmtMeasure(len)}${axisLabel}`, {
             preview: true,
           });
         }
+      }
+
+      if (positionMode && positionDraft?.origin) {
+        const end = positionHover?.point;
+        const [x1, y1] = toCanvasLocal(positionDraft.origin.x, positionDraft.origin.z);
+        ctx.save();
+        ctx.fillStyle = 'rgba(22, 163, 74, 1)';
+        ctx.beginPath();
+        ctx.arc(x1, y1, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        if (end) {
+          const [x2, y2] = toCanvasLocal(end.x, end.z);
+          ctx.save();
+          ctx.strokeStyle = 'rgba(22, 163, 74, 0.85)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+      if (positionMode && positionHover?.snapped) {
+        const [x, y] = toCanvasLocal(positionHover.point.x, positionHover.point.z);
+        ctx.save();
+        ctx.strokeStyle = 'rgba(22, 163, 74, 1)';
+        ctx.fillStyle = 'rgba(220, 252, 231, 0.96)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x - 9, y);
+        ctx.lineTo(x + 9, y);
+        ctx.moveTo(x, y - 9);
+        ctx.lineTo(x, y + 9);
+        ctx.stroke();
+        ctx.restore();
       }
 
       if (measureMode && measureSnap?.snapped) {
@@ -3228,6 +3498,7 @@ export default function Plan2DOverlay({
     return () => cancelAnimationFrame(raf);
   }, [
     getSnapshot,
+    historyApi,
     selectedIds,
     walls,
     resolvedWallsGeometry,
@@ -3240,6 +3511,9 @@ export default function Plan2DOverlay({
     wallThickness,
     title,
     ensureInitializedView,
+    positionMode,
+    positionDraft,
+    positionHover,
     measureMode,
     measureStart,
     measureHover,
@@ -3395,7 +3669,54 @@ export default function Plan2DOverlay({
         </button>
 
         <button
+          type="button"
           onClick={() => {
+            const next = !positionMode;
+            setPositionMode(next);
+            setPositionDraft(null);
+            setPositionHover(null);
+            setPositionError('');
+            if (next) {
+              setMeasureMode(false);
+              clearMeasureDraft();
+            }
+          }}
+          disabled={
+            isWallDrawMode ||
+            scaleMode ||
+            shapeTool2D ||
+            textTool2D ||
+            transformTool !== 'move' ||
+            openingMode === 'PLACE' ||
+            columnMode === 'PLACE'
+          }
+          aria-pressed={positionMode}
+          title="Punto a punto"
+          style={{
+            padding: '6px 10px',
+            borderRadius: 10,
+            border: '1px solid rgba(0,0,0,0.14)',
+            background: positionMode ? 'rgba(22, 163, 74, 0.16)' : 'rgba(255,255,255,0.92)',
+            cursor: 'pointer',
+          }}
+        >
+          📍--📍
+        </button>
+        {positionMode && (
+          <small role="status">
+            {positionError ||
+              (!positionDraft?.sourceId
+                ? 'Selecciona un elemento'
+                : !positionDraft.origin
+                  ? 'Punto de origen'
+                  : 'Punto de destino')}
+          </small>
+        )}
+        <button
+          onClick={() => {
+            setPositionMode(false);
+            setPositionDraft(null);
+            setPositionHover(null);
             setMeasureMode((prev) => {
               const next = !prev;
               if (!next) {
@@ -3554,8 +3875,8 @@ export default function Plan2DOverlay({
           aria-pressed={selectedPostCimbraVisible}
           title={
             selectedCimbraPostId
-              ? 'Mostrar u ocultar cimbras del puesto KONCISA PLUS seleccionado'
-              : 'Selecciona un puesto KONCISA PLUS para controlar sus cimbras'
+              ? 'Mostrar u ocultar cimbras del puesto seleccionado'
+              : 'Selecciona un puesto para controlar sus cimbras'
           }
           style={{
             padding: '6px 10px',
@@ -3836,7 +4157,13 @@ export default function Plan2DOverlay({
           display: 'block',
           touchAction: 'none',
           cursor:
-            measureMode || isWallDrawMode || shapeTool2D || textTool2D || scaleMode || selectionDrag
+            positionMode ||
+            measureMode ||
+            isWallDrawMode ||
+            shapeTool2D ||
+            textTool2D ||
+            scaleMode ||
+            selectionDrag
               ? 'crosshair'
               : isPlanDragging
                 ? 'grabbing'

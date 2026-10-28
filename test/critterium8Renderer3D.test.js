@@ -42,6 +42,39 @@ test('crea Group con transforms y metadata desde AssemblyLayout', async () => {
   disposeCritterium8FrameAssembly3D(assembly);
 });
 
+test('las baldosas conservan sus centros, dejan junta de 2 mm y caben en 80 mm de fondo', async () => {
+  const frame = createCritterium8FrameDefinition({ id: 'TILE_BOUNDS', widthCm: 90, heightCm: 90, tiles: [
+    { tileType: 'FORMICA', heightCm: 38 }, { tileType: 'FORMICA', heightCm: 38 },
+  ] });
+  const { assembly, layout, parts } = await build(frame);
+  const placements = layout.placements.filter((item) => item.partType === 'TILE' && item.metadata.face === 'FRONT');
+  const tiles = assembly.children.filter((item) => item.userData.partType === 'TILE' && item.userData.face === 'FRONT');
+  assert.equal(tiles.length, 2);
+  assert.deepEqual(placements.map((item) => item.position.y), [33, 71]);
+  assert.equal(assembly.children.filter((item) => item.userData.partType === 'TILE' && item.userData.face === 'BACK').length, 2);
+  for (const tile of tiles) {
+    const part = parts.find((item) => item.id === tile.userData.partId);
+    const placement = placements.find((item) => item.partId === part.id);
+    const bounds = new THREE.Box3().setFromObject(tile);
+    const size = bounds.getSize(new THREE.Vector3());
+    assert.ok(Math.abs(size.x - (part.widthCm / 100 - 0.011)) < 1e-6);
+    assert.ok(Math.abs(size.y - (part.heightCm / 100 - 0.002)) < 1e-6);
+    assert.ok(Math.abs(bounds.getCenter(new THREE.Vector3()).y - placement.position.y / 100) < 1e-9);
+    assert.ok(Math.abs(bounds.min.y - placement.bounds.minY / 100 - 0.001) < 1e-6);
+    assert.ok(Math.abs(placement.bounds.maxY / 100 - bounds.max.y - 0.001) < 1e-6);
+    assert.ok(Math.abs(bounds.getCenter(new THREE.Vector3()).x - placement.position.x / 100) < 1e-9);
+    assert.ok(Math.abs(bounds.min.x + frame.widthCm / 200 - 0.0055) < 1e-6);
+    assert.ok(Math.abs(frame.widthCm / 200 - bounds.max.x - 0.0055) < 1e-6);
+    assert.ok(bounds.min.z >= -0.04 - 1e-9 && bounds.max.z <= 0.04 + 1e-9);
+  }
+  const first = new THREE.Box3().setFromObject(tiles[0]);
+  const second = new THREE.Box3().setFromObject(tiles[1]);
+  assert.ok(Math.abs(second.min.y - first.max.y - 0.002) < 1e-6);
+  const bounds = new THREE.Box3().setFromObject(assembly);
+  assert.ok(Math.abs(bounds.max.z - bounds.min.z - 0.08) < 1e-9);
+  disposeCritterium8FrameAssembly3D(assembly);
+});
+
 test('quantity crea dos niveladores con distribución determinista', async () => {
   const frame = createCritterium8FrameDefinition({ id: 'QUANTITY', widthCm: 60, heightCm: 90 });
   const { assembly } = await build(frame);

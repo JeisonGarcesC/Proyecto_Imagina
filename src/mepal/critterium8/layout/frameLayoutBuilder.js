@@ -31,7 +31,7 @@ function placementForPart(part, context) {
     if (!slot) return { diagnostic: { code: 'MISSING_SLOT', level: 'ERROR', partId: part.id, slotId: part.slotId } };
     const tileDepthCm = CRITTERIUM8_TILE_PROJECTION_MM / 10;
     const back = metadata.face === 'BACK';
-    position = { x: 0, y: (Number(slot.startCm) + Number(slot.endCm)) / 2, z: (back ? -1 : 1) * (halfDepth + tileDepthCm / 2) };
+    position = { x: 0, y: (Number(slot.startCm) + Number(slot.endCm)) / 2, z: (back ? -1 : 1) * (halfDepth - tileDepthCm / 2) };
     anchorId = createCritterium8SlotAnchorId(slot.id);
     bounds = createCritterium8PlacementBounds({ position, widthCm: part.widthCm, heightCm: part.heightCm, depthCm: tileDepthCm });
     metadata.tileProjectionCm = tileDepthCm;

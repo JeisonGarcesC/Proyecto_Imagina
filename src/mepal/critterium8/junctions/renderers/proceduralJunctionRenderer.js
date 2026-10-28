@@ -73,7 +73,9 @@ export function renderCritterium8ProceduralJunction({ layout = {}, asset = {} } 
     }));
   }
   if (layout.metadata?.includesTip === true) {
-    root.add(createBox({ size: { x: postSize * 1.4, y: 0.025, z: postSize * 1.4 }, position: { x: 0, y: height + 0.0125, z: 0 }, materialKey: 'TIP' }));
+    const tip = createBox({ size: { x: postSize * 1.4, y: 0.025, z: postSize * 1.4 }, position: { x: 0, y: height + 0.0125, z: 0 }, materialKey: 'TIP' });
+    tip.userData.critterium8JunctionRole = 'TIP';
+    root.add(tip);
   }
   return root;
 }

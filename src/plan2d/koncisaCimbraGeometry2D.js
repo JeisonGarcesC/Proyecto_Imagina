@@ -8,6 +8,10 @@ export const KONCISA_CIMBRA_DIMENSIONS_MM = Object.freeze({
   sencillo: Object.freeze({
     estandar: Object.freeze({ widthMm: 74.3, depthMm: 77.3 }),
   }),
+  // Perforación libre de piso del mapa de producto del puesto líder: 100 × 43 mm.
+  leaderFloor: Object.freeze({ widthMm: 100, depthMm: 43 }),
+  // Perforación libre de pared; coincide con ancho/alto del acople 22000137143.
+  leaderWall: Object.freeze({ widthMm: 230, heightMm: 85 }),
 });
 
 function finitePositive(value) {
@@ -75,7 +79,11 @@ export function resolveKoncisaCimbraDimensions(part) {
     return { widthMm: explicitWidthMm, depthMm: explicitDepthMm, source: 'metadata' };
   }
 
-  if (part?.meta?.layoutType === 'LEADER') return null;
+  if (part?.meta?.layoutType === 'LEADER') {
+    return resolveDuctKind(part) === 'ductoPiso'
+      ? { ...KONCISA_CIMBRA_DIMENSIONS_MM.leaderFloor, source: 'leader-technical-map' }
+      : null;
+  }
   const tipoPuesto = part?.meta?.tipoPuesto === 'doble' ? 'doble' : 'sencillo';
   const cableType = normalizeCableType(part);
   const configured = KONCISA_CIMBRA_DIMENSIONS_MM?.[tipoPuesto]?.[cableType];
@@ -129,4 +137,73 @@ export function getDuctCimbras(parts, { visiblePostIds = [] } = {}) {
     .filter((part) => visible.has(getKoncisaPostId(part)))
     .map(getDuctCimbraGeometry)
     .filter(Boolean);
+}
+
+function elevationAxis(point, direction) {
+  if (direction === 'front') return point.x;
+  if (direction === 'back') return -point.x;
+  if (direction === 'left') return point.z;
+  return -point.z;
+}
+
+/** Referencia de pared derivada del acople real y de la proyección actual del alzado. */
+export function getLeaderWallCimbras(parts, elevations, visiblePostIds, getElevationSource) {
+  if (!Array.isArray(parts) || !Array.isArray(elevations)) return [];
+  const visible = visiblePostIds instanceof Set ? visiblePostIds : new Set(visiblePostIds || []);
+  const couplings = parts.filter((part) =>
+    part?.meta?.layoutType === 'LEADER' &&
+    part?.subtype === 'leader-outlet-wall-coupling' &&
+    visible.has(part.groupId) &&
+    part.cimbraWorldCenter
+  );
+  if (!couplings.length) return [];
+  return elevations.flatMap((elevation) => {
+    if (elevation?.type !== 'elevation' || elevation.visible === false) return [];
+    const selected = new Set(elevation.sourceSelection || []);
+    const selectedPosts = new Set(parts.filter((part) =>
+      selected.has(part.id) || selected.has(part.instanceId) || selected.has(part.groupId))
+      .map((part) => part.groupId).filter(Boolean));
+    const matching = couplings.filter((part) =>
+      selected.has(part.id) || selected.has(part.instanceId) || selectedPosts.has(part.groupId));
+    if (!matching.length) return [];
+    const source = getElevationSource?.(elevation.sourceSelection);
+    const boxes = source?.sourceBoxes;
+    if (!Array.isArray(boxes) || !boxes.length) return [];
+    const direction = elevation.viewDirection;
+    const axisValues = boxes.flatMap((box) => [
+      elevationAxis(box.min, direction), elevationAxis(box.max, direction),
+    ]);
+    const axisCenter = (Math.min(...axisValues) + Math.max(...axisValues)) / 2;
+    const minY = Math.min(...boxes.map((box) => box.min.y));
+    const maxY = Math.max(...boxes.map((box) => box.max.y));
+    const verticalCenter = (minY + maxY) / 2;
+    return matching.flatMap((part) => {
+      const rotation = Number(part.rotY);
+      if (!Number.isFinite(rotation)) return [];
+      const alongX = Math.abs(Math.cos(rotation));
+      const broadFaceVisible = direction === 'front' || direction === 'back'
+        ? alongX >= Math.abs(Math.sin(rotation))
+        : Math.abs(Math.sin(rotation)) >= alongX;
+      if (!broadFaceVisible) return [];
+      const center = part.cimbraWorldCenter;
+      if (![center.x, center.y, center.z].every(Number.isFinite)) return [];
+      const { widthMm, heightMm } = KONCISA_CIMBRA_DIMENSIONS_MM.leaderWall;
+      return [{
+        ...createShape({
+          id: `cimbra:wall:${elevation.id}:${part.instanceId || part.id}`,
+          type: SHAPE_2D_TYPES.RECTANGLE,
+          semanticType: 'cimbra',
+          geometry: {
+            x: elevation.geometry.x + elevationAxis(center, direction) - axisCenter,
+            y: elevation.geometry.y + verticalCenter - center.y,
+            width: widthMm / 1000,
+            height: heightMm / 1000,
+            rotation: 0,
+          },
+          style: { stroke: '#ef1b1b', strokeWidth: 2, fill: false },
+        }),
+        metadata: { postId: part.groupId, couplingId: part.instanceId || part.id, destination: 'PARED' },
+      }];
+    });
+  });
 }
