@@ -82,6 +82,11 @@ export default function LeftRail({ active, onChange, canViewSpecialFinishes = fa
       label: 'Mila',
       image: '/assets/iconos_imagen/MepalMila.png',
     },
+    {
+      id: 'compendio',
+      label: 'Compendio',
+      image: '/assets/iconos_imagen/Compendio.png',
+    },
   ];
 
   return (

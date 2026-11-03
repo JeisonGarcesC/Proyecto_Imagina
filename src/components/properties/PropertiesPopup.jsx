@@ -1,10 +1,12 @@
 import LinkProperties from './linkCarpetaProperties/LinkProperties.jsx';
+import CompendioProperties from './compendioProperties/CompendioProperties.jsx';
 import MultipleProperties from '../../mepal/multiple/properties/MultipleProperties.jsx';
 import { useEffect, useRef, useState } from 'react';
 import KoncisaPlusProperties, {
   isKoncisaPlusEditablePart,
 } from './koncisaPlusCarpetaProperties/KoncisaPlusProperties';
 import MepalSaludProperties from './MepalSaludProperties';
+import TekSocialDancerProperties, { isTekSocialDancerPart } from './TekSocialDancerProperties';
 import ClakProperties from './ClakProperties';
 import AlmacenamientoProperties from './AlmacenamientoProperties';
 import EdukProperties, { isEdukShelfEditablePart } from './EdukProperties';
@@ -75,9 +77,11 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
 
   const hasEditableProperties =
     part?.kind === 'LINK_PRODUCT' ||
+    part?.kind === 'COMPENDIO_PRODUCT' ||
     part?.kind === 'MULTIPLE_PRODUCT' ||
     isKoncisaPlusEditablePart(part) ||
     isMepalSaludPart(part) ||
+    isTekSocialDancerPart(part) ||
     isAlmacenamientoPart(part) ||
     isEdukShelfEditablePart(part) ||
     isClakPuffVariantPart(part) ||
@@ -172,10 +176,13 @@ export default function PropertiesPopup({ open, x, y, part, api, onClose }) {
         </div>
 
         <LinkProperties part={part} api={api} onClose={onClose} />
+        <CompendioProperties part={part} api={api} onClose={onClose} />
         <MultipleProperties part={part} api={api} onClose={onClose} />
         <KoncisaPlusProperties part={part} api={api} onClose={onClose} />
 
         <MepalSaludProperties part={part} api={api} onClose={onClose} />
+
+        <TekSocialDancerProperties part={part} api={api} onClose={onClose} />
 
         <ClakProperties part={part} api={api} onClose={onClose} />
 

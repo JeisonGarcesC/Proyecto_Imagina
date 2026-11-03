@@ -15,12 +15,21 @@ function isLateralPrivacyPanel(part) {
     .includes('PANTALLA LATERAL');
 }
 
-function isLinkPart(part) {
-  return part?.kind === 'LINK_PRODUCT' || String(part?.line || '').toUpperCase() === 'LINK';
+function isNonKoncisaPart(part) {
+  const line = String(part?.line || '').toUpperCase();
+  const kind = String(part?.kind || '').toUpperCase();
+  return (
+    kind === 'LINK_PRODUCT' ||
+    kind === 'COMPENDIO_PRODUCT' ||
+    line === 'LINK' ||
+    line === 'COMPENDIO'
+  );
 }
 
+const isLinkPart = isNonKoncisaPart;
+
 export default function KoncisaPlusProperties({ part, api, onClose }) {
-  if (isLinkPart(part)) return null;
+  if (isNonKoncisaPart(part)) return null;
 
   const isNormalDucto = part?.kind === 'ducto' || part?.meta?.category === 'ductos';
 
@@ -119,7 +128,7 @@ export default function KoncisaPlusProperties({ part, api, onClose }) {
 }
 
 export function isKoncisaPlusEditablePart(part) {
-  if (!part || isLinkPart(part)) return false;
+  if (!part || isNonKoncisaPart(part)) return false;
 
   return (
     part?.kind === 'ducto' ||

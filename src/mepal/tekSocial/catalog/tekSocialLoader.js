@@ -172,6 +172,16 @@ export async function loadMepalTekSocialItems(list = 'CO') {
   }
 }
 
+// Devuelve los artículos de la lista de precios (por país) que cumplan el predicado.
+export async function findTekSocialPriceItems(predicate, list = 'CO') {
+  const map = await loadPriceListMap(list);
+  const found = [];
+  for (const item of map.values()) {
+    if (predicate(item)) found.push(item);
+  }
+  return found;
+}
+
 export async function getMepalTekSocialDetail(codigo, list = 'CO') {
   try {
     const map = await loadPriceListMap(list);

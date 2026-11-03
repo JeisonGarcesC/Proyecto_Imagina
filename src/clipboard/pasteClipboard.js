@@ -55,6 +55,13 @@ async function executeInstruction(api, instruction) {
       if (!result?.success) throw new Error(result?.reason || 'LINK_PASTE_FAILED');
       return result.object;
     }
+    case CLIPBOARD_CONSTRUCTORS.ADD_COMPENDIO: {
+      const config = instruction.payload?.configuration?.config;
+      if (!config) throw new Error('COMPENDIO_MISSING_CONFIG');
+      const result = await api.addCompendio?.(config, { recordHistory: false });
+      if (!result?.success) throw new Error(result?.reason || 'COMPENDIO_PASTE_FAILED');
+      return result.object;
+    }
     case CLIPBOARD_CONSTRUCTORS.ADD_LOCKER: {
       const config = instruction.payload?.configuration?.config;
       if (!config) throw new Error('LOCKER_MISSING_CONFIG');
