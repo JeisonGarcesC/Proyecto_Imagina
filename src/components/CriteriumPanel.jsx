@@ -355,7 +355,7 @@ export default function CriteriumPanel({
       <details>
         <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Configuración avanzada y sistemas existentes</summary>
         <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
-      <nav style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+      <nav style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 2, minWidth: 0 }}>
         {['FRAME', 'SEQUENCE', 'SYSTEM'].map((value) => (
           <button
             key={value}
@@ -363,6 +363,10 @@ export default function CriteriumPanel({
             style={{
               ...button,
               textAlign: 'center',
+              minWidth: 0,
+              padding: '5px 3px',
+              fontSize: 12,
+              lineHeight: 1.2,
               background: mode === value ? '#dbeafe' : '#eef3f8',
             }}
             onClick={() => {

@@ -150,7 +150,11 @@ test('los dos accesorios GLB de 90 cm se colocan arriba, a escala natural y con 
     assert.equal(visual.children.some((child) => child.userData.critterium8JunctionRole === 'TIP'), false);
     const bounds = new THREE.Box3().setFromObject(accessory);
     const size = bounds.getSize(new THREE.Vector3());
-    assert.ok(size.distanceTo(originalSize) < 1e-6);
+    if (type === 'TERMINAL') {
+      assert.ok(Math.abs(size.x - originalSize.z) < 1e-6);
+      assert.ok(Math.abs(size.z - originalSize.x) < 1e-6);
+      assert.equal(accessory.rotation.y, Math.PI / 2);
+    } else assert.ok(size.distanceTo(originalSize) < 1e-6);
     assert.ok(Math.abs(bounds.min.y - input.layout.bounds.maxY) < 1e-6);
     assert.ok(Math.abs(bounds.getCenter(new THREE.Vector3()).x) < 1e-6);
     assert.ok(Math.abs(bounds.getCenter(new THREE.Vector3()).z) < 1e-6);

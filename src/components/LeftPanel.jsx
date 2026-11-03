@@ -325,6 +325,7 @@ export default function LeftPanel({
   onAddEduk,
   onAddCritterium8,
   onAddVetro,
+  onAddVetroSystem,
   onAddLocker,
   onToggleSnap,
   // muros
@@ -2890,7 +2891,7 @@ export default function LeftPanel({
       {section === 'multiple' && <MultiplePanel threeApiRef={threeApiRef} readOnly={readOnly} />}
       {section === 'lockers' && <LockersPanel onCreate={onAddLocker} readOnly={readOnly} />}
       {section === 'vetro' && (
-        <VetroPanel onCreate={onAddVetro} readOnly={readOnly} />
+        <VetroPanel onCreate={onAddVetro} onCreateSystem={onAddVetroSystem} readOnly={readOnly} />
       )}
 
 

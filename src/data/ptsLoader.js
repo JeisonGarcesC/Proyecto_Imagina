@@ -1,5 +1,5 @@
 // src/data/ptsLoader.js
-import { fetchXml, text } from './xmlLoader';
+import { fetchXml, text } from './xmlLoader.js';
 
 export async function loadPts(url = '/data/xml/ptsinbom_4.xml') {
   const doc = await fetchXml(url);

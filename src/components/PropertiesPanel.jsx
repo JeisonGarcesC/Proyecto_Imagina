@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import './PropertiesPanel.css';
 import Critterium8Properties from '../mepal/critterium8/properties/Critterium8Properties.jsx';
 import VetroProperties from '../mepal/vetro/properties/VetroProperties.jsx';
+import VetroSystemProperties from '../mepal/vetro/properties/VetroSystemProperties.jsx';
 import { usesKuoAVPropertyFinishes } from '../mepal/kuoAV/materials/kuoAVFinish.js';
 
 export default function PropertiesPanel({
@@ -98,11 +99,14 @@ export default function PropertiesPanel({
   const hasKuoPropertyFinishes = usesKuoAVPropertyFinishes(part);
 
   if (part?.critterium8 || part?.critterium8Sequence || part?.critteriumSystem) {
-    return <Critterium8Properties part={part} api={api} readOnly={readOnly} />;
+    return <Critterium8Properties part={part} api={api} readOnly={readOnly} materials={materials} />;
   }
 
   if (part?.kind === 'VETRO_PRODUCT') {
     return <VetroProperties part={part} api={api} readOnly={readOnly} />;
+  }
+  if (part?.kind === 'VETRO_SYSTEM') {
+    return <VetroSystemProperties part={part} api={api} readOnly={readOnly} />;
   }
 
   return (

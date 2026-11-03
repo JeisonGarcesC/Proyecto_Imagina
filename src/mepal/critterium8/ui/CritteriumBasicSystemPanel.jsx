@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { CRITTERIUM8_HALF_HEIGHTS_CM } from '../catalog/frameCatalog.js';
+import { getCritterium8JunctionKitEntry } from '../junctions/junctionPartCatalog.js';
 import { findCritteriumBasicOptions } from '../integration/critteriumBasicSystemPlanner.js';
 
 const inputStyle = { width: '100%', boxSizing: 'border-box', padding: 7, border: '1px solid #cbd5e1', borderRadius: 6 };
-const labels = { LINE: 'Línea', L: 'L', U: 'U', RECTANGLE: 'Rectángulo' };
+const labels = { LINE: 'Línea', L: 'L', U: 'U', RECTANGLE: 'Rectángulo', T: 'T', CROSS: 'Cruz' };
+const schematics = { T: '━━━━━━┳━━━━━━\n      ┃\n      ┃', CROSS: '      ┃\n━━━━━━╋━━━━━━\n      ┃' };
 
 export default function CritteriumBasicSystemPanel({ threeApiRef, readOnly, onCreated }) {
   const [shape, setShape] = useState('LINE');
@@ -49,24 +51,34 @@ export default function CritteriumBasicSystemPanel({ threeApiRef, readOnly, onCr
       <strong>Crear sistema por medidas exteriores</strong>
       <div style={{ fontSize: 12 }}>Indica las medidas exteriores del sistema terminado. Se calcularán los frames y conexiones automáticamente.</div>
       <label>Forma
-        <select style={inputStyle} value={shape} onChange={(event) => { setShape(event.target.value); invalidate(); }}>
+        <select style={inputStyle} value={shape} onChange={(event) => {
+          const nextShape = event.target.value;
+          setShape(nextShape);
+          if (nextShape === 'CROSS' && !getCritterium8JunctionKitEntry({ type: 'X', heightCm })) setHeightCm(90);
+          invalidate();
+        }}>
           {Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
         </select>
       </label>
       <label>{shape === 'LINE' ? 'Longitud exterior total' : shape === 'L' || shape === 'U' ? 'Longitud exterior del tramo A' : 'Ancho exterior total'} (mm)
-        <input style={inputStyle} type="number" min="600" step="1" value={widthMm} onChange={(event) => { setWidthMm(event.target.value); invalidate(); }} />
+        <input style={inputStyle} type="number" min={shape === 'T' || shape === 'CROSS' ? 1200 : 600} step="1" value={widthMm} onChange={(event) => { setWidthMm(event.target.value); invalidate(); }} />
       </label>
-      {shape !== 'LINE' && <label>{shape === 'L' ? 'Longitud exterior del tramo B' : 'Profundidad exterior'} (mm)
-        <input style={inputStyle} type="number" min="600" step="1" value={depthMm} onChange={(event) => { setDepthMm(event.target.value); invalidate(); }} />
+      {shape !== 'LINE' && <label>{shape === 'L' ? 'Longitud exterior del tramo B' : shape === 'T' || shape === 'CROSS' ? 'Fondo exterior total' : 'Profundidad exterior'} (mm)
+        <input style={inputStyle} type="number" min={shape === 'CROSS' ? 1200 : 600} step="1" value={depthMm} onChange={(event) => { setDepthMm(event.target.value); invalidate(); }} />
       </label>}
       {shape === 'U' && <label>Longitud exterior del tramo B (mm)
         <input style={inputStyle} type="number" min="600" step="1" value={returnMm} onChange={(event) => { setReturnMm(event.target.value); invalidate(); }} />
       </label>}
       <label>Altura de frame (cm)
         <select style={inputStyle} value={heightCm} onChange={(event) => { setHeightCm(Number(event.target.value)); invalidate(); }}>
-          {CRITTERIUM8_HALF_HEIGHTS_CM.map((height) => <option key={height} value={height}>{height}</option>)}
+          {CRITTERIUM8_HALF_HEIGHTS_CM.filter((height) => shape !== 'CROSS' || getCritterium8JunctionKitEntry({ type: 'X', heightCm: height }))
+            .map((height) => <option key={height} value={height}>{height}</option>)}
         </select>
       </label>
+      {schematics[shape] && <div style={{ fontSize: 12 }}>
+        <pre aria-label={`Esquema de ${labels[shape]}`} style={{ margin: '4px 0', fontSize: 16 }}>{schematics[shape]}</pre>
+        {shape === 'T' ? 'Transversal centrado y brazo vertical hacia abajo.' : 'Brazos horizontales y verticales centrados.'}
+      </div>}
       <button type="button" style={inputStyle} disabled={busy || readOnly || Number(widthMm) <= 0 || (shape !== 'LINE' && Number(depthMm) <= 0) || (shape === 'U' && Number(returnMm) <= 0)} onClick={calculate}>
         {busy ? 'Calculando geometría…' : 'Buscar composiciones'}
       </button>
@@ -74,10 +86,10 @@ export default function CritteriumBasicSystemPanel({ threeApiRef, readOnly, onCr
         <strong>{options.some((option) => option.exact) ? 'Medida exacta disponible' : 'No existe coincidencia exacta entre las opciones evaluadas'}</strong>
         {options.map((option, index) => <label key={index} style={{ border: selected === index ? '2px solid #2563eb' : '1px solid #cbd5e1', padding: 6, fontSize: 12 }}>
           <input type="radio" name="critterium-basic-option" checked={selected === index} onChange={() => setSelected(index)} />
-          {' '}{option.exact ? 'Exacta' : 'Alternativa'} · exterior real {option.exteriorMm.width.toFixed(1)} × {option.exteriorMm.depth.toFixed(1)} mm
+          {' '}Medida real: {option.exteriorMm.width.toFixed(1)} × {option.exteriorMm.depth.toFixed(1)} mm
+          {(shape === 'T' || shape === 'CROSS') && <div>Solicitado {option.plan.requestedLengths.join(' × ')} mm · diferencia {[(option.exteriorMm.width - option.plan.requestedLengths[0]), (option.exteriorMm.depth - option.plan.requestedLengths[1])].map((value) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`).join(' × ')} mm</div>}
           {(shape === 'L' || shape === 'U') && <div>Tramos exteriores: {option.sideExteriorMm.map((value) => value.toFixed(1)).join(' / ')} mm</div>}
-          <div>{option.plan.sides.map((side, sideIndex) => `Lado ${sideIndex + 1}: ${side.draft.frames.map((frame) => frame.widthCm).join(' + ')} cm`).join(' · ')}</div>
-          <div>{option.plan.sides.length} secuencia(s) · {option.connectionCount} esquina(s) · {option.closedLoop ? 'Cierre validado' : 'Abierto'}</div>
+          <div>{option.plan.sides.map((side, sideIndex) => `${side.name || `Lado ${sideIndex + 1}`}: ${side.draft.frames.map((frame) => frame.widthCm).join(' + ')} cm`).join(' · ')}</div>
         </label>)}
       </div>}
       {choice?.commercialCornerWarning && <div role="note" style={{ color: '#92400e', fontSize: 12 }}>

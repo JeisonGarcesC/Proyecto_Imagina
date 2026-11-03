@@ -6,6 +6,7 @@ import {
 } from './critteriumSystem.js';
 import { collectCritteriumSpatialDiagnostics } from './layout/CritteriumConnectionResolver.js';
 import { analyzeCritteriumSpatialTopology } from './layout/CritteriumSpatialTopology.js';
+import { reconcileCritteriumConnectionVisuals } from './critteriumConnectionVisuals.js';
 
 const clone = (value) => structuredClone(value);
 
@@ -42,6 +43,7 @@ export function restoreCritteriumSystem(entity, { scene, partsRegistry, findSequ
       connectCritteriumSystemSequences(system, connection, { findSequence }));
     system.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(system);
     registerCritteriumSystem({ system, scene, partsRegistry });
+    reconcileCritteriumConnectionVisuals(scene, partsRegistry);
     return system;
   } catch (error) {
     sequences.forEach((sequence) => {

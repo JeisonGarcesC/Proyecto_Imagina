@@ -1,14 +1,42 @@
 // src/catalog/buildCatalogFromXml.js
-import { loadPts } from '../data/ptsLoader';
-import { loadPriceList } from '../data/priceListLoader';
-import { modelRegistry } from './modelRegistry';
+import { loadPts } from '../data/ptsLoader.js';
+import { loadPriceList, loadPriceListCatalog } from '../data/priceListLoader.js';
+import { modelRegistry } from './modelRegistry.js';
+import { VETRO_CODE_CATALOG } from '../mepal/vetro/resolvers/vetroProductCodeResolver.js';
+import { resolveVetroProduct } from '../mepal/vetro/resolvers/vetroProductResolver.js';
 
 export const CATALOG_COUNTRIES = ['CO', 'EUC', 'USD'];
+
+export function completeVetroCatalog(items, priceLists, priceDescriptions = new Map()) {
+  const result = [...items];
+  const existing = new Set(result.map((item) => String(item.codigoPT)));
+  for (const entry of VETRO_CODE_CATALOG) {
+    const code = String(entry.code || '');
+    if (!code || existing.has(code)) continue;
+    const product = resolveVetroProduct(entry);
+    if (!product.codeResolution.supported) continue;
+    const description = priceDescriptions.get(code) || product.commercial.description;
+    result.push({
+      codigoPT: code,
+      ui: { title: description, subtitle: entry.reference || '', tags: ['VETRO', entry.category] },
+      prices: {
+        CO: priceLists.CO.get(code) || 0,
+        EUC: priceLists.EUC.get(code) || 0,
+        USD: priceLists.USD.get(code) || 0,
+      },
+      raw: { ...entry, descripcion: description },
+      model: modelRegistry[code] || null,
+    });
+    existing.add(code);
+  }
+  return result;
+}
 
 export async function buildCatalogFromXml() {
   const ptsMap = await loadPts('/data/xml/ptsinbom_4.xml');
 
-  const pricesCO = await loadPriceList('/data/xml/PriceList_CO_2.xml');
+  const priceCatalogCO = await loadPriceListCatalog('/data/xml/PriceList_CO_2.xml');
+  const pricesCO = new Map([...priceCatalogCO].map(([code, item]) => [code, item.price]));
   const pricesEUC = await loadPriceList('/data/xml/Pricelist_EUC_2.xml');
   const pricesUSD = await loadPriceList('/data/xml/PriceList_USD_2.xml');
 
@@ -63,7 +91,8 @@ export async function buildCatalogFromXml() {
   }
 
   // Índice rápido
-  const byCode = new Map(items.map((it) => [it.codigoPT, it]));
+  const completeItems = completeVetroCatalog(items, { CO: pricesCO, EUC: pricesEUC, USD: pricesUSD }, new Map([...priceCatalogCO].map(([code, item]) => [code, item.description])));
+  const byCode = new Map(completeItems.map((it) => [it.codigoPT, it]));
 
   return { items, byCode };
 }

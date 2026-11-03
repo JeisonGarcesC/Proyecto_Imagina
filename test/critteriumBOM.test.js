@@ -49,16 +49,16 @@ test('un frame emite su código documentado y componentes codificados con datos 
 
 test('dos frames iguales suman dos; tiles de distintos acabados permanecen separados', async () => {
   const a = await createCritterium8Instance({ widthCm: 90, heightCm: 90,
-    tiles: [{ tileType: 'FORMICA', heightCm: 38, materialCode: 'M1', finishCode: 'X' }] });
+    tiles: [{ tileType: 'FORMICA', heightCm: 38, materialCode: 'M1', finishCode: 'X', commercialOptions: { subtype: 'FORMICA' } }] });
   const b = await createCritterium8Instance({ widthCm: 90, heightCm: 90,
-    tiles: [{ tileType: 'FORMICA', heightCm: 38, materialCode: 'M1', finishCode: 'Y' }] });
+    tiles: [{ tileType: 'FORMICA', heightCm: 38, materialCode: 'M1', finishCode: 'Y', commercialOptions: { subtype: 'FORMICA' } }] });
   const result = resolveCritterium8BOM(registry(a.assembly, b.assembly, a.assembly.children[0], b.assembly.children[0]));
   assert.deepEqual(normalize(result.rows.filter((row) => row.description.startsWith('Marco Critterium'))), [{ code: '22191900004', reference: null,
     description: 'Marco Critterium 8 90 × 90 cm', materialCode: null, finishCode: null, qty: 2 }]);
-  const variants = result.rows.filter((row) => row.description === 'Baldosa FORMICA');
+  const variants = result.rows.filter((row) => row.description.startsWith('Baldosa FORMICA'));
   assert.deepEqual(variants.map(({ code, reference, qty, materialCode, finishCode }) => ({ code, reference, qty, materialCode, finishCode })), [
-    { code: '22191301823', reference: null, qty: 1, materialCode: 'M1', finishCode: 'X' },
-    { code: '22191301823', reference: null, qty: 1, materialCode: 'M1', finishCode: 'Y' },
+    { code: '22191301823', reference: null, qty: 2, materialCode: 'M1', finishCode: 'X' },
+    { code: '22191301823', reference: null, qty: 2, materialCode: 'M1', finishCode: 'Y' },
   ]);
 });
 

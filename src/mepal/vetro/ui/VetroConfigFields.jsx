@@ -34,16 +34,26 @@ export default function VetroConfigFields({ section, config, onSectionChange, on
   let fields;
 
   if (section === 'PANEL') {
+    const specialOpen = config.specialMode || config.specialWidthMm != null || config.specialHeightMm != null;
     fields = <>
       <Select label="Material del panel" value={config.material} disabled={disabled}
         items={Object.entries(VETRO_PANEL_MATERIALS).map(([value, item]) => ({ value, label: item.label }))}
         onChange={(material) => patch({ material })} />
       <Select label="Ancho nominal" value={config.nominalWidthCm} disabled={disabled}
-        items={VETRO_PANEL_WIDTHS.map((item) => ({ value: item.nominalCm, label: item.nominalCm + ' cm (real ' + item.realCm + ' cm)' }))}
+        items={VETRO_PANEL_WIDTHS.map((item) => ({ value: item.nominalCm, label: item.nominalCm + ' cm' }))}
         onChange={(value) => patch({ nominalWidthCm: Number(value) })} />
       <Select label="Altura comercial" value={config.nominalHeightCm} disabled={disabled}
         items={options(VETRO_PANEL_HEIGHTS_CM)}
         onChange={(value) => patch({ nominalHeightCm: Number(value) })} />
+      <button type="button" disabled={disabled} onClick={() => patch({ specialMode: !specialOpen, specialWidthMm: null, specialHeightMm: null })}>
+        {specialOpen ? 'Cerrar medida especial' : '+ Medida especial'}
+      </button>
+      {specialOpen && <>
+        <label><input type="checkbox" checked={config.specialWidthMm != null} disabled={disabled} onChange={(event) => patch({ specialWidthMm: event.target.checked ? VETRO_PANEL_WIDTHS.find((item) => item.nominalCm === Number(config.nominalWidthCm))?.realCm * 10 : null })} /> Ancho especial</label>
+        {config.specialWidthMm != null && <label>Ancho real del vidrio (mm)<input type="number" min="297" max="1197" step="0.1" value={config.specialWidthMm} disabled={disabled} onChange={(event) => patch({ specialWidthMm: Number(event.target.value) })} /></label>}
+        <label><input type="checkbox" checked={config.specialHeightMm != null} disabled={disabled} onChange={(event) => patch({ specialHeightMm: event.target.checked ? Number(config.nominalHeightCm) * 10 : null })} /> Altura especial</label>
+        {config.specialHeightMm != null && <label>Altura del proyecto (mm)<input type="number" min="2040" max="3180" step="0.1" value={config.specialHeightMm} disabled={disabled} onChange={(event) => patch({ specialHeightMm: Number(event.target.value) })} /></label>}
+      </>}
     </>;
   } else if (section === 'DOOR_LEAF') {
     fields = <>

@@ -1,5 +1,5 @@
 // src/data/priceListLoader.js
-import { fetchXml, text } from './xmlLoader';
+import { fetchXml, text } from './xmlLoader.js';
 
 function parsePrice(raw) {
   // "410000" o "410.000" o "410,000" → número
@@ -8,6 +8,11 @@ function parsePrice(raw) {
 }
 
 export async function loadPriceList(url) {
+  const catalog = await loadPriceListCatalog(url);
+  return new Map([...catalog].map(([code, item]) => [code, item.price]));
+}
+
+export async function loadPriceListCatalog(url) {
   const doc = await fetchXml(url);
   const items = Array.from(doc.querySelectorAll('Articulo'));
 
@@ -16,7 +21,7 @@ export async function loadPriceList(url) {
     const code = text(it, 'Codigo');
     if (!code) continue;
     const precio = parsePrice(text(it, 'Precio'));
-    map.set(code, precio);
+    map.set(code, { price: precio, description: text(it, 'Descripcion') || null });
   }
   return map;
 }

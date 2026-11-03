@@ -117,7 +117,11 @@ test('conectar y desconectar preserva IDs y BOM; duplicado inverso se rechaza', 
   assert.throws(() => connectCritteriumSystemSequences(context.system, {
     sourceSequenceId: preview.targetSequenceId, targetSequenceId: preview.sourceSequenceId,
     sourcePointId: preview.targetPointId, targetPointId: preview.sourcePointId, type: preview.type }), /DUPLICATE/);
-  assert.deepEqual(bom(context), before);
+  const connected = bom(context);
+  assert.equal(connected.filter((row) => row.code === '22191900126').length,
+    before.filter((row) => row.code === '22191900126').length - 2);
+  assert.equal(connected.filter((row) => row.code === '22000014319').length,
+    before.filter((row) => row.code === '22000014319').length + 1);
   disconnectCritteriumSystemSequences(context.system, connection.connectionId);
   assert.equal(context.system.userData.connections.length, 0);
   assert.deepEqual(bom(context), before);

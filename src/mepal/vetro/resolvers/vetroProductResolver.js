@@ -4,9 +4,11 @@ import { VETRO_DOOR_LEAF_VARIANTS } from '../catalog/doorLeafCatalog.js';
 import { VETRO_DOOR_FRAME_VARIANTS, VETRO_PROFILE_FINISHES } from '../catalog/doorFrameCatalog.js';
 import { resolveVetroProductCode } from './vetroProductCodeResolver.js';
 import { getVetroTechnicalDiagnostics } from '../rules/vetroTechnicalDiagnostics.js';
+import { resolveVetroPanelSize } from '../rules/vetroPanelSize.js';
 
 export function normalizeVetroConfig(config = {}) {
   const productType = String(config.productType || 'PANEL').trim().toUpperCase();
+  const panelSize = productType === 'PANEL' ? resolveVetroPanelSize(config) : null;
   const normalized = {
     productType,
     category: String(config.category || (productType === 'PANEL' ? 'PANELS' : '')).toUpperCase(),
@@ -14,9 +16,11 @@ export function normalizeVetroConfig(config = {}) {
     variant: config.variant ? String(config.variant).toUpperCase() : null,
     material: config.material ? String(config.material).toUpperCase() : null,
     finish: config.finish ? String(config.finish).toUpperCase() : null,
-    nominalWidthCm: config.nominalWidthCm == null ? null : Number(config.nominalWidthCm),
-    nominalHeightCm: config.nominalHeightCm == null ? null : Number(config.nominalHeightCm),
+    nominalWidthCm: panelSize?.special ? panelSize.nominalWidthCm : config.nominalWidthCm == null ? null : Number(config.nominalWidthCm),
+    nominalHeightCm: panelSize?.special ? panelSize.nominalHeightCm : config.nominalHeightCm == null ? null : Number(config.nominalHeightCm),
     nominalLengthCm: config.nominalLengthCm == null ? null : Number(config.nominalLengthCm),
+    specialWidthMm: config.specialWidthMm == null ? null : Number(config.specialWidthMm),
+    specialHeightMm: config.specialHeightMm == null ? null : Number(config.specialHeightMm),
   };
   return normalized;
 }
@@ -64,6 +68,7 @@ function commercialDescription(config, entry) {
 
 export function resolveVetroProduct(input = {}) {
   const config = normalizeVetroConfig(input);
+  const panelSize = config.productType === 'PANEL' ? resolveVetroPanelSize(config) : null;
   const codeResolution = resolveVetroProductCode(config);
   const entry = codeResolution.entry;
   const dimensions = {
@@ -72,6 +77,8 @@ export function resolveVetroProduct(input = {}) {
     nominalHeightCm: entry?.nominalHeightCm ?? config.nominalHeightCm,
     nominalLengthCm: entry?.nominalLengthCm ?? config.nominalLengthCm,
     documented: entry?.dimensionsCm ? { ...entry.dimensionsCm } : null,
+    requestedRealWidthMm: panelSize?.special ? panelSize.realWidthMm : null,
+    requestedProjectHeightMm: panelSize?.special ? panelSize.projectHeightMm : null,
   };
   const diagnostics = [
     ...codeResolution.diagnostics,
@@ -84,11 +91,14 @@ export function resolveVetroProduct(input = {}) {
       reference: entry?.reference ?? null,
       variant: config.variant,
       displayName: displayName(config, entry),
-      description: commercialDescription(config, entry),
+      description: panelSize?.special
+        ? `PANEL VIDRIO MEDIDA ESPECIAL ${panelSize.realWidthMm} × ${panelSize.projectHeightMm} MM VETRO (SKU NOMINAL SUPERIOR ${entry?.code || 'NO DISPONIBLE'})`
+        : commercialDescription(config, entry),
     },
     panelMaterial: config.material ? { type: config.material, documentedThicknessMm: VETRO_PANEL_MATERIALS[config.material]?.documentedThicknessMm ?? null } : null,
     profileFinish: config.finish ? { type: config.finish } : null,
     dimensions,
+    special: panelSize?.special ? { ...panelSize } : null,
     codeResolution: { supported: codeResolution.supported, code: codeResolution.code, source: codeResolution.supported ? 'VETRO_PRODUCT_MAP' : null },
     model: { kind: null, src: null },
     options: { doorType: entry?.doorType ?? null, hasDuct: entry?.hasDuct ?? null, replacementPart: entry?.replacementPart === true, normallyIncluded: entry?.normallyIncluded === true },

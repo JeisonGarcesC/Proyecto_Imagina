@@ -48,6 +48,20 @@ async function executeInstruction(api, instruction) {
   const payload = createPartPayload(instruction);
 
   switch (instruction.constructor) {
+    case CLIPBOARD_CONSTRUCTORS.ADD_VETRO_SYSTEM: {
+      const data = instruction.payload?.metadata || {};
+      const result = await api.addVetroSystem?.({
+        requestedWidthMm: data.requestedWidthMm,
+        heightMm: data.heightMm,
+        panelWidthsMm: data.panelWidthsMm,
+        specialPanel: data.specialPanel,
+        shape: data.shape,
+        returnWidthMm: data.returnWidthMm,
+        returnPanelWidthsMm: data.returnPanelWidthsMm,
+      }, { recordHistory: false });
+      if (!result?.success) throw new Error(result?.reason || 'VETRO_SYSTEM_PASTE_FAILED');
+      return result.object;
+    }
     case CLIPBOARD_CONSTRUCTORS.ADD_LINK: {
       const config = instruction.payload?.configuration?.config;
       if (!config) throw new Error('LINK_MISSING_CONFIG');

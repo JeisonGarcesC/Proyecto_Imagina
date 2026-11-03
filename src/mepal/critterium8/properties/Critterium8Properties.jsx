@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Critterium8FrameProperties from './Critterium8FrameProperties.jsx';
 import { CRITTERIUM8_TILE_CATALOG, CRITTERIUM8_TILE_COMMERCIAL_CATALOG } from '../catalog/tileCatalog.js';
 import { resolveCritterium8TileCommercial } from '../parts/partCatalog.js';
+import { normalizeCritterium8TileFaces, CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE, CRITTERIUM8_DEFAULT_TILE_MATERIAL_RGB } from '../composition/tileFaces.js';
 
 const sectionStyle = { padding: 12, border: '1px solid #e1e1e1', borderRadius: 10, background: '#fff', display: 'grid', gap: 10 };
 const selectStyle = { width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #d8d8d8', borderRadius: 8, background: '#fff' };
@@ -16,7 +17,7 @@ const commercialValueLabel = (field, value) => {
   return String(value).replaceAll('_', ' ').toLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 };
 
-export default function Critterium8Properties({ part, api, readOnly = false }) {
+export default function Critterium8Properties({ part, api, readOnly = false, materials = [] }) {
   const context = part?.critterium8;
   const sequence = part?.critterium8Sequence;
   const system = part?.critteriumSystem;
@@ -24,6 +25,9 @@ export default function Critterium8Properties({ part, api, readOnly = false }) {
   const [message, setMessage] = useState('');
   if (!context && !sequence && !system) return null;
   const { config = {}, composition = {}, editablePart = null } = context || {};
+  const formicaMaterials = materials.filter((material) =>
+    String(material?.material || '').trim().toUpperCase() === 'FORMICA' && material.activo !== false
+  );
 
   const run = async (operation) => {
     if (readOnly || busy) return;
@@ -82,6 +86,7 @@ export default function Critterium8Properties({ part, api, readOnly = false }) {
         {(composition?.tileSlots || []).map((slot) => {
           const focused = editablePart?.partType === 'TILE' && editablePart?.slotId === slot.id;
           const tileType = slot.tile?.tileType || '';
+          const faces = slot.tile ? normalizeCritterium8TileFaces(slot.tile) : null;
           const options = slot.tile?.commercialOptions || {};
           const rows = CRITTERIUM8_TILE_COMMERCIAL_CATALOG.filter((row) =>
             row.tileType === tileType && row.widthCm === Number(slot.widthCm ?? config.widthCm) && row.heightCm === Number(slot.heightCm)
@@ -103,6 +108,39 @@ export default function Critterium8Properties({ part, api, readOnly = false }) {
                   {(slot.allowedTileTypes || []).map((type) => <option key={type} value={type}>{CRITTERIUM8_TILE_CATALOG[type]?.displayName || type}</option>)}
                 </select>
               </label>
+              {['FRONT', 'BACK'].map((face, faceIndex) => {
+                const active = faces?.[face]?.enabled === true;
+                const selectedCode = faces?.[face]?.materialCode || CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE;
+                return <div key={face} style={{ display: 'grid', gap: 5, paddingLeft: 10 }}>
+                  <label>
+                    <input type="checkbox" checked={active} disabled={readOnly || busy}
+                      onChange={(event) => run(() => api?.updateSelectedCritterium8Tile?.(
+                        slot.id,
+                        { tileType: tileType || 'FORMICA', faces: tileType
+                          ? { [face]: { enabled: event.target.checked } }
+                          : { FRONT: { enabled: face === 'FRONT', materialCode: CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE, rgbValue: CRITTERIUM8_DEFAULT_TILE_MATERIAL_RGB },
+                              BACK: { enabled: face === 'BACK', materialCode: CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE, rgbValue: CRITTERIUM8_DEFAULT_TILE_MATERIAL_RGB } } },
+                        context.instanceId
+                      ))}
+                    /> Cara {faceIndex + 1} — {active ? 'Baldosa' : 'Sin baldosa'}
+                  </label>
+                  {active && tileType === 'FORMICA' && <label style={{ display: 'grid', gap: 5 }}>Material Formica
+                    <select style={selectStyle} value={selectedCode} disabled={readOnly || busy}
+                      onChange={(event) => {
+                        const selected = formicaMaterials.find((item) => String(item.code) === event.target.value);
+                        run(() => api?.updateSelectedCritterium8Tile?.(slot.id, {
+                          faces: { [face]: { materialCode: event.target.value,
+                            rgbValue: selected?.rgbValue || null } },
+                        }, context.instanceId));
+                      }}>
+                      {formicaMaterials.length === 0 && <option value={selectedCode}>Natural Elm Mate 1499 ({selectedCode})</option>}
+                      {formicaMaterials.map((material) => <option key={material.code} value={material.code}>
+                        {material.shortName || material.name} ({material.code})
+                      </option>)}
+                    </select>
+                  </label>}
+                </div>;
+              })}
               {focused && tileType && <div style={{ display: 'grid', gap: 8 }}>
                 {commercialFields.map(([field, label]) => {
                   const values = [...new Set(rows.map((row) => row.criteria[field]).filter((value) => value != null))];
