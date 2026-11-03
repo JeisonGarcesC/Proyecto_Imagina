@@ -3,6 +3,8 @@ import { applyGrowthModuleToComposition, buildCritterium8FrameComposition } from
 import { isTileCombinationAllowed } from '../rules/tileRules.js';
 import { retainCritterium8TileCommercialOptions } from '../catalog/tileCatalog.js';
 import { getCritterium8FullTileHeight } from '../rules/frameCompositionRules.js';
+import { normalizeCritterium8TileFaces, CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE, CRITTERIUM8_DEFAULT_TILE_MATERIAL_RGB } from '../composition/tileFaces.js';
+import { defaultCritterium8FormicaCommercialOptions } from '../catalog/tileCatalog.js';
 
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
@@ -64,12 +66,17 @@ export function resolveCritterium8ConfigPatch({ config = {}, patch = {}, frameId
   const explicitTiles = Object.hasOwn(patch, 'tiles');
   const sourceTiles = explicitTiles
     ? clone(patch.tiles || [])
-    : previous.composition.tileSlots.map((slot) => slot.tile).filter(Boolean);
+    : clone(config.tiles || []);
 
   sourceTiles.forEach((tile, sourceIndex) => {
+    if (!tile) return;
     const oldSlotIndex = previous.composition.tileSlots.findIndex((slot) => slot.id === tile.slotId);
     const targetSlot = emptyNext.composition.tileSlots.find((slot) => slot.id === tile.slotId)
       || emptyNext.composition.tileSlots[oldSlotIndex >= 0 ? oldSlotIndex : sourceIndex];
+    if (tile.empty === true) {
+      if (targetSlot) next.tiles.push({ slotId: targetSlot.id, empty: true });
+      return;
+    }
     const tileType = String(tile.tileType || tile.type || '').trim().toUpperCase();
     if (!targetSlot || !tileType || !isTileCombinationAllowed({ type: tileType, widthCm: next.widthCm, heightCm: targetSlot.heightCm })) {
       diagnostics.push({ code: 'TILE_ASSIGNMENT_DISCARDED', level: 'WARNING', tileType: tileType || null, previousSlotId: tile.slotId || null });
@@ -103,19 +110,28 @@ export function patchCritterium8TileConfig({ config, frameId, slotId, patch = {}
   if (!slot) return { success: false, reason: 'SLOT_NOT_FOUND', diagnostics: [] };
   const tiles = current.tileSlots
     .map((candidate) => {
-      if (candidate.id !== slotId) return candidate.tile;
-      const tileType = String(patch.tileType ?? candidate.tile?.tileType ?? '').trim().toUpperCase();
-      if (!tileType) return null;
+      if (candidate.id !== slotId) return candidate.tile || { slotId: candidate.id, empty: true };
+      const tileType = String(patch.tileType ?? candidate.tile?.tileType ?? (patch.faces ? 'FORMICA' : '')).trim().toUpperCase();
+      if (!tileType) return { slotId, empty: true };
       const commercialOptions = Object.hasOwn(patch, 'commercialOptions')
         ? patch.commercialOptions == null
           ? {}
           : { ...patch.commercialOptions, ...(candidate.tile?.commercialOptions || {}), ...patch.commercialOptions }
-        : candidate.tile?.commercialOptions;
+        : candidate.tile?.commercialOptions || (tileType === 'FORMICA'
+          ? defaultCritterium8FormicaCommercialOptions({ widthCm: current.widthCm, heightCm: candidate.heightCm }) : undefined);
+      const currentFaces = candidate.tile ? normalizeCritterium8TileFaces(candidate.tile)
+        : tileType === 'FORMICA' ? {
+          FRONT: { enabled: true, materialCode: CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE, rgbValue: CRITTERIUM8_DEFAULT_TILE_MATERIAL_RGB },
+          BACK: { enabled: true, materialCode: CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE, rgbValue: CRITTERIUM8_DEFAULT_TILE_MATERIAL_RGB },
+        } : normalizeCritterium8TileFaces({});
+      const facePatches = patch.faces || {};
+      const faces = Object.fromEntries(['FRONT', 'BACK'].map((face) => [face, {
+        ...currentFaces[face], ...clone(facePatches[face] || {}),
+      }]));
       return {
-        ...(candidate.tile || {}), ...clone(patch), slotId, tileType, heightCm: candidate.heightCm,
+        ...(candidate.tile || {}), ...clone(patch), faces, slotId, tileType, heightCm: candidate.heightCm,
         ...(commercialOptions === undefined ? {} : { commercialOptions }),
       };
-    })
-    .filter(Boolean);
+    });
   return resolveCritterium8ConfigPatch({ config, patch: { tiles }, frameId });
 }

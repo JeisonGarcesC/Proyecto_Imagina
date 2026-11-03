@@ -1558,6 +1558,7 @@ export default function App() {
               }
               onAddLocker={(config) => !readOnly && threeApiRef.current?.addLocker?.(config)}
               onAddVetro={(config) => !readOnly && threeApiRef.current?.addVetro?.(config)}
+              onAddVetroSystem={(config) => !readOnly && threeApiRef.current?.addVetroSystem?.(config)}
               onToggleSnap={() => !readOnly && threeApiRef.current?.toggleSnap?.()}
               onApplyGlobalMaterial={(code, scope = 'ALL') => {
                 if (readOnly) return;

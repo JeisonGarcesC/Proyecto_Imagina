@@ -37,7 +37,7 @@ function createBox({ size, position, rotationY = 0, materialKey = 'STRUCTURAL' }
 }
 
 function branchAngles(type) {
-  if (type === 'TERMINAL') return [0];
+  if (type === 'TERMINAL') return [Math.PI / 2];
   if (type === 'DEG_90') return [0, Math.PI / 2];
   if (type === 'T') return [0, Math.PI / 2, Math.PI];
   if (type === 'X') return [0, Math.PI / 2, Math.PI, -Math.PI / 2];

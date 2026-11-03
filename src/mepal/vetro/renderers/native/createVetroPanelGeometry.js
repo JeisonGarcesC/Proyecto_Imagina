@@ -3,8 +3,12 @@ import { VETRO_MATERIAL_ROLES } from './vetroNativeMaterials.js';
 import { approximationDiagnostics, approximationValue } from './vetroNativeConstants.js';
 
 export function createVetroPanelGeometry(product) {
-  const widthMm = Number(product.dimensions.realWidthCm ?? product.dimensions.nominalWidthCm) * 10;
-  const heightMm = Number(product.dimensions.nominalHeightCm) * 10;
+  const widthMm = product.special?.specialWidth
+    ? product.special.realWidthMm
+    : Number(product.dimensions.realWidthCm ?? product.dimensions.nominalWidthCm) * 10;
+  const heightMm = product.special?.specialHeight
+    ? product.special.projectHeightMm - 69.5
+    : Number(product.dimensions.nominalHeightCm) * 10;
   const isGlass = product.panelMaterial?.type === 'TEMPERED_GLASS_10MM';
   const approximationFlags = isGlass ? [] : ['F100_VISUAL_THICKNESS_MM'];
   const thicknessMm = isGlass ? 10 : approximationValue('F100_VISUAL_THICKNESS_MM');

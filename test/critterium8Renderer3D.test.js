@@ -85,10 +85,10 @@ test('quantity crea dos niveladores con distribución determinista', async () =>
   disposeCritterium8FrameAssembly3D(assembly);
 });
 
-test('FULL_TILE renderiza únicamente la Part persistente', async () => {
+test('FULL_TILE renderiza las dos caras persistentes', async () => {
   const frame = createCritterium8FrameDefinition({ id: 'RENDER_FULL', widthCm: 60, heightCm: 204, compositionMode: 'FULL_TILE', tiles: [{ tileType: 'FORMICA', heightCm: 190 }] });
   const { assembly } = await build(frame);
-  assert.equal(assembly.children.filter((child) => child.userData.partType === 'TILE').length, 1);
+  assert.equal(assembly.children.filter((child) => child.userData.partType === 'TILE').length, 2);
   disposeCritterium8FrameAssembly3D(assembly);
 });
 

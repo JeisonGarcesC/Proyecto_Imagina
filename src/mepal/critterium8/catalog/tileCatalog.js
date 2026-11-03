@@ -92,6 +92,13 @@ export const CRITTERIUM8_TILE_COMMERCIAL_CATALOG = Object.freeze([
   ...commercialGrid('SINGLE_GLASS', 152, [30, 45, 60, 75, 90, 120], ['22191900579', '22191900580', '22191900581', '22191900582', '22191900583', '22191900585'], { glassType: 'UN_VIDRIO', glassThicknessMm: 4, glassColor: 'BRONCE' }),
 ]);
 
+export function defaultCritterium8FormicaCommercialOptions({ widthCm, heightCm } = {}) {
+  return CRITTERIUM8_TILE_COMMERCIAL_CATALOG.some((row) =>
+    row.tileType === 'FORMICA' && row.widthCm === Number(widthCm)
+      && row.heightCm === Number(heightCm) && row.criteria.subtype === 'FORMICA'
+  ) ? { subtype: 'FORMICA' } : undefined;
+}
+
 // Preserve only previously chosen values that still occur in an exact catalog
 // row after a tile type or frame dimension changes. No value is selected here.
 export function retainCritterium8TileCommercialOptions({ tileType, widthCm, heightCm, commercialOptions } = {}) {

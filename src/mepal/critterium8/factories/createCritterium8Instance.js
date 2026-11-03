@@ -6,6 +6,7 @@ import {
 import { resolveCritterium8FrameParts } from '../parts/framePartResolver.js';
 import { buildCritterium8FrameAssemblyLayout } from '../layout/frameLayoutBuilder.js';
 import { buildCritterium8Frame3D } from '../builders/Critterium8RenderBuilder.js';
+import { createDefaultCritterium8Tiles } from '../composition/defaultTiles.js';
 
 let instanceSequence = 0;
 
@@ -48,6 +49,12 @@ export async function createCritterium8Instance(options = {}) {
     tiles: Array.isArray(options.tiles) ? options.tiles.map((tile) => ({ ...tile })) : [],
   };
   const frameId = String(options.frameId || `${instanceId}_FRAME`);
+  if (options.initializeDefaultTiles === true && config.tiles.length === 0) {
+    config.tiles = createDefaultCritterium8Tiles({
+      id: frameId, widthCm: config.widthCm, heightCm: config.heightCm,
+      frameMode: config.frameMode, compositionMode: config.compositionMode,
+    });
+  }
   const assemblyId = String(options.assemblyId || instanceId);
   const groupId = String(options.groupId || assemblyId);
   const frame = createCritterium8FrameDefinition({

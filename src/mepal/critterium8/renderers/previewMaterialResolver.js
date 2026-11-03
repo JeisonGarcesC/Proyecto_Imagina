@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE, CRITTERIUM8_DEFAULT_TILE_MATERIAL_RGB } from '../composition/tileFaces.js';
 
 const materialCache = new Map();
 
@@ -9,10 +10,16 @@ function materialKeyForPart(part = {}, asset = {}) {
   if (tileType.includes('GLASS')) return 'GLASS';
   if (tileType.includes('FABRIC') || tileType.includes('ACOUSTIC')) return 'FABRIC';
   if (tileType.includes('METAL') || tileType.includes('PORT')) return 'METAL';
-  return 'FORMICA';
+  const rgb = part.metadata?.materialRgb ||
+    (part.metadata?.materialCode === CRITTERIUM8_DEFAULT_TILE_MATERIAL_CODE ? CRITTERIUM8_DEFAULT_TILE_MATERIAL_RGB : null);
+  return rgb && /^\d{1,3}_\d{1,3}_\d{1,3}$/.test(rgb) ? `FORMICA:${rgb}` : 'FORMICA';
 }
 
 function createMaterial(key) {
+  if (key.startsWith('FORMICA:')) {
+    const [red, green, blue] = key.slice('FORMICA:'.length).split('_').map(Number);
+    return new THREE.MeshStandardMaterial({ color: (red << 16) | (green << 8) | blue, roughness: 0.7, metalness: 0 });
+  }
   if (key === 'GLASS') return new THREE.MeshStandardMaterial({ color: 0x9fd8eb, transparent: true, opacity: 0.38, roughness: 0.15, metalness: 0 });
   if (key === 'FABRIC') return new THREE.MeshStandardMaterial({ color: 0x486b8a, roughness: 0.9, metalness: 0 });
   if (key === 'METAL') return new THREE.MeshStandardMaterial({ color: 0x929aa0, roughness: 0.42, metalness: 0.55 });

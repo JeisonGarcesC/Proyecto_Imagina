@@ -13,6 +13,10 @@ import { captureCritteriumSpatialState, applyCritteriumSpatialState } from '../s
 import { serializeCritteriumSystem, restoreCritteriumSystem } from '../src/mepal/critterium8/system/critteriumSystemPersistence.js';
 import { analyzeCritteriumSpatialTopology } from '../src/mepal/critterium8/system/layout/CritteriumSpatialTopology.js';
 import { createHistoryManager, HISTORY_ACTION_TYPES } from '../src/history/historyManager.js';
+import { reconcileCritteriumConnectionVisuals } from '../src/mepal/critterium8/system/critteriumConnectionVisuals.js';
+import { resolveCritterium8BOM } from '../src/mepal/critterium8/bom/critterium8BOM.js';
+import { serializeProjectEntities } from '../src/core/persistence/entitySerializers.js';
+import { extractFootprintPoints2D } from '../src/plan2d/extractFootprint2D.js';
 
 let serial = 0;
 async function makeSystem(scene, shape, mode = 'BASIC') {
@@ -156,6 +160,12 @@ for (const order of ['SOURCE_FIRST', 'TARGET_FIRST']) test(`cross-system connect
   assert.equal(restoredSource.userData.systemId, savedSource.systemId);
   assert.equal(restoredTarget.userData.systemId, savedTarget.systemId);
   assert.equal(validateCritteriumSpatialConnection(restoredSource, restoredSource.userData.connections[0]).valid, true);
+  if (restoredSource.userData.connections[0].type === 'LINEAR') {
+    const kits = scene.children.filter((child) => child.userData?.kind === 'CRITTERIUM_8_SPATIAL_KIT'
+      && child.userData.connectionId === restoredSource.userData.connections[0].connectionId);
+    assert.equal(kits.length, 1);
+    assert.equal(kits[0].userData.kitCode, '22000014319');
+  }
 });
 
 test('cross-system connection is one undo and redo action', async () => {
@@ -189,4 +199,36 @@ test('moving either independent system recalculates the same physical connection
   target.system.position.x -= 0.1;
   target.system.updateMatrixWorld(true);
   assert.equal(validateCritteriumSpatialConnection(source.system, connection).valid, true);
+});
+
+test('linear connection replaces two terminal visuals with one 180 kit in 3D, 2D snapshot and BOM', async () => {
+  const { scene, source, target, preview } = await joinedFixture('LINE', 'LINE');
+  const registry = [...source.sequences, ...target.sequences, source.system, target.system].map((obj) => ({ obj }));
+  const connection = connectCritteriumSystemSequences(source.system, { ...preview, type: preview.type }, {
+    findSequence: (id) => target.sequences.find((sequence) => sequence.userData.sequenceId === id),
+  });
+  assert.equal(connection.type, 'LINEAR');
+  const before2DCount = extractFootprintPoints2D(source.sequences[0]).length;
+  const kits = reconcileCritteriumConnectionVisuals(scene, registry, { loadAccessory: async () => null });
+  assert.equal(kits.length, 1);
+  assert.equal(kits[0].userData.kitCode, '22000014319');
+  assert.equal(kits[0].userData.bounds2d.sizeLocal[0], 0.16);
+  assert.ok(extractFootprintPoints2D(source.sequences[0]).length < before2DCount);
+  assert.ok(extractFootprintPoints2D(kits[0]).length > 0);
+  assert.equal(kits[0].userData.sourceSystemId, source.system.userData.systemId);
+  assert.equal(kits[0].userData.targetSystemId, target.system.userData.systemId);
+  const terminals = [source.sequences[0], target.sequences[0]].flatMap((sequence) => sequence.children)
+    .filter((child) => child.userData?.kind === 'CRITTERIUM_8_JUNCTION' && child.userData.junctionType === 'TERMINAL');
+  assert.equal(terminals.filter((terminal) => !terminal.visible).length, 2);
+  const bom = resolveCritterium8BOM(registry);
+  assert.equal(bom.rows.filter((row) => row.code === '22000014319' && row.sourceId === connection.connectionId).length, 1);
+  assert.equal(bom.rows.filter((row) => row.sourceId === connection.sourcePointId || row.sourceId === connection.targetPointId).length, 0);
+  assert.equal(serializeProjectEntities(registry).entities.some((entity) => entity.code === '22000014319' && entity.kind === 'PART'), false);
+  const after = captureCritteriumSpatialState(source.system);
+  const before = { ...after, connections: [] };
+  applyCritteriumSpatialState(source.system, before);
+  assert.equal(reconcileCritteriumConnectionVisuals(scene, registry).length, 0);
+  assert.equal(terminals.filter((terminal) => terminal.visible).length, 4);
+  applyCritteriumSpatialState(source.system, after);
+  assert.equal(reconcileCritteriumConnectionVisuals(scene, registry, { loadAccessory: async () => null }).length, 1);
 });

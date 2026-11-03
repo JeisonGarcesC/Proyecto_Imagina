@@ -9,6 +9,7 @@ export function createVetroProductDefinition(resolved = {}) {
     panelMaterial: resolved.panelMaterial ? { ...resolved.panelMaterial } : null,
     profileFinish: resolved.profileFinish ? { ...resolved.profileFinish } : null,
     dimensions: resolved.dimensions ? JSON.parse(JSON.stringify(resolved.dimensions)) : null,
+    special: resolved.special ? { ...resolved.special } : null,
     codeResolution: resolved.codeResolution ? { ...resolved.codeResolution } : null,
     model: resolved.model ? { ...resolved.model } : { kind: null, src: null },
     options: resolved.options ? { ...resolved.options } : {},

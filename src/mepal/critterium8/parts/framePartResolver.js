@@ -9,6 +9,7 @@ import {
   resolveCritterium8TileCommercial,
 } from './partCatalog.js';
 import { validateResolvedParts } from './partRules.js';
+import { normalizeCritterium8TileFaces } from '../composition/tileFaces.js';
 
 function addPart(parts, diagnostics, options) {
   const descriptor = getCritterium8PartCatalogEntry(options.type);
@@ -68,13 +69,17 @@ export function resolveCritterium8FrameParts(input = {}, options = {}) {
       commercialOptions: slot.tile.commercialOptions,
     });
     const physicalPartIds = [];
+    const faces = normalizeCritterium8TileFaces(slot.tile);
     for (const face of ['FRONT', 'BACK']) {
+      if (!faces[face].enabled) continue;
       const physicalPart = addPart(parts, diagnostics, {
         frameId, type: 'TILE', slotId: slot.id,
         code: commercial.status === 'RESOLVED' ? commercial.code : null,
         description: commercial.description || `Baldosa ${String(tileType || '').toUpperCase()}`,
         widthCm, heightCm: slot.heightCm, depthCm: 1.5,
-        metadata: { ...slot.tile.metadata, tileType, materialCode: slot.tile.materialCode ?? null, finishCode: slot.tile.finishCode ?? null, source: 'MAPA_PRODUCTO', face },
+        metadata: { ...slot.tile.metadata, tileType, materialCode: faces[face].materialCode ?? null,
+          finishCode: faces[face].finishCode ?? null, materialRgb: faces[face].rgbValue ?? null,
+          source: 'MAPA_PRODUCTO', face, activeFaceCount: Number(faces.FRONT.enabled) + Number(faces.BACK.enabled) },
       });
       if (physicalPart) physicalPartIds.push(physicalPart.id);
     }

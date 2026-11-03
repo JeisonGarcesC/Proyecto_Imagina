@@ -51,10 +51,15 @@ export function buildCritterium8Junction3D({ junction = {}, resolution = {}, lay
       accessory.updateMatrixWorld(true);
       const accessoryBounds = new THREE.Box3().setFromObject(accessory);
       if (accessoryBounds.isEmpty()) throw new Error('CRITTERIUM_ACCESSORY_EMPTY_SCENE');
-      const center = accessoryBounds.getCenter(new THREE.Vector3());
-      accessory.position.x -= center.x;
-      accessory.position.z -= center.z;
-      accessory.position.y += Number(layout.bounds?.maxY || 0) - accessoryBounds.min.y;
+      // The terminal GLB's long axis is local X; the terminal cap crosses the frame's X axis.
+      // The junction root already follows START/END and the sequence direction.
+      if (junctionType === 'TERMINAL') accessory.rotation.y = Math.PI / 2;
+      accessory.updateMatrixWorld(true);
+      const orientedBounds = new THREE.Box3().setFromObject(accessory);
+      const orientedCenter = orientedBounds.getCenter(new THREE.Vector3());
+      accessory.position.x -= orientedCenter.x;
+      accessory.position.z -= orientedCenter.z;
+      accessory.position.y += Number(layout.bounds?.maxY || 0) - orientedBounds.min.y;
       accessory.name = `CRITTERIUM_8_ACCESSORY_${asset.metadata.kitCode}`;
       accessory.traverse((child) => {
         child.userData = { ...child.userData, ...visual.userData, isPartRoot: false, accessoryCode: asset.metadata.kitCode };

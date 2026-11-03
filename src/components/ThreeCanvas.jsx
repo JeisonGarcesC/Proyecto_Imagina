@@ -190,6 +190,7 @@ import {
 } from '../mepal/critterium8/system/critteriumSystem.js';
 import { restoreCritteriumSystem } from '../mepal/critterium8/system/critteriumSystemPersistence.js';
 import { resolveCritteriumConnectedSystems } from '../mepal/critterium8/system/CritteriumConnectedSystems.js';
+import { reconcileCritteriumConnectionVisuals } from '../mepal/critterium8/system/critteriumConnectionVisuals.js';
 import {
   captureCritteriumSpatialState,
   applyCritteriumSpatialState,
@@ -220,6 +221,11 @@ import {
   unregisterVetroInstance,
 } from '../mepal/vetro/integration/vetroRegistration.js';
 import { rebuildVetroInstance } from '../mepal/vetro/integration/rebuildVetroInstance.js';
+import { createVetroSystem } from '../mepal/vetro/factories/createVetroSystem.js';
+import { registerVetroSystem } from '../mepal/vetro/integration/vetroSystemRegistration.js';
+import { getVetroSystemBOM } from '../mepal/vetro/bom/vetroSystemBOM.js';
+import { previewVetroSystemSnap, connectVetroSystems, disconnectVetroSystems, restoreVetroSystemConnections, getVetroConnectedCluster, replayVetroConnectionState } from '../mepal/vetro/system/vetroSystemConnections.js';
+import { collectVetroDeletionConnections, detachVetroDeletionConnections, restoreVetroDeletionConnections } from '../mepal/vetro/system/vetroSystemDeletion.js';
 import { registerCritterium8Instance } from '../mepal/critterium8/integration/critterium8Registration.js';
 import { rebuildCritterium8Instance } from '../mepal/critterium8/integration/rebuildCritterium8Instance.js';
 import {
@@ -2850,7 +2856,7 @@ function ThreeCanvas({
         .map(({ obj, code }) => {
           if (!obj) return null;
           if (obj.userData?.kind === 'LINK_PRODUCT') return null;
-          if (obj.userData?.kind === 'VETRO_PRODUCT') {
+          if (obj.userData?.kind === 'VETRO_PRODUCT' && !obj.userData?.vetroConnectionId) {
             return null;
           }
 
@@ -3270,7 +3276,8 @@ function ThreeCanvas({
         category,
         commercialVariant = null,
         bomGroupKeyOverride = null,
-        typologyCodeOverride = undefined
+        typologyCodeOverride = undefined,
+        priceAvailability = null
       ) {
         if (!code) return;
 
@@ -3365,6 +3372,7 @@ function ThreeCanvas({
             normalizeText(typologyReferenceCode) || prev.typologyReferenceCode || null,
           ...(bomGroupKeyOverride ? { bomGroupKey: bomGroupKeyOverride } : {}),
           ...(typologyCodeOverride !== undefined ? { typologyCode: typologyCodeOverride } : {}),
+          ...(priceAvailability ? { priceAvailability } : {}),
           groupCount:
             Math.max(
               Number(groupCount || 0),
@@ -3596,6 +3604,23 @@ function ThreeCanvas({
       for (const p of parts) {
         const obj = p.obj;
         if (!obj) continue;
+
+        if (obj.userData?.kind === 'VETRO_SYSTEM') {
+          for (const item of getVetroSystemBOM(obj)) {
+            const catalogItem = catalogByCodeRef.current?.get?.(String(item.code)) || null;
+            const catalogDescription = catalogItem?.ui?.title || catalogItem?.raw?.descLarga || catalogItem?.raw?.descripcion || null;
+            const description = item.special ? item.description : catalogDescription;
+            addRow(item.code, item.quantity, description || 'Descripción no disponible', null,
+              obj.userData.systemId, obj.userData.groupName, undefined, null,
+              `${obj.userData.systemId}_${item.code}_${item.special ? 'SPECIAL' : 'STANDARD'}`,
+              null, item.kind, { reference: item.reference },
+              item.special ? `${obj.userData.systemId}:SPECIAL:${JSON.stringify(item.special)}` : null,
+              undefined,
+              { CO: Number(catalogItem?.prices?.CO) > 0, EUC: Number(catalogItem?.prices?.EUC) > 0, USD: Number(catalogItem?.prices?.USD) > 0 });
+          }
+          continue;
+        }
+        if (obj.userData?.vetroSystemComponent) continue;
 
         if (obj.userData?.excludeFromBOM) continue;
         if (obj.userData?.parametricOwner === 'LINK_PRODUCT') continue;
@@ -4297,7 +4322,7 @@ function ThreeCanvas({
               obj.userData?.unitPrice || null,
               groupId,
               groupName,
-              obj.userData?.prices || undefined,
+           obj.userData?.kind === 'VETRO_PRODUCT' ? undefined : obj.userData?.prices || undefined,
               null,
               groupInstanceId
             );
@@ -4475,21 +4500,27 @@ function ThreeCanvas({
           koncisaAssembly?.userData?.config?.bomTypologyCode ||
           null;
 
+        const vetroCatalogItem = obj.userData?.kind === 'VETRO_PRODUCT'
+          ? catalogByCodeRef.current?.get?.(String(bomCode)) || null : null;
         addRow(
           String(bomCode),
           1,
-          isLeaderGrommet
+           obj.userData?.kind === 'VETRO_PRODUCT' && !obj.userData?.product?.special
+             ? vetroCatalogItem?.ui?.title || vetroCatalogItem?.raw?.descLarga || 'Descripción no disponible'
+             : isLeaderGrommet
             ? resolveCatalogDescription(bomCode, obj.userData?.description || '')
             : obj.userData?.kind === 'PRIVACY_PANEL'
               ? resolveCatalogDescription(code, obj.userData?.description || '')
               : obj.userData?.description || null,
-          isLeaderGrommet ? null : obj.userData?.unitPrice || 0,
+           isLeaderGrommet || obj.userData?.kind === 'VETRO_PRODUCT' ? null : obj.userData?.unitPrice || 0,
           groupId,
           groupName,
           obj.userData?.prices || undefined,
           null,
           groupInstanceId,
-          typologyReferenceCode
+           typologyReferenceCode,
+            null, null, null, undefined,
+            obj.userData?.kind === 'VETRO_PRODUCT' ? { CO: Number(vetroCatalogItem?.prices?.CO) > 0, EUC: Number(vetroCatalogItem?.prices?.EUC) > 0, USD: Number(vetroCatalogItem?.prices?.USD) > 0 } : null
         );
 
         // =====================================================
@@ -6222,7 +6253,7 @@ function ThreeCanvas({
       if (readOnly) return null;
       let instance;
       try {
-        instance = await createCritterium8Instance({ ...config, transform: options.transform });
+        instance = await createCritterium8Instance({ ...config, transform: options.transform, initializeDefaultTiles: true });
       } catch (error) {
         console.error('[Critterium 8] No se pudo crear la instancia.', error);
         return null;
@@ -7167,6 +7198,78 @@ function ThreeCanvas({
       return instance;
     }
 
+    async function addVetroSystem(config = {}, options = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const instance = await createVetroSystem(config);
+      if (!instance.success) return instance;
+      const object = registerVetroSystem({ instance, parent: options.parentGroup || scene, partsRegistry: parts, pickables });
+      object.updateMatrixWorld(true);
+      syncSelectedIds3D([object.userData.instanceId]);
+      setActivePart(object);
+      if (options.recordHistory !== false) recordCreateObjects({ objects: [object] });
+      emitBOM();
+      refreshFloorAndGrid();
+      return instance;
+    }
+
+    function listVetroSystems() {
+      return parts.map(({ obj }) => obj).filter((obj) => obj?.userData?.kind === 'VETRO_SYSTEM' && obj.parent);
+    }
+
+    function getVetroSystemConnections(systemId) {
+      return listVetroSystems().flatMap((system) => system.userData.externalConnections || [])
+        .filter((relation) => relation.sourceSystemId === systemId || relation.targetSystemId === systemId);
+    }
+
+    async function connectVetroSystemToNearest(system = activePart) {
+      if (readOnly || system?.userData?.kind !== 'VETRO_SYSTEM') return { success: false, reason: 'VETRO_SYSTEM_REQUIRED' };
+      const connectedCluster = new Set(getVetroConnectedCluster(system, listVetroSystems()));
+      const candidates = listVetroSystems().filter((other) => other !== system && !connectedCluster.has(other));
+      const preview = previewVetroSystemSnap(system, candidates);
+      if (!preview) return { success: false, reason: 'VETRO_COMPATIBLE_TERMINALS_NOT_FOUND' };
+      const target = candidates.find((other) => other.userData.systemId === preview.targetSystemId);
+      if (getVetroSystemConnections(system.userData.systemId).length &&
+        new THREE.Vector3(...preview.deltaWorld).length() > 0.001)
+        return { success: false, reason: 'VETRO_CONNECTED_CLUSTER_MUST_BE_ALIGNED_FIRST' };
+      const beforePosition = system.position.toArray();
+      const result = await connectVetroSystems({ source: system, target, preview, partsRegistry: parts });
+      if (!result.success) return result;
+      historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.VETRO_SYSTEM_CONNECTION,
+        sourceId: system.userData.systemId, targetId: target.userData.systemId,
+        relation: structuredClone(result.relation),
+        before: { connected: false, position: beforePosition },
+        after: { connected: true, position: system.position.toArray() },
+      });
+      emitBOM();
+      refreshFloorAndGrid();
+      setActivePart(system);
+      return result;
+    }
+
+    function disconnectSelectedVetroSystem(connectionId) {
+      if (readOnly || activePart?.userData?.kind !== 'VETRO_SYSTEM') return false;
+      const source = listVetroSystems().find((system) =>
+        (system.userData.externalConnections || []).some((item) => item.connectionId === connectionId));
+      if (!source) return false;
+      const relation = (source.userData.externalConnections || []).find((item) => item.connectionId === connectionId);
+      if (!relation) return false;
+      const beforePosition = source.position.toArray();
+      const removed = disconnectVetroSystems(source, connectionId, parts);
+      if (!removed) return false;
+      historyManager.pushAction({
+        type: HISTORY_ACTION_TYPES.VETRO_SYSTEM_CONNECTION,
+        sourceId: source.userData.systemId, targetId: relation.targetSystemId,
+        relation: structuredClone(relation),
+        before: { connected: true, position: beforePosition },
+        after: { connected: false, position: beforePosition },
+      });
+      emitBOM();
+      refreshFloorAndGrid();
+      setActivePart(activePart);
+      return true;
+    }
+
     async function updateSelectedVetro(patch = {}) {
       if (readOnly || activePart?.userData?.kind !== 'VETRO_PRODUCT') {
         return { success: false, reason: 'VETRO_PRODUCT_REQUIRED' };
@@ -7291,7 +7394,8 @@ function ThreeCanvas({
 
     async function createConfiguredCritteriumSequence(
       draft,
-      { recordHistory = true, select = true, offset = [0, 0, 0], placementOverrides = null } = {}
+      { recordHistory = true, select = true, offset = [0, 0, 0], placementOverrides = null,
+        initializeDefaultTiles = recordHistory } = {}
     ) {
       if (readOnly) return { success: false, reason: 'READ_ONLY' };
       const validation = validateCritteriumSequenceDraft(draft);
@@ -7318,6 +7422,7 @@ function ThreeCanvas({
             instanceId,
             frameId,
             transform,
+            initializeDefaultTiles,
           });
           const error = instance.diagnostics?.find((diagnostic) => diagnostic.level === 'ERROR');
           if (error) throw new Error(error.code);
@@ -7369,11 +7474,17 @@ function ThreeCanvas({
             select: false,
             offset: options.placementsBySequence ? [0, 0, 0] : [0, 0, index * 2],
             placementOverrides: options.placementsBySequence?.[index],
+            initializeDefaultTiles: options.initializeDefaultTiles !== false,
           });
           if (!result.success) throw new Error(result.reason);
           created.push(result.sequenceRoot);
         }
         const system = createCritteriumSystemFromSequences(created);
+        if (options.basicPlan) system.userData.layout = {
+          ...system.userData.layout,
+          basicShape: options.basicPlan.shape,
+          requestedLengthsMm: [...options.basicPlan.requestedLengths],
+        };
         if (options.connectCorners) {
           const count = options.closedLoop ? created.length : created.length - 1;
           for (let index = 0; index < count; index += 1) {
@@ -7412,6 +7523,16 @@ function ThreeCanvas({
     async function createBasicCritteriumSystem(plan) {
       const preview = await measureCritteriumBasicPlan(plan);
       if (!preview.success) return preview;
+      if (plan.shape === 'T' || plan.shape === 'CROSS') {
+        const result = await createConfiguredCritteriumSystem([{
+          orientationDeg: 0,
+          frames: plan.sides.flatMap((side) => side.draft.frames),
+        }], {
+          placementsBySequence: [plan.sides.flatMap((side) => side.placements)],
+          basicPlan: plan,
+        });
+        return result;
+      }
       return createConfiguredCritteriumSystem(plan.sides.map((side) => side.draft), {
         placementsBySequence: plan.sides.map((side) => side.placements),
         connectCorners: plan.sides.length > 1,
@@ -7432,6 +7553,7 @@ function ThreeCanvas({
         recordHistory: false,
         select: false,
         offset: origin,
+        initializeDefaultTiles: true,
       });
       if (!result.success) return result;
       try {
@@ -7793,6 +7915,7 @@ function ThreeCanvas({
       parts.filter(({ obj }) => obj?.userData?.kind === 'CRITERIUM_SYSTEM').forEach(({ obj }) => {
         obj.userData.spatialDiagnostics = collectCritteriumSpatialDiagnostics(obj);
       });
+      reconcileCritteriumConnectionVisuals(scene, parts);
     }
 
     function listCritteriumSequencesForSnap() {
@@ -11948,6 +12071,10 @@ function ThreeCanvas({
       } = options;
       const root = exactTarget ? obj : getRootPartObject(obj) || obj;
       if (root.userData?.lockedDelete) return false;
+      if (root.userData?.kind === 'VETRO_SYSTEM') {
+        const connections = collectVetroDeletionConnections(listVetroSystems(), [root.userData.systemId]);
+        detachVetroDeletionConnections(listVetroSystems(), connections, parts);
+      }
       if (root.userData?.kind === 'CRITERIUM_SYSTEM') return false;
       if (getCritteriumSystemRoot(root) && !options.allowCritteriumSystemMember) return false;
 
@@ -12559,6 +12686,14 @@ function ThreeCanvas({
         return instance.object;
       }
 
+      async function createPersistedVetroSystem(entity) {
+        const instance = await createVetroSystem(entity);
+        if (!instance.success) throw new Error(instance.reason || 'VETRO_SYSTEM_INVALID');
+        registerVetroSystem({ instance, parent: scene, partsRegistry: parts, pickables });
+        instance.object.updateMatrixWorld(true);
+        return instance.object;
+      }
+
       async function createPersistedMila(entity) {
         if (!entity?.config || typeof entity.config !== 'object') {
           throw new Error('MILA_MISSING_CONFIG');
@@ -12636,6 +12771,7 @@ function ThreeCanvas({
           createCritterium8Sequence: createPersistedCritterium8Sequence,
           createCritteriumSystem: createPersistedCritteriumSystem,
           createVetro: createPersistedVetro,
+          createVetroSystem: createPersistedVetroSystem,
           createLink: createPersistedLink,
           createMultiple: createPersistedMultiple,
           createMultipleSystem: createPersistedMultipleSystem,
@@ -12697,6 +12833,8 @@ function ThreeCanvas({
             console.error('[loadProject] No se pudo cargar entity:', failure, error);
           }
         }
+
+        await restoreVetroSystemConnections(listVetroSystems(), parts);
 
         await restoreProjectSpecialFinishes(project, result);
         emitBOM();
@@ -13620,6 +13758,10 @@ function ThreeCanvas({
       addZen,
       addCritterium8,
       addVetro,
+      addVetroSystem,
+      connectVetroSystemToNearest,
+      disconnectSelectedVetroSystem,
+      getVetroSystemConnections,
       addLink,
       updateSelectedLink,
       addMultiple,
@@ -14841,6 +14983,14 @@ function ThreeCanvas({
       refreshFloorAndGrid();
     }
 
+    async function replayVetroConnectionHistory(action, state) {
+      const source = findPartById(action.sourceId);
+      const target = findPartById(action.targetId);
+      await replayVetroConnectionState({ source, target, relation: action.relation, state, partsRegistry: parts });
+      emitBOM();
+      refreshFloorAndGrid();
+    }
+
     function replayHistoryAction(action, direction) {
       const state = direction === 'undo' ? action.before : action.after;
       if (action.type === HISTORY_ACTION_TYPES.APPLY_SPECIAL_FINISH) {
@@ -14849,7 +14999,21 @@ function ThreeCanvas({
         applyRotationHistoryState(state);
       } else if (action.type === HISTORY_ACTION_TYPES.MOVE) {
         applyMoveHistoryState(state);
+      } else if (action.type === HISTORY_ACTION_TYPES.VETRO_SYSTEM_CONNECTION) {
+        return replayVetroConnectionHistory(action, state);
       } else if (action.type === HISTORY_ACTION_TYPES.DELETE) {
+        if (action.vetroConnections?.length) {
+          return (async () => {
+            if (direction === 'undo') {
+              restoreDeletedObjects(action.deletedObjects || []);
+              await restoreVetroDeletionConnections(listVetroSystems(), action.vetroConnections, parts);
+              emitBOM();
+            } else {
+              detachVetroDeletionConnections(listVetroSystems(), action.vetroConnections, parts);
+              disconnectDeletedObjects(action.deletedObjects || []);
+            }
+          })();
+        }
         if (direction === 'undo') restoreDeletedObjects(action.deletedObjects || []);
         else disconnectDeletedObjects(action.deletedObjects || []);
       } else if (action.type === HISTORY_ACTION_TYPES.CREATE_OBJECTS) {
@@ -15363,6 +15527,11 @@ function ThreeCanvas({
       }
 
       const deletionRoots = resolveUserDeletionRoots(targets);
+      const vetroIds = deletionRoots
+        .filter((object) => object.userData?.kind === 'VETRO_SYSTEM' && !object.userData?.lockedDelete)
+        .map((object) => object.userData.systemId);
+      const vetroConnections = collectVetroDeletionConnections(listVetroSystems(), vetroIds);
+      detachVetroDeletionConnections(listVetroSystems(), vetroConnections, parts);
       const deletedObjects = deletionRoots.map((object) => captureDeletedObject(object));
       const removedAny = disconnectDeletedObjects(deletedObjects);
 
@@ -15370,6 +15539,7 @@ function ThreeCanvas({
         historyManager.pushAction({
           type: HISTORY_ACTION_TYPES.DELETE,
           deletedObjects,
+          vetroConnections,
         });
       }
 
@@ -18998,11 +19168,14 @@ function ThreeCanvas({
         }
       }
 
+      const hitCritteriumSystem = getCritteriumSystemRoot(hitObj);
       const selectedCritteriumSystem =
-        activePart?.userData?.kind === 'CRITERIUM_SYSTEM' &&
-          getCritteriumSystemRoot(hitObj) === activePart
-          ? activePart
-          : null;
+        hitCritteriumSystem && ['T', 'CROSS'].includes(hitCritteriumSystem.userData.layout?.basicShape)
+          ? hitCritteriumSystem
+          : activePart?.userData?.kind === 'CRITERIUM_SYSTEM' &&
+            hitCritteriumSystem === activePart
+            ? activePart
+            : null;
       const critteriumSequence = getCritterium8SequenceRoot(hitObj);
       const propertiesTarget =
         selectedCritteriumSystem ||
@@ -20828,12 +21001,24 @@ function ThreeCanvas({
         }
 
         if (completedDragSession) {
+          const movedVetro = completedDragSession.initialPositions.length === 1 &&
+            completedDragSession.initialPositions[0].obj.userData?.kind === 'VETRO_SYSTEM'
+            ? completedDragSession.initialPositions[0] : null;
+          const connectedVetro = movedVetro
+            ? getVetroConnectedCluster(movedVetro.obj, listVetroSystems()).filter((item) => item !== movedVetro.obj)
+            : [];
+          const linkedBefore = connectedVetro.map((object) => createMoveSnapshot(object));
+          if (movedVetro) {
+            const delta = movedVetro.obj.position.clone().sub(movedVetro.localPosition);
+            connectedVetro.forEach((object) => { object.position.add(delta); object.updateMatrixWorld(true); });
+          }
           const before = completedDragSession.initialPositions.map(({ obj, localPosition }) =>
             createMoveSnapshot(obj, localPosition)
-          );
-          const after = captureMoveState(
-            completedDragSession.initialPositions.map(({ obj }) => obj)
-          );
+          ).concat(linkedBefore);
+          const after = captureMoveState([
+            ...completedDragSession.initialPositions.map(({ obj }) => obj),
+            ...connectedVetro,
+          ]);
           persistLinkComponentTransforms(
             completedDragSession.initialPositions.map(({ obj }) => obj)
           );
@@ -21009,6 +21194,7 @@ function ThreeCanvas({
           } else {
             pushMoveHistory(before, after);
           }
+          if (movedVetro) await connectVetroSystemToNearest(movedVetro.obj);
         }
 
         if (milaSnapResult?.mergeCandidate) {

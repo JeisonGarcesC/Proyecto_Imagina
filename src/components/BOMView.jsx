@@ -131,10 +131,11 @@ export default function BOMView({
 
       // ✅ soporta unitPrice o price
       const fallbackUnitPrice = Number(it.unitPrice ?? it.price ?? 0);
-      const unitPrice = Number(prices[localCountry] || fallbackUnitPrice);
+      const priceAvailable = it.priceAvailability ? it.priceAvailability[localCountry] === true : true;
+      const unitPrice = priceAvailable ? Number(prices[localCountry] || fallbackUnitPrice) : null;
 
       // ✅ soporta total explícito o qty*unitPrice
-      const total = Number(qty * unitPrice);
+      const total = priceAvailable ? Number(qty * unitPrice) : null;
 
       // ✅ grouping compat:
       // - preferimos groupId/groupName (nuevo)
@@ -171,6 +172,7 @@ export default function BOMView({
         unitPrice,
         total,
         prices,
+        priceAvailable,
 
         // alias para no tocar tu render actual (si usabas r.price)
         price: unitPrice,
@@ -276,6 +278,7 @@ export default function BOMView({
 
       // 6) Subtotal
       g.subtotal = g.items.reduce((acc, r) => acc + (r.total || 0), 0);
+      g.hasUnavailablePrice = g.items.some((r) => r.priceAvailable === false);
     }
 
       return groupArr;
@@ -291,6 +294,7 @@ export default function BOMView({
   const allGroups = groupedViews.all;
 
   const grandTotal = useMemo(() => groups.reduce((acc, g) => acc + (g.subtotal || 0), 0), [groups]);
+  const grandTotalHasUnavailablePrice = groups.some((group) => group.hasUnavailablePrice);
 
   const totalItems = useMemo(() => groups.reduce((acc, g) => acc + g.items.length, 0), [groups]);
 
@@ -1035,10 +1039,10 @@ export default function BOMView({
                             </td>
                             <td style={{ ...numTd, ...colSep, background: rowBg }}>{r.qty}</td>
                             <td style={{ ...numTd, ...colSep, background: rowBg }}>
-                              {moneyByCountry(r.unitPrice, localCountry)}
+                              {r.priceAvailable ? moneyByCountry(r.unitPrice, localCountry) : 'Precio no disponible'}
                             </td>
                             <td style={{ ...numTd, fontWeight: 700, background: rowBg }}>
-                              {moneyByCountry(r.total, localCountry)}
+                              {r.priceAvailable ? moneyByCountry(r.total, localCountry) : 'Precio no disponible'}
                             </td>
                           </tr>
                         </React.Fragment>
@@ -1069,7 +1073,7 @@ export default function BOMView({
                           borderTop: `1px solid ${palette.line}`,
                         }}
                       >
-                        {moneyByCountry(g.subtotal, localCountry)}
+                        {g.hasUnavailablePrice ? 'Precio no disponible' : moneyByCountry(g.subtotal, localCountry)}
                       </td>
                     </tr>
                   </React.Fragment>
@@ -1112,7 +1116,7 @@ export default function BOMView({
             >
               <div style={{ color: palette.muted, fontWeight: 700, letterSpacing: 0.2 }}>Total:</div>
               <div style={{ fontWeight: 800, color: palette.stickyText, fontSize: 13.5 }}>
-                {moneyByCountry(grandTotal, localCountry)}
+                {grandTotalHasUnavailablePrice ? 'Precio no disponible' : moneyByCountry(grandTotal, localCountry)}
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { createCritterium8FrameSlot } from './frameSlotDefinition.js';
 import { getCritterium8FullTileHeight, normalizeCritterium8CompositionMode, validateCritterium8GrowthTransition, validateFrameComposition } from '../rules/frameCompositionRules.js';
 import { validateCritterium8GrowthModule } from '../rules/frameRules.js';
+import { normalizeCritterium8TileFaces } from './tileFaces.js';
 
 export const CRITTERIUM8_FRAME_PLINTH_HEIGHT_CM = 14;
 export const CRITTERIUM8_MODULAR_SLOT_HEIGHT_CM = 38;
@@ -20,13 +21,14 @@ function resolveBaseFrameHeight(frame = {}) {
 }
 
 function normalizeTileAssignment(tile, slot) {
-  if (!tile) return null;
+  if (!tile || tile.empty === true) return null;
   return {
     slotId: slot.id,
     tileType: String(tile.tileType || tile.type || '').trim().toUpperCase(),
     heightCm: Number(tile.heightCm ?? slot.heightCm),
     materialCode: tile.materialCode ?? null,
     finishCode: tile.finishCode ?? null,
+    faces: normalizeCritterium8TileFaces(tile),
     ...(tile.commercialOptions && typeof tile.commercialOptions === 'object' && !Array.isArray(tile.commercialOptions)
       ? { commercialOptions: { ...tile.commercialOptions } }
       : {}),

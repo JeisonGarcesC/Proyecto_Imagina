@@ -176,6 +176,20 @@ export function serializeVetroEntity(object) {
   };
 }
 
+export function serializeVetroSystem(object) {
+  const data = object.userData;
+  return {
+    kind: 'VETRO_SYSTEM', family: 'VETRO', systemId: data.systemId,
+    requestedWidthMm: data.requestedWidthMm, heightMm: data.heightMm,
+    panelWidthsMm: [...data.panelWidthsMm],
+    specialPanel: cloneSerializable(data.specialPanel),
+    shape: data.shape, returnWidthMm: data.returnWidthMm,
+    returnPanelWidthsMm: data.returnPanelWidthsMm ? [...data.returnPanelWidthsMm] : null,
+    externalConnections: cloneSerializable(data.externalConnections || []),
+    transform: { position: object.position.toArray(), quaternion: object.quaternion.toArray(), scale: object.scale.toArray() },
+  };
+}
+
 export function serializeMilaEntity(assembly, { collectFinishes } = {}) {
   const data = assembly?.userData || {};
   const instanceId = data.instanceId || data.code || assembly?.uuid || null;
@@ -260,6 +274,15 @@ export function serializeProjectEntities(parts = [], options = {}) {
   });
 
   parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
+    if (object?.userData?.kind !== 'VETRO_SYSTEM') return;
+    const systemId = object.userData.systemId;
+    if (processedAssemblies.has(systemId)) return;
+    processedAssemblies.add(systemId);
+    entities.push(serializeVetroSystem(object));
+  });
+
+  parts.forEach((partRecord) => {
     const assembly = findKoncisaAssembly(partRecord?.obj);
     if (!assembly) return;
     const assemblyId = assembly.userData?.instanceId || assembly.userData?.code || assembly.uuid;
@@ -325,6 +348,7 @@ export function serializeProjectEntities(parts = [], options = {}) {
   parts.forEach((partRecord) => {
     const object = partRecord?.obj;
     if (!['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(object?.userData?.kind)) return;
+    if (object.userData.kind === 'VETRO_PRODUCT' && object.userData.systemId) return;
     const instanceId = object.userData?.instanceId || object.uuid;
     if (processedAssemblies.has(instanceId)) return;
     processedAssemblies.add(instanceId);
@@ -337,8 +361,9 @@ export function serializeProjectEntities(parts = [], options = {}) {
       findCritterium8Assembly(partRecord?.obj) ||
       partRecord?.obj?.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' ||
       partRecord?.obj?.userData?.kind === 'CRITERIUM_SYSTEM' ||
+      partRecord?.obj?.userData?.kind === 'CRITTERIUM_8_SPATIAL_KIT' ||
       findMilaAssembly(partRecord?.obj) ||
-      ['VETRO_PRODUCT', 'LOCKER_PRODUCT', 'LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM'].includes(partRecord?.obj?.userData?.kind) ||
+      ['VETRO_PRODUCT', 'VETRO_SYSTEM', 'LOCKER_PRODUCT', 'LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM'].includes(partRecord?.obj?.userData?.kind) ||
       partRecord?.obj?.userData?.parametricOwner === 'LINK_PRODUCT' ||
       partRecord?.obj?.userData?.parametricOwner === 'MULTIPLE_PRODUCT' ||
       isKoncisaPersistenceObject(partRecord?.obj)

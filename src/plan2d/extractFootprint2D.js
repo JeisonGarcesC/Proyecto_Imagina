@@ -30,6 +30,13 @@ function resolveFallbackSignature(bounds2d) {
 function visitMeshes(root, visitor) {
   root?.traverse?.((child) => {
     if (!child?.isMesh || !child.geometry?.attributes?.position) return;
+    if (['CRITTERIUM_8_SEQUENCE_ASSEMBLY', 'CRITERIUM_SYSTEM'].includes(root.userData?.kind)) {
+      let ancestor = child;
+      while (ancestor && ancestor !== root) {
+        if (!ancestor.visible) return;
+        ancestor = ancestor.parent;
+      }
+    }
     visitor(child, child.geometry.attributes.position);
   });
 }
@@ -46,6 +53,7 @@ export function createFootprint2DSignature(root, { tolerance, fallbackBounds } =
     entries.push(
       [
         mesh.uuid,
+        mesh.visible,
         mesh.geometry.uuid,
         position.count,
         position.version || 0,
