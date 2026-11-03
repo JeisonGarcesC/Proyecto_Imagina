@@ -223,7 +223,7 @@ import {
 import { rebuildVetroInstance } from '../mepal/vetro/integration/rebuildVetroInstance.js';
 import { createVetroSystem } from '../mepal/vetro/factories/createVetroSystem.js';
 import { registerVetroSystem } from '../mepal/vetro/integration/vetroSystemRegistration.js';
-import { getVetroSystemBOM } from '../mepal/vetro/bom/vetroSystemBOM.js';
+import { getVetroConnectedCommercialBOM } from '../mepal/vetro/bom/vetroSystemBOM.js';
 import { previewVetroSystemSnap, connectVetroSystems, disconnectVetroSystems, restoreVetroSystemConnections, getVetroConnectedCluster, replayVetroConnectionState } from '../mepal/vetro/system/vetroSystemConnections.js';
 import { collectVetroDeletionConnections, detachVetroDeletionConnections, restoreVetroDeletionConnections } from '../mepal/vetro/system/vetroSystemDeletion.js';
 import { registerCritterium8Instance } from '../mepal/critterium8/integration/critterium8Registration.js';
@@ -3336,6 +3336,7 @@ function ThreeCanvas({
               reference: commercialVariant.reference ?? null,
               materialCode: commercialVariant.materialCode ?? null,
               finishCode: commercialVariant.finishCode ?? null,
+              hideCategoryHeading: commercialVariant.hideCategoryHeading === true,
             }
             : {}),
           _groupInstanceIds: new Set(),
@@ -3601,25 +3602,24 @@ function ThreeCanvas({
         );
       }
 
+      for (const item of getVetroConnectedCommercialBOM(parts.map(({ obj }) => obj))) {
+        const catalogItem = catalogByCodeRef.current?.get?.(String(item.code)) || null;
+        const catalogDescription = catalogItem?.ui?.title || catalogItem?.raw?.descLarga || catalogItem?.raw?.descripcion || null;
+        const description = item.special ? item.description : catalogDescription;
+        addRow(item.code, item.quantity, description || 'Descripción no disponible', null,
+          item.groupId, 'Sistema Vetro', undefined, null,
+          `${item.groupId}_${item.code}_${item.special ? 'SPECIAL' : 'STANDARD'}`,
+          null, item.kind, { reference: item.reference, hideCategoryHeading: true },
+          item.special ? `${item.groupId}:SPECIAL:${JSON.stringify(item.special)}` : null,
+          undefined,
+          { CO: Number(catalogItem?.prices?.CO) > 0, EUC: Number(catalogItem?.prices?.EUC) > 0, USD: Number(catalogItem?.prices?.USD) > 0 });
+      }
+
       for (const p of parts) {
         const obj = p.obj;
         if (!obj) continue;
 
-        if (obj.userData?.kind === 'VETRO_SYSTEM') {
-          for (const item of getVetroSystemBOM(obj)) {
-            const catalogItem = catalogByCodeRef.current?.get?.(String(item.code)) || null;
-            const catalogDescription = catalogItem?.ui?.title || catalogItem?.raw?.descLarga || catalogItem?.raw?.descripcion || null;
-            const description = item.special ? item.description : catalogDescription;
-            addRow(item.code, item.quantity, description || 'Descripción no disponible', null,
-              obj.userData.systemId, obj.userData.groupName, undefined, null,
-              `${obj.userData.systemId}_${item.code}_${item.special ? 'SPECIAL' : 'STANDARD'}`,
-              null, item.kind, { reference: item.reference },
-              item.special ? `${obj.userData.systemId}:SPECIAL:${JSON.stringify(item.special)}` : null,
-              undefined,
-              { CO: Number(catalogItem?.prices?.CO) > 0, EUC: Number(catalogItem?.prices?.EUC) > 0, USD: Number(catalogItem?.prices?.USD) > 0 });
-          }
-          continue;
-        }
+        if (obj.userData?.kind === 'VETRO_SYSTEM') continue;
         if (obj.userData?.vetroSystemComponent) continue;
 
         if (obj.userData?.excludeFromBOM) continue;

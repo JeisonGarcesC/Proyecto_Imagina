@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { resolveBomExportQuantities } from '../utils/bomExportQuantities.js';
 import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
+import { shouldShowBomCategoryHeading } from './bomCategoryHeading.js';
 
 function moneyByCountry(v, country = 'CO') {
   const n = Number(v || 0);
@@ -166,6 +167,7 @@ export default function BOMView({
         category: it.category === 'CRITTERIUM_8'
           ? 'CRITTERIUM_8'
           : resolveBomCategoryLabel(it.category || it.section || it.bomSection || it.type),
+        hideCategoryHeading: it.hideCategoryHeading === true,
         qty,
         groupCount: Number(it.groupCount || 0),
         typologyReferenceCode: safeStr(it.typologyReferenceCode).replace(/\D+/g, ''),
@@ -962,8 +964,7 @@ export default function BOMView({
                         <React.Fragment key={JSON.stringify([
                           g.key, r.category, r.code, r.reference, r.materialCode, r.finishCode, i,
                         ])}>
-                          {groupMode === 'typology' &&
-                            (i === 0 || r.category !== g.items[i - 1]?.category) && (
+                          {shouldShowBomCategoryHeading({ groupMode, row: r, previousRow: g.items[i - 1], index: i }) && (
                               <tr>
                                 <td
                                   colSpan={6}
