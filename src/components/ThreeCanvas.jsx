@@ -216,6 +216,9 @@ import { createLockerInstance } from '../mepal/lockers/factories/createLockerIns
 import { registerLockerInstance } from '../mepal/lockers/integration/lockerRegistration.js';
 import { rebuildLockerInstance } from '../mepal/lockers/integration/rebuildLockerInstance.js';
 import { createVetroInstance } from '../mepal/vetro/factories/createVetroInstance.js';
+import { createVetroDoorAssembly, createVetroDoorAssemblyFromConfig, createVetroAssemblyFromEntity, detachVetroAssembly, restoreVetroAssembly, getVetroAssemblyRoot } from '../mepal/vetro/assembly/vetroAssembly.js';
+import { applyVetroDoorState, normalizeVetroDoorState, getVetroDoorLeafSegments, getVetroDoorFloorStop, moveVetroDoorFloorStopToWorld } from '../mepal/vetro/assembly/vetroDoorArticulation.js';
+import { previewVetroAssemblySnap, connectVetroAssemblyToSystem, disconnectVetroAssemblyFromSystem, getVetroAssemblyRelations, isVetroAssemblyConnectionAligned, captureVetroAssemblyConnectionState, applyVetroAssemblyConnectionState, translateVetroConnectedAssemblies } from '../mepal/vetro/assembly/vetroAssemblyConnections.js';
 import {
   registerVetroInstance,
   unregisterVetroInstance,
@@ -224,7 +227,9 @@ import { rebuildVetroInstance } from '../mepal/vetro/integration/rebuildVetroIns
 import { createVetroSystem } from '../mepal/vetro/factories/createVetroSystem.js';
 import { registerVetroSystem } from '../mepal/vetro/integration/vetroSystemRegistration.js';
 import { getVetroConnectedCommercialBOM } from '../mepal/vetro/bom/vetroSystemBOM.js';
+import { getVetroAssemblyCommercialMembers } from '../mepal/vetro/bom/vetroAssemblyBOM.js';
 import { previewVetroSystemSnap, connectVetroSystems, disconnectVetroSystems, restoreVetroSystemConnections, getVetroConnectedCluster, replayVetroConnectionState } from '../mepal/vetro/system/vetroSystemConnections.js';
+import { isVetroWallArrivalKit, getVetroWallArrivalRelations, previewVetroWallArrivalSnap, connectVetroWallArrivalToSystem, disconnectVetroWallArrival, isVetroWallArrivalAligned, captureVetroWallArrivalState, applyVetroWallArrivalState, translateVetroConnectedWallArrivals } from '../mepal/vetro/system/vetroWallArrivalConnections.js';
 import { collectVetroDeletionConnections, detachVetroDeletionConnections, restoreVetroDeletionConnections } from '../mepal/vetro/system/vetroSystemDeletion.js';
 import { registerCritterium8Instance } from '../mepal/critterium8/integration/critterium8Registration.js';
 import { rebuildCritterium8Instance } from '../mepal/critterium8/integration/rebuildCritterium8Instance.js';
@@ -2685,7 +2690,7 @@ function ThreeCanvas({
 
     /*
     function getPartsSnapshot2D() {
-      return parts
+      const snapshots = parts
         .map(({ obj, code }) => {
           if (!obj) return null;
           if (obj.userData?.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY') return null;
@@ -2856,7 +2861,7 @@ function ThreeCanvas({
         .map(({ obj, code }) => {
           if (!obj) return null;
           if (obj.userData?.kind === 'LINK_PRODUCT') return null;
-          if (obj.userData?.kind === 'VETRO_PRODUCT' && !obj.userData?.vetroConnectionId) {
+          if (obj.userData?.kind === 'VETRO_PRODUCT' && !obj.userData?.vetroConnectionId && !isVetroWallArrivalKit(obj)) {
             return null;
           }
 
@@ -2867,6 +2872,12 @@ function ThreeCanvas({
             subtype: obj.userData?.subtype || null,
             line: obj.userData?.line || null,
             meta: obj.userData?.meta || null,
+            ...(obj.userData?.kind === 'VETRO_ASSEMBLY' ? { externalConnections: structuredClone(obj.userData.externalConnections || []) } : {}),
+            ...(obj.userData?.kind === 'VETRO_ASSEMBLY' ? {
+              doorState: normalizeVetroDoorState(obj.userData.doorState),
+              doorLeafSegments: getVetroDoorLeafSegments(obj),
+            } : {}),
+            ...(isVetroWallArrivalKit(obj) ? { wallArrivalConnections: structuredClone(obj.userData.externalConnections || []) } : {}),
             ...(obj.userData?.subtype === 'leader-outlet-wall-coupling'
               ? { cimbraWorldCenter: new THREE.Box3().setFromObject(obj).getCenter(new THREE.Vector3()) }
               : {}),
@@ -3115,6 +3126,20 @@ function ThreeCanvas({
           });
         })
         .filter(Boolean);
+      for (const assembly of parts.map(({ obj }) => obj).filter((obj) => obj?.userData?.kind === 'VETRO_ASSEMBLY')) {
+        const stop = getVetroDoorFloorStop(assembly);
+        if (!stop) continue;
+        stop.updateMatrixWorld(true);
+        const point = stop.getWorldPosition(new THREE.Vector3());
+        const size = new THREE.Box3().setFromObject(stop).getSize(new THREE.Vector3());
+        snapshots.push({
+          id: stop.userData.instanceId, instanceId: stop.userData.instanceId,
+          parentAssemblyId: assembly.userData.assemblyId, assemblyId: assembly.userData.assemblyId,
+          codigoPT: stop.userData.code, kind: 'VETRO_DOOR_FLOOR_STOP', type: 'VETRO_DOOR_FLOOR_STOP',
+          x: point.x, z: point.z, w: Math.max(0.001, size.x), d: Math.max(0.001, size.z), rotY: 0,
+        });
+      }
+      return snapshots;
     }
 
     function selectPartById(instanceId) {
@@ -3144,6 +3169,10 @@ function ThreeCanvas({
         found?.obj ||
         scene.children.find((child) => (child?.userData?.instanceId || child?.uuid) === instanceId);
       if (!rawObj || rawObj.userData?.lockedMovement) return false;
+      const stopAssembly = getVetroAssemblyRoot(rawObj);
+      if (rawObj.userData?.code === '22013883' && stopAssembly) {
+        return moveVetroDoorFloorStopToWorld(stopAssembly, Number(x), Number(z));
+      }
 
       const obj = moveAsGroupRef.current
         ? getAssemblyObject(rawObj) || rawObj
@@ -3194,6 +3223,17 @@ function ThreeCanvas({
       }
 
       moveTargetOrGroup(obj, deltaX, 0, deltaZ);
+      if (obj.userData?.kind === 'VETRO_SYSTEM') {
+        const deltaWorld = obj.getWorldPosition(new THREE.Vector3()).sub(currentRootWorld);
+        translateVetroConnectedAssemblies([obj], listVetroAssemblies(), deltaWorld);
+        translateVetroConnectedWallArrivals([obj], listVetroWallArrivalKits(), deltaWorld);
+      } else if (obj.userData?.kind === 'VETRO_ASSEMBLY') {
+        obj.userData.externalConnections = (obj.userData.externalConnections || []).filter((relation) =>
+          isVetroAssemblyConnectionAligned(obj, relation, listVetroSystems()));
+      } else if (isVetroWallArrivalKit(obj)) {
+        obj.userData.externalConnections = (obj.userData.externalConnections || []).filter((relation) =>
+          isVetroWallArrivalAligned(obj, relation, listVetroSystems()));
+      }
       emitBOM();
       return true;
     }
@@ -3621,6 +3661,22 @@ function ThreeCanvas({
 
         if (obj.userData?.kind === 'VETRO_SYSTEM') continue;
         if (obj.userData?.vetroSystemComponent) continue;
+
+        if (obj.userData?.kind === 'VETRO_ASSEMBLY') {
+          for (const member of getVetroAssemblyCommercialMembers(obj)) {
+            const catalogItem = catalogByCodeRef.current?.get?.(member.code);
+            addRow(
+              member.code, member.quantity,
+              catalogItem?.ui?.title || catalogItem?.raw?.descLarga || null,
+              null, null, null, undefined, null, member.instanceId,
+              null, member.productType === 'DOOR_FRAME' ? 'MARCO PUERTA'
+                : member.productType === 'DOOR_LEAF' ? 'NAVE PUERTA' : null,
+              null, null, undefined,
+              { CO: Number(catalogItem?.prices?.CO) > 0, EUC: Number(catalogItem?.prices?.EUC) > 0, USD: Number(catalogItem?.prices?.USD) > 0 }
+            );
+          }
+          continue;
+        }
 
         if (obj.userData?.excludeFromBOM) continue;
         if (obj.userData?.parametricOwner === 'LINK_PRODUCT') continue;
@@ -4570,6 +4626,8 @@ function ThreeCanvas({
 
     // Subir por padres hasta encontrar el objeto que tiene userData.code
     function getRootPartObject(intersectObj) {
+      const vetroAssembly = getVetroAssemblyRoot(intersectObj);
+      if (vetroAssembly) return vetroAssembly;
       const linkRoot = getLinkRoot(intersectObj);
       if (linkRoot) return linkRoot;
       const critteriumFrame = getCritterium8FrameAssembly(intersectObj);
@@ -4653,6 +4711,8 @@ function ThreeCanvas({
 
     function getIndividualMovementRoot(object) {
       if (!object) return null;
+      const vetroAssembly = getVetroAssemblyRoot(object);
+      if (vetroAssembly) return vetroAssembly;
       const critteriumFrame = getCritterium8FrameAssembly(object);
       if (critteriumFrame) return critteriumFrame;
       const assembly = getAssemblyObject(object);
@@ -4694,6 +4754,8 @@ function ThreeCanvas({
     }
 
     function getAssemblyObject(object) {
+      const vetroAssembly = getVetroAssemblyRoot(object);
+      if (vetroAssembly) return vetroAssembly;
       const sequence = getCritterium8SequenceRoot(object);
       if (sequence) return sequence;
       let current = object;
@@ -7179,6 +7241,22 @@ function ThreeCanvas({
 
     async function addVetro(config = {}, options = {}) {
       if (readOnly) return null;
+      if (config.productType === 'DOOR_LEAF' && options.standalone !== true) {
+        const parent = options.parentGroup || scene;
+        const grouped = await createVetroDoorAssemblyFromConfig(config, parent, options.transform);
+        if (!grouped.success) return grouped;
+        registerVetroInstance({ instance: grouped.frameInstance, parent: grouped.object, partsRegistry: parts, pickables });
+        registerVetroInstance({ instance: grouped.leafInstance, parent: grouped.object, partsRegistry: parts, pickables });
+        registerVetroInstance({ instance: grouped.floorStopInstance, parent: grouped.object, partsRegistry: parts, pickables });
+        parts.push({ code: null, obj: grouped.object });
+        grouped.object.updateMatrixWorld(true);
+        syncSelectedIds3D([grouped.object.userData.instanceId]);
+        setActivePart(grouped.object, { targetIds: [grouped.object.userData.instanceId] });
+        recordCreateObjects({ objects: [grouped.object] });
+        emitBOM();
+        refreshFloorAndGrid();
+        return grouped;
+      }
       const instance = await createVetroInstance({ config, transform: options.transform });
       if (!instance.success || !instance.object) {
         console.warn('[VETRO] Combinacion no documentada.', instance.diagnostics);
@@ -7196,6 +7274,52 @@ function ThreeCanvas({
       emitBOM();
       refreshFloorAndGrid();
       return instance;
+    }
+
+    async function groupSelectedVetroDoor() {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const selected = [...new Set(selectedIds3D)].map((id) => findPartById(id)).filter(Boolean);
+      if (selected.length !== 2) return { success: false, reason: 'VETRO_DOOR_REQUIRES_FRAME_AND_LEAF' };
+      const frame = selected.find((item) => item.userData?.config?.productType === 'DOOR_FRAME');
+      const leaf = selected.find((item) => item.userData?.config?.productType === 'DOOR_LEAF');
+      if (!frame || !leaf || frame.parent !== leaf.parent || frame.parent !== scene)
+        return { success: false, reason: 'VETRO_DOOR_REQUIRES_FRAME_AND_LEAF' };
+      const floorStopInstance = await createVetroInstance({ config: { category: 'ACCESSORIES', productType: 'ACCESSORY', variant: 'DOOR_FLOOR_STOP_HALF_MOON' } });
+      if (!floorStopInstance.success) return { success: false, reason: 'VETRO_DOOR_FLOOR_STOP_UNAVAILABLE' };
+      scene.add(floorStopInstance.object);
+      const result = createVetroDoorAssembly({ frame, leaf, floorStop: floorStopInstance.object, parent: scene });
+      if (!result.success) scene.remove(floorStopInstance.object);
+      if (!result.success) return result;
+      const root = result.object;
+      registerVetroInstance({ instance: floorStopInstance, parent: root, partsRegistry: parts, pickables });
+      parts.push({ code: null, obj: root });
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.VETRO_ASSEMBLY_GROUP, root, members: [frame, leaf, floorStopInstance.object], createdMember: floorStopInstance, parent: scene });
+      syncSelectedIds3D([root.userData.instanceId]);
+      setActivePart(root, { targetIds: [root.userData.instanceId] });
+      emitBOM();
+      refreshFloorAndGrid();
+      return result;
+    }
+
+    function getSelectedVetroDoorState() {
+      const root = getVetroAssemblyRoot(activePart) || activePart;
+      return root?.userData?.kind === 'VETRO_ASSEMBLY'
+        ? { ...normalizeVetroDoorState(root.userData.doorState), assemblyId: root.userData.assemblyId }
+        : null;
+    }
+
+    function updateSelectedVetroDoorState(patch = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const root = getVetroAssemblyRoot(activePart) || activePart;
+      if (root?.userData?.kind !== 'VETRO_ASSEMBLY') return { success: false, reason: 'VETRO_DOOR_REQUIRED' };
+      const before = normalizeVetroDoorState(root.userData.doorState);
+      const after = normalizeVetroDoorState({ ...before, ...patch });
+      if (JSON.stringify(before) === JSON.stringify(after)) return { success: true, state: after };
+      if (!applyVetroDoorState(root, after)) return { success: false, reason: 'VETRO_DOOR_VISUAL_UNAVAILABLE' };
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.VETRO_DOOR_STATE,
+        assemblyId: root.userData.assemblyId, before, after });
+      refreshFloorAndGrid();
+      return { success: true, state: after };
     }
 
     async function addVetroSystem(config = {}, options = {}) {
@@ -7216,6 +7340,81 @@ function ThreeCanvas({
       return parts.map(({ obj }) => obj).filter((obj) => obj?.userData?.kind === 'VETRO_SYSTEM' && obj.parent);
     }
 
+    function listVetroAssemblies() {
+      return parts.map(({ obj }) => obj).filter((obj) => obj?.userData?.kind === 'VETRO_ASSEMBLY' && obj.parent);
+    }
+
+    function listVetroWallArrivalKits() {
+      return parts.map(({ obj }) => obj).filter((obj) => isVetroWallArrivalKit(obj) && obj.parent);
+    }
+
+    function connectVetroWallArrivalToNearest(product = activePart, beforeState = null) {
+      if (readOnly || !isVetroWallArrivalKit(product))
+        return { success: false, reason: 'VETRO_WALL_ARRIVAL_REQUIRED' };
+      const systems = listVetroSystems();
+      const products = listVetroWallArrivalKits();
+      const additionalRelations = getVetroAssemblyRelations(listVetroAssemblies());
+      const preview = previewVetroWallArrivalSnap(product, systems, products, additionalRelations);
+      if (!preview) return { success: false, reason: 'VETRO_WALL_ARRIVAL_TERMINAL_NOT_AVAILABLE' };
+      const system = systems.find((item) => item.userData.systemId === preview.sourceSystemId);
+      const before = beforeState || captureVetroWallArrivalState(product);
+      const result = connectVetroWallArrivalToSystem({ product, system, preview, systems, products, additionalRelations });
+      if (!result.success) return result;
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.VETRO_WALL_ARRIVAL_CONNECTION,
+        productId: product.userData.instanceId, before, after: captureVetroWallArrivalState(product) });
+      setActivePart(product);
+      emitBOM();
+      refreshFloorAndGrid();
+      return result;
+    }
+
+    function disconnectSelectedVetroWallArrival(connectionId = null) {
+      if (readOnly || !isVetroWallArrivalKit(activePart)) return false;
+      const product = activePart;
+      const id = connectionId || product.userData.externalConnections?.[0]?.connectionId;
+      if (!id) return false;
+      const before = captureVetroWallArrivalState(product);
+      if (!disconnectVetroWallArrival(product, id)) return false;
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.VETRO_WALL_ARRIVAL_CONNECTION,
+        productId: product.userData.instanceId, before, after: captureVetroWallArrivalState(product) });
+      refreshFloorAndGrid();
+      return true;
+    }
+
+    function connectVetroAssemblyToNearest(assembly = getVetroAssemblyRoot(activePart) || activePart, beforeState = null) {
+      if (readOnly || assembly?.userData?.kind !== 'VETRO_ASSEMBLY')
+        return { success: false, reason: 'VETRO_ASSEMBLY_REQUIRED' };
+      const systems = listVetroSystems();
+      const assemblies = listVetroAssemblies();
+      const additionalRelations = getVetroWallArrivalRelations(listVetroWallArrivalKits());
+      const preview = previewVetroAssemblySnap(assembly, systems, assemblies, { additionalRelations });
+      if (!preview) return { success: false, reason: 'VETRO_ASSEMBLY_TERMINAL_NOT_AVAILABLE' };
+      const system = systems.find((item) => item.userData.systemId === preview.sourceSystemId);
+      const before = beforeState || captureVetroAssemblyConnectionState(assembly);
+      const result = connectVetroAssemblyToSystem({ assembly, system, preview, systems, assemblies, additionalRelations });
+      if (!result.success) return result;
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.VETRO_ASSEMBLY_CONNECTION,
+        assemblyId: assembly.userData.assemblyId, before, after: captureVetroAssemblyConnectionState(assembly) });
+      setActivePart(assembly);
+      emitBOM();
+      refreshFloorAndGrid();
+      return result;
+    }
+
+    function disconnectSelectedVetroAssembly(connectionId = null) {
+      if (readOnly) return false;
+      const assembly = getVetroAssemblyRoot(activePart) || activePart;
+      if (assembly?.userData?.kind !== 'VETRO_ASSEMBLY') return false;
+      const id = connectionId || assembly.userData.externalConnections?.[0]?.connectionId;
+      if (!id) return false;
+      const before = captureVetroAssemblyConnectionState(assembly);
+      if (!disconnectVetroAssemblyFromSystem(assembly, id)) return false;
+      historyManager.pushAction({ type: HISTORY_ACTION_TYPES.VETRO_ASSEMBLY_CONNECTION,
+        assemblyId: assembly.userData.assemblyId, before, after: captureVetroAssemblyConnectionState(assembly) });
+      refreshFloorAndGrid();
+      return true;
+    }
+
     function getVetroSystemConnections(systemId) {
       return listVetroSystems().flatMap((system) => system.userData.externalConnections || [])
         .filter((relation) => relation.sourceSystemId === systemId || relation.targetSystemId === systemId);
@@ -7225,7 +7424,10 @@ function ThreeCanvas({
       if (readOnly || system?.userData?.kind !== 'VETRO_SYSTEM') return { success: false, reason: 'VETRO_SYSTEM_REQUIRED' };
       const connectedCluster = new Set(getVetroConnectedCluster(system, listVetroSystems()));
       const candidates = listVetroSystems().filter((other) => other !== system && !connectedCluster.has(other));
-      const preview = previewVetroSystemSnap(system, candidates);
+      const preview = previewVetroSystemSnap(system, candidates, { additionalRelations: [
+        ...getVetroAssemblyRelations(listVetroAssemblies()),
+        ...getVetroWallArrivalRelations(listVetroWallArrivalKits()),
+      ] });
       if (!preview) return { success: false, reason: 'VETRO_COMPATIBLE_TERMINALS_NOT_FOUND' };
       const target = candidates.find((other) => other.userData.systemId === preview.targetSystemId);
       if (getVetroSystemConnections(system.userData.systemId).length &&
@@ -12682,6 +12884,7 @@ function ThreeCanvas({
           throw error;
         }
         registerVetroInstance({ instance, parent: scene, partsRegistry: parts, pickables });
+        instance.object.userData.externalConnections = structuredClone(entity.externalConnections || []);
         instance.object.updateMatrixWorld(true);
         return instance.object;
       }
@@ -12692,6 +12895,17 @@ function ThreeCanvas({
         registerVetroSystem({ instance, parent: scene, partsRegistry: parts, pickables });
         instance.object.updateMatrixWorld(true);
         return instance.object;
+      }
+
+      async function createPersistedVetroAssembly(entity) {
+        const rebuilt = await createVetroAssemblyFromEntity(entity);
+        if (!rebuilt.success) throw new Error(rebuilt.reason);
+        const root = rebuilt.object;
+        scene.add(root);
+        parts.push({ code: null, obj: root });
+        for (const instance of rebuilt.instances) registerVetroInstance({ instance, parent: root, partsRegistry: parts, pickables });
+        root.updateMatrixWorld(true);
+        return root;
       }
 
       async function createPersistedMila(entity) {
@@ -12772,6 +12986,7 @@ function ThreeCanvas({
           createCritteriumSystem: createPersistedCritteriumSystem,
           createVetro: createPersistedVetro,
           createVetroSystem: createPersistedVetroSystem,
+          createVetroAssembly: createPersistedVetroAssembly,
           createLink: createPersistedLink,
           createMultiple: createPersistedMultiple,
           createMultipleSystem: createPersistedMultipleSystem,
@@ -13759,6 +13974,13 @@ function ThreeCanvas({
       addCritterium8,
       addVetro,
       addVetroSystem,
+      groupSelectedVetroDoor,
+      getSelectedVetroDoorState,
+      updateSelectedVetroDoorState,
+      connectVetroAssemblyToNearest,
+      disconnectSelectedVetroAssembly,
+      connectVetroWallArrivalToNearest,
+      disconnectSelectedVetroWallArrival,
       connectVetroSystemToNearest,
       disconnectSelectedVetroSystem,
       getVetroSystemConnections,
@@ -14499,6 +14721,10 @@ function ThreeCanvas({
     function copySelection() {
       const targets = resolveCopyTargets();
       if (!targets.length) return null;
+      if (targets.some((target) => getVetroAssemblyRoot(target))) {
+        console.warn('[VETRO] Copiar armados estará disponible en una fase posterior.');
+        return null;
+      }
       if (targets.some((target) => getCritterium8AssemblyRoot(target))) {
         console.warn('[Critterium 8] Copy/Paste estará disponible en una fase posterior.');
         return null;
@@ -14590,6 +14816,13 @@ function ThreeCanvas({
           object.userData?.kind === 'MULTIPLE_PRODUCT' && !object.userData?.systemId
             ? structuredClone(object.userData.spatialConnections || [])
             : undefined,
+        vetroAssemblyConnections: object.userData?.kind === 'VETRO_ASSEMBLY'
+          ? structuredClone(object.userData.externalConnections || []) : undefined,
+        vetroFloorStopPlacement: object.userData?.code === '22013883' && getVetroAssemblyRoot(object)
+          ? structuredClone(object.userData.floorStopPlacement || { mode: 'AUTO' }) : undefined,
+        wallArrivalConnections: isVetroWallArrivalKit(object)
+          ? structuredClone(object.userData.externalConnections || []) : undefined,
+        wallArrivalQuaternion: isVetroWallArrivalKit(object) ? object.quaternion.toArray() : undefined,
       };
     }
 
@@ -14610,7 +14843,11 @@ function ThreeCanvas({
             (value, component) =>
               Math.abs(value - next.position[component]) > TRANSFORM_HISTORY_EPSILON
           ) ||
-          JSON.stringify(previous.spatialConnections) !== JSON.stringify(next.spatialConnections)
+          JSON.stringify(previous.spatialConnections) !== JSON.stringify(next.spatialConnections) ||
+          JSON.stringify(previous.vetroAssemblyConnections) !== JSON.stringify(next.vetroAssemblyConnections) ||
+          JSON.stringify(previous.vetroFloorStopPlacement) !== JSON.stringify(next.vetroFloorStopPlacement) ||
+          JSON.stringify(previous.wallArrivalConnections) !== JSON.stringify(next.wallArrivalConnections) ||
+          JSON.stringify(previous.wallArrivalQuaternion) !== JSON.stringify(next.wallArrivalQuaternion)
         );
       });
     }
@@ -14636,15 +14873,23 @@ function ThreeCanvas({
         !individualTargets && sourceTargets.length === 1 && moveAsGroupRef.current
           ? getGroupedObjects(sourceTargets[0])
           : sourceTargets;
-      const targets = dedupeMovementTargets(
+      const targets = sourceTargets.length === 1 && sourceTargets[0].userData?.code === '22013883' && getVetroAssemblyRoot(sourceTargets[0])
+        ? sourceTargets : dedupeMovementTargets(
         expandKuoAVBatchTargets(
           actualTargets,
           parts.map(({ obj }) => obj)
         )
       );
-      if (!targets.length) return false;
+      for (const system of [...targets].filter((item) => item.userData?.kind === 'VETRO_SYSTEM')) {
+        targets.push(...listVetroAssemblies().filter((assembly) => (assembly.userData.externalConnections || [])
+          .some((relation) => relation.sourceSystemId === system.userData.systemId)));
+        targets.push(...listVetroWallArrivalKits().filter((product) => (product.userData.externalConnections || [])
+          .some((relation) => relation.sourceSystemId === system.userData.systemId)));
+      }
+      const resolvedTargets = dedupeMovementTargets(targets);
+      if (!resolvedTargets.length) return false;
 
-      targets.forEach((obj) => {
+      resolvedTargets.forEach((obj) => {
         if (obj.userData?.kind === 'KUO_AV_ASSEMBLY') {
           if (obj.userData.attachment) {
             obj.userData.attachment = null;
@@ -14656,8 +14901,8 @@ function ThreeCanvas({
       });
 
       moveSession2D = {
-        targets,
-        before: captureMoveState(targets),
+        targets: resolvedTargets,
+        before: captureMoveState(resolvedTargets),
       };
       return true;
     }
@@ -14666,6 +14911,16 @@ function ThreeCanvas({
       if (!moveSession2D) return false;
       const { targets, before } = moveSession2D;
       if (!skipSnap) snapActivePart();
+      if (!skipSnap) for (const product of targets.filter(isVetroWallArrivalKit)) {
+        if ((product.userData.externalConnections || []).length) continue;
+        const systems = listVetroSystems();
+        const products = listVetroWallArrivalKits();
+        const additionalRelations = getVetroAssemblyRelations(listVetroAssemblies());
+        const preview = previewVetroWallArrivalSnap(product, systems, products, additionalRelations);
+        if (!preview) continue;
+        const system = systems.find((item) => item.userData.systemId === preview.sourceSystemId);
+        connectVetroWallArrivalToSystem({ product, system, preview, systems, products, additionalRelations });
+      }
       const after = captureMoveState(targets);
       persistLinkComponentTransforms(targets);
       moveSession2D = null;
@@ -14686,16 +14941,30 @@ function ThreeCanvas({
 
     function cancelMove2D() {
       if (!moveSession2D) return false;
+      for (const snapshot of moveSession2D.before) {
+        if (snapshot.vetroFloorStopPlacement && snapshot.object?.parent === snapshot.parent) {
+          snapshot.object.position.fromArray(snapshot.position);
+          snapshot.object.userData.floorStopPlacement = structuredClone(snapshot.vetroFloorStopPlacement);
+          snapshot.object.updateMatrixWorld(true);
+        }
+      }
       moveSession2D = null;
       return true;
     }
 
     function applyMoveHistoryState(snapshots) {
-      snapshots.forEach(({ object, parent, position, spatialConnections }) => {
+      snapshots.forEach(({ object, parent, position, spatialConnections, vetroAssemblyConnections, vetroFloorStopPlacement, wallArrivalConnections, wallArrivalQuaternion }) => {
         if (!object || object.parent !== parent) return;
         object.position.fromArray(position);
         if (spatialConnections)
           object.userData.spatialConnections = structuredClone(spatialConnections);
+        if (vetroAssemblyConnections)
+          object.userData.externalConnections = structuredClone(vetroAssemblyConnections);
+        if (vetroFloorStopPlacement)
+          object.userData.floorStopPlacement = structuredClone(vetroFloorStopPlacement);
+        if (wallArrivalConnections)
+          object.userData.externalConnections = structuredClone(wallArrivalConnections);
+        if (wallArrivalQuaternion) object.quaternion.fromArray(wallArrivalQuaternion);
         object.updateMatrixWorld(true);
       });
       persistLinkComponentTransforms(snapshots.map(({ object }) => object));
@@ -15001,21 +15270,80 @@ function ThreeCanvas({
         applyMoveHistoryState(state);
       } else if (action.type === HISTORY_ACTION_TYPES.VETRO_SYSTEM_CONNECTION) {
         return replayVetroConnectionHistory(action, state);
+      } else if (action.type === HISTORY_ACTION_TYPES.VETRO_ASSEMBLY_CONNECTION) {
+        const assembly = listVetroAssemblies().find((item) => item.userData.assemblyId === action.assemblyId);
+        if (!assembly) throw new Error('VETRO_ASSEMBLY_HISTORY_TARGET_MISSING');
+        applyVetroAssemblyConnectionState(assembly, state);
+        refreshFloorAndGrid();
+      } else if (action.type === HISTORY_ACTION_TYPES.VETRO_WALL_ARRIVAL_CONNECTION) {
+        const product = listVetroWallArrivalKits().find((item) => item.userData.instanceId === action.productId);
+        if (!product) throw new Error('VETRO_WALL_ARRIVAL_HISTORY_TARGET_MISSING');
+        applyVetroWallArrivalState(product, state);
+        refreshFloorAndGrid();
+      } else if (action.type === HISTORY_ACTION_TYPES.VETRO_DOOR_STATE) {
+        const assembly = listVetroAssemblies().find((item) => item.userData.assemblyId === action.assemblyId);
+        if (!assembly || !applyVetroDoorState(assembly, state)) throw new Error('VETRO_DOOR_HISTORY_TARGET_MISSING');
+        setActivePart(assembly, { targetIds: [assembly.userData.instanceId] });
+        refreshFloorAndGrid();
+      } else if (action.type === HISTORY_ACTION_TYPES.VETRO_ASSEMBLY_GROUP) {
+        if (direction === 'undo') {
+          detachVetroAssembly(action.root, action.parent);
+          if (action.createdMember) unregisterVetroInstance({ object: action.createdMember.object, partsRegistry: parts, pickables, dispose: false });
+          for (let i = parts.length - 1; i >= 0; i--) if (parts[i].obj === action.root) parts.splice(i, 1);
+        } else {
+          if (action.createdMember) registerVetroInstance({ instance: action.createdMember, parent: action.parent, partsRegistry: parts, pickables });
+          restoreVetroAssembly(action.root, action.members, action.parent);
+          parts.push({ code: null, obj: action.root });
+        }
+        if (direction === 'undo') clearSelectionAfterRemoval();
+        else {
+          syncSelectedIds3D([action.root.userData.instanceId]);
+          setActivePart(action.root, { targetIds: [action.root.userData.instanceId] });
+        }
+        emitBOM();
+        refreshFloorAndGrid();
       } else if (action.type === HISTORY_ACTION_TYPES.DELETE) {
+        const restoreAssemblyRelations = () => {
+          for (const snapshot of action.vetroAssemblyConnections || []) {
+            const assembly = listVetroAssemblies().find((item) => item.userData.assemblyId === snapshot.assemblyId);
+            if (assembly) assembly.userData.externalConnections = structuredClone(snapshot.relations);
+          }
+          for (const snapshot of action.vetroWallArrivalConnections || []) {
+            const product = listVetroWallArrivalKits().find((item) => item.userData.instanceId === snapshot.productId);
+            if (product) product.userData.externalConnections = structuredClone(snapshot.relations);
+          }
+        };
+        const detachAssemblyRelations = () => {
+          const deletedIds = new Set(action.deletedObjects?.filter((item) => item.object?.userData?.kind === 'VETRO_SYSTEM')
+            .map((item) => item.object.userData.systemId) || []);
+          for (const assembly of listVetroAssemblies())
+            assembly.userData.externalConnections = (assembly.userData.externalConnections || [])
+              .filter((relation) => !deletedIds.has(relation.sourceSystemId));
+          for (const product of listVetroWallArrivalKits())
+            product.userData.externalConnections = (product.userData.externalConnections || [])
+              .filter((relation) => !deletedIds.has(relation.sourceSystemId));
+        };
         if (action.vetroConnections?.length) {
           return (async () => {
             if (direction === 'undo') {
               restoreDeletedObjects(action.deletedObjects || []);
               await restoreVetroDeletionConnections(listVetroSystems(), action.vetroConnections, parts);
+              restoreAssemblyRelations();
               emitBOM();
             } else {
+              detachAssemblyRelations();
               detachVetroDeletionConnections(listVetroSystems(), action.vetroConnections, parts);
               disconnectDeletedObjects(action.deletedObjects || []);
             }
           })();
         }
-        if (direction === 'undo') restoreDeletedObjects(action.deletedObjects || []);
-        else disconnectDeletedObjects(action.deletedObjects || []);
+        if (direction === 'undo') {
+          restoreDeletedObjects(action.deletedObjects || []);
+          restoreAssemblyRelations();
+        } else {
+          detachAssemblyRelations();
+          disconnectDeletedObjects(action.deletedObjects || []);
+        }
       } else if (action.type === HISTORY_ACTION_TYPES.CREATE_OBJECTS) {
         if (direction === 'undo') {
           disconnectDeletedObjects(action.createdObjects || []);
@@ -15531,6 +15859,21 @@ function ThreeCanvas({
         .filter((object) => object.userData?.kind === 'VETRO_SYSTEM' && !object.userData?.lockedDelete)
         .map((object) => object.userData.systemId);
       const vetroConnections = collectVetroDeletionConnections(listVetroSystems(), vetroIds);
+      const deletingSystemIds = new Set(vetroIds);
+      const vetroAssemblyConnections = listVetroAssemblies().filter((assembly) =>
+        (assembly.userData.externalConnections || []).some((relation) => deletingSystemIds.has(relation.sourceSystemId)))
+        .map((assembly) => ({ assemblyId: assembly.userData.assemblyId,
+          relations: structuredClone(assembly.userData.externalConnections || []) }));
+      for (const assembly of listVetroAssemblies())
+        assembly.userData.externalConnections = (assembly.userData.externalConnections || [])
+          .filter((relation) => !deletingSystemIds.has(relation.sourceSystemId));
+      const vetroWallArrivalConnections = listVetroWallArrivalKits().filter((product) =>
+        (product.userData.externalConnections || []).some((relation) => deletingSystemIds.has(relation.sourceSystemId)))
+        .map((product) => ({ productId: product.userData.instanceId,
+          relations: structuredClone(product.userData.externalConnections || []) }));
+      for (const product of listVetroWallArrivalKits())
+        product.userData.externalConnections = (product.userData.externalConnections || [])
+          .filter((relation) => !deletingSystemIds.has(relation.sourceSystemId));
       detachVetroDeletionConnections(listVetroSystems(), vetroConnections, parts);
       const deletedObjects = deletionRoots.map((object) => captureDeletedObject(object));
       const removedAny = disconnectDeletedObjects(deletedObjects);
@@ -15540,6 +15883,8 @@ function ThreeCanvas({
           type: HISTORY_ACTION_TYPES.DELETE,
           deletedObjects,
           vetroConnections,
+          vetroAssemblyConnections,
+          vetroWallArrivalConnections,
         });
       }
 
@@ -19640,6 +19985,10 @@ function ThreeCanvas({
           localPosition: obj.position.clone(),
           worldPosition: obj.getWorldPosition(new THREE.Vector3()),
         })),
+        vetroAssemblyBefore: dragTargets.length === 1 && dragTargets[0].userData?.kind === 'VETRO_ASSEMBLY'
+          ? captureVetroAssemblyConnectionState(dragTargets[0]) : null,
+        wallArrivalBefore: dragTargets.length === 1 && isVetroWallArrivalKit(dragTargets[0])
+          ? captureVetroWallArrivalState(dragTargets[0]) : null,
         standaloneSpatialBefore:
           dragTargets.length === 1 &&
             dragTargets[0].userData?.kind === 'MULTIPLE_PRODUCT' &&
@@ -21007,17 +21356,25 @@ function ThreeCanvas({
           const connectedVetro = movedVetro
             ? getVetroConnectedCluster(movedVetro.obj, listVetroSystems()).filter((item) => item !== movedVetro.obj)
             : [];
-          const linkedBefore = connectedVetro.map((object) => createMoveSnapshot(object));
+          const movingSystemIds = new Set([movedVetro?.obj, ...connectedVetro].filter(Boolean).map((item) => item.userData.systemId));
+          const connectedVetroAssemblies = movedVetro ? listVetroAssemblies().filter((assembly) =>
+            (assembly.userData.externalConnections || []).some((relation) => movingSystemIds.has(relation.sourceSystemId))) : [];
+          const connectedWallArrivals = movedVetro ? listVetroWallArrivalKits().filter((product) =>
+            (product.userData.externalConnections || []).some((relation) => movingSystemIds.has(relation.sourceSystemId))) : [];
+          const linkedBefore = [...connectedVetro, ...connectedVetroAssemblies, ...connectedWallArrivals].map((object) => createMoveSnapshot(object));
           if (movedVetro) {
             const delta = movedVetro.obj.position.clone().sub(movedVetro.localPosition);
+            const worldDelta = movedVetro.obj.getWorldPosition(new THREE.Vector3()).sub(movedVetro.worldPosition);
             connectedVetro.forEach((object) => { object.position.add(delta); object.updateMatrixWorld(true); });
+            translateVetroConnectedAssemblies([movedVetro.obj, ...connectedVetro], connectedVetroAssemblies, worldDelta);
+            translateVetroConnectedWallArrivals([movedVetro.obj, ...connectedVetro], connectedWallArrivals, worldDelta);
           }
           const before = completedDragSession.initialPositions.map(({ obj, localPosition }) =>
             createMoveSnapshot(obj, localPosition)
           ).concat(linkedBefore);
           const after = captureMoveState([
             ...completedDragSession.initialPositions.map(({ obj }) => obj),
-            ...connectedVetro,
+            ...connectedVetro, ...connectedVetroAssemblies, ...connectedWallArrivals,
           ]);
           persistLinkComponentTransforms(
             completedDragSession.initialPositions.map(({ obj }) => obj)
@@ -21191,6 +21548,39 @@ function ThreeCanvas({
               completedDragSession.standaloneSpatialBefore,
               captureMoveState(getStandaloneMultipleProducts(scene))
             );
+          } else if (completedDragSession.vetroAssemblyBefore) {
+            const assembly = completedDragSession.initialPositions[0].obj;
+            const systemRoots = listVetroSystems();
+            assembly.userData.externalConnections = (assembly.userData.externalConnections || []).filter((relation) =>
+              isVetroAssemblyConnectionAligned(assembly, relation, systemRoots));
+            const disconnected = JSON.stringify(completedDragSession.vetroAssemblyBefore.externalConnections) !==
+              JSON.stringify(assembly.userData.externalConnections);
+            if (disconnected) {
+              historyManager.pushAction({ type: HISTORY_ACTION_TYPES.VETRO_ASSEMBLY_CONNECTION,
+                assemblyId: assembly.userData.assemblyId, before: completedDragSession.vetroAssemblyBefore,
+                after: captureVetroAssemblyConnectionState(assembly) });
+            } else if (!(assembly.userData.externalConnections || []).length) {
+              const connected = connectVetroAssemblyToNearest(assembly, completedDragSession.vetroAssemblyBefore);
+              if (!connected.success) pushMoveHistory(before, after);
+            } else {
+              pushMoveHistory(before, after);
+            }
+          } else if (completedDragSession.wallArrivalBefore) {
+            const product = completedDragSession.initialPositions[0].obj;
+            product.userData.externalConnections = (product.userData.externalConnections || []).filter((relation) =>
+              isVetroWallArrivalAligned(product, relation, listVetroSystems()));
+            const disconnected = JSON.stringify(completedDragSession.wallArrivalBefore.externalConnections) !==
+              JSON.stringify(product.userData.externalConnections);
+            if (disconnected) {
+              historyManager.pushAction({ type: HISTORY_ACTION_TYPES.VETRO_WALL_ARRIVAL_CONNECTION,
+                productId: product.userData.instanceId, before: completedDragSession.wallArrivalBefore,
+                after: captureVetroWallArrivalState(product) });
+            } else if (!(product.userData.externalConnections || []).length) {
+              const connected = connectVetroWallArrivalToNearest(product, completedDragSession.wallArrivalBefore);
+              if (!connected.success) pushMoveHistory(before, after);
+            } else {
+              pushMoveHistory(before, after);
+            }
           } else {
             pushMoveHistory(before, after);
           }

@@ -9,6 +9,7 @@ const LOADERS = {
   CRITERIUM_SYSTEM: (entity, context) => context.createCritteriumSystem(entity),
   VETRO_PRODUCT: (entity, context) => context.createVetro(entity),
   VETRO_SYSTEM: (entity, context) => context.createVetroSystem(entity),
+  VETRO_ASSEMBLY: (entity, context) => context.createVetroAssembly(entity),
   MILA: (entity, context) => context.createMila(entity),
   SURFACE: (entity, context) => context.createSurface(entity),
   CLAK: (entity, context) =>
@@ -46,7 +47,7 @@ export function getEntityLoader(kind) {
 export async function loadPersistedEntity(entity, context) {
   const loader = getEntityLoader(entity?.kind);
   if (!loader) throw new Error(`UNSUPPORTED_KIND:${entity?.kind || 'UNKNOWN'}`);
-  if (!entity?.codigoPT && !['LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM', 'SURFACE', 'CRITTERIUM_8', 'CRITTERIUM_8_SEQUENCE', 'CRITERIUM_SYSTEM', 'VETRO_PRODUCT', 'VETRO_SYSTEM', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
+  if (!entity?.codigoPT && !['LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM', 'SURFACE', 'CRITTERIUM_8', 'CRITTERIUM_8_SEQUENCE', 'CRITERIUM_SYSTEM', 'VETRO_PRODUCT', 'VETRO_SYSTEM', 'VETRO_ASSEMBLY', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
     throw new Error('MISSING_CODIGO_PT');
   }
 

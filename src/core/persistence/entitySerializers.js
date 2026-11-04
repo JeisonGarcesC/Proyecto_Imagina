@@ -163,6 +163,7 @@ export function serializeVetroEntity(object) {
     code: data.code || data.codigoPT || null,
     config: cloneSerializable(data.config || {}),
     product: cloneSerializable(data.product || {}),
+    externalConnections: cloneSerializable(data.externalConnections || []),
     transform: {
       position: object.position.toArray(),
       quaternion: object.quaternion.toArray(),
@@ -173,6 +174,21 @@ export function serializeVetroEntity(object) {
       line: 'VETRO',
       renderStatus: data.renderStatus || 'ASSET_NOT_AVAILABLE',
     },
+  };
+}
+
+export function serializeVetroAssembly(root) {
+  const data = root.userData;
+  return {
+    kind: 'VETRO_ASSEMBLY', family: 'VETRO', assemblyId: data.assemblyId,
+    assemblyType: data.assemblyType, relationships: cloneSerializable(data.relationships || []),
+    externalConnections: cloneSerializable(data.externalConnections || []),
+    doorState: cloneSerializable(data.doorState || null),
+    members: root.children.filter((child) => child.userData?.kind === 'VETRO_PRODUCT').map((child) => ({
+      ...serializeVetroEntity(child), sku: child.userData.code, productType: child.userData.config?.productType,
+      ...(child.userData.code === '22013883' ? { floorStopPlacement: cloneSerializable(child.userData.floorStopPlacement || { mode: 'AUTO' }) } : {}),
+    })),
+    transform: { position: root.position.toArray(), quaternion: root.quaternion.toArray(), scale: root.scale.toArray() },
   };
 }
 
@@ -283,6 +299,15 @@ export function serializeProjectEntities(parts = [], options = {}) {
   });
 
   parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
+    if (object?.userData?.kind !== 'VETRO_ASSEMBLY') return;
+    const assemblyId = object.userData.assemblyId;
+    if (processedAssemblies.has(assemblyId)) return;
+    processedAssemblies.add(assemblyId);
+    entities.push(serializeVetroAssembly(object));
+  });
+
+  parts.forEach((partRecord) => {
     const assembly = findKoncisaAssembly(partRecord?.obj);
     if (!assembly) return;
     const assemblyId = assembly.userData?.instanceId || assembly.userData?.code || assembly.uuid;
@@ -348,7 +373,7 @@ export function serializeProjectEntities(parts = [], options = {}) {
   parts.forEach((partRecord) => {
     const object = partRecord?.obj;
     if (!['VETRO_PRODUCT', 'LOCKER_PRODUCT'].includes(object?.userData?.kind)) return;
-    if (object.userData.kind === 'VETRO_PRODUCT' && object.userData.systemId) return;
+    if (object.userData.kind === 'VETRO_PRODUCT' && (object.userData.systemId || object.userData.vetroAssemblyId)) return;
     const instanceId = object.userData?.instanceId || object.uuid;
     if (processedAssemblies.has(instanceId)) return;
     processedAssemblies.add(instanceId);
@@ -363,7 +388,7 @@ export function serializeProjectEntities(parts = [], options = {}) {
       partRecord?.obj?.userData?.kind === 'CRITERIUM_SYSTEM' ||
       partRecord?.obj?.userData?.kind === 'CRITTERIUM_8_SPATIAL_KIT' ||
       findMilaAssembly(partRecord?.obj) ||
-      ['VETRO_PRODUCT', 'VETRO_SYSTEM', 'LOCKER_PRODUCT', 'LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM'].includes(partRecord?.obj?.userData?.kind) ||
+      ['VETRO_PRODUCT', 'VETRO_SYSTEM', 'VETRO_ASSEMBLY', 'LOCKER_PRODUCT', 'LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM'].includes(partRecord?.obj?.userData?.kind) ||
       partRecord?.obj?.userData?.parametricOwner === 'LINK_PRODUCT' ||
       partRecord?.obj?.userData?.parametricOwner === 'MULTIPLE_PRODUCT' ||
       isKoncisaPersistenceObject(partRecord?.obj)

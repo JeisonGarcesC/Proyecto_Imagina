@@ -2847,7 +2847,7 @@ export default function LeftPanel({
       {section === 'multiple' && <MultiplePanel threeApiRef={threeApiRef} readOnly={readOnly} />}
       {section === 'lockers' && <LockersPanel onCreate={onAddLocker} readOnly={readOnly} />}
       {section === 'vetro' && (
-        <VetroPanel onCreate={onAddVetro} onCreateSystem={onAddVetroSystem} readOnly={readOnly} />
+        <VetroPanel onCreate={onAddVetro} onCreateSystem={onAddVetroSystem} onGroupDoor={() => threeApiRef.current?.groupSelectedVetroDoor?.()} onConnectDoor={() => threeApiRef.current?.connectVetroAssemblyToNearest?.()} onDisconnectDoor={() => threeApiRef.current?.disconnectSelectedVetroAssembly?.()} onConnectWallArrival={() => threeApiRef.current?.connectVetroWallArrivalToNearest?.()} onDisconnectWallArrival={() => threeApiRef.current?.disconnectSelectedVetroWallArrival?.()} onGetDoorState={() => threeApiRef.current?.getSelectedVetroDoorState?.()} onUpdateDoorState={(patch) => threeApiRef.current?.updateSelectedVetroDoorState?.(patch)} selectedPart={selectedPart} readOnly={readOnly} />
       )}
 
 

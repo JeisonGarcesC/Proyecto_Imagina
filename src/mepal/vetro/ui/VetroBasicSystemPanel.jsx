@@ -10,7 +10,7 @@ export default function VetroBasicSystemPanel({ onCreate, readOnly = false }) {
   const [returnWidthMm, setReturnWidthMm] = useState(1800);
   const [searched, setSearched] = useState(false);
   const [createdMeasurement, setCreatedMeasurement] = useState(null);
-  const [specialOpen, setSpecialOpen] = useState(false);
+  const [specialOpen, setSpecialOpen] = useState(true);
   const [specialWidthEnabled, setSpecialWidthEnabled] = useState(false);
   const [specialHeightEnabled, setSpecialHeightEnabled] = useState(false);
   const [specialNominalWidthCm, setSpecialNominalWidthCm] = useState(90);
@@ -26,6 +26,7 @@ export default function VetroBasicSystemPanel({ onCreate, readOnly = false }) {
     <label>Altura comercial (mm) <select value={heightMm} onChange={(event) => { setHeightMm(Number(event.target.value)); setSearched(false); }}><option value={2040}>2040</option><option value={2420}>2420</option><option value={2800}>2800</option><option value={3180}>3180</option></select></label>
     {shape !== 'LINE' && <label>{shape === 'T' ? 'Derivación perpendicular solicitada' : 'Segundo brazo solicitado'} (mm) <input type="number" min="300" max="6000" value={returnWidthMm} onChange={(event) => { setReturnWidthMm(Number(event.target.value)); setSearched(false); }} /></label>}
     <button type="button" onClick={() => setSearched(true)}>Buscar composiciones</button>
+    {shape === 'LINE' && Number(requestedWidthMm) > 6000 && <p>La longitud máxima de una línea VETRO es de 6000 mm. Para longitudes mayores se requiere dividir el sistema mediante una columna/soporte o crear tramos independientes.</p>}
     {heightMm === 3180 && <p>La referencia de 3180 mm existe en catálogo; la ficha limita este sistema piso techo a 2800 mm.</p>}
     <button type="button" onClick={() => setSpecialOpen(!specialOpen)}>{specialOpen ? 'Cerrar medida especial' : '+ Medida especial'}</button>
     {specialOpen && <div style={{ display: 'grid', gap: 6, border: '1px solid #ddd', padding: 8 }}>

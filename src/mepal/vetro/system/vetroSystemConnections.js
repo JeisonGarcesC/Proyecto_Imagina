@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 import { createVetroInstance } from '../factories/createVetroInstance.js';
 import { disposeVetroProduct } from '../renderers/VetroRenderer3D.js';
 import { resolveVetroConnectionPoints } from './vetroConnectionPoints.js';
+import { getVetroContinuousRuns } from '../bom/vetroSystemBOM.js';
 
 // Capture and angle tolerances are provisional interaction settings, not commercial dimensions.
 export const VETRO_SNAP_CAPTURE_M = 0.15;
@@ -21,7 +22,7 @@ export function previewVetroSystemSnap(source, targets, options = {}) {
   if (source?.userData?.kind !== 'VETRO_SYSTEM') return null;
   const captureM = Number(options.captureM ?? VETRO_SNAP_CAPTURE_M);
   const systems = [source, ...(targets || [])].filter((item) => item?.userData?.kind === 'VETRO_SYSTEM');
-  const relations = systems.flatMap((item) => item.userData.externalConnections || []);
+  const relations = [...systems.flatMap((item) => item.userData.externalConnections || []), ...(options.additionalRelations || [])];
   const occupied = new Set(relations.flatMap((relation) => [
     `${relation.sourceSystemId}:${relation.sourceTerminalId}`,
     `${relation.targetSystemId}:${relation.targetTerminalId}`,
@@ -106,6 +107,22 @@ export async function connectVetroSystems({ source, target, preview, partsRegist
   const candidate = preview || previewVetroSystemSnap(source, [target]);
   if (!candidate || candidate.sourceSystemId !== source.userData.systemId || candidate.targetSystemId !== target.userData.systemId)
     return { success: false, reason: 'VETRO_COMPATIBLE_TERMINALS_NOT_FOUND' };
+  const occupiedByAssemblies = source.parent?.children?.flatMap((item) => item.userData?.kind === 'VETRO_ASSEMBLY'
+    ? item.userData.externalConnections || [] : []) || [];
+  const occupiedByWallArrivals = source.parent?.children?.flatMap((item) =>
+    item.userData?.kind === 'VETRO_PRODUCT' && item.userData?.config?.variant === 'WALL_ARRIVAL_KIT'
+      ? item.userData.externalConnections || [] : []) || [];
+  if ([...occupiedByAssemblies, ...occupiedByWallArrivals].some((relation) =>
+    (relation.sourceSystemId === candidate.sourceSystemId && relation.sourceTerminalId === candidate.sourceTerminalId) ||
+    (relation.sourceSystemId === candidate.targetSystemId && relation.sourceTerminalId === candidate.targetTerminalId)))
+    return { success: false, reason: 'VETRO_TERMINAL_OCCUPIED_BY_ASSEMBLY' };
+  if (candidate.type === 'JOIN_180') {
+    const nearby = source.parent?.children?.filter((item) => item?.userData?.kind === 'VETRO_SYSTEM') || [source, target];
+    const candidateSystems = [...new Set([...nearby, source, target])];
+    const runs = getVetroContinuousRuns(candidateSystems, candidate);
+    if ([...runs.values()].some((run) => run.reduce((total, segment) => total + segment.lengthMm, 0) > 6000))
+      return { success: false, reason: 'VETRO_CONTINUOUS_RUN_OVER_6000_MM' };
+  }
   const systems = [source, target];
   const key = pairKey(`${candidate.sourceSystemId}:${candidate.sourceTerminalId}`, `${candidate.targetSystemId}:${candidate.targetTerminalId}`);
   if (systems.flatMap((item) => item.userData.externalConnections || []).some((item) => connectionPair(item) === key))

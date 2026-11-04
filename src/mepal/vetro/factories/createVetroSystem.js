@@ -17,6 +17,8 @@ function productConfig(kind, widthMm, heightMm, stockCm) {
 }
 
 export async function createVetroSystem({ requestedWidthMm, heightMm, panelWidthsMm, shape = 'LINE', returnWidthMm = null, returnPanelWidthsMm = null, specialPanel = null, systemId, transform, externalConnections = [] } = {}) {
+  if (shape === 'LINE' && (!Number.isFinite(Number(requestedWidthMm)) || Number(requestedWidthMm) <= 0 || Number(requestedWidthMm) > 6000))
+    return { success: false, reason: 'VETRO_LINE_WIDTH_OUT_OF_RANGE' };
   const specialSize = specialPanel ? resolveVetroPanelSize({
     material: 'TEMPERED_GLASS_10MM', nominalWidthCm: specialPanel.nominalWidthCm,
     nominalHeightCm: specialPanel.nominalHeightCm,

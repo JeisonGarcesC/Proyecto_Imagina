@@ -12,7 +12,7 @@ export function getVetroSystemBOM(system) {
   return [...rows.values()];
 }
 
-const horizontalKinds = new Set(['TOP_KIT', 'PLINTH_KIT']);
+const horizontalKinds = new Set(['TOP_KIT', 'PLINTH_KIT', 'FLOOR_ARRIVAL_PROFILE']);
 const segmentId = (systemId, arm) => `${systemId}:${arm}`;
 
 function terminalArm(system, terminalId) {
@@ -29,7 +29,7 @@ function horizontalCode(kind, stockCm) {
   return resolved.entry;
 }
 
-export function getVetroConnectedCommercialBOM(systems = []) {
+export function getVetroContinuousRuns(systems = [], additionalRelation = null) {
   const roots = systems.filter((system) => system?.userData?.kind === 'VETRO_SYSTEM');
   const segments = new Map();
   for (const system of roots) {
@@ -49,7 +49,7 @@ export function getVetroConnectedCommercialBOM(systems = []) {
   const union = (a, b) => { if (parents.has(a) && parents.has(b)) parents.set(find(b), find(a)); };
   const findSystem = (id) => { while (systemParents.get(id) !== id) id = systemParents.get(id); return id; };
   const bySystemId = new Map(roots.map((system) => [system.userData.systemId, system]));
-  for (const system of roots) for (const relation of system.userData.externalConnections || []) {
+  for (const relation of [...roots.flatMap((system) => system.userData.externalConnections || []), ...(additionalRelation ? [additionalRelation] : [])]) {
     if (relation.type !== 'JOIN_180') continue;
     const source = bySystemId.get(relation.sourceSystemId);
     const target = bySystemId.get(relation.targetSystemId);
@@ -66,6 +66,19 @@ export function getVetroConnectedCommercialBOM(systems = []) {
     const runKey = find(key);
     if (!runs.has(runKey)) runs.set(runKey, []);
     runs.get(runKey).push(segment);
+  }
+  return runs;
+}
+
+export function getVetroConnectedCommercialBOM(systems = []) {
+  const roots = systems.filter((system) => system?.userData?.kind === 'VETRO_SYSTEM');
+  const runs = getVetroContinuousRuns(roots);
+  const systemParents = new Map(roots.map((system) => [system.userData.systemId, system.userData.systemId]));
+  const findSystem = (id) => { while (systemParents.get(id) !== id) id = systemParents.get(id); return id; };
+  const bySystemId = new Map(roots.map((system) => [system.userData.systemId, system]));
+  for (const relation of roots.flatMap((system) => system.userData.externalConnections || [])) {
+    if (relation.type !== 'JOIN_180' || !bySystemId.has(relation.sourceSystemId) || !bySystemId.has(relation.targetSystemId)) continue;
+    systemParents.set(findSystem(relation.targetSystemId), findSystem(relation.sourceSystemId));
   }
   const membersByRoot = new Map();
   for (const system of roots) {
@@ -84,7 +97,7 @@ export function getVetroConnectedCommercialBOM(systems = []) {
     const totalLengthMm = run.reduce((sum, segment) => sum + segment.lengthMm, 0);
     if (!(totalLengthMm > 0)) continue;
     if (totalLengthMm > 6000) {
-      for (const segment of run) for (const kind of horizontalKinds) {
+      for (const segment of run) for (const kind of ['TOP_KIT', 'PLINTH_KIT']) {
         const entry = horizontalCode(kind, segment.lengthMm <= 3000 ? 300 : 600);
         rows.push({ code: entry.code, quantity: 1, kind, reference: entry.reference, groupId: systemGroups.get(segment.system.userData.systemId), sourceSystemId: segment.system.userData.systemId, status: 'RUN_OVER_6000_MM_NOT_DOCUMENTED' });
       }
@@ -93,6 +106,12 @@ export function getVetroConnectedCommercialBOM(systems = []) {
     const stockCm = totalLengthMm <= 3000 ? 300 : 600;
     const groupId = systemGroups.get(run[0].system.userData.systemId);
     for (const kind of horizontalKinds) {
+      if (kind === 'FLOOR_ARRIVAL_PROFILE') {
+        const entry = resolveVetroProductCode({ productType: 'PROFILE', variant: kind, nominalLengthCm: 300, finish: null });
+        if (!entry.supported) throw new Error('VETRO_FLOOR_ARRIVAL_PROFILE_NOT_DOCUMENTED');
+        rows.push({ code: entry.entry.code, quantity: Math.ceil(totalLengthMm / 3000), kind, reference: entry.entry.reference, groupId, sourceSystemId: groupId, description: null, special: null });
+        continue;
+      }
       const entry = horizontalCode(kind, stockCm);
       rows.push({ code: entry.code, quantity: 1, kind, reference: entry.reference, groupId, sourceSystemId: groupId, description: null, special: null });
     }

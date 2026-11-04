@@ -897,6 +897,10 @@ export default function Plan2DOverlay({
   const pickFootprintHit = useCallback(
     (mx, my, p) => {
       const [px, py] = toCanvas(p.x, p.z);
+      if (p.kind === 'VETRO_DOOR_FLOOR_STOP') {
+        const distanceSquared = (mx - px) ** 2 + (my - py) ** 2;
+        return distanceSquared <= 9 ** 2 ? distanceSquared : null;
+      }
       const worldPoint = canvasToWorld(mx, my);
       if (!worldPoint || !hitTestFootprint2D(p, worldPoint)) return null;
       const dx = mx - px;
@@ -1010,6 +1014,7 @@ export default function Plan2DOverlay({
   const getSelectionTargetIds = useCallback(
     (part, snapshot) => {
       if (!part?.id) return [];
+      if (part.kind === 'VETRO_DOOR_FLOOR_STOP') return [part.parentAssemblyId];
       if (
         part.kind === 'CRITERIUM_SYSTEM' ||
         part.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' ||
@@ -2084,7 +2089,8 @@ export default function Plan2DOverlay({
       const selectionIds = getSelectionTargetIds(picked, snapshot);
       const targetIsSelected = selectionIds.every((id) => selectedSet.has(id));
       const useMultipleSelection = targetIsSelected && selectedSet.size > 1;
-      const dragIds = useMultipleSelection ? Array.from(selectedSet) : selectionIds;
+      const dragIds = picked.kind === 'VETRO_DOOR_FLOOR_STOP'
+        ? [picked.id] : useMultipleSelection ? Array.from(selectedSet) : selectionIds;
       const snapshotById = new Map(
         snapshot.filter((part) => part?.id).map((part) => [part.id, part])
       );
@@ -2100,18 +2106,18 @@ export default function Plan2DOverlay({
         return;
       }
 
-      onPickId?.(picked.id);
+      onPickId?.(picked.kind === 'VETRO_DOOR_FLOOR_STOP' ? picked.parentAssemblyId : picked.id);
 
-      onBeginMove2D?.(
+      if (onBeginMove2D?.(
         initialPositions.map(({ id }) => id),
-        initialPositions.length > 1
-      );
+        initialPositions.length > 1 || picked.kind === 'VETRO_DOOR_FLOOR_STOP'
+      ) !== true) return;
 
       setDragPieceId(picked.id);
       dragPieceRef.current = {
         id: picked.id,
         selectionIds,
-        skipSnap: selectionIds.length > 1 && (
+        skipSnap: picked.kind === 'VETRO_DOOR_FLOOR_STOP' || selectionIds.length > 1 && (
           picked.kind === 'CRITERIUM_SYSTEM' ||
           picked.kind === 'CRITTERIUM_8_SEQUENCE_ASSEMBLY' ||
           picked.kind === 'CRITTERIUM_8_ASSEMBLY'
@@ -2463,17 +2469,7 @@ export default function Plan2DOverlay({
         return;
       }
 
-      let best = null;
-      let bestDist = Infinity;
-
-      for (const p of snap) {
-        const dist = pickFootprintHit(mx, my, p);
-        if (dist == null) continue;
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = p;
-        }
-      }
+      const best = pickPartAtCanvasPoint(mx, my);
 
       if (!best?.id) {
         if (!wantsMulti) onPickIds?.([]);
@@ -3058,6 +3054,21 @@ export default function Plan2DOverlay({
 
       for (const p of snap) {
         const [px, py] = toCanvasLocal(p.x, p.z);
+        if (p.kind === 'VETRO_DOOR_FLOOR_STOP') {
+          const selected = selSet.has(p.parentAssemblyId) || dragPieceId === p.id;
+          ctx.save();
+          ctx.fillStyle = selected ? '#38c2d4' : '#87959a';
+          ctx.strokeStyle = selected ? '#f8cf36' : '#43535a';
+          ctx.lineWidth = selected ? 2.5 : 1;
+          ctx.beginPath();
+          ctx.moveTo(px - 5, py);
+          ctx.arc(px, py, 5, Math.PI, 0, false);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+          continue;
+        }
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(-(p.rotY || 0));
@@ -3113,6 +3124,20 @@ export default function Plan2DOverlay({
         ctx.fill();
 
         ctx.restore();
+        if (p.kind === 'VETRO_ASSEMBLY' && p.doorLeafSegments?.length) {
+          ctx.save();
+          ctx.strokeStyle = isSel ? '#38c2d4' : '#236b78';
+          ctx.lineWidth = isSel ? 2.5 : 1.8;
+          for (const segment of p.doorLeafSegments) {
+            const start = toCanvasLocal(segment.start[0], segment.start[1]);
+            const end = toCanvasLocal(segment.end[0], segment.end[1]);
+            ctx.beginPath();
+            ctx.moveTo(start[0], start[1]);
+            ctx.lineTo(end[0], end[1]);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
       }
 
       // Capa visual derivada: se dibuja sobre las huellas, sin participar

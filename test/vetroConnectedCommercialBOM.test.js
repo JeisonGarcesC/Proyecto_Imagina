@@ -23,6 +23,40 @@ test('single 90 + 90 line retains one 300 cm top/plinth pair and one internal 18
   assert.equal(quantity(rows, '22000017629'), 1);
   assert.equal(quantity(rows, '22000017630'), 1);
   assert.equal(quantity(rows, '22000009791'), 1);
+  assert.equal(quantity(rows, '22000011980'), 1);
+});
+
+test('three consecutive 1800 mm lines use two floor profiles for one 5400 mm run', async () => {
+  const systems = await Promise.all(Array.from({ length: 3 }, () => system({ requestedWidthMm: 1800, panelWidthsMm: [900, 900] })));
+  systems[1].position.x = 1.8;
+  systems[2].position.x = 3.6;
+  const scene = new Group(); scene.add(...systems);
+  assert.equal((await connectVetroSystems({ source: systems[0], target: systems[1] })).success, true);
+  assert.equal((await connectVetroSystems({ source: systems[1], target: systems[2] })).success, true);
+  const rows = getVetroConnectedCommercialBOM(systems);
+  assert.equal(quantity(rows, '22000009783'), 6);
+  assert.equal(quantity(rows, '22000011980'), 2);
+  assert.equal(quantity(rows, '22000009791'), 5);
+  assert.equal(quantity(rows, '22000017631'), 1);
+  assert.equal(quantity(rows, '22000017632'), 1);
+});
+
+test('6000 mm line has two floor profiles and a longer line is rejected', async () => {
+  const line = await system({ requestedWidthMm: 6000, panelWidthsMm: [1200, 1200, 1200, 1200, 1200] });
+  assert.equal(quantity(getVetroConnectedCommercialBOM([line]), '22000011980'), 2);
+  const invalid = await createVetroSystem({ requestedWidthMm: 7200, heightMm: 2040, panelWidthsMm: [1200, 1200, 1200, 1200, 1200, 1200] });
+  assert.equal(invalid.success, false);
+});
+
+test('a fourth 1800 mm line cannot extend a continuous run beyond 6000 mm', async () => {
+  const systems = await Promise.all(Array.from({ length: 4 }, () => system({ requestedWidthMm: 1800, panelWidthsMm: [900, 900] })));
+  systems.forEach((item, index) => { item.position.x = index * 1.8; });
+  const scene = new Group(); scene.add(...systems);
+  assert.equal((await connectVetroSystems({ source: systems[0], target: systems[1] })).success, true);
+  assert.equal((await connectVetroSystems({ source: systems[1], target: systems[2] })).success, true);
+  const rejected = await connectVetroSystems({ source: systems[2], target: systems[3] });
+  assert.equal(rejected.success, false);
+  assert.equal(rejected.reason, 'VETRO_CONTINUOUS_RUN_OVER_6000_MM');
 });
 
 test('two connected 90 + 90 lines use one 600 cm top/plinth pair, three joins, four panels and two floor profiles', async () => {

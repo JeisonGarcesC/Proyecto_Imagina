@@ -9,6 +9,7 @@ export const VETRO_NATIVE_APPROXIMATIONS = Object.freeze({
   FRAME_PROFILE_VISUAL_SECTION_MM: { value: [50, 30], unit: 'mm', products: ['DOOR_FRAME'], reason: 'La ficha solo documenta pared de aluminio de 1.5 mm.', sourcePending: true },
   FRAME_DUCT_VISUAL_SECTION_MM: { value: [80, 40], unit: 'mm', products: ['DOOR_FRAME'], reason: 'Seccion exterior del bajante no documentada.', sourcePending: true },
   LEVELING_KIT_VISUAL_SIZE_MM: { value: [40, 35, 20], unit: 'mm', products: ['GLASS_PANEL_LEVELING_LOCK_REPLACEMENT'], reason: 'Dimensiones no documentadas.', sourcePending: true },
+  DOOR_FLOOR_STOP_VISUAL_SIZE_MM: { value: [60, 18, 34], unit: 'mm', products: ['DOOR_FLOOR_STOP_HALF_MOON'], reason: 'Proporcion visual provisional; el catalogo no documenta dimensiones.', sourcePending: true },
 });
 
 export function mmToMeters(value) {
