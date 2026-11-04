@@ -429,7 +429,7 @@ export default function TopMenuBar({
         <button type="button" onClick={bomOpen ? onCloseBom : onOpenBom} className="topbar-bom-btn">
           <span>{bomShowText}</span>
           <span className="topbar-bom-sep" />
-          <strong>{moneyCOP(bomTotal)}</strong>
+          <strong>{bomTotal === null ? 'Precio no disponible' : moneyCOP(bomTotal)}</strong>
         </button>
       </div>
     </header>

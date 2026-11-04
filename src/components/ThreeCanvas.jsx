@@ -75,6 +75,7 @@ import { createHistoryManager, HISTORY_ACTION_TYPES } from '../history/historyMa
 import { CreateObjectsCommand } from '../history/CreateObjectsCommand';
 import { setClipboard } from '../clipboard/clipboardManager';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
+import { resolveCatalogCommercialFields } from '../catalog/resolveCatalogCommercialFields.js';
 import { createKoncisaPlusDrawerPart } from '../mepal/koncisaPlus/parts/koncisaPlusDrawer.js';
 import { buildKoncisaPlus } from '../mepal/koncisaPlus/builders/KoncisaPlusBuilder.js';
 import { resolveComponentKey } from '../mepal/koncisaPlus/serialization/serializeKoncisaPlusRecipe';
@@ -103,6 +104,7 @@ import {
 } from '../materials/applyMaterial';
 import { applyDuctVisualMaterials, isDuctObject } from '../materials/ductFinishes.js';
 import { resolveSpecialVisualTargets } from '../specialFinishes/resolveSpecialVisualTargets.js';
+import { selectProjectTypologyKeys } from '../picklist/pickListTypologies.js';
 import { getMeshPathKey } from '../specialFinishes/meshPathKey.js';
 import {
   collectProjectSpecialFinishes,
@@ -1170,6 +1172,7 @@ function ThreeCanvas({
     let dimensionHistoryReplayHandler = null;
     let shape2DHistoryReplayHandler = null;
     let area2DHistoryReplayHandler = null;
+    let pickListHistoryReplayHandler = null;
     let columnHistoryReplayHandler = null;
     let architectureFinishReplayHandler = null;
     const columnHistoryActionTypes = new Set(Object.values(COLUMN_HISTORY_TYPES));
@@ -4589,6 +4592,9 @@ function ThreeCanvas({
 
         const vetroCatalogItem = obj.userData?.kind === 'VETRO_PRODUCT'
           ? catalogByCodeRef.current?.get?.(String(bomCode)) || null : null;
+        const koncisaCommercial = koncisaAssembly
+          ? resolveCatalogCommercialFields(bomCode, catalogByCodeRef.current, countryRef.current, obj.userData?.description || '')
+          : null;
         addRow(
           String(bomCode),
           1,
@@ -4596,13 +4602,15 @@ function ThreeCanvas({
              ? vetroCatalogItem?.ui?.title || vetroCatalogItem?.raw?.descLarga || 'Descripción no disponible'
              : isLeaderGrommet
             ? resolveCatalogDescription(bomCode, obj.userData?.description || '')
+            : koncisaCommercial
+              ? koncisaCommercial.description
             : obj.userData?.kind === 'PRIVACY_PANEL'
               ? resolveCatalogDescription(code, obj.userData?.description || '')
               : obj.userData?.description || null,
-           isLeaderGrommet || obj.userData?.kind === 'VETRO_PRODUCT' ? null : obj.userData?.unitPrice || 0,
+           koncisaCommercial || isLeaderGrommet || obj.userData?.kind === 'VETRO_PRODUCT' ? null : obj.userData?.unitPrice || 0,
           groupId,
           groupName,
-          obj.userData?.prices || undefined,
+          koncisaCommercial ? koncisaCommercial.prices : obj.userData?.prices || undefined,
           null,
           groupInstanceId,
            typologyReferenceCode,
@@ -14047,6 +14055,11 @@ function ThreeCanvas({
     }
 
     onApiReady?.({
+      getProjectTypologyKeys: () => {
+        const objects = [];
+        scene.traverse((object) => objects.push(object));
+        return selectProjectTypologyKeys(objects);
+      },
       getImportedModelGroupSelectionState,
       markImportedModelGroup,
       setImportedModelGroupSelectionTest,
@@ -14565,6 +14578,12 @@ function ThreeCanvas({
         area2DHistoryActionTypes.has(action?.type) ? historyManager.pushAction(action) : null,
       setArea2DHistoryReplayHandler: (handler) => {
         area2DHistoryReplayHandler = typeof handler === 'function' ? handler : null;
+        return true;
+      },
+      recordPickListHistoryAction: (action) =>
+        action?.type === HISTORY_ACTION_TYPES.PICKLIST_CHANGE ? historyManager.pushAction(action) : null,
+      setPickListHistoryReplayHandler: (handler) => {
+        pickListHistoryReplayHandler = typeof handler === 'function' ? handler : null;
         return true;
       },
       selectFloor,
@@ -15736,6 +15755,11 @@ function ThreeCanvas({
           throw new Error('Area2D history replay handler is not registered.');
         }
         return area2DHistoryReplayHandler(action, direction);
+      } else if (action.type === HISTORY_ACTION_TYPES.PICKLIST_CHANGE) {
+        if (typeof pickListHistoryReplayHandler !== 'function') {
+          throw new Error('PickList history replay handler is not registered.');
+        }
+        return pickListHistoryReplayHandler(action, direction);
       }
       if (
         action.type.startsWith('CRITERIUM_') ||
@@ -25417,6 +25441,7 @@ function ThreeCanvas({
       dimensionHistoryReplayHandler = null;
       shape2DHistoryReplayHandler = null;
       area2DHistoryReplayHandler = null;
+      pickListHistoryReplayHandler = null;
       columnHistoryReplayHandler = null;
       architectureFinishReplayHandler = null;
       historyManager.clearHistory();

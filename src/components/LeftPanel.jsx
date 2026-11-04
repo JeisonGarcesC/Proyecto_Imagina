@@ -21,6 +21,7 @@ import { loadEdukItems } from '../mepal/eduk/catalog/edukLoader';
 import { loadMoreaItems } from '../services/moreaLoader';
 import './LeftPanel.css';
 import SpecialFinishesPanel from './SpecialFinishesPanel.jsx';
+import PickListPanel from '../picklist/PickListPanel.jsx';
 
 import KoncisaPlusPanel from './KoncisaPlusPanel';
 import { createKoncisaPlusInstance } from '../mepal/koncisaPlus/factories/createKoncisaPlusInstance';
@@ -294,6 +295,12 @@ function ShapeRotationInput({ shape, onApply, inputStyle, labelStyle }) {
 
 export default function LeftPanel({
   section,
+  pickListItems = [],
+  pickListTypologies = [],
+  onAddPickListItem,
+  onUpdatePickListItem,
+  onRemovePickListItem,
+  onImportPickList,
   areaToolActive = false,
   onAreaToolChange,
   areaMethod = 'POLYGON',
@@ -304,6 +311,7 @@ export default function LeftPanel({
   readOnly,
   // datos
   catalogItems,
+  catalogByCode,
   country,
   categoriaTipologiaId,
   profundidadFilter,
@@ -1460,6 +1468,11 @@ export default function LeftPanel({
             </label>
           </fieldset>
         </section>
+      )}
+      {section === 'picklist' && (
+        <PickListPanel items={pickListItems} tipologias={pickListTypologies} catalogByCode={catalogByCode} country={country} onAdd={onAddPickListItem}
+          onUpdate={onUpdatePickListItem} onRemove={onRemovePickListItem}
+          onImport={onImportPickList} readOnly={readOnly} />
       )}
       {/* ======================= CATALOGO ======================= */}
       {section === 'catalog' && (

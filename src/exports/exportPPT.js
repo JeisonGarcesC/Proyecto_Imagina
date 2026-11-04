@@ -100,10 +100,10 @@ export async function exportProjectPPT({
         .slice(0, 20)
         .map((r) => [
           String(r.code ?? ''),
-          String(r.description ?? ''),
+          r.source === 'PICKLIST' ? `${String(r.description ?? '')} · ${r.tipologiaKey ? `TIPOLOGÍA - ${r.tipologiaKey}` : 'PICKLIST'}` : String(r.description ?? ''),
           String(r.qty ?? ''),
-          String(r.unitPrice ?? ''),
-          String(r.total ?? ''),
+          r.source === 'PICKLIST' && r.unitPrice == null ? 'Precio no disponible' : String(r.unitPrice ?? ''),
+          r.source === 'PICKLIST' && r.unitPrice == null ? 'Precio no disponible' : String(r.total ?? ''),
         ])
     );
 

@@ -90,6 +90,9 @@ import { ADMIN_AUDIT_PATH, ADMIN_DEVICES_PATH, ADMIN_ROLES_PATH, ADMIN_USERS_PAT
 
 import LeftRail from './components/LeftRail';
 import LeftPanel from './components/LeftPanel';
+import { addPickListItem, updatePickListItem, pickListBomRows, restorePickList } from './picklist/pickList.js';
+import { validatePickListImport } from './picklist/pickListParser.js';
+import { resolvePickListTypology } from './picklist/pickListTypologies.js';
 import { prepareSpecialFinishVisual } from './specialFinishes/specialFinishVisual.js';
 import { snapshotSpecialFinish } from './specialFinishes/specialFinishPersistence.js';
 import { ARCHITECTURE_FINISH_HISTORY_TYPE, findArchitectureFinish, restoreArchitectureFinishes, setArchitectureFinish } from './specialFinishes/architectureSpecialFinishes.js';
@@ -618,13 +621,58 @@ export default function App() {
   const [byCode, setByCode] = useState(new Map());
   const [sceneBomItems, setSceneBomItems] = useState([]);
   const [xmlBomProjects, setXmlBomProjects] = useState([]);
+  const [pickListItems, setPickListItems] = useState([]);
+  const pickListItemsRef = useRef([]);
+  const pickListTypologies = useMemo(() => threeApi?.getProjectTypologyKeys?.() || [], [threeApi, sceneBomItems]);
+  useEffect(() => {
+    if (!threeApi?.setPickListHistoryReplayHandler) return undefined;
+    threeApi.setPickListHistoryReplayHandler((action, direction) => {
+      const restored = restorePickList(direction === 'undo' ? action.before : action.after);
+      pickListItemsRef.current = restored;
+      setPickListItems(restored);
+      return true;
+    });
+    return () => threeApi.setPickListHistoryReplayHandler(null);
+  }, [threeApi]);
+  const commitPickList = (next) => {
+    const before = pickListItemsRef.current;
+    if (JSON.stringify(before) === JSON.stringify(next)) return;
+    threeApiRef.current?.recordPickListHistoryAction?.({
+      type: HISTORY_ACTION_TYPES.PICKLIST_CHANGE, before, after: next,
+    });
+    pickListItemsRef.current = next;
+    setPickListItems(next);
+  };
+  const handleAddPickListItem = (input) => {
+    if (readOnly) return;
+    const tipologia = input.tipologia ? resolvePickListTypology(input.tipologia, pickListTypologies) : null;
+    if (input.tipologia && !tipologia) throw new Error('La tipología seleccionada no existe.');
+    commitPickList(addPickListItem(pickListItemsRef.current, { ...input, tipologiaKey: tipologia }));
+  };
+  const handleUpdatePickListItem = (id, patch) => {
+    if (readOnly) return;
+    const tipologia = patch.tipologia ? resolvePickListTypology(patch.tipologia, pickListTypologies) : null;
+    if (patch.tipologia && !tipologia) throw new Error('La tipología seleccionada no existe.');
+    commitPickList(updatePickListItem(pickListItemsRef.current, id, { ...patch, tipologiaKey: tipologia }));
+  };
+  const handleRemovePickListItem = (id) => {
+    if (readOnly) return;
+    commitPickList(pickListItemsRef.current.filter((item) => item.id !== id));
+  };
+  const handleImportPickList = (rows) => {
+    if (readOnly) return { found: 0, accepted: [], rejected: ['Edición deshabilitada.'] };
+    const report = validatePickListImport(rows, pickListItemsRef.current, pickListTypologies);
+    if (report.accepted.length) commitPickList([...pickListItemsRef.current, ...report.accepted]);
+    return report;
+  };
   const bomItems = useMemo(() => [
-    ...sceneBomItems, ...xmlBomRows(xmlBomProjects, byCode, country),
-  ], [sceneBomItems, xmlBomProjects, byCode, country]);
+    ...sceneBomItems, ...xmlBomRows(xmlBomProjects, byCode, country), ...pickListBomRows(pickListItems),
+  ], [sceneBomItems, xmlBomProjects, byCode, country, pickListItems]);
   const [bomOpen, setBomOpen] = useState(false);
   const [detailLevel, setDetailLevel] = useState(4);
 
   const bomTotal = useMemo(() => {
+    if (bomItems.some((item) => item.source === 'PICKLIST' && item.unitPrice === null)) return null;
     return (bomItems || []).reduce((acc, it) => {
       const qty = Number(it?.qty || 0);
       const unitPrice = Number(it?.unitPrice ?? it?.price ?? 0);
@@ -934,6 +982,7 @@ export default function App() {
       dimensions,
       areaMeasurements: areaMeasurements.map(serializeAreaMeasurement),
       xmlBomProjects,
+      pickListItems,
       plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
       architecture: {
         ...(project.architecture || {}),
@@ -1031,6 +1080,9 @@ export default function App() {
 
   const loadProjectData = async (project) => {
     setXmlBomProjects(Array.isArray(project?.xmlBomProjects) ? project.xmlBomProjects : []);
+    const restoredPickList = restorePickList(project?.pickListItems);
+    pickListItemsRef.current = restoredPickList;
+    setPickListItems(restoredPickList);
     setDimensions(Array.isArray(project?.dimensions) ? project.dimensions.flatMap((dimension) => {
       try { const restored = createDimension2D(dimension); return restored ? [restored] : []; } catch { return []; }
     }) : []);
@@ -1062,6 +1114,12 @@ export default function App() {
     setOpenings(deserializeOpenings(project));
     await restorePlan2DFromProject(project);
     const result = await threeApiRef.current?.loadProject?.(project);
+    const availableKeys = new Set(threeApiRef.current?.getProjectTypologyKeys?.() || []);
+    const validPickList = restoredPickList.map((item) => ({
+      ...item, tipologiaKey: availableKeys.has(item.tipologiaKey) ? item.tipologiaKey : null,
+    }));
+    pickListItemsRef.current = validPickList;
+    setPickListItems(validPickList);
     setCritteriumHistoryRevision((value) => value + 1);
     return result;
   };
@@ -1386,6 +1444,8 @@ export default function App() {
         onLogout={logout}
         onNewProject={() => {
           setXmlBomProjects([]);
+          pickListItemsRef.current = [];
+          setPickListItems([]);
           setDimensions([]);
           setAreaMeasurements([]);
           setAreaToolActive(false);
@@ -1532,6 +1592,13 @@ export default function App() {
 
             {/* PANEL */}
             <LeftPanel
+              pickListItems={pickListItems}
+              pickListTypologies={pickListTypologies}
+              catalogByCode={byCode}
+              onAddPickListItem={handleAddPickListItem}
+              onUpdatePickListItem={handleUpdatePickListItem}
+              onRemovePickListItem={handleRemovePickListItem}
+              onImportPickList={handleImportPickList}
               areaToolActive={areaToolActive}
               onAreaToolChange={setAreaToolActive}
               areaMethod={areaMethod}
@@ -2055,6 +2122,10 @@ export default function App() {
           <BOMWindow open={bomOpen} title="BOM - Proyecto" onClose={() => setBomOpen(false)}>
             <BOMView
               items={bomItems}
+              onAddManualCode={handleAddPickListItem}
+              pickListTypologies={pickListTypologies}
+              catalogByCode={byCode}
+              readOnly={readOnly}
               defaultCountry="CO"
               catalogCountries={CATALOG_COUNTRIES}
               onTypologyReferenceCodeChange={(groupId, code) =>

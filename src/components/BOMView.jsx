@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { resolveBomExportQuantities } from '../utils/bomExportQuantities.js';
 import { buildImageAssetCandidates } from '../utils/imageAssetPaths';
 import { shouldShowBomCategoryHeading } from './bomCategoryHeading.js';
+import PickListEditor from '../picklist/PickListEditor.jsx';
+import { appendPickListBomGroups } from '../picklist/pickListBomGroups.js';
 
 function moneyByCountry(v, country = 'CO') {
   const n = Number(v || 0);
@@ -26,6 +28,7 @@ function safeStr(v) {
 }
 
 const BOM_CATEGORY_LABELS = {
+  picklist: 'PICKLIST',
   control: 'Botonera',
   botonera: 'Botonera',
   ducto: 'Ducto',
@@ -89,6 +92,10 @@ export default function BOMView({
   defaultCountry = 'CO',
   catalogCountries = ['CO', 'EUC', 'USD'],
   onTypologyReferenceCodeChange,
+  onAddManualCode,
+  pickListTypologies = [],
+  catalogByCode,
+  readOnly = false,
 }) {
   const [q, setQ] = useState('');
   const [localCountry, setLocalCountry] = useState(defaultCountry);
@@ -96,6 +103,7 @@ export default function BOMView({
   const [sortDir, setSortDir] = useState('asc'); // asc | desc
   const [groupMode, setGroupMode] = useState('typology');
   const [showModal, setShowModal] = useState(false);
+  const [showManualCode, setShowManualCode] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportScope, setExportScope] = useState('all');
   const [corporateData, setCorporateData] = useState({
@@ -133,7 +141,7 @@ export default function BOMView({
       // ✅ soporta unitPrice o price
       const fallbackUnitPrice = Number(it.unitPrice ?? it.price ?? 0);
       const priceAvailable = it.priceAvailability ? it.priceAvailability[localCountry] === true : true;
-      const unitPrice = priceAvailable ? Number(prices[localCountry] || fallbackUnitPrice) : null;
+      const unitPrice = priceAvailable ? (it.source === 'PICKLIST' ? fallbackUnitPrice : Number(prices[localCountry] || fallbackUnitPrice)) : null;
 
       // ✅ soporta total explícito o qty*unitPrice
       const total = priceAvailable ? Number(qty * unitPrice) : null;
@@ -153,9 +161,11 @@ export default function BOMView({
 
       return {
         // para agrupar: tipologías como "T:<codigo>", sueltos como "S:SUELTOS"
-        groupKey: isGrouped ? `T:${bomGroupKey || gid}` : 'S:SUELTOS',
-        groupLabel: isGrouped ? gname || `Tipología ${gid}` : 'SUELTOS',
-        typologyCode: it.typologyCode !== undefined ? safeStr(it.typologyCode) : gid,
+        groupKey: it.source === 'PICKLIST' ? `P:${it.tipologiaKey || 'PICKLIST'}` : isGrouped ? `T:${bomGroupKey || gid}` : 'S:SUELTOS',
+        groupLabel: it.source === 'PICKLIST' ? it.tipologiaKey ? `TIPOLOGÍA - ${it.tipologiaKey}` : 'PICKLIST' : isGrouped ? gname || `Tipología ${gid}` : 'SUELTOS',
+        typologyCode: it.source === 'PICKLIST' ? '' : it.typologyCode !== undefined ? safeStr(it.typologyCode) : gid,
+        source: it.source,
+        tipologiaKey: it.tipologiaKey || (it.source !== 'PICKLIST' && isGrouped ? gid : null),
 
         code: safeStr(it.code),
         description: it.category === 'CRITTERIUM_8'
@@ -164,10 +174,10 @@ export default function BOMView({
         reference: it.reference ?? null,
         materialCode: it.materialCode ?? null,
         finishCode: it.finishCode ?? null,
-        category: it.category === 'CRITTERIUM_8'
+        category: it.source === 'PICKLIST' ? 'PICKLIST' : it.category === 'CRITTERIUM_8'
           ? 'CRITTERIUM_8'
           : resolveBomCategoryLabel(it.category || it.section || it.bomSection || it.type),
-        hideCategoryHeading: it.hideCategoryHeading === true,
+        hideCategoryHeading: it.source === 'PICKLIST' || it.hideCategoryHeading === true,
         qty,
         groupCount: Number(it.groupCount || 0),
         typologyReferenceCode: safeStr(it.typologyReferenceCode).replace(/\D+/g, ''),
@@ -192,7 +202,8 @@ export default function BOMView({
     const dir = sortDir === 'asc' ? 1 : -1;
 
     const buildGroups = (sourceRows) => {
-      const rowsToGroup = [...sourceRows];
+      const pickRows = sourceRows.filter((row) => row.source === 'PICKLIST');
+      const rowsToGroup = sourceRows.filter((row) => row.source !== 'PICKLIST');
       const consolidateRows = (rows) => {
       const byCode = new Map();
       for (const row of rows) {
@@ -208,7 +219,7 @@ export default function BOMView({
         byCode.set(key, {
           ...previous,
           qty,
-          total: qty * Number(previous.unitPrice || 0),
+          total: previous.priceAvailable ? qty * Number(previous.unitPrice || 0) : null,
           groupCount: Math.max(Number(previous.groupCount || 0), Number(row.groupCount || 0)),
         });
       }
@@ -217,14 +228,14 @@ export default function BOMView({
 
       let groupArr;
     if (groupMode === 'consolidated') {
-      groupArr = [
+      groupArr = rowsToGroup.length ? [
         {
           key: 'ALL:CONSOLIDADO',
           label: qq ? 'RESULTADOS' : 'TODOS',
           items: consolidateRows(rowsToGroup),
           subtotal: 0,
         },
-      ];
+      ] : [];
     } else if (groupMode === 'classification') {
       const map = new Map();
       for (const row of rowsToGroup) {
@@ -264,9 +275,14 @@ export default function BOMView({
       });
     }
 
+      appendPickListBomGroups(groupArr, pickRows, groupMode);
+
       // Ordenar y totalizar las filas dentro de cada agrupación elegida.
       for (const g of groupArr) {
       g.items.sort((a, b) => {
+        if (g.pickListTypologyKey && (a.source === 'PICKLIST') !== (b.source === 'PICKLIST')) {
+          return a.source === 'PICKLIST' ? 1 : -1;
+        }
         if (groupMode === 'typology') {
           const categoryOrder = compareBomCategories(a.category, b.category);
           if (categoryOrder) return categoryOrder;
@@ -306,6 +322,7 @@ export default function BOMView({
       (sum, group) => sum + Number(group.subtotal || 0),
       0
     );
+    const exportHasUnavailablePrice = groupsToExport.some((group) => group.hasUnavailablePrice);
     const electronSave = window.electronAPI?.saveBomXlsx;
 
     const excelModule = await import('exceljs/dist/exceljs.min.js');
@@ -493,8 +510,8 @@ export default function BOMView({
           quantity,
           '',
           isTypologyGroup ? totalQuantity : '',
-          r.unitPrice,
-          r.total,
+          r.priceAvailable ? r.unitPrice : 'Precio no disponible',
+          r.priceAvailable ? r.total : 'Precio no disponible',
           '',
         ]);
         itemRowNumbers.push(row.number);
@@ -521,7 +538,7 @@ export default function BOMView({
         });
       }
 
-      const subtotalRow = ws.addRow(['', 'Subtotal', '', '', '', '', g.subtotal, '']);
+      const subtotalRow = ws.addRow(['', 'Subtotal', '', '', '', '', g.hasUnavailablePrice ? 'Precio no disponible' : g.subtotal, '']);
       ['A', 'C', 'D', 'E', 'F', 'H'].forEach((col) => applyStyle(ws.getCell(`${col}${subtotalRow.number}`)));
       applyStyle(ws.getCell(`B${subtotalRow.number}`), {
         font: { bold: true, color: { argb: 'FF000000' } },
@@ -537,7 +554,7 @@ export default function BOMView({
       ws.addRow([]);
     }
 
-    const totalRow = ws.addRow(['', 'TOTAL', '', '', '', '', exportGrandTotal, '']);
+    const totalRow = ws.addRow(['', 'TOTAL', '', '', '', '', exportHasUnavailablePrice ? 'Precio no disponible' : exportGrandTotal, '']);
     ['A', 'C', 'D', 'E', 'F', 'H'].forEach((col) => applyStyle(ws.getCell(`${col}${totalRow.number}`)));
     applyStyle(ws.getCell(`B${totalRow.number}`), {
       fill: fillPurple,
@@ -802,6 +819,10 @@ export default function BOMView({
             >
               Exportar
             </button>
+            {!readOnly && <button type="button" onClick={() => setShowManualCode(true)}
+              style={{ height: 34, borderRadius: 8, border: `1px solid ${palette.line}`, background: '#fff', padding: '0 12px', fontWeight: 700, cursor: 'pointer' }}>
+              ➕ Agregar código manual
+            </button>}
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -875,7 +896,11 @@ export default function BOMView({
               <tbody>
                 {groups.map((g) => {
                   const typologyCode = g.items.find((item) => item.typologyCode)?.typologyCode || '';
-                  const typologyTitle = g.key?.startsWith('T:')
+                  const typologyTitle = g.pickListTypologyKey
+                    ? `TIPOLOGÍA - ${g.pickListTypologyKey}`
+                    : g.key?.startsWith('P:')
+                    ? g.label
+                    : g.key?.startsWith('T:')
                     ? typologyCode ? `Tipología - ${typologyCode}` : 'Tipología'
                     : g.key === 'C:TIPOLOGIAS' || g.key === 'C:SUELTOS'
                       ? 'Clasificación'
@@ -934,7 +959,7 @@ export default function BOMView({
                               >
                                 {typologyTitle}
                               </div>
-                              <div style={{ lineHeight: 1.35 }}>{g.label}</div>
+                              {!g.key.startsWith('P:') && !g.pickListTypologyKey && <div style={{ lineHeight: 1.35 }}>{g.label}</div>}
                             </div>
                           </div>
                           <div
@@ -964,7 +989,7 @@ export default function BOMView({
                         <React.Fragment key={JSON.stringify([
                           g.key, r.category, r.code, r.reference, r.materialCode, r.finishCode, i,
                         ])}>
-                          {shouldShowBomCategoryHeading({ groupMode, row: r, previousRow: g.items[i - 1], index: i }) && (
+                          {!g.pickListTypologyKey && shouldShowBomCategoryHeading({ groupMode, row: r, previousRow: g.items[i - 1], index: i }) && (
                               <tr>
                                 <td
                                   colSpan={6}
@@ -1123,6 +1148,12 @@ export default function BOMView({
           </div>
         </div>
       </div>
+
+      {showManualCode && <div role="dialog" aria-label="Agregar código manual" style={{ position: 'fixed', inset: 0, zIndex: 10020, display: 'grid', placeItems: 'center', background: 'rgba(15,23,42,0.48)' }}>
+        <div style={{ width: 'min(380px, 92vw)' }}>
+          <PickListEditor tipologias={pickListTypologies} catalogByCode={catalogByCode} country={localCountry} onCancel={() => setShowManualCode(false)} onSave={(form) => { onAddManualCode?.(form); setShowManualCode(false); }} />
+        </div>
+      </div>}
 
       {/* Modal de datos corporativos */}
       {showModal && (

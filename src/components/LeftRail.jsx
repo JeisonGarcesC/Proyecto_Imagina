@@ -8,6 +8,7 @@ export default function LeftRail({ active, onChange, canViewSpecialFinishes = fa
     { id: 'openings', label: 'Puertas/Ventanas', icon: '🚪' },
     { id: 'elements2d', label: 'Elementos 2D', icon: '◇' },
     { id: 'tools', label: 'Herramientas', icon: '🛠' },
+    { id: 'picklist', label: 'PickList', icon: '🧾' },
     { id: 'materials', label: 'Materiales', icon: '🎨' },
     ...(canViewSpecialFinishes ? [{ id: 'specialFinishes', label: 'Acabados Especiales', icon: '✦' }] : []),
     { id: 'plans', label: 'Planos', icon: '🗺️' },
