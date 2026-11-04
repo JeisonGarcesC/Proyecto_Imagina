@@ -1,6 +1,8 @@
 import LinkPanel from './LinkPanel.jsx';
+import TekSocialDancerPanel from './TekSocialDancerPanel.jsx';
 import MultiplePanel from './MultiplePanel.jsx';
 import CriteriumPanel from './CriteriumPanel.jsx';
+import CompendioPanel from './CompendioPanel.jsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadTipologiasDetalle } from '../services/tipologiasDetalle';
 import {
@@ -440,6 +442,7 @@ export default function LeftPanel({
 
   // MEPAL TEK SOCIAL states
   const [qMepalTekSocial, setQMepalTekSocial] = useState('');
+  const [tekSocialMenu, setTekSocialMenu] = useState('productos');
   const [mepalTekSocialItems, setMepalTekSocialItems] = useState([]);
   const [mepalTekSocialReady, setMepalTekSocialReady] = useState(false);
 
@@ -2612,6 +2615,45 @@ export default function LeftPanel({
             <span style={{ display: 'block' }}>TekSocial</span>
           </h1>
 
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            {[
+              { id: 'productos', label: 'Productos' },
+              { id: 'dancer', label: 'Mesas Dancer' },
+            ].map((tab) => {
+              const active = tekSocialMenu === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setTekSocialMenu(tab.id)}
+                  style={{
+                    flex: 1,
+                    height: 34,
+                    borderRadius: 8,
+                    border: '1px solid #d1d5db',
+                    background: active ? '#111827' : '#fff',
+                    color: active ? '#fff' : '#111827',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {tekSocialMenu === 'dancer' && (
+            <TekSocialDancerPanel
+              threeApiRef={threeApiRef}
+              readOnly={readOnly}
+              country={country}
+            />
+          )}
+
+          {tekSocialMenu === 'productos' && (
+            <>
           <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
             Selecciona un producto Mepal TekSocial para agregarlo al proyecto.
           </div>
@@ -2659,6 +2701,8 @@ export default function LeftPanel({
               </button>
             ))}
           </div>
+            </>
+          )}
         </>
       )}
 
@@ -2863,6 +2907,11 @@ export default function LeftPanel({
       {/* ======================= KUO ALTURA VARIABLE ======================= */}
       {section === 'kuoAlturaVariable' && (
         <KuoAVPanel threeApiRef={threeApiRef} />
+      )}
+
+      {/* ======================= COMPENDIO ======================= */}
+      {section === 'compendio' && (
+        <CompendioPanel threeApiRef={threeApiRef} readOnly={readOnly} />
       )}
     </div>
   );

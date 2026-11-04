@@ -4,6 +4,7 @@ import { CLIPBOARD_VERSION } from './clipboardManager.js';
 export const CLIPBOARD_CONSTRUCTORS = Object.freeze({
   ADD_CATALOG_ITEM: 'ADD_CATALOG_ITEM',
   ADD_LINK: 'ADD_LINK',
+  ADD_COMPENDIO: 'ADD_COMPENDIO',
   ADD_LOCKER: 'ADD_LOCKER',
   ADD_VETRO_SYSTEM: 'ADD_VETRO_SYSTEM',
   ADD_EXTERNAL_GLB: 'ADD_EXTERNAL_GLB',
@@ -120,6 +121,10 @@ const instructionAdapters = [
   {
     matches: (item) => item.kind === 'LINK_PRODUCT',
     build: (item) => createBaseInstruction(item, CLIPBOARD_CONSTRUCTORS.ADD_LINK),
+  },
+  {
+    matches: (item) => item.kind === 'COMPENDIO_PRODUCT',
+    build: (item) => createBaseInstruction(item, CLIPBOARD_CONSTRUCTORS.ADD_COMPENDIO),
   },
   {
     matches: (item) => item.kind === 'LOCKER_PRODUCT',

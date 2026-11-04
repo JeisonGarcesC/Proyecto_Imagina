@@ -1,5 +1,6 @@
 const LOADERS = {
   LINK_PRODUCT: (entity, context) => context.createLink(entity),
+  COMPENDIO_PRODUCT: (entity, context) => context.createCompendio(entity),
   MULTIPLE_PRODUCT: (entity, context) => context.createMultiple(entity),
   MULTIPLE_SYSTEM: (entity, context) => context.createMultipleSystem(entity),
   LOCKER_PRODUCT: (entity, context) => context.createLocker(entity),
@@ -23,7 +24,10 @@ const LOADERS = {
   ARES: (entity, context) => context.addAres(entity.codigoPT),
   MEPAL_SALUD: (entity, context) =>
     context.addMepalSalud(entity.codigoPT, { variant: entity.metadata?.mepalVariant }),
-  MEPAL_TEK_SOCIAL: (entity, context) => context.addMepalTekSocial(entity.codigoPT),
+  MEPAL_TEK_SOCIAL: (entity, context) =>
+    context.addMepalTekSocial(entity.codigoPT, {
+      tekSocialDancer: entity.metadata?.tekSocialDancer,
+    }),
   ALMACENAMIENTO: (entity, context) =>
     context.addZen(entity.codigoPT, {
       variant: entity.metadata?.almacenVariant || 'base',
@@ -47,7 +51,7 @@ export function getEntityLoader(kind) {
 export async function loadPersistedEntity(entity, context) {
   const loader = getEntityLoader(entity?.kind);
   if (!loader) throw new Error(`UNSUPPORTED_KIND:${entity?.kind || 'UNKNOWN'}`);
-  if (!entity?.codigoPT && !['LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM', 'SURFACE', 'CRITTERIUM_8', 'CRITTERIUM_8_SEQUENCE', 'CRITERIUM_SYSTEM', 'VETRO_PRODUCT', 'VETRO_SYSTEM', 'VETRO_ASSEMBLY', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
+  if (!entity?.codigoPT && !['LINK_PRODUCT', 'COMPENDIO_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM', 'SURFACE', 'CRITTERIUM_8', 'CRITTERIUM_8_SEQUENCE', 'CRITERIUM_SYSTEM', 'VETRO_PRODUCT', 'VETRO_SYSTEM', 'VETRO_ASSEMBLY', 'MILA', 'IMPORTED_MODEL'].includes(entity?.kind)) {
     throw new Error('MISSING_CODIGO_PT');
   }
 

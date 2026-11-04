@@ -1,4 +1,5 @@
 import { serializeLinkEntity } from '../../mepal/link/integration/linkPersistence.js';
+import { serializeCompendioEntity } from '../../mepal/compendio/integration/compendioPersistence.js';
 import { serializeMultipleEntity } from '../../mepal/multiple/integration/multipleIntegration.js';
 import { serializeMultipleSystem } from '../../mepal/multiple/system/multipleSystemSerialization.js';
 import { serializeCritterium8Sequence } from '../../mepal/critterium8/integration/critterium8SequencePersistence.js';
@@ -33,7 +34,7 @@ const METADATA_FIELDS = {
   EDUK: ['edukVariant', 'edukSelection', 'edukHeight', 'edukWidth', 'edukAbatible'],
   ARES: [],
   MEPAL_SALUD: ['mepalVariant'],
-  MEPAL_TEK_SOCIAL: [],
+  MEPAL_TEK_SOCIAL: ['tekSocialDancer'],
   ALMACENAMIENTO: [
     'legacyKind',
     'family',
@@ -363,6 +364,15 @@ export function serializeProjectEntities(parts = [], options = {}) {
 
   parts.forEach((partRecord) => {
     const object = partRecord?.obj;
+    if (object?.userData?.kind !== 'COMPENDIO_PRODUCT') return;
+    const instanceId = object.userData.instanceId || object.uuid;
+    if (processedAssemblies.has(instanceId)) return;
+    processedAssemblies.add(instanceId);
+    entities.push(serializeCompendioEntity(object));
+  });
+
+  parts.forEach((partRecord) => {
+    const object = partRecord?.obj;
     if (object?.userData?.kind !== 'MULTIPLE_PRODUCT') return;
     if (object.userData.systemId || object.parent?.userData?.kind === 'MULTIPLE_SYSTEM') return;
     const instanceId = object.userData.instanceId || object.uuid;
@@ -388,8 +398,9 @@ export function serializeProjectEntities(parts = [], options = {}) {
       partRecord?.obj?.userData?.kind === 'CRITERIUM_SYSTEM' ||
       partRecord?.obj?.userData?.kind === 'CRITTERIUM_8_SPATIAL_KIT' ||
       findMilaAssembly(partRecord?.obj) ||
-      ['VETRO_PRODUCT', 'VETRO_SYSTEM', 'VETRO_ASSEMBLY', 'LOCKER_PRODUCT', 'LINK_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM'].includes(partRecord?.obj?.userData?.kind) ||
+      ['VETRO_PRODUCT', 'VETRO_SYSTEM', 'VETRO_ASSEMBLY', 'LOCKER_PRODUCT', 'LINK_PRODUCT', 'COMPENDIO_PRODUCT', 'MULTIPLE_PRODUCT', 'MULTIPLE_SYSTEM'].includes(partRecord?.obj?.userData?.kind) ||
       partRecord?.obj?.userData?.parametricOwner === 'LINK_PRODUCT' ||
+      partRecord?.obj?.userData?.parametricOwner === 'COMPENDIO_PRODUCT' ||
       partRecord?.obj?.userData?.parametricOwner === 'MULTIPLE_PRODUCT' ||
       isKoncisaPersistenceObject(partRecord?.obj)
     ) {

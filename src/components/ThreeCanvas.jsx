@@ -13,6 +13,13 @@ import { rebuildLinkInstance } from '../mepal/link/integration/rebuildLinkInstan
 import { restoreLinkEntity } from '../mepal/link/integration/linkPersistence.js';
 import { createLinkComponentPatch } from '../mepal/link/integration/linkComponentEditing.js';
 import { persistLinkComponentTransforms } from '../mepal/link/integration/linkComponentIdentity.js';
+import { createCompendioInstance } from '../mepal/compendio/factories/createCompendioInstance.js';
+import {
+  registerCompendioInstance,
+  getCompendioRoot,
+  getCompendioSelectionInfo,
+} from '../mepal/compendio/integration/compendioRegistration.js';
+import { rebuildCompendioInstance } from '../mepal/compendio/integration/rebuildCompendioInstance.js';
 import { createMultipleInstance } from '../mepal/multiple/factories/createMultipleInstance.js';
 import {
   registerMultipleInstance,
@@ -161,6 +168,8 @@ import {
   normalizeSaludVariantCode,
 } from '../mepal/salud/products/saludVariantDefinition';
 import { createTekSocialInstance } from '../mepal/tekSocial/factories/createTekSocialInstance';
+import { createDancerInstance } from '../mepal/tekSocial/dancer/createDancerInstance.js';
+import { isDancerPlanCode, normalizeDancerConfig } from '../mepal/tekSocial/dancer/dancerCatalog.js';
 import { createZenInstance } from '../mepal/zen/factories/createZenInstance.js';
 import { createCritterium8Instance } from '../mepal/critterium8/factories/createCritterium8Instance.js';
 import { resolveCritterium8BOM } from '../mepal/critterium8/bom/critterium8BOM.js';
@@ -265,7 +274,6 @@ import {
   normalizeZenVariantCode,
   getZenBibliotecaFamily,
   resolveZenBillingTier,
-  isZenBibliotecaCode,
 } from '../mepal/zen/products/zenVariantDefinition.js';
 
 import {
@@ -344,7 +352,6 @@ import {
 } from './properties/clakPuffVariants';
 import {
   getEdukShelfHeightInfoByCode,
-  getEdukHeightInfoByCode,
   getEdukWidthInfoByCode,
   resolveEdukCodeBySelection,
 } from '../mepal/eduk/products/edukShelfHeightDefinition';
@@ -2583,6 +2590,7 @@ function ThreeCanvas({
         config: obj.userData?.config || null,
         userData: obj.userData || null,
         ...(obj.userData?.kind === 'LINK_PRODUCT' ? getLinkSelectionInfo(obj, activeSubMesh) : {}),
+        ...(obj.userData?.kind === 'COMPENDIO_PRODUCT' ? getCompendioSelectionInfo(obj, activeSubMesh) : {}),
         ...(obj.userData?.kind === 'MULTIPLE_PRODUCT'
           ? {
             multiple: {
@@ -2861,6 +2869,7 @@ function ThreeCanvas({
         .map(({ obj, code }) => {
           if (!obj) return null;
           if (obj.userData?.kind === 'LINK_PRODUCT') return null;
+          if (obj.userData?.kind === 'COMPENDIO_PRODUCT') return null;
           if (obj.userData?.kind === 'VETRO_PRODUCT' && !obj.userData?.vetroConnectionId && !isVetroWallArrivalKit(obj)) {
             return null;
           }
@@ -3679,7 +3688,24 @@ function ThreeCanvas({
         }
 
         if (obj.userData?.excludeFromBOM) continue;
-        if (obj.userData?.parametricOwner === 'LINK_PRODUCT') continue;
+        if (obj.userData?.parametricOwner === 'LINK_PRODUCT' || obj.userData?.parametricOwner === 'COMPENDIO_PRODUCT') continue;
+
+        if (obj.userData?.kind === 'COMPENDIO_PRODUCT') {
+          for (const item of obj.userData.bom || []) {
+            addRow(
+              item.code,
+              item.quantity,
+              resolveCatalogDescription(item.code, item.description),
+              null,
+              obj.userData.groupId,
+              obj.userData.groupName || 'Compendio',
+              undefined,
+              null,
+              obj.userData.instanceId
+            );
+          }
+          continue;
+        }
 
         if (obj.userData?.kind === 'MULTIPLE_SYSTEM') {
           emitMultipleGlobalBOM(obj, addRow, resolveCatalogDescription);
@@ -4764,6 +4790,8 @@ function ThreeCanvas({
         if (
           current.userData?.kind === 'LINK_PRODUCT' ||
           current.userData?.type === 'LINK_PRODUCT' ||
+          current.userData?.kind === 'COMPENDIO_PRODUCT' ||
+          current.userData?.type === 'COMPENDIO_PRODUCT' ||
           current.userData?.kind === 'KONCISA_PLUS_ASSEMBLY' ||
           current.userData?.type === 'koncisa-plus' ||
           current.userData?.kind === 'CRITTERIUM_8_ASSEMBLY' ||
@@ -6095,10 +6123,128 @@ function ThreeCanvas({
       return obj;
     }
 
+    async function createTekSocialDancerObject(config = {}, options = {}) {
+      let result;
+      try {
+        result = await createDancerInstance({
+          config,
+          country: countryRef.current,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error('No se pudo crear la mesa Dancer de Mepal TekSocial', error);
+        return { success: false, reason: error?.message || 'DANCER_CREATE_FAILED' };
+      }
+
+      const { object, partRecord } = result;
+      object.position.set(Math.max(0, parts.length * 0.9), 0, 0);
+      object.updateMatrixWorld(true);
+
+      (options?.parentGroup || scene).add(object);
+      parts.push(partRecord);
+      pickables.push(object);
+      return { success: true, object };
+    }
+
+    async function addTekSocialDancer(config = {}, options = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const result = await createTekSocialDancerObject(config, options);
+      if (!result.success) return result;
+
+      const { object } = result;
+      syncSelectedIds3D([object.userData.instanceId]);
+      setActivePart(object);
+      if (options.recordHistory !== false) recordCreateObjects({ objects: [object] });
+      emitBOM();
+
+      if (parts.length === 1) frameObject(object);
+      refreshFloorAndGrid();
+      return result;
+    }
+
+    async function updateTekSocialDancer(instanceId, patch = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+
+      const oldObj = parts.find(({ obj }) => {
+        return obj?.userData?.instanceId === instanceId || obj?.uuid === instanceId;
+      })?.obj;
+      const currentConfig = oldObj?.userData?.tekSocialDancer;
+      if (!oldObj || !currentConfig) return { success: false, reason: 'DANCER_NOT_FOUND' };
+
+      let result;
+      try {
+        result = await createDancerInstance({
+          config: normalizeDancerConfig({ ...currentConfig, ...patch }),
+          country: countryRef.current,
+          loadGlb: loadExistingGlb,
+        });
+      } catch (error) {
+        console.error('No se pudo actualizar la mesa Dancer de Mepal TekSocial', error);
+        return { success: false, reason: error?.message || 'DANCER_UPDATE_FAILED' };
+      }
+
+      const { object: newObj, partRecord } = result;
+      const stableId = oldObj.userData?.instanceId || oldObj.uuid;
+      const savedParent = oldObj.parent || scene;
+      const oldIds = new Set(
+        [instanceId, stableId, oldObj.uuid].filter(Boolean).map(String)
+      );
+
+      newObj.userData = { ...oldObj.userData, ...newObj.userData, instanceId: stableId };
+      newObj.position.copy(oldObj.position);
+      newObj.quaternion.copy(oldObj.quaternion);
+      newObj.scale.copy(oldObj.scale);
+
+      removePartObject(oldObj);
+      savedParent.add(newObj);
+      newObj.updateMatrixWorld(true);
+      parts.push(partRecord);
+      pickables.push(newObj);
+
+      const nextSelectedIds = selectedIds3D
+        .map((id) => (oldIds.has(String(id)) ? stableId : id))
+        .filter(Boolean);
+      if (!nextSelectedIds.includes(stableId)) nextSelectedIds.push(stableId);
+      syncSelectedIds3D(Array.from(new Set(nextSelectedIds)));
+      setActivePart(newObj, { targetIds: nextSelectedIds });
+      emitBOM();
+      refreshFloorAndGrid();
+
+      onFloatingEditorRequest?.((prev) =>
+        prev?.open
+          ? {
+              ...prev,
+              part: {
+                ...(prev.part || {}),
+                code: newObj.userData.codigoPT,
+                instanceId: stableId,
+                description: newObj.userData.description,
+                userData: newObj.userData,
+              },
+            }
+          : prev
+      );
+
+      return { success: true, object: newObj };
+    }
+
     async function addMepalTekSocial(codigoMepalTekSocial, options = {}) {
       if (readOnly) return;
       const parentGroup = options?.parentGroup || null;
       const codigo = String(codigoMepalTekSocial);
+
+      if (options?.tekSocialDancer || isDancerPlanCode(codigo)) {
+        const dancer = await createTekSocialDancerObject(
+          { planCode: codigo, ...(options?.tekSocialDancer || {}) },
+          options
+        );
+        if (!dancer.success) return;
+        setActivePart(dancer.object);
+        emitBOM();
+        if (parts.length === 1) frameObject(dancer.object);
+        refreshFloorAndGrid();
+        return dancer.object;
+      }
 
       let result;
       try {
@@ -6377,6 +6523,28 @@ function ThreeCanvas({
       });
       if (!instance.success) return instance;
       const object = registerLinkInstance({
+        instance,
+        parent: options.parentGroup || scene,
+        partsRegistry: parts,
+        pickables,
+      });
+      object.updateMatrixWorld(true);
+      syncSelectedIds3D([object.userData.instanceId]);
+      setActivePart(object);
+      if (options.recordHistory !== false) recordCreateObjects({ objects: [object] });
+      emitBOM();
+      refreshFloorAndGrid();
+      return instance;
+    }
+
+    function addCompendio(config = {}, options = {}) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const instance = createCompendioInstance({
+        config,
+        transform: options.transform,
+      });
+      if (!instance.success) return instance;
+      const object = registerCompendioInstance({
         instance,
         parent: options.parentGroup || scene,
         partsRegistry: parts,
@@ -6706,6 +6874,31 @@ function ThreeCanvas({
       } catch (error) {
         return { success: false, reason: error.message };
       }
+    }
+
+    function updateSelectedCompendio(patch) {
+      if (readOnly) return { success: false, reason: 'READ_ONLY' };
+      const object = getCompendioRoot(activePart);
+      if (!object) return { success: false, reason: 'Selecciona una superficie Compendio.' };
+      const before = JSON.parse(JSON.stringify(object.userData.config || {}));
+      const result = rebuildCompendioInstance({
+        object,
+        patch,
+        partsRegistry: parts,
+      });
+      if (!result.success) return result;
+      if (JSON.stringify(before) !== JSON.stringify(object.userData.config)) {
+        historyManager.pushAction({
+          type: 'COMPENDIO_CONFIG_CHANGE',
+          instanceId: object.userData.instanceId,
+          before,
+          after: JSON.parse(JSON.stringify(object.userData.config)),
+        });
+      }
+      setActivePart(object, { targetIds: selectedIds3D });
+      emitBOM();
+      refreshFloorAndGrid();
+      return result;
     }
 
     async function rebuildKoncisaSurfaceConfiguration(
@@ -12834,6 +13027,16 @@ function ThreeCanvas({
         return registerLinkInstance({ instance, parent: scene, partsRegistry: parts, pickables });
       }
 
+      function createPersistedCompendio(entity) {
+        const instance = createCompendioInstance({
+          config: entity.config,
+          instanceId: entity.instanceId,
+          groupId: entity.groupId,
+          transform: entity.transform,
+        });
+        return registerCompendioInstance({ instance, parent: scene, partsRegistry: parts, pickables });
+      }
+
       function createPersistedMultiple(entity) {
         const instance = restoreMultipleEntity(entity);
         registerMultipleInstance({ instance, parent: scene, partsRegistry: parts, pickables });
@@ -12988,6 +13191,7 @@ function ThreeCanvas({
           createVetroSystem: createPersistedVetroSystem,
           createVetroAssembly: createPersistedVetroAssembly,
           createLink: createPersistedLink,
+          createCompendio: createPersistedCompendio,
           createMultiple: createPersistedMultiple,
           createMultipleSystem: createPersistedMultipleSystem,
           createLocker: createPersistedLocker,
@@ -13874,7 +14078,7 @@ function ThreeCanvas({
           PLANT: addPlant,
           OFFICE_ACCESSORY: addOfficeAccessory,
           MEPAL_SALUD: addMepalSalud,
-          MEPAL_TEK_SOCIAL: addMepalTekSocial,
+          MEPAL_TEK_SOCIAL: (tekSocialCode) => addMepalTekSocial(tekSocialCode, options),
           CLAK: addClak,
           EDUK: (edukCode) => addEduk(edukCode, options),
           KUO_AV: addKuoAV,
@@ -13968,6 +14172,8 @@ function ThreeCanvas({
       addKoncisaPlusDrawer,
       addMepalSalud,
       addMepalTekSocial,
+      addTekSocialDancer,
+      updateTekSocialDancer,
       addClak,
       addEduk,
       addZen,
@@ -13986,6 +14192,8 @@ function ThreeCanvas({
       getVetroSystemConnections,
       addLink,
       updateSelectedLink,
+      addCompendio,
+      updateSelectedCompendio,
       addMultiple,
       addMultipleSystem,
       updateSelectedMultipleSystem,
@@ -19743,6 +19951,7 @@ function ThreeCanvas({
           billingCode: propertiesTarget.userData?.billingCode ?? root.userData?.billingCode ?? null,
           edukAbatible: propertiesTarget.userData?.edukAbatible || root.userData?.edukAbatible || null,
           ...(root.userData?.kind === 'LINK_PRODUCT' ? getLinkSelectionInfo(root, hitObj) : {}),
+          ...(root.userData?.kind === 'COMPENDIO_PRODUCT' ? getCompendioSelectionInfo(root, hitObj) : {}),
           ...(root.userData?.kind === 'MULTIPLE_PRODUCT'
             ? {
               multiple: {
