@@ -1169,6 +1169,7 @@ function ThreeCanvas({
     let moveSession2D = null;
     let dimensionHistoryReplayHandler = null;
     let shape2DHistoryReplayHandler = null;
+    let area2DHistoryReplayHandler = null;
     let columnHistoryReplayHandler = null;
     let architectureFinishReplayHandler = null;
     const columnHistoryActionTypes = new Set(Object.values(COLUMN_HISTORY_TYPES));
@@ -1176,6 +1177,10 @@ function ThreeCanvas({
       HISTORY_ACTION_TYPES.CREATE_SHAPE_2D,
       HISTORY_ACTION_TYPES.UPDATE_SHAPE_2D,
       HISTORY_ACTION_TYPES.DELETE_SHAPE_2D,
+    ]);
+    const area2DHistoryActionTypes = new Set([
+      HISTORY_ACTION_TYPES.CREATE_AREA_2D,
+      HISTORY_ACTION_TYPES.DELETE_AREA_2D,
     ]);
     const dimensionHistoryActionTypes = new Set([
       HISTORY_ACTION_TYPES.CREATE_DIMENSION,
@@ -14556,6 +14561,12 @@ function ThreeCanvas({
         shape2DHistoryReplayHandler = typeof handler === 'function' ? handler : null;
         return true;
       },
+      recordArea2DHistoryAction: (action) =>
+        area2DHistoryActionTypes.has(action?.type) ? historyManager.pushAction(action) : null,
+      setArea2DHistoryReplayHandler: (handler) => {
+        area2DHistoryReplayHandler = typeof handler === 'function' ? handler : null;
+        return true;
+      },
       selectFloor,
       updateFloorVisualOptions,
       replaceSelectedCostadoWithPedestal,
@@ -15720,6 +15731,11 @@ function ThreeCanvas({
           throw new Error('Shape2D history replay handler is not registered.');
         }
         return shape2DHistoryReplayHandler(action, direction);
+      } else if (area2DHistoryActionTypes.has(action.type)) {
+        if (typeof area2DHistoryReplayHandler !== 'function') {
+          throw new Error('Area2D history replay handler is not registered.');
+        }
+        return area2DHistoryReplayHandler(action, direction);
       }
       if (
         action.type.startsWith('CRITERIUM_') ||
@@ -25400,6 +25416,7 @@ function ThreeCanvas({
     return () => {
       dimensionHistoryReplayHandler = null;
       shape2DHistoryReplayHandler = null;
+      area2DHistoryReplayHandler = null;
       columnHistoryReplayHandler = null;
       architectureFinishReplayHandler = null;
       historyManager.clearHistory();

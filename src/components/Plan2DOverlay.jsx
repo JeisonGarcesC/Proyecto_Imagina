@@ -26,6 +26,8 @@ import {
   SELECTION_WINDOW_TYPES,
 } from '../plan2d/selectionGeometry2D';
 import { HISTORY_ACTION_TYPES } from '../history/historyManager';
+import { areaLabelPoint, containsAreaPoint, containsCirclePoint, createCircleMeasurement, formatArea, isNearFirstAreaPoint, polygonAreaSquareMeters } from '../plan2d/areaMeasurement';
+import { circleCanvasGeometry, formatAreaDistance, formatAreaSegmentDistance } from '../plan2d/areaMeasurementVisual';
 import {
   documentPointToWorld,
   getPlanWorldBounds,
@@ -239,6 +241,7 @@ function createDimensionSnapReference(resolved) {
 }
 
 export default function Plan2DOverlay({
+  readOnly = false,
   historyApi,
   getSnapshot,
   selectedIds = [],
@@ -307,6 +310,15 @@ export default function Plan2DOverlay({
   onCancelRotation2D,
   getRotationState2D,
   shapes2D = [],
+  areaToolActive = false,
+  onAreaToolChange,
+  areaMethod = 'POLYGON',
+  onAreaDraftChange,
+  areaMeasurements = [],
+  selectedAreaId = null,
+  onSelectArea,
+  onAddArea,
+  onDeleteArea,
   dimensions,
   setDimensions,
   shapeTool2D = null,
@@ -325,6 +337,44 @@ export default function Plan2DOverlay({
   onReplaceText2D,
   onDeleteSelectedText2D,
 }) {
+  const [areaDraft, setAreaDraft] = useState([]);
+  const [areaHover, setAreaHover] = useState(null);
+  const [circleCenter, setCircleCenter] = useState(null);
+  const circlePreview = useMemo(() => circleCenter && areaHover
+    ? createCircleMeasurement(circleCenter, Math.hypot(areaHover.x - circleCenter.x, areaHover.z - circleCenter.z), 'CIRCLE_PREVIEW')
+    : null, [circleCenter, areaHover]);
+  const areaLabels = useMemo(() => new Map(areaMeasurements
+    .filter((area) => area.type !== 'CIRCLE')
+    .map((area) => [area.id, areaLabelPoint(area.points)])), [areaMeasurements]);
+  useEffect(() => {
+    onAreaDraftChange?.(areaDraft.length > 0 || Boolean(circleCenter));
+  }, [areaDraft, circleCenter, onAreaDraftChange]);
+  useEffect(() => {
+    if (!areaToolActive) {
+      setAreaDraft([]);
+      setCircleCenter(null);
+      setAreaHover(null);
+    }
+  }, [areaToolActive]);
+  useEffect(() => {
+    setAreaDraft([]);
+    setCircleCenter(null);
+    setAreaHover(null);
+  }, [areaMethod]);
+  const closeAreaDraft = () => {
+    if (areaDraft.length < 3) return;
+    if (onAddArea?.(areaDraft)) {
+      setAreaDraft([]);
+      setAreaHover(null);
+      onAreaToolChange?.(false);
+    }
+  };
+  const cancelAreaDraft = () => {
+    setAreaDraft([]);
+    setCircleCenter(null);
+    setAreaHover(null);
+    onAreaToolChange?.(false);
+  };
   const [measureMode, setMeasureMode] = useState(false);
   const [measureStart, setMeasureStart] = useState(null);
   const [measureHover, setMeasureHover] = useState(null);
@@ -436,6 +486,17 @@ export default function Plan2DOverlay({
   );
 
   const [scaleMode, setScaleMode] = useState(false);
+  useEffect(() => {
+    if (!areaToolActive) return;
+    setMeasureMode(false);
+    setMeasureStart(null);
+    setMeasureHover(null);
+    setMeasureSnap(null);
+    setPositionMode(false);
+    setPositionDraft(null);
+    setPositionHover(null);
+    setScaleMode(false);
+  }, [areaToolActive]);
   const [scaleStartPx, setScaleStartPx] = useState(null);
   const [scaleHoverPx, setScaleHoverPx] = useState(null);
   const [calibrationDraft, setCalibrationDraft] = useState(null);
@@ -605,6 +666,9 @@ export default function Plan2DOverlay({
 
   // visible toggle
   const [visible, setVisible] = useState(defaultVisible);
+  useEffect(() => {
+    if (areaToolActive) setVisible(true);
+  }, [areaToolActive]);
   const [viewMode, setViewMode] = useState('normal');
   const [cimbraVisiblePostIds, setCimbraVisiblePostIds] = useState(() => new Set());
   const [showFinishes2D, setShowFinishes2D] = useState(false);
@@ -1186,6 +1250,24 @@ export default function Plan2DOverlay({
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
 
+      if (areaToolActive) {
+        const world = canvasToWorld(mx, my);
+        if (world) {
+          if (areaMethod === 'CIRCLE') setAreaHover(world);
+          else {
+            const snap = resolveSnapPoint({
+              worldPoint: world,
+              screenPoint: { x: mx, y: my },
+              scale: viewRef.current.s,
+              geometry: getDimensionSnapGeometry(),
+              tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
+            });
+            setAreaHover({ x: snap.point.x, z: snap.point.z });
+          }
+        }
+        return;
+      }
+
       const textDrag = textDragRef.current;
       if (textDrag?.pointerId === e.pointerId) {
         const world = canvasToWorld(mx, my);
@@ -1505,6 +1587,9 @@ export default function Plan2DOverlay({
       hitTestPlanAtCanvasPoint,
       onReplaceShape2D,
       onReplaceText2D,
+      areaToolActive,
+      areaMethod,
+      getDimensionSnapGeometry,
     ]
   );
 
@@ -1777,10 +1862,27 @@ export default function Plan2DOverlay({
       // drag de pieza con botón izquierdo
       if (e.button !== 0) return;
 
+      if (areaToolActive) {
+        e.preventDefault();
+        return;
+      }
+
       // La cota se inicia y termina en handleClick; no capturar sus clics como arrastres 2D.
       if (measureMode || positionMode) return;
 
       const shapeWorld = canvasToWorld(mx, my);
+      if (shapeWorld && areaMeasurements.length && !shapeTool2D && !textTool2D) {
+        for (const area of [...areaMeasurements].reverse()) {
+          if (area.type === 'CIRCLE'
+            ? containsCirclePoint(area, shapeWorld)
+            : containsAreaPoint(area.points, shapeWorld)) {
+            onSelectArea?.(area.id);
+            suppressNextClickRef.current = true;
+            e.preventDefault();
+            return;
+          }
+        }
+      }
       if (textTool2D && shapeWorld) {
         onAddText2D?.(createTextAtPoint2D({ x: shapeWorld.x, y: shapeWorld.z }));
         onPickIds?.([]);
@@ -2173,6 +2275,7 @@ export default function Plan2DOverlay({
       onSelectShape2D,
       onSelectText2D,
       onPickIds,
+      areaToolActive,
     ]
   );
 
@@ -2274,6 +2377,47 @@ export default function Plan2DOverlay({
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
+
+      if (areaToolActive) {
+        if (areaMethod === 'CIRCLE') {
+          const world = canvasToWorld(mx, my);
+          if (!world) return;
+          if (!circleCenter) {
+            const snap = resolveSnapPoint({
+              worldPoint: world,
+              screenPoint: { x: mx, y: my },
+              scale: viewRef.current.s,
+              geometry: getDimensionSnapGeometry(),
+              tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
+            });
+            setCircleCenter({ x: snap.point.x, z: snap.point.z });
+            setAreaHover(world);
+          } else {
+            const radius = Math.hypot(world.x - circleCenter.x, world.z - circleCenter.z);
+            if (onAddArea?.({ type: 'CIRCLE', center: circleCenter, radius })) {
+              setCircleCenter(null);
+              setAreaHover(null);
+              onAreaToolChange?.(false);
+            }
+          }
+          return;
+        }
+        if (isNearFirstAreaPoint(areaDraft, { x: mx, y: my }, toCanvas)) {
+          closeAreaDraft();
+          return;
+        }
+        const world = canvasToWorld(mx, my);
+        if (!world) return;
+        const snap = resolveSnapPoint({
+          worldPoint: world,
+          screenPoint: { x: mx, y: my },
+          scale: viewRef.current.s,
+          geometry: getDimensionSnapGeometry(),
+          tolerancePx: MEASURE_SNAP_TOLERANCE_PX,
+        });
+        setAreaDraft((current) => [...current, { x: snap.point.x, z: snap.point.z }]);
+        return;
+      }
 
       if (positionMode) {
         if (!positionDraft?.sourceId) {
@@ -2497,6 +2641,15 @@ export default function Plan2DOverlay({
       positionMode,
       positionDraft,
       pickPartAtCanvasPoint,
+      areaToolActive,
+      areaMethod,
+      areaDraft,
+      circleCenter,
+      onAddArea,
+      onAreaToolChange,
+      toCanvas,
+      getDimensionSnapGeometry,
+      closeAreaDraft,
       getSnapshot,
       getSelectionTargetIds,
       isPartMovementLocked2D,
@@ -2546,6 +2699,8 @@ export default function Plan2DOverlay({
       onSelectOpening,
       openings,
       shapes2D,
+      areaMeasurements,
+      onSelectArea,
       shapeTool2D,
       onAddShape2D,
       onSelectShape2D,
@@ -2566,6 +2721,10 @@ export default function Plan2DOverlay({
       const key = ev.key?.toLowerCase?.();
 
       if (ev.key === 'Escape') {
+        if (areaToolActive) {
+          cancelAreaDraft();
+          return;
+        }
         if (positionMode) {
           setPositionMode(false);
           setPositionDraft(null);
@@ -2594,7 +2753,7 @@ export default function Plan2DOverlay({
 
       if (key === 'f') fitView();
 
-      if (key === 'r') {
+      if (key === 'r' && !areaToolActive) {
         setPositionMode(false);
         setPositionDraft(null);
         setPositionHover(null);
@@ -2653,6 +2812,8 @@ export default function Plan2DOverlay({
     commitWall,
     clearDraft,
     clearMeasureDraft,
+    areaToolActive,
+    cancelAreaDraft,
     fitView,
     selectedDimensionId,
     dimensions,
@@ -3511,6 +3672,171 @@ export default function Plan2DOverlay({
         ctx.restore();
       }
 
+      const drawAreaLabel = (text, point, color) => {
+        const [x, y] = toCanvasLocal(point.x, point.z);
+        ctx.save();
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const width = ctx.measureText(text).width + 12;
+        ctx.fillStyle = 'rgba(255,255,255,0.94)';
+        ctx.fillRect(x - width / 2, y - 10, width, 20);
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+        ctx.restore();
+      };
+      const drawSegmentLabel = (start, end, color) => {
+        const [x1, y1] = toCanvasLocal(start.x, start.z);
+        const [x2, y2] = toCanvasLocal(end.x, end.z);
+        const lengthPx = Math.hypot(x2 - x1, y2 - y1);
+        if (lengthPx < 16) return;
+        const normalX = -(y2 - y1) / lengthPx;
+        const normalY = (x2 - x1) / lengthPx;
+        const label = formatAreaSegmentDistance(start, end);
+        ctx.save();
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const x = (x1 + x2) / 2 + normalX * 14;
+        const y = (y1 + y2) / 2 + normalY * 14;
+        const width = ctx.measureText(label).width + 10;
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        ctx.fillRect(x - width / 2, y - 9, width, 18);
+        ctx.fillStyle = color;
+        ctx.fillText(label, x, y);
+        ctx.restore();
+      };
+      const drawCircleMeasurement = (circle, { active = false, radiusEnd = null } = {}) => {
+        const color = active ? '#a21caf' : circle.id === selectedAreaId ? '#7e22ce' : '#9333ea';
+        const { centerX, centerY, radiusPx } = circleCanvasGeometry(circle, toCanvasLocal, s);
+        const end = radiusEnd || { x: circle.center.x + circle.radius, z: circle.center.z };
+        const [endX, endY] = toCanvasLocal(end.x, end.z);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radiusPx, 0, Math.PI * 2);
+        ctx.fillStyle = active ? 'rgba(192, 38, 211, 0.20)' : 'rgba(168, 85, 247, 0.13)';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = active ? 3 : circle.id === selectedAreaId ? 2.5 : 2;
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        drawSegmentLabel(circle.center, end, color);
+        const lines = [
+          `Radio: ${formatAreaDistance(circle.radius)}`,
+          `Diámetro: ${formatAreaDistance(circle.radius * 2)}`,
+          `Área: ${formatArea(circle.area).squareMeters}`,
+          `Circunferencia: ${formatAreaDistance(circle.circumference)}`,
+        ];
+        ctx.font = 'bold 12px sans-serif';
+        const boxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width)) + 16;
+        const boxX = Math.min(Math.max(4, centerX + radiusPx + 12), Math.max(4, w - boxWidth - 4));
+        const boxY = Math.min(Math.max(28, centerY - 36), Math.max(28, h - 76));
+        ctx.fillStyle = 'rgba(255,255,255,0.94)';
+        ctx.fillRect(boxX, boxY, boxWidth, 72);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxX, boxY, boxWidth, 72);
+        ctx.fillStyle = color;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        lines.forEach((line, index) => ctx.fillText(line, boxX + 8, boxY + 5 + index * 17));
+        ctx.restore();
+      };
+
+      areaMeasurements.forEach((area) => {
+        if (area.type === 'CIRCLE') {
+          drawCircleMeasurement(area);
+          return;
+        }
+        const color = area.id === selectedAreaId ? '#7e22ce' : '#9333ea';
+        ctx.save();
+        ctx.beginPath();
+        area.points.forEach((point, index) => {
+          const [x, y] = toCanvasLocal(point.x, point.z);
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.13)';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = area.id === selectedAreaId ? 2.5 : 2;
+        ctx.fill();
+        ctx.stroke();
+        area.points.forEach((point, index) => {
+          drawSegmentLabel(point, area.points[(index + 1) % area.points.length], color);
+          const [x, y] = toCanvasLocal(point.x, point.z);
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+        });
+        drawAreaLabel(formatArea(area.area).squareMeters, areaLabels.get(area.id), color);
+        ctx.restore();
+      });
+      if (areaDraft.length) {
+        const activeColor = '#a21caf';
+        const hoverScreen = areaHover ? toCanvasLocal(areaHover.x, areaHover.z) : null;
+        const canCloseAtFirst = hoverScreen && isNearFirstAreaPoint(
+          areaDraft, { x: hoverScreen[0], y: hoverScreen[1] }, toCanvasLocal
+        );
+        const previewEnd = canCloseAtFirst ? areaDraft[0] : areaHover;
+        const previewPoints = previewEnd ? [...areaDraft, previewEnd] : areaDraft;
+        ctx.save();
+        if (areaDraft.length >= 3) {
+          ctx.beginPath();
+          previewPoints.forEach((point, index) => {
+            const [x, y] = toCanvasLocal(point.x, point.z);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(192, 38, 211, 0.20)';
+          ctx.fill();
+          drawAreaLabel(`≈ ${formatArea(polygonAreaSquareMeters(previewPoints)).squareMeters}`, areaLabelPoint(previewPoints), activeColor);
+        }
+        ctx.beginPath();
+        areaDraft.forEach((point, index) => {
+          const [x, y] = toCanvasLocal(point.x, point.z);
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = activeColor;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        areaDraft.forEach((point, index) => {
+          if (index > 0) drawSegmentLabel(areaDraft[index - 1], point, activeColor);
+          const [x, y] = toCanvasLocal(point.x, point.z);
+          ctx.beginPath();
+          ctx.arc(x, y, index === 0 && canCloseAtFirst ? 7 : 5, 0, Math.PI * 2);
+          ctx.fillStyle = index === 0 && canCloseAtFirst ? '#fbbf24' : activeColor;
+          ctx.fill();
+        });
+        if (previewEnd) {
+          const [x1, y1] = toCanvasLocal(areaDraft.at(-1).x, areaDraft.at(-1).z);
+          const [x2, y2] = toCanvasLocal(previewEnd.x, previewEnd.z);
+          ctx.setLineDash([7, 5]);
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          drawSegmentLabel(areaDraft.at(-1), previewEnd, activeColor);
+        }
+        ctx.restore();
+      }
+      if (areaToolActive && areaMethod === 'CIRCLE' && circleCenter) {
+        const radius = circlePreview?.radius || 0;
+        const preview = circlePreview || { id: 'CIRCLE_PREVIEW', center: circleCenter, radius: 0, area: 0, circumference: 0 };
+        drawCircleMeasurement(preview, { active: true, radiusEnd: areaHover && radius > 0 ? areaHover : circleCenter });
+      }
+
       // Header
       ctx.fillStyle = 'rgba(0,0,0,0.62)';
       ctx.font = '13px sans-serif';
@@ -3551,6 +3877,15 @@ export default function Plan2DOverlay({
     selectedOpeningId,
     doorWidth,
     dimensions,
+    areaMeasurements,
+    areaLabels,
+    selectedAreaId,
+    areaDraft,
+    areaHover,
+    areaToolActive,
+    areaMethod,
+    circleCenter,
+    circlePreview,
     selectedDimensionId,
     selectionDrag,
     plan2DTransform,
@@ -3576,6 +3911,7 @@ export default function Plan2DOverlay({
   const selectedPostCimbraVisible = selectedCimbraPostId
     ? cimbraVisiblePostIds.has(selectedCimbraPostId)
     : false;
+  const selectedAreaMeasurement = areaMeasurements.find((item) => item.id === selectedAreaId) || null;
 
   if (!visible) {
     return (
@@ -3614,6 +3950,43 @@ export default function Plan2DOverlay({
     >
       {/* barra superior */}
       <div className="plan2d-overlay__controls">
+        {(areaToolActive || selectedAreaId) && (
+          <section aria-label="Calcular área" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#e0f2fe', borderRadius: 8, padding: '4px 8px', fontSize: 12 }}>
+            <strong>📐 Calcular área</strong>
+            {areaToolActive ? (
+              areaMethod === 'CIRCLE' ? (
+                <>
+                  <span>{circleCenter ? 'Segundo clic: confirmar radio' : 'Primer clic: centro'}</span>
+                  {circlePreview && (
+                    <span role="status">
+                      Radio: {formatAreaDistance(circlePreview.radius)} · Diámetro: {formatAreaDistance(circlePreview.radius * 2)} · Área: {formatArea(circlePreview.area).squareMeters} · Circunferencia: {formatAreaDistance(circlePreview.circumference)}
+                    </span>
+                  )}
+                  <button type="button" onClick={cancelAreaDraft}>Cancelar</button>
+                </>
+              ) : (
+                <>
+                  <span>Puntos: {areaDraft.length}</span>
+                  <button type="button" disabled={areaDraft.length < 3} onClick={closeAreaDraft}>Cerrar área</button>
+                  <button type="button" onClick={cancelAreaDraft}>Cancelar</button>
+                </>
+              )
+            ) : (
+              <>
+                {selectedAreaMeasurement?.type === 'CIRCLE' && (
+                  <span>Radio: {formatAreaDistance(selectedAreaMeasurement.radius)} · Diámetro: {formatAreaDistance(selectedAreaMeasurement.radius * 2)}</span>
+                )}
+                <span>Área: {formatArea(selectedAreaMeasurement?.area || 0).squareMeters}</span>
+                <span>{formatArea(selectedAreaMeasurement?.area || 0).squareMillimeters}</span>
+                {selectedAreaMeasurement?.type === 'CIRCLE' && (
+                  <span>Circunferencia: {formatAreaDistance(selectedAreaMeasurement.circumference)}</span>
+                )}
+                <button type="button" disabled={readOnly} onClick={() => onAreaToolChange?.(true)}>Nueva área</button>
+                <button type="button" disabled={readOnly} onClick={() => onDeleteArea?.(selectedAreaId)}>Eliminar</button>
+              </>
+            )}
+          </section>
+        )}
         <span
           aria-live="polite"
           style={{
@@ -3707,6 +4080,7 @@ export default function Plan2DOverlay({
             }
           }}
           disabled={
+            areaToolActive ||
             isWallDrawMode ||
             scaleMode ||
             shapeTool2D ||
@@ -3752,7 +4126,7 @@ export default function Plan2DOverlay({
               return next;
             });
           }}
-          disabled={isWallDrawMode}
+          disabled={areaToolActive || isWallDrawMode}
           style={{
             padding: '6px 10px',
             borderRadius: 10,
@@ -3794,7 +4168,7 @@ export default function Plan2DOverlay({
               setMeasureSnap(null);
             }
           }}
-          disabled={(!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR') || isWallDrawMode}
+          disabled={areaToolActive || (!plan2DSrc && plan2DDefinition?.renderType !== 'VECTOR') || isWallDrawMode}
           style={{
             padding: '6px 10px',
             borderRadius: 10,
@@ -4182,6 +4556,7 @@ export default function Plan2DOverlay({
           display: 'block',
           touchAction: 'none',
           cursor:
+            areaToolActive ||
             positionMode ||
             measureMode ||
             isWallDrawMode ||

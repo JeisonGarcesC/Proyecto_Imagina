@@ -29,6 +29,7 @@ import { createShape2DId, deleteShape2D, translateShape2D, updateShape2D } from 
 import { createShape } from './plan2d/geometry2D/shapes2D';
 import { rotateShape2D } from './plan2d/geometry2D/shapeInteraction2D';
 import { createDimension2D } from './plan2d/dimension2D';
+import { createAreaMeasurement, createCircleMeasurement, restoreAreaMeasurement, serializeAreaMeasurement, shouldSwitchAreaMethod } from './plan2d/areaMeasurement';
 import { HISTORY_ACTION_TYPES } from './history/historyManager';
 import { deleteText2D, updateText2D } from './plan2d/text2D/textEditor2D';
 import { createText2D } from './plan2d/text2D/text2D';
@@ -442,6 +443,56 @@ export default function App() {
 
   const [shapes2D, setShapes2D] = useState([]);
   const [dimensions, setDimensions] = useState([]);
+  const [areaMeasurements, setAreaMeasurements] = useState([]);
+  const [areaToolActive, setAreaToolActive] = useState(false);
+  const [areaMethod, setAreaMethod] = useState('POLYGON');
+  const [areaDraftInProgress, setAreaDraftInProgress] = useState(false);
+  const [selectedAreaId, setSelectedAreaId] = useState(null);
+  const handleAreaMethodChange = (method) => {
+    if (!shouldSwitchAreaMethod(areaMethod, method, areaToolActive && areaDraftInProgress,
+      () => window.confirm('Tienes una medición en curso. ¿Deseas cancelarla y cambiar de método?'))) return;
+    setAreaMethod(method);
+    setAreaDraftInProgress(false);
+  };
+  useEffect(() => {
+    if (!threeApi?.setArea2DHistoryReplayHandler) return undefined;
+    threeApi.setArea2DHistoryReplayHandler((action, direction) => {
+      const source = (direction === 'undo' ? action.before : action.after)?.area;
+      const area = source ? restoreAreaMeasurement(source) : null;
+      setAreaMeasurements((current) => {
+        const without = current.filter((item) => item.id !== action.areaId);
+        return area ? [...without, area] : without;
+      });
+      setSelectedAreaId(area?.id || null);
+      return true;
+    });
+    return () => threeApi.setArea2DHistoryReplayHandler(null);
+  }, [threeApi]);
+  const addAreaMeasurement = (input) => {
+    if (readOnly) return false;
+    const area = Array.isArray(input)
+      ? createAreaMeasurement(input)
+      : input?.type === 'CIRCLE' ? createCircleMeasurement(input.center, input.radius) : null;
+    if (!area) return false;
+    threeApiRef.current?.recordArea2DHistoryAction?.({
+      type: HISTORY_ACTION_TYPES.CREATE_AREA_2D, areaId: area.id,
+      before: null, after: { area },
+    });
+    setAreaMeasurements((current) => [...current, area]);
+    setSelectedAreaId(area.id);
+    return true;
+  };
+  const deleteAreaMeasurement = (id) => {
+    if (readOnly) return;
+    const area = areaMeasurements.find((item) => item.id === id);
+    if (!area) return;
+    threeApiRef.current?.recordArea2DHistoryAction?.({
+      type: HISTORY_ACTION_TYPES.DELETE_AREA_2D, areaId: area.id,
+      before: { area }, after: null,
+    });
+    setAreaMeasurements((current) => current.filter((item) => item.id !== id));
+    setSelectedAreaId(null);
+  };
   const [shapeTool2D, setShapeTool2D] = useState(null);
   const [elevationDirection2D, setElevationDirection2D] = useState('front');
   const [selectedShape2DId, setSelectedShape2DId] = useState(null);
@@ -881,6 +932,7 @@ export default function App() {
       shapes2D,
       texts2D,
       dimensions,
+      areaMeasurements: areaMeasurements.map(serializeAreaMeasurement),
       xmlBomProjects,
       plan2D: activePlanDefinition ? serializePlan(activePlanDefinition) : null,
       architecture: {
@@ -982,6 +1034,14 @@ export default function App() {
     setDimensions(Array.isArray(project?.dimensions) ? project.dimensions.flatMap((dimension) => {
       try { const restored = createDimension2D(dimension); return restored ? [restored] : []; } catch { return []; }
     }) : []);
+    setAreaMeasurements(Array.isArray(project?.areaMeasurements) ? project.areaMeasurements.flatMap((item) => {
+      const area = restoreAreaMeasurement(item);
+      return area ? [area] : [];
+    }) : []);
+    setAreaToolActive(false);
+    setAreaMethod('POLYGON');
+    setAreaDraftInProgress(false);
+    setSelectedAreaId(null);
     setShapes2D(Array.isArray(project?.shapes2D) ? project.shapes2D.flatMap((shape) => {
       try { return [createShape(shape)]; } catch { return []; }
     }) : []);
@@ -1327,6 +1387,11 @@ export default function App() {
         onNewProject={() => {
           setXmlBomProjects([]);
           setDimensions([]);
+          setAreaMeasurements([]);
+          setAreaToolActive(false);
+          setAreaMethod('POLYGON');
+          setAreaDraftInProgress(false);
+          setSelectedAreaId(null);
           setShapes2D([]);
           setTexts2D([]);
           setSelectedShape2DId(null);
@@ -1377,7 +1442,14 @@ export default function App() {
             zIndex: 2,
           }}
         >
-          <LeftRail active={leftSection} onChange={setLeftSection} canViewSpecialFinishes={permissions.includes('finishes.view')} />
+          <LeftRail
+            active={leftSection}
+            onChange={(section) => {
+              setLeftSection(section);
+              if (section !== 'tools') setAreaToolActive(false);
+            }}
+            canViewSpecialFinishes={permissions.includes('finishes.view')}
+          />
           {/* CONTENEDOR VERTICAL */}
           <div
             style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}
@@ -1460,6 +1532,10 @@ export default function App() {
 
             {/* PANEL */}
             <LeftPanel
+              areaToolActive={areaToolActive}
+              onAreaToolChange={setAreaToolActive}
+              areaMethod={areaMethod}
+              onAreaMethodChange={handleAreaMethodChange}
               section={leftSection}
               specialFinishPermissions={permissions}
               selectedFinishTarget={selectedFinishTarget}
@@ -1807,6 +1883,16 @@ export default function App() {
           />
 
           <Plan2DOverlay
+            readOnly={readOnly}
+            areaToolActive={areaToolActive}
+            onAreaToolChange={setAreaToolActive}
+            areaMethod={areaMethod}
+            onAreaDraftChange={setAreaDraftInProgress}
+            areaMeasurements={areaMeasurements}
+            selectedAreaId={selectedAreaId}
+            onSelectArea={setSelectedAreaId}
+            onAddArea={addAreaMeasurement}
+            onDeleteArea={deleteAreaMeasurement}
             historyApi={threeApi}
             getSnapshot={(options) => threeApiRef.current?.getPartsSnapshot2D?.(options) || []}
             selectedIds={selectedIds}

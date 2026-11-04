@@ -294,6 +294,10 @@ function ShapeRotationInput({ shape, onApply, inputStyle, labelStyle }) {
 
 export default function LeftPanel({
   section,
+  areaToolActive = false,
+  onAreaToolChange,
+  areaMethod = 'POLYGON',
+  onAreaMethodChange,
   specialFinishPermissions = [],
   onApplySpecialFinish,
   threeApiRef,
@@ -1434,6 +1438,29 @@ export default function LeftPanel({
         minWidth: 0,
       }}
     >
+      {section === 'tools' && (
+        <section className="lp-general-tools">
+          <h3 className="lp-wrap" style={{ margin: '0 0 12px' }}>🛠 Herramientas</h3>
+          <button
+            type="button"
+            disabled={readOnly}
+            aria-pressed={areaToolActive}
+            onClick={() => onAreaToolChange?.(!areaToolActive)}
+            style={{ width: '100%', textAlign: 'left', padding: '10px 12px' }}
+          >
+            📐 Calcular área {areaToolActive ? '✓' : ''}
+          </button>
+          <fieldset style={{ marginTop: 12, border: '1px solid #d8dee8', borderRadius: 8 }}>
+            <legend>Método</legend>
+            <label style={{ display: 'block', padding: '5px 0' }}>
+              <input type="radio" name="area-method" value="POLYGON" checked={areaMethod === 'POLYGON'} disabled={readOnly} onChange={() => onAreaMethodChange?.('POLYGON')} /> Polígono por puntos
+            </label>
+            <label style={{ display: 'block', padding: '5px 0' }}>
+              <input type="radio" name="area-method" value="CIRCLE" checked={areaMethod === 'CIRCLE'} disabled={readOnly} onChange={() => onAreaMethodChange?.('CIRCLE')} /> Círculo
+            </label>
+          </fieldset>
+        </section>
+      )}
       {/* ======================= CATALOGO ======================= */}
       {section === 'catalog' && (
         <>
