@@ -6,7 +6,6 @@ import {
   resolveSnapPoint,
   SNAP_LABELS,
 } from '../plan2d/geometrySnap2D';
-import { buildElevationSnapGeometry, projectElevationBounds } from '../plan2d/geometry2D/elevation2D';
 import {
   createDimension2D,
   dimensionHitDistance,
@@ -15,6 +14,8 @@ import {
   updateDimension2D,
 } from '../plan2d/dimension2D';
 import { drawDimension2D } from '../plan2d/dimensionRenderer2D';
+import { resolvePlanDimensions2D, resolvePlanShapes2D } from '../plan2d/planRenderSnapshot2D.js';
+import { worldToCanvas2D } from '../plan2d/worldToCanvas2D.js';
 import { resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D';
 import { getResolvedDimension2D } from '../plan2d/dimensionReferenceResolver';
 import { drawFurnitureFootprint2D, FURNITURE_2D_RENDER_MODES } from '../plan2d/furnitureRenderer2D';
@@ -27,7 +28,7 @@ import {
 } from '../plan2d/selectionGeometry2D';
 import { HISTORY_ACTION_TYPES } from '../history/historyManager';
 import { areaLabelPoint, containsAreaPoint, containsCirclePoint, createCircleMeasurement, formatArea, isNearFirstAreaPoint, polygonAreaSquareMeters } from '../plan2d/areaMeasurement';
-import { circleCanvasGeometry, formatAreaDistance, formatAreaSegmentDistance } from '../plan2d/areaMeasurementVisual';
+import { areaSegmentLabelLayout, circleCanvasGeometry, circleMeasurementLabels, formatAreaDistance } from '../plan2d/areaMeasurementVisual';
 import {
   documentPointToWorld,
   getPlanWorldBounds,
@@ -315,6 +316,7 @@ export default function Plan2DOverlay({
   areaMethod = 'POLYGON',
   onAreaDraftChange,
   areaMeasurements = [],
+  onExportRenderSnapshot,
   selectedAreaId = null,
   onSelectArea,
   onAddArea,
@@ -338,6 +340,7 @@ export default function Plan2DOverlay({
   onDeleteSelectedText2D,
 }) {
   const [areaDraft, setAreaDraft] = useState([]);
+  useEffect(() => () => onExportRenderSnapshot?.(null), [onExportRenderSnapshot]);
   const [areaHover, setAreaHover] = useState(null);
   const [circleCenter, setCircleCenter] = useState(null);
   const circlePreview = useMemo(() => circleCenter && areaHover
@@ -384,24 +387,7 @@ export default function Plan2DOverlay({
   const [positionHover, setPositionHover] = useState(null);
   const [positionError, setPositionError] = useState('');
   const getDimensionSnapGeometry = useCallback(() => {
-    const plant = buildSnapGeometry(getSnapshot?.() || []);
-    const elevations = buildElevationSnapGeometry(shapes2D, { invertZ });
-    return {
-      points: [
-        ...plant.points.map((candidate) => ({
-          ...candidate,
-          sourceType: candidate.sourceType || 'plant',
-        })),
-        ...elevations.points,
-      ],
-      segments: [
-        ...plant.segments.map((candidate) => ({
-          ...candidate,
-          sourceType: candidate.sourceType || 'plant',
-        })),
-        ...elevations.segments,
-      ],
-    };
+    return resolvePlanDimensions2D(getSnapshot?.() || [], resolvePlanShapes2D(shapes2D), [], invertZ).snapGeometry;
   }, [getSnapshot, shapes2D, invertZ]);
   const [selectedDimensionId, setSelectedDimensionId] = useState(null);
   const selectedDimension =
@@ -816,15 +802,7 @@ export default function Plan2DOverlay({
 
       const { cx, cz, s } = viewRef.current;
 
-      const px = (x - cx) * s + w / 2;
-
-      // ✅ Este es el punto de “al revés”
-      // invertZ=true => canvas Y sube cuando Z baja (como “plano” típico)
-      // invertZ=false => canvas Y sube cuando Z sube
-      const sign = invertZ ? -1 : 1;
-      const py = sign * (z - cz) * s + h / 2;
-
-      return [px, py];
+      return worldToCanvas2D(x, z, { centerX: cx, centerZ: cz, scale: s, width: w, height: h, invertZ });
     },
     [invertZ]
   );
@@ -2882,11 +2860,9 @@ export default function Plan2DOverlay({
       const sign = invertZ ? -1 : 1;
 
       // helpers inline
-      const toCanvasLocal = (x, z) => {
-        const px = (x - cx) * s + w / 2;
-        const py = sign * (z - cz) * s + h / 2;
-        return [px, py];
-      };
+      const toCanvasLocal = (x, z) => worldToCanvas2D(x, z, {
+        centerX: cx, centerZ: cz, scale: s, width: w, height: h, invertZ,
+      });
 
       // Fondo
       ctx.clearRect(0, 0, w, h);
@@ -3303,10 +3279,9 @@ export default function Plan2DOverlay({
 
       // Capa visual derivada: se dibuja sobre las huellas, sin participar
       // en selección, movimiento ni persistencia.
-      if (cimbraVisiblePostIds.size) {
-        const cimbras = getDuctCimbras(snap, { visiblePostIds: cimbraVisiblePostIds });
-        drawShapes2D(ctx, cimbras, { toCanvas: toCanvasLocal, scale: s });
-      }
+      const cimbras = cimbraVisiblePostIds.size
+        ? getDuctCimbras(snap, { visiblePostIds: cimbraVisiblePostIds }) : [];
+      if (cimbras.length) drawShapes2D(ctx, cimbras, { toCanvas: toCanvasLocal, scale: s });
 
       const liveElevationSources = new Map();
       const wallCimbras = cimbraVisiblePostIds.size
@@ -3321,12 +3296,12 @@ export default function Plan2DOverlay({
             }
           )
         : [];
-      const renderedShapes = shapes2D.map((shape) => {
-        const source = liveElevationSources.get(shape.sourceSelection);
-        const projection = source && projectElevationBounds(source.sourceBoxes, shape.viewDirection);
-        return projection
-          ? { ...shape, geometry: { ...shape.geometry, ...projection } }
-          : shape;
+      const renderedShapes = resolvePlanShapes2D(shapes2D, (ids) => liveElevationSources.get(ids));
+      onExportRenderSnapshot?.({
+        sourceShapes: shapes2D,
+        sourceDimensions: dimensions,
+        shapes2D: [...renderedShapes, ...cimbras, ...wallCimbras],
+        dimensions: dimensions.map((dimension) => getResolvedDimension2D({ dimension, snapGeometry })),
       });
       drawShapes2D(ctx, renderedShapes, { toCanvas: toCanvasLocal, scale: s });
       if (cimbraVisiblePostIds.size) {
@@ -3686,19 +3661,13 @@ export default function Plan2DOverlay({
         ctx.restore();
       };
       const drawSegmentLabel = (start, end, color) => {
-        const [x1, y1] = toCanvasLocal(start.x, start.z);
-        const [x2, y2] = toCanvasLocal(end.x, end.z);
-        const lengthPx = Math.hypot(x2 - x1, y2 - y1);
-        if (lengthPx < 16) return;
-        const normalX = -(y2 - y1) / lengthPx;
-        const normalY = (x2 - x1) / lengthPx;
-        const label = formatAreaSegmentDistance(start, end);
+        const layout = areaSegmentLabelLayout(start, end, toCanvasLocal);
+        if (!layout) return;
+        const { x, y, label } = layout;
         ctx.save();
         ctx.font = 'bold 12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const x = (x1 + x2) / 2 + normalX * 14;
-        const y = (y1 + y2) / 2 + normalY * 14;
         const width = ctx.measureText(label).width + 10;
         ctx.fillStyle = 'rgba(255,255,255,0.95)';
         ctx.fillRect(x - width / 2, y - 9, width, 18);
@@ -3728,12 +3697,7 @@ export default function Plan2DOverlay({
         ctx.fillStyle = color;
         ctx.fill();
         drawSegmentLabel(circle.center, end, color);
-        const lines = [
-          `Radio: ${formatAreaDistance(circle.radius)}`,
-          `Diámetro: ${formatAreaDistance(circle.radius * 2)}`,
-          `Área: ${formatArea(circle.area).squareMeters}`,
-          `Circunferencia: ${formatAreaDistance(circle.circumference)}`,
-        ];
+        const lines = circleMeasurementLabels(circle);
         ctx.font = 'bold 12px sans-serif';
         const boxWidth = Math.max(...lines.map((line) => ctx.measureText(line).width)) + 16;
         const boxX = Math.min(Math.max(4, centerX + radiusPx + 12), Math.max(4, w - boxWidth - 4));
@@ -3904,6 +3868,7 @@ export default function Plan2DOverlay({
     selectedShape2DId,
     getDimensionSnapGeometry,
     texts2D,
+    onExportRenderSnapshot,
     selectedText2DId,
   ]);
 

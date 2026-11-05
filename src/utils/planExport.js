@@ -11,12 +11,25 @@ import {
 import { buildColumnGeometry2D } from '../core/architecture/columns/columnGeometry2D.js';
 import { COLUMN_SHAPES } from '../core/architecture/columns/columnDefinition.js';
 import { buildDoorGeometry2D } from '../core/architecture/openings/doorGeometry2D.js';
+import { resolveDimensionScreenGeometry, resolveDimensionTextPosition } from '../plan2d/dimensionGeometry2D.js';
+import { formatDimensionValue } from '../plan2d/dimensionFormat.js';
+import { areaLabelPoint, formatArea } from '../plan2d/areaMeasurement.js';
+import { areaSegmentLabelLayout, circleMeasurementLabels } from '../plan2d/areaMeasurementVisual.js';
+import { transformShapeToCanvas } from '../plan2d/geometry2D/geometryUtils2D.js';
+import { worldToCanvas2D } from '../plan2d/worldToCanvas2D.js';
 
 function safeNum(n, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function boundsFromData(parts = [], walls = [], columns = [], openings = []) {
+export function get2DDisplayLabel(object) {
+  const label = typeof object?.displayLabel === 'string' ? object.displayLabel.trim() : '';
+  if (!label || [object.id, object.instanceId, object.groupId, object.assemblyId].includes(label)) return '';
+  if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(label) || /^[A-Z0-9]+_\d{10,}_[A-Z0-9]+$/i.test(label)) return '';
+  return label;
+}
+
+export function boundsFromData(parts = [], walls = [], columns = [], openings = [], dimensions = [], areaMeasurements = [], shapes2D = [], texts2D = [], pxPerM = 140, invertZ = true) {
   let minX = Infinity,
     maxX = -Infinity,
     minZ = Infinity,
@@ -25,6 +38,13 @@ function boundsFromData(parts = [], walls = [], columns = [], openings = []) {
   for (const p of parts) {
     const geometry = buildFootprintWorldGeometry(p);
     const vertices = geometry?.vertices || [];
+    const detailedShapes = buildDetailedFootprintWorldShapes(p, 4);
+    for (const shape of detailedShapes) {
+      for (const point of shape.points || []) {
+        minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+        minZ = Math.min(minZ, point.z); maxZ = Math.max(maxZ, point.z);
+      }
+    }
     if (vertices.length >= 3) {
       vertices.forEach((point) => {
         minX = Math.min(minX, point.x);
@@ -70,6 +90,52 @@ function boundsFromData(parts = [], walls = [], columns = [], openings = []) {
       minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
       minZ = Math.min(minZ, point.z); maxZ = Math.max(maxZ, point.z);
     });
+    const radius = Number(geometry.arc?.radius) || 0;
+    minX = Math.min(minX, geometry.hinge.x - radius); maxX = Math.max(maxX, geometry.hinge.x + radius);
+    minZ = Math.min(minZ, geometry.hinge.z - radius); maxZ = Math.max(maxZ, geometry.hinge.z + radius);
+  }
+
+  const includePoint = (x, z) => {
+    if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(z))) return;
+    minX = Math.min(minX, Number(x)); maxX = Math.max(maxX, Number(x));
+    minZ = Math.min(minZ, Number(z)); maxZ = Math.max(maxZ, Number(z));
+  };
+  for (const dimension of dimensions || []) {
+    if (!dimension?.startPoint || !dimension?.endPoint) continue;
+    const zSign = invertZ ? -1 : 1;
+    const toWorldPixels = (x, z) => [x * pxPerM, zSign * z * pxPerM];
+    const geometry = resolveDimensionScreenGeometry(dimension, toWorldPixels);
+    const text = resolveDimensionTextPosition(dimension, toWorldPixels);
+    for (const [x, y] of [geometry.start, geometry.end, geometry.dimStart, geometry.dimEnd, [text.x, text.y]]) {
+      includePoint(x / pxPerM, zSign * y / pxPerM);
+    }
+  }
+  for (const area of areaMeasurements || []) {
+    if (area?.type === 'CIRCLE' && area.center) {
+      includePoint(area.center.x - area.radius, area.center.z - area.radius);
+      includePoint(area.center.x + area.radius, area.center.z + area.radius);
+      includePoint(area.center.x + area.radius + 210 / pxPerM, area.center.z);
+    } else for (const point of area?.points || []) includePoint(point.x, point.z);
+  }
+  for (const shape of shapes2D || []) {
+    if (shape?.visible === false) continue;
+    const g = transformShapeToCanvas(shape, { toCanvas: (x, y) => [x, y], scale: 1, rotationSign: 1 });
+    if (!g) continue;
+    if (g.points) g.points.forEach(([x, y]) => includePoint(x, y));
+    else if (g.x1 != null) { includePoint(g.x1, g.y1); includePoint(g.x2, g.y2); }
+    else if (g.radius != null) { includePoint(g.x - g.radius, g.y - g.radius); includePoint(g.x + g.radius, g.y + g.radius); }
+    else {
+      const radius = Math.hypot(g.width || 0, g.height || 0) / 2;
+      includePoint(g.x - radius, g.y - radius); includePoint(g.x + radius, g.y + radius);
+      if (shape.type === 'elevation') includePoint(g.x + (g.width || 0) / 2 + 42 / pxPerM, g.y + 30 / pxPerM);
+    }
+  }
+  for (const item of texts2D || []) {
+    if (item?.visible === false) continue;
+    const size = Number(item.style?.fontSize) || 0.2;
+    const width = Math.max(size, ...String(item.text || '').split('\n').map((line) => line.length * size * 0.7));
+    includePoint(item.geometry.x - width, item.geometry.y - size);
+    includePoint(item.geometry.x + width, item.geometry.y + size);
   }
 
   if (!isFinite(minX)) {
@@ -94,6 +160,11 @@ export function generatePlanSvg({
   walls = [],
   columns = [],
   openings = [],
+  dimensions = [],
+  areaMeasurements = [],
+  shapes2D = [],
+  texts2D = [],
+  invertZ = true,
   pxPerM = 140,
   paddingM = 0.25,
   includeDims = true,
@@ -103,7 +174,7 @@ export function generatePlanSvg({
   detailAll = false,
 } = {}) {
   const detailIds = normalizeDetailed2DIds(detailed2DIds);
-  const b = boundsFromData(parts, walls, columns, openings);
+  const b = boundsFromData(parts, walls, columns, openings, dimensions, areaMeasurements, shapes2D, texts2D, pxPerM, invertZ);
   const pad = paddingM;
   const minX = b.minX - pad;
   const maxX = b.maxX + pad;
@@ -115,9 +186,12 @@ export function generatePlanSvg({
   const W = Math.ceil(spanX * pxPerM);
   const H = Math.ceil(spanZ * pxPerM);
 
-  // world -> svg (Y hacia abajo). Usamos Z invertido para que arriba sea +Z.
-  const X = (x) => (x - minX) * pxPerM;
-  const Y = (z) => (maxZ - z) * pxPerM;
+  const toSvg = (x, z) => worldToCanvas2D(x, z, {
+    centerX: (minX + maxX) / 2, centerZ: (minZ + maxZ) / 2,
+    scale: pxPerM, width: W, height: H, invertZ,
+  });
+  const X = (x) => toSvg(x, 0)[0];
+  const Y = (z) => toSvg(0, z)[1];
 
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
@@ -168,7 +242,7 @@ export function generatePlanSvg({
       const w = Math.max(0.01, safeNum(p.w)) * pxPerM;
       const d = Math.max(0.01, safeNum(p.d)) * pxPerM;
       const rot = (-safeNum(p.rotY, 0) * 180) / Math.PI;
-      const id = p.id ? esc(p.id) : '';
+      const label = esc(get2DDisplayLabel(p));
       const detailedShapes = detailLevel > 1 && (detailAll || is2DDetailEnabled(p, detailIds))
         ? buildDetailedFootprintWorldShapes(p, detailLevel)
         : [];
@@ -186,7 +260,7 @@ export function generatePlanSvg({
       if (detailedShapes.length && detailLevel === 3) {
         return `
   ${detailMarkup}
-  ${id ? `<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}`;
+  ${label ? `<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${label}</text>` : ''}`;
       }
       let shape = `<rect x="${(-w / 2).toFixed(2)}" y="${(-d / 2).toFixed(2)}" width="${w.toFixed(2)}" height="${d.toFixed(2)}" fill="${normalFill}" stroke="rgba(0,0,0,0.35)" stroke-width="1" />`;
 
@@ -216,12 +290,12 @@ export function generatePlanSvg({
         return `
   ${shape}
   ${detailMarkup}
-  ${id ? `<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}`;
+  ${label ? `<text x="${cx.toFixed(2)}" y="${cy.toFixed(2)}" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${label}</text>` : ''}`;
       }
       return `
   <g transform="translate(${cx.toFixed(2)} ${cy.toFixed(2)}) rotate(${rot.toFixed(2)})">
     ${shape}
-    ${id ? `<text x="0" y="0" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${id}</text>` : ''}
+    ${label ? `<text x="0" y="0" font-size="10" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,0,0,0.55)">${label}</text>` : ''}
   </g>
   ${detailMarkup}`;
     })
@@ -254,6 +328,76 @@ export function generatePlanSvg({
     </g>`;
   }).join('\n  ');
 
+  const dimensionEls = (dimensions || []).filter((dimension) => dimension?.startPoint && dimension?.endPoint).map((dimension) => {
+    const g = resolveDimensionScreenGeometry(dimension, toSvg);
+    const position = resolveDimensionTextPosition(dimension, toSvg);
+    const label = esc(dimension.label || formatDimensionValue(dimension.value, dimension.unit));
+    const color = dimension.style?.color || '#111827';
+    const points = [g.start, g.dimStart, g.dimEnd, g.end];
+    return `<g class="dimension" stroke="${color}" fill="none" stroke-width="1">
+      <path d="M ${points[0].join(' ')} L ${points[1].join(' ')} L ${points[2].join(' ')} M ${points[3].join(' ')} L ${points[2].join(' ')}" />
+      <rect x="${position.x - label.length * 3.8 - 5}" y="${position.y - 9}" width="${label.length * 7.6 + 10}" height="18" fill="white" stroke="none" />
+      <text x="${position.x}" y="${position.y}" text-anchor="middle" dominant-baseline="middle" font-size="${Number(dimension.style?.text?.size) || 14}" fill="${color}" stroke="none">${label}</text>
+    </g>`;
+  }).join('\n  ');
+
+  const areaEls = (areaMeasurements || []).map((area) => {
+    if (area?.type === 'CIRCLE' && area.center && Number(area.radius) > 0) {
+      const [cx, cy] = toSvg(area.center.x, area.center.z);
+      const radius = area.radius * pxPerM;
+      const labels = circleMeasurementLabels(area);
+      const boxWidth = Math.max(...labels.map((line) => line.length * 7.2)) + 16;
+      const labelLayout = areaSegmentLabelLayout(area.center, { x: area.center.x + area.radius, z: area.center.z }, toSvg);
+      return `<g class="area-measurement" stroke="#9333ea" fill="none"><circle cx="${cx}" cy="${cy}" r="${radius}" fill="rgba(168,85,247,0.13)" stroke-width="2" />
+        <line x1="${cx}" y1="${cy}" x2="${cx + radius}" y2="${cy}" />
+        <circle cx="${cx}" cy="${cy}" r="5" fill="#9333ea" />
+        ${labelLayout ? `<text x="${labelLayout.x}" y="${labelLayout.y}" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#9333ea" paint-order="stroke" stroke="white" stroke-width="4">${esc(labelLayout.label)}</text>` : ''}
+        <rect x="${cx + radius + 12}" y="${cy - 36}" width="${boxWidth}" height="72" fill="rgba(255,255,255,0.94)" stroke="#9333ea" />
+        ${labels.map((line, index) => `<text x="${cx + radius + 20}" y="${cy - 31 + index * 17}" font-size="12" fill="#9333ea" stroke="none">${esc(line)}</text>`).join('')}</g>`;
+    }
+    if (!Array.isArray(area?.points) || area.points.length < 3) return '';
+    const points = area.points.map((point) => toSvg(point.x, point.z));
+    const center = areaLabelPoint(area.points);
+    const [lx, ly] = toSvg(center.x, center.z);
+    const segments = area.points.map((point, index) => {
+      const next = area.points[(index + 1) % area.points.length];
+      const layout = areaSegmentLabelLayout(point, next, toSvg);
+      return layout ? `<text x="${layout.x}" y="${layout.y}" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#9333ea" paint-order="stroke" stroke="white" stroke-width="4">${esc(layout.label)}</text>` : '';
+    }).join('');
+    return `<g class="area-measurement"><polygon points="${points.map((point) => point.join(',')).join(' ')}" fill="rgba(168,85,247,0.13)" stroke="#9333ea" stroke-width="2" />
+      ${points.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="4" fill="#9333ea" />`).join('')}
+      ${segments}<text x="${lx}" y="${ly}" text-anchor="middle" font-size="13" fill="#9333ea" paint-order="stroke" stroke="white" stroke-width="4">${esc(formatArea(area.area).squareMeters)}</text></g>`;
+  }).join('\n  ');
+
+  const shapeEls = (shapes2D || []).filter((shape) => shape?.visible !== false).map((shape) => {
+    const g = transformShapeToCanvas(shape, { toCanvas: toSvg, scale: pxPerM });
+    if (!g) return '';
+    const stroke = shape.style?.stroke || '#111827';
+    const fill = shape.style?.fill ? shape.style?.fillColor || 'none' : 'none';
+    const attrs = `stroke="${stroke}" stroke-width="${shape.style?.strokeWidth || 1}" fill="${fill}"`;
+    if (g.x1 != null) return `<line x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}" ${attrs} />`;
+    if (g.points) return `<polygon points="${g.points.map((point) => point.join(',')).join(' ')}" ${attrs} />`;
+    if (g.radius != null) return `<circle cx="${g.x}" cy="${g.y}" r="${g.radius}" ${attrs} />`;
+    const shapeBody = shape.type === 'triangle'
+      ? `<polygon points="0,${-g.height / 2} ${g.width / 2},${g.height / 2} ${-g.width / 2},${g.height / 2}" ${attrs} />`
+      : `<rect x="${-g.width / 2}" y="${-g.height / 2}" width="${g.width}" height="${g.height}" ${attrs} />`;
+    const elevationDetails = shape.type === 'elevation' ? `<g class="elevation-details" fill="none" stroke="${stroke}">
+      ${(g.components || []).map((component) => `<rect x="${(component.x - component.width / 2) * pxPerM}" y="${(component.y - component.height / 2) * pxPerM}" width="${component.width * pxPerM}" height="${component.height * pxPerM}" />`).join('')}
+      <circle cx="${g.width / 2 + 24}" cy="0" r="14" />
+      <path d="M -14 14 L 0 26 L 14 14 Z" transform="translate(${g.width / 2 + 24} 0) rotate(${{ front: 0, back: 180, left: 90, right: -90 }[shape.viewDirection] || 0})" />
+      <text x="${g.width / 2 + 24}" y="0" fill="${stroke}" stroke="none" text-anchor="middle" dominant-baseline="middle" font-size="12">${esc(shape.label || '')}</text>
+    </g>` : '';
+    return `<g transform="translate(${g.x} ${g.y}) rotate(${(g.rotation || 0) * 180 / Math.PI})">${shapeBody}${elevationDetails}</g>`;
+  }).join('\n  ');
+
+  const textEls = (texts2D || []).filter((item) => item?.visible !== false).map((item) => {
+    const [x, y] = toSvg(item.geometry.x, item.geometry.y);
+    const size = (Number(item.style?.fontSize) || 0.2) * pxPerM;
+    const anchor = { left: 'start', center: 'middle', right: 'end' }[item.style?.align] || 'start';
+    const lines = String(item.text || '').split('\n');
+    return `<text x="${x}" y="${y}" transform="rotate(${(-Number(item.geometry.rotation || 0) * 180 / Math.PI)} ${x} ${y})" font-size="${size}" font-family="${esc(item.style?.fontFamily || 'Arial')}" fill="${item.style?.color || '#000'}" text-anchor="${anchor}">${lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? -(lines.length - 1) * size * 0.6 : size * 1.2}">${esc(line)}</tspan>`).join('')}</text>`;
+  }).join('\n  ');
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff" />
@@ -262,6 +406,10 @@ export function generatePlanSvg({
   ${doorEls}
   ${columnEls}
   ${partEls}
+  ${shapeEls}
+  ${textEls}
+  ${dimensionEls}
+  ${areaEls}
 </svg>`;
 }
 
@@ -311,11 +459,13 @@ export function printSvgAsPdf(svgText, { title = 'Planta 2D' } = {}) {
   const w = window.open('', '_blank');
   if (!w) return;
   w.document.open();
+  const dimensions = svgText.match(/<svg[^>]*width="(\d+)" height="(\d+)"/);
+  const landscape = dimensions && Number(dimensions[1]) > Number(dimensions[2]);
   w.document.write(`<!doctype html><html><head><title>${title}</title>
     <style>
-      @page { margin: 10mm; }
+      @page { size: A4 ${landscape ? 'landscape' : 'portrait'}; margin: 10mm; }
       body { margin: 0; font-family: sans-serif; }
-      svg { width: 100%; height: auto; }
+      svg { display: block; width: auto; height: auto; max-width: 100%; max-height: ${landscape ? '190mm' : '277mm'}; margin: auto; }
     </style>
   </head><body>${svgText}</body></html>`);
   w.document.close();

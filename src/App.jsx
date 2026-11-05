@@ -1,6 +1,6 @@
 // src/App.jsx
 import './App.css';
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 
 import ThreeCanvas from './components/ThreeCanvas.jsx';
 import ImportedModelGroupInspector from './components/ImportedModelGroupInspector.jsx';
@@ -25,6 +25,7 @@ import {
 
 //2d
 import Plan2DOverlay from './components/Plan2DOverlay';
+import { resolvePlanDimensions2D, resolvePlanShapes2D } from './plan2d/planRenderSnapshot2D.js';
 import { createShape2DId, deleteShape2D, translateShape2D, updateShape2D } from './plan2d/geometry2D/shapeEditor2D';
 import { createShape } from './plan2d/geometry2D/shapes2D';
 import { rotateShape2D } from './plan2d/geometry2D/shapeInteraction2D';
@@ -697,21 +698,24 @@ export default function App() {
     }
     return map;
   }, [materials]);
+  const planRenderSnapshotRef = useRef(null);
+  const handleExportRenderSnapshot = useCallback((snapshot) => { planRenderSnapshotRef.current = snapshot; }, []);
 
   //console.log('[App] materials:', materials?.length, 'materialsByCode:', materialsByCode.size);
 
   const getPlanData = () => {
     const parts = threeApiRef.current?.getPartsSnapshot2D?.({ detailAll: detailLevel > 1 }) || [];
-    return { parts, walls, columns, openings };
+    const liveRender = planRenderSnapshotRef.current?.sourceShapes === shapes2D &&
+      planRenderSnapshotRef.current?.sourceDimensions === dimensions ? planRenderSnapshotRef.current : null;
+    const renderedShapes = liveRender?.shapes2D || resolvePlanShapes2D(shapes2D);
+    const renderedDimensions = liveRender?.dimensions || resolvePlanDimensions2D(parts, renderedShapes, dimensions, false).dimensions;
+    return { parts, walls, columns, openings, dimensions: renderedDimensions, areaMeasurements, shapes2D: renderedShapes, texts2D };
   };
 
   const exportPlanSvg = () => {
-    const { parts, walls, columns, openings } = getPlanData();
     const svg = generatePlanSvg({
-      parts,
-      walls,
-      columns,
-      openings,
+      ...getPlanData(),
+      invertZ: false,
       detailLevel,
       detailAll: true,
       title: 'Planta 2D (Piezas + Muros)',
@@ -720,12 +724,9 @@ export default function App() {
   };
 
   const exportPlanPng = async () => {
-    const { parts, walls, columns, openings } = getPlanData();
     const svg = generatePlanSvg({
-      parts,
-      walls,
-      columns,
-      openings,
+      ...getPlanData(),
+      invertZ: false,
       detailLevel,
       detailAll: true,
       title: 'Planta 2D (Piezas + Muros)',
@@ -734,12 +735,9 @@ export default function App() {
   };
 
   const exportPlanPdf = () => {
-    const { parts, walls, columns, openings } = getPlanData();
     const svg = generatePlanSvg({
-      parts,
-      walls,
-      columns,
-      openings,
+      ...getPlanData(),
+      invertZ: false,
       detailLevel,
       detailAll: true,
       title: 'Planta 2D (Piezas + Muros)',
@@ -1956,6 +1954,7 @@ export default function App() {
             areaMethod={areaMethod}
             onAreaDraftChange={setAreaDraftInProgress}
             areaMeasurements={areaMeasurements}
+            onExportRenderSnapshot={handleExportRenderSnapshot}
             selectedAreaId={selectedAreaId}
             onSelectArea={setSelectedAreaId}
             onAddArea={addAreaMeasurement}
